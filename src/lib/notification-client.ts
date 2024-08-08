@@ -6,7 +6,12 @@ export const NOTIFICATIONS_UPDATED_EVENT = 'notifications:updated';
  * 统一在这里兼容处理，避免前端 `!is_read` 把字符串 'false'（truthy）误判为已读。
  */
 export function isNotificationUnread(value: unknown): boolean {
-  return value === false || value === 'false' || value === '0' || value === 0 || value === null || value === undefined;
+  if (value === false || value === 0 || value === '0' || value === null || value === undefined) return true;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'false' || normalized === '0' || normalized === '';
+  }
+  return false;
 }
 
 /** 判断通知是否已读（与 isNotificationUnread 互补） */

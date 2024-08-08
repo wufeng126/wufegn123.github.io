@@ -70,11 +70,17 @@ function mapChineseCondition(text: string): string {
 /** 风力等级表：等级 → 描述（用于 windLevel 字段） */
 const WIND_LEVEL_NAMES = ['无风', '软风', '轻风', '微风', '和风', '清风', '强风', '疾风', '大风', '烈风', '狂风', '暴风', '飓风'];
 
-/** 由风速(km/h)推风力等级描述（0-12级） */
+/** 蒲福风级：各级风速下限（km/h），index+1 = 等级 */
+const WIND_LEVEL_SPEED_THRESHOLDS = [1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118];
+
+/** 由风速(km/h)推风力等级描述（0-12 级，按蒲福风级区间） */
 export function getWindLevel(speed: number): string {
-  const level = Math.round(Math.cbrt(Math.max(speed, 0)) * 1.3);
-  const idx = Math.min(Math.max(level, 0), 12);
-  return WIND_LEVEL_NAMES[idx];
+  const s = Math.max(speed, 0);
+  let level = 0;
+  for (let i = 0; i < WIND_LEVEL_SPEED_THRESHOLDS.length; i += 1) {
+    if (s >= WIND_LEVEL_SPEED_THRESHOLDS[i]) level = i + 1;
+  }
+  return WIND_LEVEL_NAMES[level];
 }
 
 /** 由风力等级数字 → 等级描述（中央气象台直接给 0-12 级） */
