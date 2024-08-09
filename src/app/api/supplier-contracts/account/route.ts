@@ -116,6 +116,9 @@ export async function GET(request: NextRequest) {
     let settlementRecords: SettlementRecord[] = [];
     let paymentRecords: PaymentRecord[] = [];
     let projectRecords: ProjectRecord[] = [];
+    // 历史老表数据（settlements/payments 挂 supplier_id 直连），用于补全台账中因合同关联缺失而丢失的金额
+    let legacySettlementRecords: { supplier_id?: number | string | null; settlement_amount?: number | string | null }[] = [];
+    let legacyPaymentRecords: { supplier_id?: number | string | null; payment_amount?: number | string | null }[] = [];
 
     if (contractIds.length > 0) {
       const { data: settlements, error: settlementsError } = await supabase
@@ -135,6 +138,22 @@ export async function GET(request: NextRequest) {
 
       if (paymentsError) throw paymentsError;
       paymentRecords = (payments || []) as PaymentRecord[];
+
+      // 老表结算/付款：挂 supplier_id 直连，不受合同关联缺失影响，补全台账
+      const [legacySettlementsRes, legacyPaymentsRes] = await Promise.all([
+        supabase
+          .from('settlements')
+          .select('supplier_id, settlement_amount')
+          .in('supplier_id', supplierIds),
+        supabase
+          .from('payments')
+          .select('supplier_id, payment_amount')
+          .in('supplier_id', supplierIds),
+      ]);
+      if (legacySettlementsRes.error) throw legacySettlementsRes.error;
+      if (legacyPaymentsRes.error) throw legacyPaymentsRes.error;
+      legacySettlementRecords = (legacySettlementsRes.data || []) as typeof legacySettlementRecords;
+      legacyPaymentRecords = (legacyPaymentsRes.data || []) as typeof legacyPaymentRecords;
     }
 
     if (projectIds.length > 0) {
@@ -171,6 +190,21 @@ export async function GET(request: NextRequest) {
     paymentRecords.forEach((payment) => {
       if (!isEffectiveSupplierPaymentStatus(payment.status)) return;
       const sid = Number(payment.supplier_id) || contractToSupplier.get(Number(payment.contract_id));
+      if (!sid) return;
+      paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + parseNumeric(payment.payment_amount));
+    });
+
+    // 老表数据并入台账（历史结算/付款不再因合同关联缺失而丢失）
+    legacySettlementRecords.forEach((settlement) => {
+      const sid = Number(settlement.supplier_id);
+      if (!sid) return;
+      settlementBySupplier.set(
+        sid,
+        (settlementBySupplier.get(sid) || 0) + parseNumeric(settlement.settlement_amount)
+      );
+    });
+    legacyPaymentRecords.forEach((payment) => {
+      const sid = Number(payment.supplier_id);
       if (!sid) return;
       paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + parseNumeric(payment.payment_amount));
     });

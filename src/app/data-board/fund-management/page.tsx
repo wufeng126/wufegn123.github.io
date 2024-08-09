@@ -445,21 +445,21 @@ export default function FundManagementDashboard() {
   const ledgerSection = (
     <CollapsibleSection title="项目结算付款明细" icon="file-text" defaultOpen={true}>
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3 px-2 font-medium">项目名称</th>
-              <th className="text-right py-3 px-2 font-medium">开票金额(应收)</th>
-              <th className="text-right py-3 px-2 font-medium">已付款</th>
-              <th className="text-right py-3 px-2 font-medium">未付款</th>
-              <th className="text-right py-3 px-2 font-medium">回款率</th>
-              <th className="text-center py-3 px-2 font-medium">状态</th>
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-muted/50 text-xs text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 font-medium">项目名称</th>
+              <th className="px-4 py-3 text-right font-medium">开票金额(应收)</th>
+              <th className="px-4 py-3 text-right font-medium">已付款</th>
+              <th className="px-4 py-3 text-right font-medium">未付款</th>
+              <th className="px-4 py-3 text-right font-medium">回款率</th>
+              <th className="px-4 py-3 text-center font-medium">状态</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-border/60">
             {tableData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                   暂无数据
                 </td>
               </tr>
@@ -467,18 +467,18 @@ export default function FundManagementDashboard() {
               tableData.map((row, index) => {
                 const paymentRate = row.settlement > 0 ? (row.payment / row.settlement) * 100 : 0;
                 return (
-                  <tr key={index} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-2">
+                  <tr key={index} className="hover:bg-muted/50">
+                    <td className="px-4 py-3">
                       <LinkableCell href={`/projects/${row.projectId}`}>
                         {row.project}
                       </LinkableCell>
                     </td>
-                    <td className="text-right py-3 px-2">{formatCurrency(row.settlement)}</td>
-                    <td className="text-right py-3 px-2 text-green-600">{formatCurrency(row.payment)}</td>
-                    <td className={`text-right py-3 px-2 ${row.unpaid > 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(row.settlement)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-green-600">{formatCurrency(row.payment)}</td>
+                    <td className={`px-4 py-3 text-right tabular-nums ${row.unpaid > 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                       {formatCurrency(row.unpaid)}
                     </td>
-                    <td className="text-right py-3 px-2">
+                    <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-16 bg-gray-200 rounded-full h-1.5">
                           <div
@@ -486,17 +486,17 @@ export default function FundManagementDashboard() {
                             style={{ width: `${Math.min(paymentRate, 100)}%` }}
                           />
                         </div>
-                        <span>{paymentRate.toFixed(1)}%</span>
+                        <span className="tabular-nums">{paymentRate.toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="text-center py-3 px-2">
+                    <td className="px-4 py-3 text-center">
                       {row.unpaid <= 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded-md text-xs">
                           <CheckCircle className="h-3 w-3" />
                           已结清
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 text-rose-700 rounded-md text-xs">
                           <AlertTriangle className="h-3 w-3" />
                           欠款
                         </span>
@@ -510,14 +510,14 @@ export default function FundManagementDashboard() {
           {tableData.length > 0 && (
             <tfoot>
               <tr className="font-bold bg-muted/50">
-                <td className="py-3 px-2">合计</td>
-                <td className="text-right py-3 px-2">{formatCurrency(stats.totalSettlement)}</td>
-                <td className="text-right py-3 px-2 text-green-600">{formatCurrency(stats.totalPayment)}</td>
-                <td className={`text-right py-3 px-2 ${stats.totalUnpaid > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                <td className="px-4 py-3">合计</td>
+                <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(stats.totalSettlement)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-green-600">{formatCurrency(stats.totalPayment)}</td>
+                <td className={`px-4 py-3 text-right tabular-nums ${stats.totalUnpaid > 0 ? 'text-red-600' : 'text-gray-500'}`}>
                   {formatCurrency(stats.totalUnpaid)}
                 </td>
-                <td className="text-right py-3 px-2">{stats.avgPaymentRate.toFixed(1)}%</td>
-                <td className="text-center py-3 px-2">-</td>
+                <td className="px-4 py-3 text-right tabular-nums">{stats.avgPaymentRate.toFixed(1)}%</td>
+                <td className="px-4 py-3 text-center">-</td>
               </tr>
             </tfoot>
           )}

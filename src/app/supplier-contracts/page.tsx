@@ -37,10 +37,9 @@ interface Contract {
   project_id?: number;
   contract_no?: string;
   contract_name: string;
-  total_amount: number;
   payment_ratio_active: number;
   payment_ratio_complete: number;
-  warranty_ratio: number;
+  payment_ratio_final: number;
   contract_status: string;
   total_settlement: number;
   total_payable: number;
@@ -52,6 +51,7 @@ interface Contract {
 interface Stats {
   totalContracts: number;
   totalAmount: number;
+  avgPaymentRatio: number;
   totalSettlement: number;
   totalPayable: number;
   totalPaid: number;
@@ -92,8 +92,8 @@ export default function SupplierContractsPage() {
   // 表单状态
   const [contractForm, setContractForm] = useState({
     supplier_id: '', project_id: '', contract_no: '', contract_name: '',
-    sign_date: '', expire_date: '', total_amount: '', supply_content: '',
-    payment_ratio_active: '80', payment_ratio_complete: '95', warranty_ratio: '0',
+    sign_date: '', expire_date: '', supply_content: '',
+    payment_ratio_active: '80', payment_ratio_complete: '95', payment_ratio_final: '0',
     payment_method: '按进度付款', remark: '',
   });
 
@@ -167,8 +167,8 @@ export default function SupplierContractsPage() {
     setEditingContract(null);
     setContractForm({
       supplier_id: '', project_id: '', contract_no: '', contract_name: '',
-      sign_date: '', expire_date: '', total_amount: '', supply_content: '',
-      payment_ratio_active: '80', payment_ratio_complete: '95', warranty_ratio: '0',
+      sign_date: '', expire_date: '', supply_content: '',
+      payment_ratio_active: '80', payment_ratio_complete: '95', payment_ratio_final: '0',
       payment_method: '按进度付款', remark: '',
     });
     setContractDialogOpen(true);
@@ -183,11 +183,10 @@ export default function SupplierContractsPage() {
       contract_name: contract.contract_name,
       sign_date: '',
       expire_date: '',
-      total_amount: String(contract.total_amount || ''),
       supply_content: '',
       payment_ratio_active: String(contract.payment_ratio_active || 80),
       payment_ratio_complete: String(contract.payment_ratio_complete || 95),
-      warranty_ratio: String(contract.warranty_ratio || 0),
+      payment_ratio_final: String(contract.payment_ratio_final || 0),
       payment_method: '按进度付款',
       remark: '',
     });
@@ -208,10 +207,9 @@ export default function SupplierContractsPage() {
         body: JSON.stringify({
           ...contractForm,
           supplier_id: parseInt(contractForm.supplier_id),
-          total_amount: parseFloat(contractForm.total_amount) || 0,
           payment_ratio_active: parseFloat(contractForm.payment_ratio_active) || 80,
           payment_ratio_complete: parseFloat(contractForm.payment_ratio_complete) || 95,
-          warranty_ratio: parseFloat(contractForm.warranty_ratio) || 0,
+          payment_ratio_final: parseFloat(contractForm.payment_ratio_final) || 0,
         }),
         credentials: 'include',
       });
@@ -241,12 +239,12 @@ export default function SupplierContractsPage() {
 
   // ============ 渲染 ============
   return (
-    <div className="min-h-screen bg-background px-3 py-4 sm:p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <div className="min-h-screen bg-background px-2 py-3 sm:px-4 sm:py-4">
+      <div className="mx-auto max-w-[1600px] space-y-3">
         {/* 页面标题 */}
         <PageHeader
           title="合同管理"
-          description="供应商合同台账：金额、付款比例与结算进度一览"
+          description="供应商合同台账：付款比例与结算进度一览"
           actions={canManage ? (
             <Button onClick={openAddContractDialog} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />新增合同</Button>
           ) : undefined}
@@ -260,8 +258,8 @@ export default function SupplierContractsPage() {
               <p className="mt-1 text-2xl font-bold tabular-nums text-primary">{stats.totalContracts}</p>
             </CardContent></Card>
             <Card><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">合同总额</p>
-              <p className="mt-1 text-lg font-bold tabular-nums">{formatCurrency(stats.totalAmount)}</p>
+              <p className="text-xs text-muted-foreground">平均付款比例</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">{stats.avgPaymentRatio ?? 0}%</p>
             </CardContent></Card>
             <Card className="bg-accent border-primary/20"><CardContent className="p-4">
               <p className="text-xs text-primary">累计结算</p>
@@ -294,16 +292,15 @@ export default function SupplierContractsPage() {
           loading={loading}
           error={loadError}
           onRetry={fetchContracts}
-          minWidth={880}
+          minWidth={800}
           columns={TH => (
             <TableRow>
               <TH>供应商</TH>
               <TH>合同编号</TH>
               <TH>合同名称</TH>
-              <TH className={numCell()}>合同金额</TH>
-              <TH className="text-center">履约中付款比例</TH>
+              <TH className="text-center">付款比例</TH>
               <TH className="text-center">结算付款比例</TH>
-              <TH className="text-center">质保金比例</TH>
+              <TH className="text-center">决算付款比例</TH>
               <TH className={numCell()}>累计结算</TH>
               <TH className={numCell()}>应付</TH>
               <TH className={numCell()}>已付</TH>
@@ -313,16 +310,15 @@ export default function SupplierContractsPage() {
           )}
         >
           {pagedContracts.length === 0 ? (
-            <EmptyRow colSpan={12} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
+            <EmptyRow colSpan={11} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
           ) : pagedContracts.map(contract => (
             <TableRow key={contract.id} className="hover:bg-muted/40">
               <TableCell className="font-medium">{String(contract.supplier?.name || '')}</TableCell>
               <TableCell className="text-muted-foreground">{contract.contract_no || '-'}</TableCell>
               <TableCell>{String(contract.contract_name || '')}</TableCell>
-              <TableCell className={numCell()}>{formatCurrency(contract.total_amount)}</TableCell>
-              <TableCell className="text-center tabular-nums">{Number(contract.payment_ratio_active || 0)}%</TableCell>
+              <TableCell className="text-center tabular-nums font-medium text-blue-600">{Number(contract.payment_ratio_active || 0)}%</TableCell>
               <TableCell className="text-center tabular-nums">{Number(contract.payment_ratio_complete || 0)}%</TableCell>
-              <TableCell className="text-center tabular-nums">{Number(contract.warranty_ratio || 0)}%</TableCell>
+              <TableCell className="text-center tabular-nums">{Number(contract.payment_ratio_final || 0)}%</TableCell>
               <TableCell className={numCell("text-primary")}>{formatCurrency(contract.total_settlement)}</TableCell>
               <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency(contract.total_payable)}</TableCell>
               <TableCell className={numCell("text-green-600")}>{formatCurrency(contract.total_paid)}</TableCell>
@@ -368,8 +364,8 @@ export default function SupplierContractsPage() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <p className="text-muted-foreground">合同金额</p>
-                  <p className="mt-0.5 font-semibold tabular-nums">{formatCurrency(contract.total_amount)}</p>
+                  <p className="text-muted-foreground">付款比例</p>
+                  <p className="mt-0.5 font-semibold tabular-nums text-blue-600">{Number(contract.payment_ratio_active || 0)}%</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">累计结算</p>
@@ -387,7 +383,7 @@ export default function SupplierContractsPage() {
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span>履约 {Number(contract.payment_ratio_active || 0)}%</span>
                 <span>结算 {Number(contract.payment_ratio_complete || 0)}%</span>
-                <span>质保 {Number(contract.warranty_ratio || 0)}%</span>
+                <span>决算 {Number(contract.payment_ratio_final || 0)}%</span>
               </div>
               {canManage && (
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
@@ -407,7 +403,7 @@ export default function SupplierContractsPage() {
             <DialogTitle>{editingContract ? '编辑合同' : '新增合同'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label>供应商 *</Label>
                 <Select value={contractForm.supplier_id} onValueChange={v => setContractForm(prev => ({ ...prev, supplier_id: v }))}>
@@ -428,7 +424,7 @@ export default function SupplierContractsPage() {
               <Input value={contractForm.contract_name} onChange={e => setContractForm(prev => ({ ...prev, contract_name: e.target.value }))} className="mt-1" />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <Label>签订日期</Label>
                 <Input type="date" value={contractForm.sign_date} onChange={e => setContractForm(prev => ({ ...prev, sign_date: e.target.value }))} className="mt-1" />
@@ -437,30 +433,24 @@ export default function SupplierContractsPage() {
                 <Label>有效期至</Label>
                 <Input type="date" value={contractForm.expire_date} onChange={e => setContractForm(prev => ({ ...prev, expire_date: e.target.value }))} className="mt-1" />
               </div>
-            </div>
-
-            <div>
-              <Label>合同金额</Label>
-              <Input type="number" value={contractForm.total_amount} onChange={e => setContractForm(prev => ({ ...prev, total_amount: e.target.value }))} className="mt-1" placeholder="0.00" />
-            </div>
-
-            <div>
-              <Label>供应内容</Label>
-              <Textarea value={contractForm.supply_content} onChange={e => setContractForm(prev => ({ ...prev, supply_content: e.target.value }))} className="mt-1" rows={2} />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <Label>履约中付款比例 (%)</Label>
-                <Input type="number" value={contractForm.payment_ratio_active} onChange={e => setContractForm(prev => ({ ...prev, payment_ratio_active: e.target.value }))} className="mt-1" />
+                <Label>供应内容</Label>
+                <Input value={contractForm.supply_content} onChange={e => setContractForm(prev => ({ ...prev, supply_content: e.target.value }))} className="mt-1" placeholder="供应内容简介" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <Label>付款比例 (%)</Label>
+                <Input type="number" value={contractForm.payment_ratio_active} onChange={e => setContractForm(prev => ({ ...prev, payment_ratio_active: e.target.value }))} className="mt-1" min={0} max={100} />
               </div>
               <div>
                 <Label>结算付款比例 (%)</Label>
-                <Input type="number" value={contractForm.payment_ratio_complete} onChange={e => setContractForm(prev => ({ ...prev, payment_ratio_complete: e.target.value }))} className="mt-1" />
+                <Input type="number" value={contractForm.payment_ratio_complete} onChange={e => setContractForm(prev => ({ ...prev, payment_ratio_complete: e.target.value }))} className="mt-1" min={0} max={100} />
               </div>
               <div>
-                <Label>质保金比例 (%)</Label>
-                <Input type="number" value={contractForm.warranty_ratio} onChange={e => setContractForm(prev => ({ ...prev, warranty_ratio: e.target.value }))} className="mt-1" />
+                <Label>决算付款比例 (%)</Label>
+                <Input type="number" value={contractForm.payment_ratio_final} onChange={e => setContractForm(prev => ({ ...prev, payment_ratio_final: e.target.value }))} className="mt-1" min={0} max={100} />
               </div>
             </div>
 

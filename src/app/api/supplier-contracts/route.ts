@@ -95,9 +95,11 @@ export async function GET(request: NextRequest) {
     );
 
     // 计算汇总
+    const ratioSum = contractsWithStats.reduce((sum: number, c: any) => sum + Number(c.payment_ratio_active || 0), 0);
     const summary = {
       totalContracts: contractsWithStats.length,
       totalAmount: contractsWithStats.reduce((sum: number, c: any) => sum + Number(c.total_amount || 0), 0),
+      avgPaymentRatio: contractsWithStats.length > 0 ? Math.round((ratioSum / contractsWithStats.length) * 100) / 100 : 0,
       totalSettlement: contractsWithStats.reduce((sum: number, c: any) => sum + c.total_settlement, 0),
       totalPayable: contractsWithStats.reduce((sum: number, c: any) => sum + c.total_payable, 0),
       totalPaid: contractsWithStats.reduce((sum: number, c: any) => sum + c.total_paid, 0),
@@ -146,7 +148,8 @@ export async function POST(request: NextRequest) {
         contract_name,
         sign_date: sign_date || null,
         expire_date: expire_date || null,
-        total_amount: total_amount === '' ? null : (total_amount ? Number(total_amount) : 0),
+        // 合同金额字段已取消（前端不再录入），历史数据保留
+        total_amount: total_amount === '' ? null : (total_amount ? Number(total_amount) : null),
         supply_content: supply_content || null,
         attachment_url: attachment_url || null,
         payment_method: payment_method || '按进度付款',
