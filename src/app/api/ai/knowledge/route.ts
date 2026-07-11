@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, category, source_type, content, source_ref, created_by } = body;
+    const { title, category, source_type, content, source_ref, created_by, tags } = body;
 
     if (!title || !category || !content) {
       return NextResponse.json({ success: false, error: '标题、分类和内容不能为空' }, { status: 400 });
@@ -59,6 +59,11 @@ export async function POST(request: NextRequest) {
       source_type: source_type || 'manual',
       source_ref,
       content,
+      tags: Array.isArray(tags)
+        ? tags
+        : typeof tags === 'string'
+          ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
+          : [],
       status: kbSuccess ? 'active' : 'error',
       error_message: kbSuccess ? null : '向量库同步失败',
       chunk_count: kbSuccess ? 1 : 0,
