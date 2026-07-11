@@ -416,7 +416,7 @@ export default function KnowledgePage() {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ role?: string; username?: string; name?: string } | null>(null);
   const [pendingOnly, setPendingOnly] = useState(false);
 
   useEffect(() => {

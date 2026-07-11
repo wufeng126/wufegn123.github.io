@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Link2, Loader2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Link2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
 
 type KnowledgeDoc = {
   id: string | number;
@@ -158,7 +158,7 @@ export default function KnowledgeDetailPage() {
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [comment, setComment] = useState('');
   const [acting, setActing] = useState(false);
 
@@ -183,11 +183,11 @@ export default function KnowledgeDetailPage() {
         setDocs(items);
         setDoc(current || null);
         if (!current) setError('未找到该知识条目，可能已删除或无权限查看。');
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!mounted) return;
         setDocs([]);
         setDoc(null);
-        setError(e.message || '知识详情加载失败');
+        setError(e instanceof Error ? e.message : '知识详情加载失败');
       } finally {
         if (mounted) setLoading(false);
       }
