@@ -1,0 +1,350 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getCurrentUser } from '@/lib/auth';
+import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
+import { pushBusinessNotification } from '@/lib/business-notification';
+
+// 安全解析 numeric 类型
+function parseNumeric(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  // 处理 Decimal.js 对象格式
+  if (typeof value === 'object') {
+    if ('$numberDecimal' in value) {
+      const parsed = parseFloat(String(value.$numberDecimal));
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    // 处理 { "0": "-", "1": "2", ... } 格式
+    const str = Object.keys(value)
+      .filter(k => !isNaN(Number(k)))
+      .sort((a, b) => Number(a) - Number(b))
+      .map(k => String(value[k]))
+      .join('');
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
+// 获取可访问的项目ID列表
+async function getAccessibleProjectIds(userId: number, userRole: string) {
+  const client = getSupabaseClient();
+  
+  // 超级管理员可以访问所有项目
+  if (userRole === 'super_admin') {
+    const { data } = await client.from('projects').select('id');
+    return (data || []).map((p: any) => p.id);
+  }
+  
+  // 获取用户直接分配的项目
+  const { data: userData } = await client
+    .from('users')
+    .select('managed_projects')
+    .eq('id', userId)
+    .single();
+  
+  const userProjects: number[] = userData?.managed_projects || [];
+  
+  // 获取用户通过角色分配的项目
+  const { data: userRoles } = await client
+    .from('user_roles')
+    .select('role_id')
+    .eq('user_id', userId);
+  
+  const roleProjects: number[] = [];
+  if (userRoles && userRoles.length > 0) {
+    const roleIds = userRoles.map((ur: any) => ur.role_id);
+    const { data: roles } = await client
+      .from('roles')
+      .select('allowed_projects')
+      .in('id', roleIds);
+    
+    if (roles) {
+      for (const role of roles) {
+        if (role.allowed_projects && Array.isArray(role.allowed_projects)) {
+          roleProjects.push(...role.allowed_projects);
+        }
+      }
+    }
+  }
+  
+  return [...new Set([...userProjects, ...roleProjects])];
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const workerId = searchParams.get('worker_id');
+    const projectId = searchParams.get('project_id');
+    const month = searchParams.get('month');
+
+    const client = getSupabaseClient();
+    
+    // 获取当前用户
+    const user = await getCurrentUser();
+    
+    // 获取可访问的项目ID
+    const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
+    
+    let query = client
+      .from('worker_salaries')
+      .select(`
+        id,
+        worker_id,
+        project_id,
+        year_month,
+        work_hours,
+        hourly_rate,
+        contract_work_pay,
+        gross_pay,
+        income_tax,
+        advance_pay,
+        labor_insurance,
+        fine,
+        net_pay,
+        remark,
+        payment_status,
+        workers (
+          name
+        ),
+        projects (
+          name
+        )
+      `)
+      .order('year_month', { ascending: false });
+
+    if (workerId) {
+      query = query.eq('worker_id', parseInt(workerId));
+    }
+    
+    if (projectId) {
+      query = query.eq('project_id', parseInt(projectId));
+    }
+
+    if (month) {
+      // 使用 ilike 进行模糊匹配，支持 YYYY-MM 和 YYYY-MM-DD 格式
+      query = query.ilike('year_month', `${month}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`查询工资记录失败: ${error.message}`);
+    }
+
+    // 查询工资发放记录（salary_payments）
+    const { data: salaryPaymentsData } = await client
+      .from('salary_payments')
+      .select('salary_id, payment_amount');
+
+    // 按 salary_id 汇总已付金额
+    const paidAmountMap = new Map<number, number>();
+    (salaryPaymentsData || []).forEach((payment: any) => {
+      const current = paidAmountMap.get(payment.salary_id) || 0;
+      paidAmountMap.set(payment.salary_id, current + parseNumeric(payment.payment_amount));
+    });
+
+    // 数据权限过滤
+    let filteredData = data || [];
+    if (accessibleProjects.length > 0) {
+      filteredData = filteredData.filter((record: any) => accessibleProjects.includes(record.project_id));
+    }
+
+    // 格式化返回数据，关联已付金额，确保所有金额字段为数字类型
+    const salaries = filteredData.map(record => ({
+      id: record.id,
+      worker_id: record.worker_id,
+      project_id: record.project_id,
+      worker_name: (record.workers as any)?.name || '未知工人',
+      project_name: (record.projects as any)?.name || '未知项目',
+      year_month: record.year_month,
+      work_hours: parseNumeric(record.work_hours),
+      hourly_rate: parseNumeric(record.hourly_rate),
+      contract_work_pay: parseNumeric(record.contract_work_pay),
+      gross_pay: parseNumeric(record.gross_pay),
+      income_tax: parseNumeric(record.income_tax),
+      advance_pay: parseNumeric(record.advance_pay),
+      labor_insurance: parseNumeric(record.labor_insurance),
+      fine: parseNumeric(record.fine),
+      net_pay: parseNumeric(record.net_pay),
+      paid_amount: paidAmountMap.get(record.id) || 0,
+      payment_status: record.payment_status || 'unpaid',
+      remark: record.remark,
+    }));
+
+    // 计算总金额
+    const totalGrossPay = filteredData.reduce((sum: number, record: any) => {
+      return sum + parseNumeric(record.gross_pay || '0');
+    }, 0);
+
+    const totalNetPay = filteredData.reduce((sum: number, record: any) => {
+      return sum + parseNumeric(record.net_pay || '0');
+    }, 0);
+
+    const totalPaid = filteredData.reduce((sum: number, record: any) => {
+      return sum + (paidAmountMap.get(record.id) || 0);
+    }, 0);
+
+    // 按项目汇总
+    const projectSummaryMap = new Map<string, {
+      project_id: number | null;
+      project_name: string;
+      total_gross_pay: number;
+      total_income_tax: number;
+      total_advance_pay: number;
+      total_labor_insurance: number;
+      total_fine: number;
+      total_net_pay: number;
+      total_paid: number;
+      worker_count: number;
+    }>();
+
+    filteredData.forEach((record: any) => {
+      const projectName = (record.projects as any)?.name || '未分配项目';
+      const projectId = record.project_id;
+      const grossPay = parseNumeric(record.gross_pay || '0');
+      const incomeTax = parseNumeric(record.income_tax || '0');
+      const advancePay = parseNumeric(record.advance_pay || '0');
+      const laborInsurance = parseNumeric(record.labor_insurance || '0');
+      const fine = parseNumeric(record.fine || '0');
+      const netPay = parseNumeric(record.net_pay || '0');
+      const paidAmount = paidAmountMap.get(record.id) || 0;
+
+      const key = String(projectId || 'null');
+      
+      if (!projectSummaryMap.has(key)) {
+        projectSummaryMap.set(key, {
+          project_id: projectId,
+          project_name: projectName,
+          total_gross_pay: 0,
+          total_income_tax: 0,
+          total_advance_pay: 0,
+          total_labor_insurance: 0,
+          total_fine: 0,
+          total_net_pay: 0,
+          total_paid: 0,
+          worker_count: 0,
+        });
+      }
+
+      const summary = projectSummaryMap.get(key)!;
+      summary.total_gross_pay += grossPay;
+      summary.total_income_tax += incomeTax;
+      summary.total_advance_pay += advancePay;
+      summary.total_labor_insurance += laborInsurance;
+      summary.total_fine += fine;
+      summary.total_net_pay += netPay;
+      summary.total_paid += paidAmount;
+      summary.worker_count += 1;
+    });
+
+    const projectSummary = Array.from(projectSummaryMap.values());
+
+    return NextResponse.json({ 
+      salaries,
+      totalGrossPay: totalGrossPay.toFixed(2),
+      totalNetPay: totalNetPay.toFixed(2),
+      totalPaid: totalPaid.toFixed(2),
+      projectSummary,
+    });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: error.message || '查询失败' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { 
+      worker_id, 
+      project_id, 
+      year_month,
+      work_hours,
+      hourly_rate,
+      contract_work_pay,
+      gross_pay,
+      income_tax,
+      advance_pay,
+      labor_insurance,
+      fine,
+      net_pay,
+      remark 
+    } = body;
+
+    // 计算应发工资和实发工资（前端可能未传入，由后端自动计算）
+    const calculatedGrossPay = gross_pay != null ? gross_pay : (parseFloat(work_hours || '0') * parseFloat(hourly_rate || '0') + parseFloat(contract_work_pay || '0'));
+    const calculatedNetPay = net_pay != null ? net_pay : (calculatedGrossPay - parseFloat(income_tax || '0') - parseFloat(advance_pay || '0') - parseFloat(labor_insurance || '0') - parseFloat(fine || '0'));
+
+    if (worker_id == null || project_id == null || !year_month) {
+      return NextResponse.json({ error: '请填写完整信息' }, { status: 400 });
+    }
+
+    const client = getSupabaseClient();
+    
+    // 获取当前用户并验证权限
+    const user = await getCurrentUser();
+    const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
+    
+    if (accessibleProjects.length > 0 && !accessibleProjects.includes(project_id)) {
+      return NextResponse.json({ error: '无权在该项目下创建工资记录' }, { status: 403 });
+    }
+    
+    const { data, error } = await insertWithSequenceFix('worker_salaries', { 
+        worker_id: parseInt(worker_id),
+        project_id: parseInt(project_id),
+        year_month,
+        work_hours: work_hours || '0',
+        hourly_rate: hourly_rate || '0',
+        contract_work_pay: contract_work_pay || '0',
+        gross_pay: calculatedGrossPay,
+        income_tax: income_tax || '0',
+        advance_pay: advance_pay || '0',
+        labor_insurance: labor_insurance || '0',
+        fine: fine || '0',
+        net_pay: calculatedNetPay,
+        remark 
+      }, client);
+
+    const salaryData = Array.isArray(data) ? data[0] : data;
+
+    if (error) {
+      throw new Error(`创建工资记录失败: ${error.message}`);
+    }
+
+    await auditLog({
+      operationType: 'create',
+      resourceType: 'worker_salary',
+      resourceId: salaryData?.id,
+      details: { worker_id, project_id, year_month, gross_pay, net_pay },
+      request,
+    });
+
+    // 钉钉推送通知
+    await pushBusinessNotification({
+      type: 'new_worker_salary',
+      title: '新增月度工资',
+      content: `新增月度工资记录，核算周期: ${year_month}，应发: ¥${Number(gross_pay).toLocaleString()}，实发: ¥${Number(net_pay).toLocaleString()}`,
+      severity: 'info',
+      projectId: project_id ? parseInt(String(project_id)) : undefined,
+      relatedId: salaryData?.id,
+      relatedType: 'worker_salary',
+      metadata: { worker_id, project_id, year_month, gross_pay, net_pay },
+    });
+
+    return NextResponse.json({ salary: salaryData });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: error.message || '创建失败' },
+      { status: 500 }
+    );
+  }
+}

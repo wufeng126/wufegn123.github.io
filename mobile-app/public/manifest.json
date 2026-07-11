@@ -1,0 +1,26 @@
+{
+  "name": "建筑劳务管理系统",
+  "short_name": "劳务管理",
+  "description": "建筑劳务企业数据管理系统 - 管理工人成本、工程量统计、甲方报量、付款情况、签证管理、证件管理",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#165DFF",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "zh-CN"
+}
