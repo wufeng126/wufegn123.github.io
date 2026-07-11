@@ -637,44 +637,97 @@ export default function KnowledgePage() {
           </section>
 
           <section className="kb-card">
-            <div className="kb-section-title">
-              <Layers className="h-5 w-5" />
-              <h2>项目知识</h2>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="kb-section-title">
+                <Layers className="h-5 w-5" />
+                <h2>项目知识</h2>
+              </div>
+              <span className="text-xs text-[#86909C]">{projectCards.length} 个项目 · 点击查看知识详情</span>
             </div>
-            <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               {projectCards.length > 0 ? (
-                projectCards.map(({ project, knowledgeCount, costCount }) => (
-                  <div
-                    key={project.id}
-                    className="min-w-[260px] rounded-xl border border-[#E5E6EB] bg-gradient-to-br from-white to-[#F8FAFF] p-4 transition hover:border-[#165DFF]/40 hover:shadow-[0_10px_24px_rgba(22,93,255,0.10)]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-base font-semibold text-[#1D2129]">{project.name}</h3>
-                        <p className="mt-1 truncate text-sm text-[#86909C]">{project.partner || '合同类型未录入'}</p>
+                projectCards.map(({ project, knowledgeCount, costCount }) => {
+                  // 查找该项目的最新知识
+                  const projectDocs = docs.filter(d => {
+                    const tags = normalizeTags(d.tags);
+                    return tags.includes(project.name) || String(d.source_ref || '').includes(String(project.id));
+                  });
+                  const latestDoc = projectDocs.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())[0];
+                  const docCount = projectDocs.filter(d => {
+                    const tags = normalizeTags(d.tags);
+                    return tags.includes('月度分析');
+                  }).length;
+
+                  return (
+                    <Link
+                      key={project.id}
+                      href={`/knowledge?query=${encodeURIComponent(project.name)}`}
+                      className="group rounded-xl border border-[#E5E6EB] bg-white p-4 transition-all hover:border-[#165DFF]/30 hover:shadow-[0_4px_16px_rgba(22,93,255,0.06)]"
+                    >
+                      {/* 顶部：项目名 + 状态 */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-semibold text-[#1D2129] group-hover:text-[#165DFF] transition-colors">{project.name}</h3>
+                          <p className="mt-0.5 text-xs text-[#86909C]">{project.partner || '暂无合同信息'}</p>
+                        </div>
+                        <div className="shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-[#165DFF] to-[#7C3AED] flex items-center justify-center shadow-sm">
+                          <BookOpen className="h-4 w-4 text-white" />
+                        </div>
                       </div>
-                      <div className="rounded-lg bg-[#F0F5FF] p-2 text-[#165DFF]">
-                        <BookOpen className="h-4 w-4" />
+
+                      {/* 中间：合同额 + 知识统计 */}
+                      <div className="mt-3 flex items-center gap-4">
+                        <div className="flex-1">
+                          <p className="text-xs text-[#A9AEB8]">合同额</p>
+                          <p className="text-lg font-bold text-[#1D2129]">{formatAmount(project.contract_amount)}</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-[#165DFF]">{knowledgeCount}</p>
+                            <p className="text-xs text-[#86909C]">知识篇</p>
+                          </div>
+                          <div className="w-px bg-[#E5E6EB]" />
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-[#7C3AED]">{costCount}</p>
+                            <p className="text-xs text-[#86909C]">成本数据</p>
+                          </div>
+                          <div className="w-px bg-[#E5E6EB]" />
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-[#10B981]">{docCount}</p>
+                            <p className="text-xs text-[#86909C]">月度分析</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-white px-3 py-2">
-                      <p className="text-xs text-[#86909C]">合同额</p>
-                      <p className="mt-1 text-lg font-bold text-[#1D2129]">{formatAmount(project.contract_amount)}</p>
-                    </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-lg bg-[#F7F8FA] p-3">
-                        <p className="text-xs text-[#86909C]">知识篇数</p>
-                        <p className="mt-1 text-xl font-bold text-[#165DFF]">{knowledgeCount}</p>
-                      </div>
-                      <div className="rounded-lg bg-[#F7F8FA] p-3">
-                        <p className="text-xs text-[#86909C]">成本数据项</p>
-                        <p className="mt-1 text-xl font-bold text-[#7C3AED]">{costCount}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))
+
+                      {/* 底部：最新知识预览 */}
+                      {latestDoc && (
+                        <div className="mt-3 pt-3 border-t border-[#F2F3F5]">
+                          <div className="flex items-start gap-2">
+                            <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-[#165DFF] shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs text-[#4E5969] truncate">{latestDoc.title}</p>
+                              <p className="text-[10px] text-[#A9AEB8] mt-0.5">
+                                {latestDoc.created_at ? new Date(latestDoc.created_at).toLocaleDateString('zh-CN') : ''}
+                                {latestDoc.tags && normalizeTags(latestDoc.tags).filter(t => !t.startsWith('状态:')).slice(0, 2).map(t => (
+                                  <span key={t} className="ml-1.5 inline-block px-1 py-0.5 rounded bg-[#F2F3F5] text-[10px]">{t}</span>
+                                ))}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 全无知识时的提示 */}
+                      {!latestDoc && (
+                        <div className="mt-3 pt-3 border-t border-[#F2F3F5]">
+                          <p className="text-xs text-[#C9CDD4]">暂无知识记录，点击创建</p>
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })
               ) : (
-                <div className="w-full rounded-xl border border-dashed border-[#E5E6EB] p-8 text-center text-sm text-[#86909C]">
+                <div className="col-span-2 rounded-xl border border-dashed border-[#E5E6EB] p-8 text-center text-sm text-[#86909C]">
                   暂无项目数据
                 </div>
               )}
