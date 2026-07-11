@@ -60,6 +60,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/hr-salary': { permission: 'workers:view' },
   '/supplier-expense': { permission: 'suppliers:view' },
   '/business-analysis': { permission: 'cost_center:view' },
+  '/construction-logs': {},
   '/knowledge': {},
   '/system-management': { permission: 'system:manage' },
 

@@ -745,5 +745,23 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	unique("ai_daily_usage_user_date_key").on(table.userId, table.usageDate),
-	index("ai_daily_usage_date_idx").using("btree", table.usageDate.asc().nullsLast().op("text_ops")),
-]);
+		index("ai_daily_usage_date_idx").using("btree", table.usageDate.asc().nullsLast().op("text_ops")),
+	]);
+
+	// 施工日志表
+	export const constructionLogs = pgTable("construction_logs", {
+		id: serial().primaryKey().notNull(),
+		projectId: integer("project_id").notNull(),
+		userId: integer("user_id").notNull(),
+		userName: varchar("user_name", { length: 100 }),
+		logDate: varchar("log_date", { length: 10 }).notNull(), // YYYY-MM-DD
+		location: varchar({ length: 200 }), // 施工部位
+		content: text().notNull(), // 施工内容
+		headcount: integer(), // 出勤人数
+		issues: text(), // 异常/问题
+		createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	}, (table) => [
+		index("construction_logs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+		index("construction_logs_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+		index("construction_logs_log_date_idx").using("btree", table.logDate.asc().nullsLast().op("text_ops")),
+	]);
