@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, FileText, Users, CalendarDays, BarChart3, ClipboardList, ArrowRight } from 'lucide-react';
+import { Plus, FileText, Users, CalendarDays, BarChart3, ClipboardList } from 'lucide-react';
 
 type LogItem = { id: number; project_id: number; user_name: string; log_date: string; location: string; content: string; headcount: number; issues: string; created_at: string };
 type StatItem = { user_id: number; user_name: string; count: number; last_date: string };
@@ -15,12 +15,6 @@ export default function ConstructionLogsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'logs' | 'stats'>('stats');
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-
-  const projectMap = useMemo(() => {
-    const m: Record<number, string> = {};
-    projects.forEach(p => { m[p.id] = p.name; });
-    return m;
-  }, [projects]);
 
   useEffect(() => {
     let mounted = true;

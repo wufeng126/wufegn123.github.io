@@ -49,8 +49,8 @@ export default function NewConstructionLogPage() {
       if (!res.ok || json.success === false) throw new Error(json.error || '提交失败');
       setSuccess(true);
       setTimeout(() => router.push('/construction-logs'), 1500);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '提交失败');
     } finally {
       setSaving(false);
     }

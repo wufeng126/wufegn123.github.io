@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
 
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, data: data || [], pagination: { page, pageSize, total: count || 0 } });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '查询失败' }, { status: 500 });
   }
 }
 
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, data });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '提交失败' }, { status: 500 });
   }
 }

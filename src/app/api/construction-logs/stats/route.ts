@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
-    const month = searchParams.get('month'); // YYYY-MM
+    const month = searchParams.get('month');
 
     let query = supabase.from('construction_logs').select('user_id, user_name, log_date');
     if (projectId) query = query.eq('project_id', parseInt(projectId));
@@ -21,9 +21,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    // 按人员统计
+    const rows = data as { user_id: number; user_name: string | null; log_date: string }[];
     const stats: Record<string, { name: string; count: number; lastDate: string }> = {};
-    (data || []).forEach((row: any) => {
+    rows.forEach(row => {
       const key = String(row.user_id);
       if (!stats[key]) stats[key] = { name: row.user_name || `用户${row.user_id}`, count: 0, lastDate: '' };
       stats[key].count++;
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     })).sort((a, b) => b.count - a.count);
 
     return NextResponse.json({ success: true, data: list, total: list.length });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '统计查询失败' }, { status: 500 });
   }
 }
