@@ -17,6 +17,7 @@ import {
   Truck,
   BarChart3,
   BookOpen,
+  Calculator,
   ClipboardList,
   Settings,
   Bell,
@@ -34,6 +35,7 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/supplier-expense': ['suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/business-analysis': ['cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view'],
   '/construction-logs': [],
+  '/cost-estimation': [],
   '/knowledge': [],
   '/system-management': ['system:manage', 'system:permission_manage', 'system:dingtalk_manage', 'notifications:view', 'system:ai_manage', 'audit:view'],
 };
@@ -46,6 +48,7 @@ const TOP_LEVEL_MENUS = [
   { name: '供应商与费用', href: '/supplier-expense', icon: Truck },
   { name: '经营分析', href: '/business-analysis', icon: BarChart3 },
   { name: '施工日志', href: '/construction-logs', icon: ClipboardList },
+  { name: '成本测算', href: '/cost-estimation', icon: Calculator },
   { name: '知识库', href: '/knowledge', icon: BookOpen },
   { name: '系统管理', href: '/system-management', icon: Settings },
 ];
@@ -59,6 +62,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/supplier-expense': '供应商与费用',
   '/business-analysis': '经营分析',
   '/construction-logs': '施工日志',
+  '/cost-estimation': '成本测算',
   '/knowledge': '知识库',
   '/system-management': '系统管理',
   // 保留旧路由标题映射
