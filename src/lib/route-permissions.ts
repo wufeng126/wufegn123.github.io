@@ -236,12 +236,17 @@ export function checkApiWritePermission(
   pathname: string,
   method: string,
   userPermissions: string[],
-  isSuperAdmin: boolean
+  isSuperAdmin: boolean,
+  userRole?: string
 ): boolean {
   // GET 请求仅需登录（读权限由页面级路由控制）
   if (method === 'GET') return true;
   // 超级管理员自动通过
   if (isSuperAdmin) return true;
+
+  if (pathname === '/api/ai/knowledge/monthly/workflow') {
+    return ['admin', 'project_manager', 'boss'].includes(userRole || '');
+  }
 
   // 查找匹配的 API 路由（按长度降序精确匹配）
   for (const route of SORTED_API_WRITE_KEYS) {

@@ -85,6 +85,7 @@ export async function pushBusinessNotification(params: {
     if (type === 'new_client_payment' && (typeEnabledMap['client_payment_reminder_enabled'] || typeEnabledMap['payment_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
     if (type === 'new_supplier_payment' && (typeEnabledMap['supplier_payment_reminder_enabled'] || typeEnabledMap['payment_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
     if (type === 'cost_warning' && typeEnabledMap['cost_warning_enabled']) shouldSend = true;
+    if (type === 'monthly_analysis_workflow' && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
 
     // 钉钉总开关检查
     const { data: dingtalkEnabled } = await supabase

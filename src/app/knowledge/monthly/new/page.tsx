@@ -222,7 +222,7 @@ export default function NewMonthlyKnowledgePage() {
         category: '成本分析',
         source_type: 'manual',
         source_ref: `monthly:${selectedProject.id}:${yearMonth}`,
-        tags: ['月度分析', selectedProject.name, yearMonth],
+        tags: ['月度分析', selectedProject.name, yearMonth, '状态:草稿'],
         content,
         created_by: '月度分析表单',
       };

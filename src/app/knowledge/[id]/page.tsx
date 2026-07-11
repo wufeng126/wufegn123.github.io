@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, BookOpen, CalendarDays, Link2, Tag, UserRound } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Link2, Loader2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
 
 type KnowledgeDoc = {
   id: string | number;
@@ -14,6 +14,15 @@ type KnowledgeDoc = {
   created_at?: string | null;
   updated_at?: string | null;
   tags?: string[] | string | null;
+};
+
+type WorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
+type WorkflowAction = 'submit_to_manager' | 'manager_review' | 'budget_confirm' | 'boss_approve';
+
+type CurrentUser = {
+  role?: string;
+  username?: string;
+  name?: string;
 };
 
 const categoryMap: Record<string, string> = {
@@ -58,6 +67,89 @@ function normalizeTags(tags?: string[] | string | null) {
 function extractWikiLinks(content?: string | null) {
   const matches = [...(content || '').matchAll(/\[\[([^\]]+)\]\]/g)];
   return Array.from(new Set(matches.map(match => match[1]?.trim()).filter(Boolean)));
+}
+
+const workflowSteps: { state: WorkflowState; label: string; actor: string }[] = [
+  { state: 'draft', label: '草稿', actor: '预算员' },
+  { state: 'manager_review', label: '项目经理补充', actor: '项目经理' },
+  { state: 'budget_confirm', label: '预算确认', actor: '预算员' },
+  { state: 'boss_review', label: '老板批复', actor: '老板' },
+  { state: 'completed', label: '完成', actor: '完成' },
+];
+
+const stateLabels: Record<WorkflowState, string> = {
+  draft: '草稿',
+  manager_review: '待项目经理补充',
+  budget_confirm: '待预算确认',
+  boss_review: '待老板批复',
+  completed: '已完成',
+};
+
+const stateTagMap: Record<string, WorkflowState> = {
+  '状态:草稿': 'draft',
+  '状态:待项目经理补充': 'manager_review',
+  '状态:待预算确认': 'budget_confirm',
+  '状态:待老板批复': 'boss_review',
+  '状态:已完成': 'completed',
+};
+
+const stateBadgeClasses: Record<WorkflowState, string> = {
+  draft: 'bg-[#F2F3F5] text-[#4E5969]',
+  manager_review: 'bg-[#E8F3FF] text-[#165DFF]',
+  budget_confirm: 'bg-[#F5EEFF] text-[#722ED1]',
+  boss_review: 'bg-[#FFF7E8] text-[#D46B08]',
+  completed: 'bg-[#E8FFEA] text-[#00A870]',
+};
+
+const actionByState: Partial<Record<WorkflowState, { action: WorkflowAction; label: string; placeholder: string }>> = {
+  draft: {
+    action: 'submit_to_manager',
+    label: '提交给项目经理',
+    placeholder: '可填写提交说明，例如本月重点、需要项目经理补充的问题',
+  },
+  manager_review: {
+    action: 'manager_review',
+    label: '提交补充意见',
+    placeholder: '请补充项目现场情况、成本异常原因、下月风险点等',
+  },
+  budget_confirm: {
+    action: 'budget_confirm',
+    label: '预算确认并提交老板',
+    placeholder: '可填写预算确认意见、需老板关注的经营结论',
+  },
+  boss_review: {
+    action: 'boss_approve',
+    label: '同意并完成',
+    placeholder: '可填写批复意见',
+  },
+};
+
+function getWorkflowState(tags: string[]): WorkflowState {
+  const stateTag = tags.find(tag => tag.startsWith('状态:'));
+  return stateTag ? stateTagMap[stateTag] || 'draft' : 'draft';
+}
+
+function isMonthlyAnalysis(tags: string[]) {
+  return tags.includes('月度分析');
+}
+
+function canUserHandleState(role: string | undefined, state: WorkflowState) {
+  if (state === 'draft' || state === 'budget_confirm') return role === 'admin' || role === 'super_admin';
+  if (state === 'manager_review') return role === 'project_manager';
+  if (state === 'boss_review') return role === 'boss';
+  return false;
+}
+
+function extractWorkflowComments(content?: string | null) {
+  const text = content || '';
+  const sectionStart = text.indexOf('## 审批流程意见');
+  if (sectionStart < 0) return [];
+  const section = text.slice(sectionStart);
+  const matches = [...section.matchAll(/###\s+([^\n]+)\n([\s\S]*?)(?=\n###\s+|\n##\s+|$)/g)];
+  return matches.map(match => ({
+    title: match[1].trim(),
+    body: match[2].trim(),
+  })).filter(item => item.body);
 }
 
 export default function KnowledgeDetailPage() {

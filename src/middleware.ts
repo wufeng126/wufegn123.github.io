@@ -216,7 +216,7 @@ export function middleware(request: NextRequest) {
   // 10. 内部API路由 - 已登录即可访问（GET），写操作需检查权限
   if (INTERNAL_APIS.some(route => pathname === route || pathname.startsWith(route + '/'))) {
     // 写操作（POST/PUT/DELETE/PATCH）检查 API 级别权限
-    if (!checkApiWritePermission(pathname, request.method, userPermissions, isSuperAdmin)) {
+    if (!checkApiWritePermission(pathname, request.method, userPermissions, isSuperAdmin, userRole)) {
       return addCorsHeaders(jsonError('无权执行此操作', 403), request);
     }
     return finalizeResponse(NextResponse.next());
