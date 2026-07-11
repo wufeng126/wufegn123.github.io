@@ -540,13 +540,22 @@ export default function KnowledgePage() {
           <h1 className="text-2xl font-bold text-[#1D2129]">知识库</h1>
           <p className="mt-1 text-sm text-[#86909C]">沉淀项目档案、成本经验、工序单价和投标策略</p>
         </div>
-        <Link
-          href="/knowledge/new"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8]"
-        >
-          <Plus className="h-4 w-4" />
-          写知识
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/knowledge/new"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8]"
+          >
+            <Plus className="h-4 w-4" />
+            写知识
+          </Link>
+          <Link
+            href="/knowledge/monthly/new"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] transition hover:bg-[#F0F5FF]"
+          >
+            <FileText className="h-4 w-4" />
+            写月度分析
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
