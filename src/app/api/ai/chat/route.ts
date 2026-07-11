@@ -3,7 +3,7 @@ import {
   getAIConfig, createLLMClient, extractForwardHeaders, checkDailyLimit, incrementDailyUsage,
   checkModulePermission, maskSensitiveInfo, isBusinessRelated, logAIAudit,
   saveChatMessage, getChatHistory, fetchBusinessDataForContext,
-  buildSystemPrompt, searchKnowledge, getOfflineAnswer,
+  buildSystemPrompt, searchKnowledge, searchSystemKnowledge, getOfflineAnswer,
   clearAIConfigCache, detectQueryIntent,
 } from '@/lib/ai-service';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
@@ -125,6 +125,14 @@ export async function POST(request: NextRequest) {
       console.error('[AI] Knowledge search error:', e);
     }
 
+    // 搜索系统知识库（月度分析、施工日志等）
+    let systemKnowledge = '';
+    try {
+      systemKnowledge = await searchSystemKnowledge(inputSummary);
+    } catch (e) {
+      console.error('[AI] System knowledge search error:', e);
+    }
+
     // 获取业务数据上下文（基于用户意图智能检索）
     let businessData = '';
     try {
@@ -135,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建系统提示词
-    const systemPrompt = buildSystemPrompt(userRole, pageContext, businessData, knowledgeContext);
+    const systemPrompt = buildSystemPrompt(userRole, pageContext, businessData, knowledgeContext, systemKnowledge);
 
     // 处理历史消息
     const filteredMessages = validateAndFilterMessages(messages);

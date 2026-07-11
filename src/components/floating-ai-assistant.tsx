@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { getOfflineResponse, PAGE_SUGGESTIONS, type Suggestion } from '@/lib/ai-assistant-config';
+import { Bot, MessageSquare, History, Plus, Trash2 } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -75,22 +77,34 @@ const TEMPLATE_CATEGORIES = [
   },
 ];
 
-const OFFLINE_RESPONSES: Record<string, string> = {
-  '工资': '工资核算规则：应发工资 = 工时×工价+包活工资；实发工资 = 应发工资-个税-借支-劳保。如需详细数据查询，请稍后重试。',
-  '证件': '证件到期提醒规则：系统自动在30天、15天、7天和已过期四个阶段发送提醒。可在通知中心查看详情。',
-  '成本': '成本计算口径：总成本 = 供应商结算 + 工人工资 + 综合费用 + 税费 + 零星材料。利润 = 总收入 - 总成本。',
-  '回款': '回款率计算：回款率 = 已回款 / 产值结算金额 × 100%。回款率超100%为超收/预收。',
-  '供应商': '供应商结算流程：新建结算→审核→付款。未审核的结算不计入统计。可在供应商成本看板查看详情。',
-  '合同': '合同文件可通过本助手的上传功能上传，AI将自动解析合同条款、单价清单、付款节点等信息并存入知识库。',
-  '默认': 'AI助手暂时不可用，请稍后重试。您可以在系统各页面上查看业务数据，或在通知中心查看预警信息。',
-};
-
-function getOfflineResponse(input: string): string {
-  const lower = input.toLowerCase();
-  for (const [key, value] of Object.entries(OFFLINE_RESPONSES)) {
-    if (key !== '默认' && lower.includes(key)) return value;
+// 页面上下文感知建议
+function getDynamicSuggestions(pageContext?: string): Suggestion[] {
+  if (!pageContext) return [];
+  const lower = pageContext.toLowerCase();
+  for (const mapping of PAGE_SUGGESTIONS) {
+    if (mapping.keywords.some(k => lower.includes(k))) {
+      return mapping.suggestions;
+    }
   }
-  return OFFLINE_RESPONSES['默认'];
+  return [];
+}
+
+// 施工日志异常检测
+async function checkConstructionAlerts(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/construction-logs?pageSize=10');
+    const json = await res.json();
+    const logs = Array.isArray(json.data) ? json.data : [];
+    const alerts: string[] = [];
+    const keyAlerts = ['异常', '问题', '故障', '耽误', '不够', '缺', '慢', '浪费', '损坏', '停工'];
+    for (const log of logs) {
+      if (log.issues && keyAlerts.some(k => log.issues.includes(k))) {
+        alerts.push(`[${log.log_date}] ${log.user_name}: ${log.issues}`);
+        if (alerts.length >= 3) break;
+      }
+    }
+    return alerts;
+  } catch { return []; }
 }
 
 function parseDataCards(text: string): { text: string; cards: DataCard[] } {
@@ -154,6 +168,32 @@ function renderMarkdown(text: string): string {
   html = html.replace(/\n/g, '<br/>');
 
   return html;
+}
+
+
+
+/** 施工日志异常提醒组件 */
+function ConstructionAlerts() {
+  const [alerts, setAlerts] = useState<string[]>([]);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    checkConstructionAlerts().then(setAlerts);
+  }, []);
+
+  if (alerts.length === 0 || dismissed) return null;
+
+  return (
+    <div className="mx-3 mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-red-700">⚠️ 施工日志异常</span>
+        <button onClick={() => setDismissed(true)} className="text-xs text-red-400 hover:text-red-600">✕</button>
+      </div>
+      {alerts.map((a, i) => (
+        <p key={i} className="text-xs text-red-600 leading-relaxed">{a}</p>
+      ))}
+    </div>
+  );
 }
 
 export function FloatingAIAssistant() {
@@ -538,6 +578,11 @@ export function FloatingAIAssistant() {
           </div>
         </div>
 
+        {/* 施工日志异常提醒 */}
+        {activeTab === 'chat' && (
+          <ConstructionAlerts />
+        )}
+
         {/* 文件上传区域 */}
         {activeTab === 'upload' && (
           <div className="flex-1 p-4 overflow-y-auto">
@@ -665,6 +710,22 @@ export function FloatingAIAssistant() {
                       ))}
                     </div>
                   </div>
+
+                  {/* 上下文感知动态建议 */}
+                  {getDynamicSuggestions(pageContext).length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">💡 当前页面推荐</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {getDynamicSuggestions(pageContext).map((s, i) => (
+                          <button key={i} onClick={() => sendMessage(s.prompt)}
+                            className="text-left px-3 py-2 border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors text-xs leading-relaxed"
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -93,6 +93,53 @@ export async function searchKnowledge(query: string, topK: number = 5, customHea
   }
 }
 
+/** 搜索系统知识库文档（ai_knowledge_docs）和施工日志 */
+export async function searchSystemKnowledge(query: string): Promise<string> {
+  try {
+    const supabase = getSupabaseClient();
+    const parts: string[] = [];
+
+    // 搜索知识库文档
+    const { data: docs } = await supabase
+      .from('ai_knowledge_docs')
+      .select('title, content, category, tags, created_at')
+      .eq('status', 'active')
+      .limit(5)
+      .order('created_at', { ascending: false });
+
+    if (docs && docs.length > 0) {
+      const filtered = docs.filter(d =>
+        !query || d.title?.includes(query) || d.content?.includes(query) || d.tags?.some((t: any) => String(t).includes(query))
+      );
+      filtered.slice(0, 3).forEach(d => {
+        const excerpt = (d.content || '').slice(0, 300);
+        parts.push(`[知识库] ${d.title} (${d.category || '未分类'})\n${excerpt}`);
+      });
+    }
+
+    // 搜索施工日志
+    const { data: logs } = await supabase
+      .from('construction_logs')
+      .select('log_date, location, content, issues, user_name')
+      .limit(10)
+      .order('log_date', { ascending: false });
+
+    if (logs && logs.length > 0) {
+      const filtered = query
+        ? logs.filter(l => l.content?.includes(query) || l.issues?.includes(query))
+        : logs.slice(0, 5);
+      filtered.forEach(l => {
+        parts.push(`[施工日志 ${l.log_date}] ${l.location ? l.location + ' - ' : ''}${l.content.slice(0, 200)}${l.issues ? ` | 异常:${l.issues}` : ''}`);
+      });
+    }
+
+    return parts.length > 0 ? parts.join('\n\n') : '';
+  } catch (e) {
+    console.error('[AI] System knowledge search failed:', e);
+    return '';
+  }
+}
+
 // 添加文档到知识库
 export async function addKnowledgeDoc(title: string, content: string, dataset?: string, customHeaders?: Record<string, string>): Promise<boolean> {
   try {
@@ -637,7 +684,8 @@ export function buildSystemPrompt(
   userRole: string,
   pageContext?: string,
   businessData?: string,
-  knowledgeContext?: string
+  knowledgeContext?: string,
+  systemKnowledge?: string
 ): string {
   const canSensitive = canAccessSensitiveData(userRole);
   const roleName: Record<string, string> = {
@@ -692,6 +740,7 @@ export function buildSystemPrompt(
 - 不修改或删除任何业务数据，只提供查询和分析建议
 - ${!canSensitive ? '不展示工资、结算、付款等敏感金额数据，用"***"替代' : ''}
 ${knowledgeContext ? `\n## 知识库参考（含用户上传合同文件）\n${knowledgeContext}` : ''}
+${systemKnowledge ? `\n## 系统知识库参考（月度分析、施工日志等）\n${systemKnowledge}` : ''}
 ${businessData ? `\n## 当前业务数据（实时查询）\n${businessData}` : ''}`;
 }
 
