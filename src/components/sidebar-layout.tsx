@@ -88,6 +88,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/system/ai-config': 'AI 助手配置',
   '/system/permission': '权限管理中心',
   '/system/audit-logs': '日志管理',
+  '/system/approval-config': '审批流程配置',
   '/admin': '后台管理',
   '/ai-assistant': 'AI 劳务助手',
   '/reports/monthly': '月度经营月报',

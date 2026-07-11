@@ -271,7 +271,7 @@ export async function POST(request: Request) {
     }
 
     // 2. 匹配系统用户
-    const matchResult = await findAndBindSystemUser(
+    let matchResult = await findAndBindSystemUser(
       dingtalkUser.userId,
       dingtalkUser.name,
       dingtalkUser.mobile,
@@ -282,30 +282,54 @@ export async function POST(request: Request) {
     );
 
     if (!matchResult) {
-      // 未匹配到系统用户
-      await logDingTalkSecurityEvent({
-        event_type: 'dingtalk_login_success',
-        dingtalk_user_id: dingtalkUser.userId,
-        dingtalk_name: dingtalkUser.name,
-        ip_address: ip,
-        user_agent,
-        result: 'failed',
-        error_message: '未找到关联的系统账号',
-        metadata: { mobile: dingtalkUser.mobile },
-      });
+      // 未匹配到系统用户 → 自动创建新账号（钉钉 SSO 无感注册）
+      try {
+        const client = getSupabaseClient();
+        const baseUsername = (dingtalkUser.name || `dt_${dingtalkUser.userId}`).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').toLowerCase().slice(0, 40);
+        let username = baseUsername;
+        let suffix = 1;
+        while (true) {
+          const { data: existing } = await client.from('users').select('id').eq('username', username).maybeSingle();
+          if (!existing) break;
+          username = `${baseUsername}_${suffix}`;
+          suffix++;
+        }
+        const randomPwd = `dt_${Math.random().toString(36).slice(2, 10)}`;
+        const { hashPassword } = await import('@/lib/auth-db');
+        const pwdHash = hashPassword(randomPwd);
+        const { data: newUser, error: createError } = await client.from('users').insert({
+          username,
+          password_hash: pwdHash,
+          role: 'admin',
+          dingtalk_user_id: dingtalkUser.userId,
+          dingtalk_name: dingtalkUser.name,
+          dingtalk_mobile: dingtalkUser.mobile || null,
+          dingtalk_avatar: dingtalkUser.avatar || null,
+          dingtalk_active: true,
+          last_dingtalk_sync_at: new Date().toISOString(),
+        }).select().single();
 
-      return NextResponse.json({
-        success: false,
-        data: {
-          dingtalkUser: {
-            userId: dingtalkUser.userId,
-            name: dingtalkUser.name,
-            mobile: dingtalkUser.mobile,
+        if (createError || !newUser) {
+          console.error('[DingTalk AutoCreate] 创建用户失败:', createError?.message);
+          return NextResponse.json({ success: false, error: `自动创建账号失败: ${createError?.message || '未知错误'}` }, { status: 500 });
+        }
+
+        // 使用新创建的用户继续登录流程
+        matchResult = {
+          user: {
+            id: newUser.id,
+            username: newUser.username,
+            name: newUser.name || newUser.username,
+            role: newUser.role || 'admin',
+            role_id: newUser.role_id || 0,
           },
-        },
-        error: `未找到与钉钉用户"${dingtalkUser.name}"关联的系统账号，请联系管理员绑定`,
-        code: 'USER_NOT_FOUND',
-      }, { status: 403 });
+          isDisabled: false,
+        };
+        console.log(`[DingTalk SSO] 自动创建用户: ${username} (钉钉: ${dingtalkUser.name})`);
+      } catch (autoErr: unknown) {
+        console.error('[DingTalk AutoCreate] 异常:', autoErr instanceof Error ? autoErr.message : autoErr);
+        return NextResponse.json({ success: false, error: `账号创建失败: ${autoErr instanceof Error ? autoErr.message : '未知错误'}` }, { status: 500 });
+      }
     }
 
     const { user: systemUser, isDisabled } = matchResult;

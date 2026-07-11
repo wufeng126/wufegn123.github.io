@@ -98,6 +98,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 
   // === 审计日志 ===
   '/system/audit-logs': { permission: 'audit:view' },
+  '/system/approval-config': { permission: 'system:manage' },
 
   // === 工资模块子路由 ===
   '/workers/roster': { permission: 'workers:view' },
