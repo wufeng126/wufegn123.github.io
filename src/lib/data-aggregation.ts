@@ -153,7 +153,7 @@ export async function getProjectFinancialSummary(
   // 1. 甲方报量 → 开票金额 & 税费（仅已审核，排除作废）
   let clientReportsQuery = client
     .from('client_reports')
-    .select('invoice_amount, tax_rate, report_date')
+    .select('invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
     .eq('project_id', projectId)
     .neq('status', 'voided');
 
@@ -167,7 +167,7 @@ export async function getProjectFinancialSummary(
   let taxFromInvoice = 0;
   let untaxedIncome = 0;
   (clientReports || []).forEach((r: any) => {
-    const inv = parseNumeric(r.invoice_amount);
+    const inv = parseNumeric(r.invoice_amount) || parseNumeric(r.settlement_amount) || parseNumeric(r.report_amount);
     const tr = parseNumeric(r.tax_rate) || projectTaxRate;
     invoiceAmount += inv;
     const untaxed = inv / (1 + tr / 100);

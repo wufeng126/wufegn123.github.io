@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileText, Loader2, RefreshCw, Save } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, RefreshCw, Save, ClipboardList, Plus } from 'lucide-react';
 
 type Project = {
   id: string | number;
@@ -124,6 +124,8 @@ export default function NewMonthlyKnowledgePage() {
   const [loadingData, setLoadingData] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [constructionLogs, setConstructionLogs] = useState<any[]>([]);
+  const [selectedLogIndices, setSelectedLogIndices] = useState<number[]>([]);
 
   useEffect(() => {
     setYearMonth(getCurrentYearMonth());
@@ -182,6 +184,18 @@ export default function NewMonthlyKnowledgePage() {
       }
 
       setMonthlyData(json.data);
+
+      // 同时加载施工日志
+      try {
+        const logRes = await fetch(`/api/construction-logs?projectId=${projectId}`);
+        const logJson = await logRes.json();
+        const allLogs = Array.isArray(logJson.data) ? logJson.data : [];
+        const selectedProj = projects.find(p => String(p.id) === projectId);
+        const projName = selectedProj?.name || '';
+        const filtered = allLogs.filter((l: any) => l.content?.includes(projName) || l.issues);
+        setConstructionLogs(filtered.slice(0, 8));
+        setSelectedLogIndices([]);
+      } catch { setConstructionLogs([]); }
     } catch (e: any) {
       setMonthlyData(null);
       setError(e.message || '月度数据加载失败');
@@ -399,6 +413,44 @@ export default function NewMonthlyKnowledgePage() {
               </div>
             </div>
           </section>
+
+          {/* 施工日志相关提醒 */}
+          {constructionLogs.length > 0 && (
+            <section className="monthly-card p-5">
+              <div className="flex items-center gap-2 text-[#F59E0B] mb-3">
+                <ClipboardList className="h-5 w-5" />
+                <h2 className="text-lg font-semibold text-[#1D2129]">📎 本月相关施工日志</h2>
+                <span className="text-xs text-[#86909C]">({constructionLogs.length}条)</span>
+              </div>
+              <p className="text-xs text-[#86909C] mb-3">勾选后可追加到经验随笔中</p>
+              <div className="space-y-2">
+                {constructionLogs.map((log, i) => (
+                  <label key={i} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${selectedLogIndices.includes(i) ? 'border-[#165DFF] bg-[#F0F5FF]' : 'border-[#E5E6EB] hover:border-[#165DFF]/30'}`}>
+                    <input type="checkbox" checked={selectedLogIndices.includes(i)} onChange={() => {
+                      setSelectedLogIndices(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+                    }} className="mt-1 h-4 w-4 accent-[#165DFF]" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-[#86909C]">{log.log_date} · {log.user_name}{log.location ? ` · ${log.location}` : ''}</p>
+                      <p className="text-sm text-[#4E5969] mt-0.5">{log.content}</p>
+                      {log.issues && <p className="text-xs text-[#F53F3F] mt-0.5">⚠️ {log.issues}</p>}
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {selectedLogIndices.length > 0 && (
+                <button type="button" onClick={() => {
+                  const selectedTexts = selectedLogIndices.map(i => {
+                    const l = constructionLogs[i];
+                    return `- [施工日志 ${l.log_date}] ${l.content}${l.issues ? `（异常：${l.issues}）` : ''}`;
+                  }).join('\n');
+                  setExperienceNote(prev => (prev ? prev + '\n\n' : '') + '## 引用施工日志\n' + selectedTexts);
+                  setSelectedLogIndices([]);
+                }} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#165DFF] px-3 text-xs text-white hover:bg-[#0E49D8]">
+                  <Plus className="h-3.5 w-3.5" /> 引用选中到经验随笔
+                </button>
+              )}
+            </section>
+          )}
 
           <section className="monthly-card p-5">
             <div className="grid gap-5">

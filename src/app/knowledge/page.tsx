@@ -337,11 +337,18 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
         return Math.sqrt(dx * dx + dy * dy) <= size + 6;
       }) || null;
       interactionRef.current = { node: hit, panning: !hit, lastX: event.clientX, lastY: event.clientY };
+      // 记录点击位置检测是否拖拽
+      (canvas as any)._clickPos = { x: event.clientX, y: event.clientY, node: hit };
     };
 
     const handleMove = (event: MouseEvent) => {
       const interaction = interactionRef.current;
       if (!interaction.node && !interaction.panning) return;
+      // 如果移动了超过5px，清除点击标记
+      const clickPos = (canvas as any)._clickPos;
+      if (clickPos && (Math.abs(event.clientX - clickPos.x) > 5 || Math.abs(event.clientY - clickPos.y) > 5)) {
+        (canvas as any)._clickPos = null;
+      }
       if (interaction.node) {
         const point = toGraphPoint(event);
         interaction.node.x = point.x;
@@ -357,8 +364,17 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
     };
 
     const handleUp = () => {
+      const clickPos = (canvas as any)._clickPos;
+      if (clickPos && clickPos.node && !clickPos.node.virtual) {
+        // 点击节点跳转到知识详情
+        const nodeId = clickPos.node.id;
+        if (nodeId && !nodeId.startsWith('virtual:')) {
+          window.location.href = `/knowledge/${nodeId}`;
+        }
+      }
       interactionRef.current.node = null;
       interactionRef.current.panning = false;
+      (canvas as any)._clickPos = null;
     };
 
     const handleWheel = (event: WheelEvent) => {
@@ -661,7 +677,7 @@ export default function KnowledgePage() {
                   return (
                     <Link
                       key={project.id}
-                      href={`/knowledge?query=${encodeURIComponent(project.name)}`}
+                      href={`/knowledge/project/${project.id}`}
                       className="group rounded-xl border border-[#E5E6EB] bg-white p-4 transition-all hover:border-[#165DFF]/30 hover:shadow-[0_4px_16px_rgba(22,93,255,0.06)]"
                     >
                       {/* 顶部：项目名 + 状态 */}
