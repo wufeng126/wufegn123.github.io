@@ -184,10 +184,8 @@ export default function DingTalkPage() {
 
       // 短暂延迟让用户看到成功状态
       setTimeout(() => {
-        // 钉钉客户端环境：始终通过 URL 携带 token
-        const targetUrl = `/?token=${encodeURIComponent(token || '')}`;
-        addDebugLog(`跳转到: ${targetUrl.substring(0, 50)}...`);
-        window.location.href = targetUrl;
+        addDebugLog('跳转到首页...');
+        window.location.href = '/';
       }, 800);
 
     } catch (err: any) {

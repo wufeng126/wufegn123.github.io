@@ -50,9 +50,9 @@ export default function LoginPage() {
         // 重置跳转计数
         resetRedirectCount();
 
-        // 钉钉客户端环境：通过 URL 携带 token 传递至首页，绕过 Cookie 拦截
+        // 钉钉客户端环境：通过 Authorization header + localStorage 携带 token
         if (isDingTalkClient() && token) {
-          window.location.href = `/?token=${encodeURIComponent(token)}`;
+          window.location.href = '/';
         } else {
           window.location.href = '/';
         }
