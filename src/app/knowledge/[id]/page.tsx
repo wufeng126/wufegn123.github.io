@@ -158,6 +158,9 @@ export default function KnowledgeDetailPage() {
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [comment, setComment] = useState('');
+  const [acting, setActing] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -192,12 +195,21 @@ export default function KnowledgeDetailPage() {
 
     if (params.id) loadKnowledge();
 
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(u => { if (mounted) setCurrentUser(u); })
+      .catch(() => {});
+
     return () => {
       mounted = false;
     };
   }, [params.id]);
 
   const tags = useMemo(() => normalizeTags(doc?.tags), [doc?.tags]);
+  const workflowState = useMemo(() => getWorkflowState(tags), [tags]);
+  const isMonthly = useMemo(() => isMonthlyAnalysis(tags), [tags]);
+  const canAct = useMemo(() => canUserHandleState(currentUser?.role, workflowState), [currentUser?.role, workflowState]);
+  const workflowComments = useMemo(() => extractWorkflowComments(doc?.content), [doc?.content]);
   const relatedLinks = useMemo(() => extractWikiLinks(doc?.content), [doc?.content]);
   const titleToId = useMemo(() => {
     const map = new Map<string, string | number>();
@@ -278,6 +290,37 @@ export default function KnowledgeDetailPage() {
                     更新：{formatDate(doc.updated_at || doc.created_at)}
                   </span>
                 </div>
+
+                {/* 审批流程状态徽章 */}
+                {isMonthly && (
+                  <div className="mt-3">
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${stateBadgeClasses[workflowState]}`}>
+                      {stateLabels[workflowState]}
+                    </span>
+                    <span className="ml-2 text-xs text-[#86909C]">月度分析</span>
+                  </div>
+                )}
+
+                {/* 审批进度条 */}
+                {isMonthly && (
+                  <div className="mt-4 flex items-center">
+                    {workflowSteps.map((step, i) => {
+                      const stepIdx = workflowSteps.findIndex(s => s.state === workflowState);
+                      const done = i <= stepIdx;
+                      return (
+                        <div key={step.state} className={`flex items-center ${i < workflowSteps.length - 1 ? 'flex-1' : ''}`}>
+                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${done ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#F2F3F5] text-[#86909C]'}`}>
+                            {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
+                            <span>{step.label}</span>
+                          </div>
+                          {i < workflowSteps.length - 1 && (
+                            <div className={`h-px flex-1 mx-1 ${i < stepIdx ? 'bg-[#165DFF]' : 'bg-[#E5E6EB]'}`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </header>
 
               <div className="px-5 py-6 md:px-7">
@@ -286,6 +329,54 @@ export default function KnowledgeDetailPage() {
                 </div>
               </div>
             </article>
+
+            {/* 审批操作区域 - 仅当前阶段操作人可见 */}
+            {isMonthly && canAct && (
+              <div className="knowledge-card p-5">
+                <p className="text-sm font-medium text-[#1D2129]">{actionByState[workflowState]?.label}</p>
+                <textarea
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  className="mt-2 w-full min-h-[80px] rounded-lg border border-[#E5E6EB] bg-white p-3 text-sm outline-none focus:border-[#165DFF]"
+                  placeholder={actionByState[workflowState]?.placeholder}
+                />
+                <button
+                  onClick={async () => {
+                    setActing(true);
+                    try {
+                      await fetch('/api/ai/knowledge/monthly/workflow', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ knowledgeId: doc.id, action: actionByState[workflowState]?.action, comment }),
+                      });
+                    } catch {}
+                    setActing(false);
+                    window.location.reload();
+                  }}
+                  disabled={acting}
+                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                >
+                  {acting ? '处理中...' : <><Send className="h-3.5 w-3.5" />{actionByState[workflowState]?.label}</>}
+                </button>
+              </div>
+            )}
+
+            {/* 审批意见展示 */}
+            {isMonthly && workflowComments.length > 0 && (
+              <div className="knowledge-card p-5">
+                <h3 className="text-sm font-semibold text-[#1D2129] flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-[#165DFF]" /> 审批流程意见
+                </h3>
+                <div className="mt-3 space-y-3">
+                  {workflowComments.map((item, i) => (
+                    <div key={i} className="rounded-lg bg-[#F7F8FA] p-3 text-sm">
+                      <p className="font-medium text-[#1D2129]">{item.title}</p>
+                      <p className="mt-1 text-[#4E5969] whitespace-pre-wrap">{item.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <section className="knowledge-card p-5 md:p-6">
               <div className="flex items-center gap-2 text-[#165DFF]">

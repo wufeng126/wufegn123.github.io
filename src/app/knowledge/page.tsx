@@ -416,21 +416,27 @@ export default function KnowledgePage() {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [pendingOnly, setPendingOnly] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadData() {
       try {
-        const [knowledgeRes, projectRes] = await Promise.all([
+        const [knowledgeRes, projectRes, userRes] = await Promise.all([
           fetch('/api/ai/knowledge?page_size=100&status=active'),
           fetch('/api/projects'),
+          fetch('/api/auth/me'),
         ]);
         const knowledgeJson = await knowledgeRes.json();
         const projectJson = await projectRes.json();
+        const userJson = await userRes.json();
         if (!mounted) return;
-        setDocs(Array.isArray(knowledgeJson.data) ? knowledgeJson.data : []);
+        const docsList = Array.isArray(knowledgeJson.data) ? knowledgeJson.data : [];
+        setDocs(docsList);
         setProjects(Array.isArray(projectJson.projects) ? projectJson.projects : []);
+        setCurrentUser(userJson);
       } catch {
         if (mounted) {
           setDocs([]);
@@ -447,17 +453,46 @@ export default function KnowledgePage() {
     };
   }, []);
 
+  const pendingCount = useMemo(() => {
+    const role = currentUser?.role;
+    return docs.filter(doc => {
+      const tags = normalizeTags(doc.tags);
+      if (!tags.includes('月度分析')) return false;
+      const state = tags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
+      if (state === '草稿' && (role === 'admin' || role === 'super_admin')) return true;
+      if (state === '待项目经理补充' && role === 'project_manager') return true;
+      if (state === '待预算确认' && (role === 'admin' || role === 'super_admin')) return true;
+      if (state === '待老板批复' && role === 'boss') return true;
+      return false;
+    }).length;
+  }, [docs, currentUser]);
+
   const filteredDocs = useMemo(() => {
     const keyword = query.trim().toLowerCase();
+    const role = currentUser?.role;
     return docs.filter(doc => {
       const category = getCategoryLabel(doc.category);
       const tags = normalizeTags(doc.tags).join(' ');
       const searchable = `${doc.title} ${doc.content || ''} ${doc.created_by || ''} ${tags} ${category}`.toLowerCase();
       const matchesKeyword = !keyword || searchable.includes(keyword);
       const matchesCategory = activeCategory === '全部' || category === activeCategory;
+
+      // 待我处理筛选
+      if (pendingOnly) {
+        const docTags = normalizeTags(doc.tags);
+        if (!docTags.includes('月度分析')) return false;
+        const state = docTags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
+        const isPending =
+          (state === '草稿' && (role === 'admin' || role === 'super_admin')) ||
+          (state === '待项目经理补充' && role === 'project_manager') ||
+          (state === '待预算确认' && (role === 'admin' || role === 'super_admin')) ||
+          (state === '待老板批复' && role === 'boss');
+        if (!isPending) return false;
+      }
+
       return matchesKeyword && matchesCategory;
     });
-  }, [docs, query, activeCategory]);
+  }, [docs, query, activeCategory, currentUser, pendingOnly]);
 
   const projectCards = useMemo(() => {
     return projects.slice(0, 8).map(project => {
@@ -537,7 +572,14 @@ export default function KnowledgePage() {
 
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1D2129]">知识库</h1>
+          <h1 className="text-2xl font-bold text-[#1D2129]">
+            知识库
+            {pendingCount > 0 && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[#F53F3F] text-white">
+                待办 {pendingCount}
+              </span>
+            )}
+          </h1>
           <p className="mt-1 text-sm text-[#86909C]">沉淀项目档案、成本经验、工序单价和投标策略</p>
         </div>
         <div className="flex items-center gap-3">
@@ -582,6 +624,14 @@ export default function KnowledgePage() {
                     {category}
                   </button>
                 ))}
+                <div className="w-px bg-[#E5E6EB] mx-1" />
+                <button
+                  type="button"
+                  className={`kb-pill ${pendingOnly ? 'kb-pill-active' : ''}`}
+                  onClick={() => setPendingOnly(!pendingOnly)}
+                >
+                  📋 待我处理{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                </button>
               </div>
             </div>
           </section>
