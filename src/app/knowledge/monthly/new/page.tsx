@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, FileText, Loader2, RefreshCw, Save, ClipboardList, Plus } from 'lucide-react';
 
 type Project = {
@@ -127,8 +127,18 @@ export default function NewMonthlyKnowledgePage() {
   const [constructionLogs, setConstructionLogs] = useState<any[]>([]);
   const [selectedLogIndices, setSelectedLogIndices] = useState<number[]>([]);
 
+  const searchParams = useSearchParams();
+  const reportFromUrl = searchParams.get('from');
+  const reportMonth = searchParams.get('month');
+  const reportProject = searchParams.get('project');
+
   useEffect(() => {
-    setYearMonth(getCurrentYearMonth());
+    if (reportFromUrl === 'report' && reportMonth) {
+      setYearMonth(reportMonth);
+      if (reportProject && reportProject !== 'all') setProjectId(reportProject);
+    } else {
+      setYearMonth(getCurrentYearMonth());
+    }
 
     let mounted = true;
 
@@ -140,7 +150,7 @@ export default function NewMonthlyKnowledgePage() {
         const list = Array.isArray(json.projects) ? json.projects : [];
         if (!mounted) return;
         setProjects(list);
-        if (list.length > 0) setProjectId(String(list[0].id));
+        if (list.length > 0 && !(reportFromUrl === 'report' && reportProject)) setProjectId(String(list[0].id));
       } catch (e: any) {
         if (mounted) setError(e.message || '项目列表加载失败');
       } finally {
@@ -149,6 +159,10 @@ export default function NewMonthlyKnowledgePage() {
     }
 
     loadProjects();
+
+    if (reportFromUrl === 'report' && reportMonth) {
+      setTimeout(() => handleLoadData(), 300);
+    }
 
     return () => {
       mounted = false;

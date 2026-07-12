@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ChevronDown, ChevronUp, Download, FileText, Printer, History,
+  Download, FileText, Printer, History,
   Sparkles, RefreshCw, AlertTriangle, TrendingUp, TrendingDown,
   Minus, Eye, DollarSign, Users, Building2, Shield, Copy, Check,
   Package, CircleDollarSign, CreditCard, Clock, Info, Archive, GitCompare,
@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { KpiCard, ChartCard, RiskBadge, formatAmountSmart, formatPercent } from '@/components/business/common';
 import EChartsWrapper from '@/components/charts/echarts-wrapper';
 import { StandardDashboardLayout } from '@/components/dashboard/standard-layout';
@@ -107,7 +106,7 @@ interface CollectionLagItem {
   responsiblePerson: string | null; riskLevel: 'low' | 'medium' | 'high' | 'critical';
 }
 
-type ReportMode = 'boss' | 'finance' | 'detail';
+type ReportMode = 'boss' | 'detail';
 
 interface MonthlyReportData {
   overview: Overview;
@@ -188,7 +187,6 @@ export default function MonthlyReportPage() {
   const [data, setData] = useState<MonthlyReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [reportMode, setReportMode] = useState<ReportMode>('boss');
-  const [showMoreKpi, setShowMoreKpi] = useState(false);
   const [aiInterpreting, setAiInterpreting] = useState(false);
   const [aiContent, setAiContent] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -328,6 +326,10 @@ export default function MonthlyReportPage() {
   };
 
   const handlePrint = () => window.print();
+
+  const handleCreateAnalysis = () => {
+    router.push(`/knowledge/monthly/new?from=report&month=${month}&project=${projectId}`);
+  };
 
   const handleArchiveReport = async () => {
     if (!data) return;
@@ -505,13 +507,14 @@ export default function MonthlyReportPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center bg-muted rounded-md p-0.5 text-xs">
-              {([['boss', '老板汇报'], ['finance', '财务核对'], ['detail', '项目明细']] as const).map(([mode, label]) => (
+              {([['boss', '老板汇报'], ['detail', '项目明细']] as const).map(([mode, label]) => (
                 <button key={mode} onClick={() => setReportMode(mode as ReportMode)}
                   className={`px-3 py-1.5 rounded-sm transition-colors ${reportMode === mode ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
                   {label}
                 </button>
               ))}
             </div>
+            <Button variant="outline" size="sm" onClick={handleCreateAnalysis}><FileText className="w-3.5 h-3.5 mr-1" />写本月分析</Button>
             <Button variant="outline" size="sm" onClick={loadData} disabled={loading}><RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />刷新</Button>
             <Button variant="outline" size="sm" onClick={handleExportExcel}><Download className="w-3.5 h-3.5 mr-1" />Excel</Button>
             <Button variant="outline" size="sm" onClick={handleExportPDF}><FileText className="w-3.5 h-3.5 mr-1" />PDF</Button>
@@ -569,40 +572,6 @@ export default function MonthlyReportPage() {
                     risk={pp.fundGap > 0 ? 'danger' : undefined} />
                 </div>
 
-                {/* More KPIs (collapsed) */}
-                <Collapsible open={showMoreKpi} onOpenChange={setShowMoreKpi}>
-                  <CollapsibleTrigger asChild>
-                    <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-full justify-center py-1">
-                      {showMoreKpi ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      {showMoreKpi ? '收起更多指标' : '展开更多经营指标'}
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-2">
-                      <KpiCard label="月利润率" value={ov.profitRate?.toFixed(1) ?? '-'} unit="%" risk={ov.profitRate < 0 ? 'danger' : undefined} />
-                      <KpiCard label="累计利润" value={fmtAmtUnit(ov.cumulativeProfit).value} unit={fmtAmtUnit(ov.cumulativeProfit).unit}
-                        risk={ov.cumulativeProfit < 0 ? 'danger' : undefined} />
-                      <KpiCard label="累计利润率" value={ov.cumulativeProfitRate?.toFixed(1) ?? '-'} unit="%" risk={ov.cumulativeProfitRate < 0 ? 'danger' : undefined} />
-                      <KpiCard label="回款率" value={ov.paymentRate?.toFixed(1) ?? '-'} unit="%" risk={ov.paymentRate > 100 ? 'warning' : undefined} />
-                      <KpiCard label="在岗人数" value={String(ov.inServiceCount ?? 0)} unit="人" />
-                      <KpiCard label="未发工资" value={fmtAmtUnit(ov.totalUnpaidSalary).value} unit={fmtAmtUnit(ov.totalUnpaidSalary).unit}
-                        risk={ov.totalUnpaidSalary > 0 ? 'danger' : undefined} />
-                      <KpiCard label="供应商结算" value={fmtAmtUnit(ov.cumulativeSupplierSettlement).value} unit={fmtAmtUnit(ov.cumulativeSupplierSettlement).unit}
-                        tooltip="统计口径：累计已审核供应商结算金额" onClick={() => router.push('/data-board/supplier-cost')} />
-                      <KpiCard label="供应商已付" value={fmtAmtUnit(ov.cumulativeSupplierPayment).value} unit={fmtAmtUnit(ov.cumulativeSupplierPayment).unit}
-                        tooltip="统计口径：累计供应商付款金额" onClick={() => router.push('/data-board/supplier-cost')} />
-                      <KpiCard label="供应商付款率" value={ov.supplierPaymentRate?.toFixed(1) ?? '-'} unit="%"
-                        tooltip="供应商已付/供应商结算" risk={ov.supplierPaymentRate < 50 ? 'warning' : undefined} />
-                      <KpiCard label="本月供应商付款" value={fmtAmtUnit(ov.monthSupplierPayments).value} unit={fmtAmtUnit(ov.monthSupplierPayments).unit}
-                        tooltip="统计口径：本月供应商付款到账金额"
-                        change={comp.mom?.supplierPayment} changeLabel="环比" />
-                      <KpiCard label="本月供应商结算" value={fmtAmtUnit(ov.monthSupplierSettlement).value} unit={fmtAmtUnit(ov.monthSupplierSettlement).unit}
-                        tooltip="统计口径：本月已审核供应商结算金额"
-                        change={comp.mom?.supplierSettlement} changeLabel="环比" />
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-
                 {/* Comparison bar */}
                 {(comp.mom?.prevMonthIncome !== undefined || comp.yoy?.lastYearIncome !== undefined) && (
                   <Card>
@@ -634,26 +603,7 @@ export default function MonthlyReportPage() {
               </>
             )}
 
-            {/* Finance mode - show all KPIs */}
-            {reportMode === 'finance' && (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {[
-                  { l: '本月产值', v: ov.monthIncome }, { l: '本月回款', v: ov.monthReceived },
-                  { l: '本月成本', v: ov.monthCost }, { l: '本月利润', v: ov.profit },
-                  { l: '月利润率', v: ov.profitRate, pct: true }, { l: '累计利润', v: ov.cumulativeProfit },
-                  { l: '累计利润率', v: ov.cumulativeProfitRate, pct: true }, { l: '回款率', v: ov.paymentRate, pct: true },
-                  { l: '月度人工', v: ov.monthSalaryCost }, { l: '月度供应商', v: ov.monthSupplierSettlement },
-                  { l: '月度费用', v: ov.monthExpenseCost }, { l: '月度材料', v: ov.monthMaterialCost },
-                  { l: '月度税费', v: ov.monthTaxCost }, { l: '在岗人数', v: ov.inServiceCount, raw: true },
-                  { l: '未回款', v: ov.unreceived }, { l: '人工未付', v: pp.laborUnpaid },
-                  { l: '供应商未付', v: pp.supplierUnpaid }, { l: '资金缺口', v: pp.fundGap },
-                ].map((k, i) => (
-                  <KpiCard key={i} label={k.l}
-                    value={k.raw ? String(k.v ?? 0) : (k.pct ? `${(k.v ?? 0).toFixed(1)}` : fmtAmtUnit(k.v ?? 0).value)}
-                    unit={k.raw ? '人' : k.pct ? '%' : fmtAmtUnit(k.v ?? 0).unit} />
-                ))}
-              </div>
-            )}
+
 
             {/* ─── Business Conclusion ─── */}
             {conclusion && reportMode === 'boss' && (
