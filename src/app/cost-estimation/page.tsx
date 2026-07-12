@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Database, TrendingUp, BarChart3, DollarSign, Calculator, Search, X } from 'lucide-react';
+import { Plus, Trash2, Database, TrendingUp, BarChart3, DollarSign, Calculator, Search, X, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 interface UnitPrice {
@@ -91,6 +91,9 @@ export default function CostEstimationPage() {
           <button onClick={() => setShowForm(true)} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white shadow-md hover:bg-[#0E49D8]">
             <Plus className="h-4 w-4" />录入单价
           </button>
+          <Link href="/cost-estimation/import" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#165DFF] bg-white px-4 text-sm text-[#165DFF] hover:bg-[#F0F5FF]">
+            <Upload className="h-4 w-4" />批量导入
+          </Link>
         </div>
 
         {/* Tabs */}
