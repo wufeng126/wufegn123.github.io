@@ -1,6 +1,6 @@
 'use client';
 import { useToast } from '@/hooks/use-toast';
-import { isSuperAdminUser } from '@/lib/route-permissions';
+import { isSuperAdminUser, isSystemAdminUser } from '@/lib/route-permissions';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -82,7 +82,7 @@ export default function AdminPage() {
       }
       
       if (!meData.authenticated || meData.user.role !== 'super_admin') {
-        toast({ title: '无访问权限', description: '仅超级管理员可访问此页面', variant: 'error' });
+        toast({ title: '无访问权限', description: '仅管理员可访问此页面', variant: 'error' });
         router.push('/');
         return;
       }
@@ -264,7 +264,7 @@ export default function AdminPage() {
 
   // 角色标签
   const getRoleBadge = (role: string) => {
-    if (isSuperAdminUser(role)) {
+    if (isSuperAdminUser(role) || isSystemAdminUser(role)) {
       return (
         <span 
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"

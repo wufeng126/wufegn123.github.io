@@ -20,6 +20,11 @@ export function isSuperAdminUser(role?: string, roleId?: number): boolean {
   return role === SUPER_ADMIN_ROLE || roleId === SUPER_ADMIN_ROLE_ID;
 }
 
+/** 判断是否为普通管理员（admin 或 super_admin） */
+export function isSystemAdminUser(role?: string): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
 // ─── 未映射路由默认行为（默认拒绝） ───
 
 /**
