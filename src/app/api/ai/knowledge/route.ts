@@ -1,11 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { searchKnowledge, addKnowledgeDoc, extractForwardHeaders } from '@/lib/ai-service';
 import { syncAllBusinessData, syncSingleDataType } from '@/lib/ai-knowledge-sync';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { apiBadRequest, apiResult, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 
 // GET /api/ai/knowledge - 获取知识库文档列表
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
@@ -24,27 +29,28 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return apiServerError(error.message);
     }
 
-    return NextResponse.json({
-      success: true,
-      data: data || [],
-      pagination: { page, pageSize, total: count || 0 },
+    return apiSuccess(data || [], {
+      meta: { pagination: { page, pageSize, total: count || 0 } },
     });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return apiServerError(getErrorMessage(e, '知识库列表查询失败'));
   }
 }
 
 // POST /api/ai/knowledge - 新增知识库文档
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { title, category, source_type, content, source_ref, created_by, tags } = body;
 
     if (!title || !category || !content) {
-      return NextResponse.json({ success: false, error: '标题、分类和内容不能为空' }, { status: 400 });
+      return apiBadRequest('标题、分类和内容不能为空');
     }
 
     // 添加到向量知识库
@@ -77,23 +83,26 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase.from('ai_knowledge_docs').insert(insertData).select().single();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return apiServerError(error.message);
     }
 
-    return NextResponse.json({ success: true, data });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return apiSuccess(data);
+  } catch (e: unknown) {
+    return apiServerError(getErrorMessage(e, '知识库文档新增失败'));
   }
 }
 
 // DELETE /api/ai/knowledge - 删除知识库文档
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ success: false, error: '缺少文档ID' }, { status: 400 });
+      return apiBadRequest('缺少文档ID');
     }
 
     const supabase = getSupabaseClient();
@@ -103,35 +112,46 @@ export async function DELETE(request: NextRequest) {
     }).eq('id', id);
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return apiServerError(error.message);
     }
 
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return apiSuccess(null);
+  } catch (e: unknown) {
+    return apiServerError(getErrorMessage(e, '知识库文档删除失败'));
   }
 }
 
 // PUT /api/ai/knowledge - 同步业务数据到知识库
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { action, data_type } = body;
 
     if (action === 'sync_business') {
       const forwardHeaders = extractForwardHeaders(request.headers);
       const result = await syncSingleDataType(data_type || 'all', forwardHeaders);
-      return NextResponse.json({ success: result.success, data: result.synced, errors: result.errors });
+      return apiResult(result.success, result.synced, {
+        code: result.success ? 'OK' : 'SYNC_FAILED',
+        error: '业务数据同步未完全成功',
+        meta: { errors: result.errors },
+      });
     }
 
     if (action === 'refresh_all') {
       const forwardHeaders = extractForwardHeaders(request.headers);
       const result = await syncAllBusinessData(forwardHeaders);
-      return NextResponse.json({ success: result.success, data: result.synced, errors: result.errors });
+      return apiResult(result.success, result.synced, {
+        code: result.success ? 'OK' : 'SYNC_FAILED',
+        error: '知识库刷新未完全成功',
+        meta: { errors: result.errors },
+      });
     }
 
-    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return apiBadRequest('未知操作');
+  } catch (e: unknown) {
+    return apiServerError(getErrorMessage(e, '知识库同步失败'));
   }
 }

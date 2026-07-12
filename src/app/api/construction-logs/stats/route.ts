@@ -1,8 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireAuth } from '@/lib/api-auth';
+import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -37,8 +42,8 @@ export async function GET(request: NextRequest) {
       last_date: val.lastDate,
     })).sort((a, b) => b.count - a.count);
 
-    return NextResponse.json({ success: true, data: list, total: list.length });
+    return apiSuccess(list, { meta: { total: list.length } });
   } catch (e: unknown) {
-    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '统计查询失败' }, { status: 500 });
+    return apiServerError(getErrorMessage(e, '统计查询失败'));
   }
 }

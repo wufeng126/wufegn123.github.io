@@ -1,51 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextRequest } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { decodeJwt } from 'jose';
 import { logSecurityEvent } from '@/lib/security-log';
-
-// JWT 密钥（Base64 编码）
-const JWT_SECRET = "Y29uc3RydWN0aW9uLWxhYm9yLW1hbmFnZW1lbnQtc2VjcmV0LWtleS0yMDI0";
-
-// 获取当前用户
-async function getCurrentUser() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('auth_token')?.value;
-  
-  console.log('[roles] Token exists:', !!token);
-  
-  if (!token) {
-    console.log('[roles] No token found');
-    return null;
-  }
-
-  try {
-    // 使用 decodeJwt 解码（不验证）
-    const payload = decodeJwt(token);
-    const userId = payload.userId as string;
-    
-    console.log('[roles] JWT decoded, userId:', userId);
-    
-    // 使用 Supabase 获取用户信息
-    const supabase = getSupabaseClient();
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    if (error || !user) {
-      console.log('[roles] User not found in database');
-      return null;
-    }
-    
-    console.log('[roles] User found:', user.username);
-    return user;
-  } catch (err: any) {
-    console.log('[roles] Auth error:', err.message);
-    return null;
-  }
-}
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 
 // 获取单个角色详情（包含权限）
 export async function GET(request: NextRequest) {
@@ -53,11 +10,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     
-    const currentUser = await getCurrentUser();
-    
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const currentUser = auth.user;
     
     const supabase = getSupabaseClient();
     
@@ -81,7 +36,7 @@ export async function GET(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Query single error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return apiServerError(error.message);
       }
       
       // 提取权限 code
@@ -89,12 +44,14 @@ export async function GET(request: NextRequest) {
         .map((rp: any) => rp.permissions?.code)
         .filter(Boolean);
       
-      return NextResponse.json({
-        role: {
+      const responseRole = {
           ...role,
           permissions,
           permission_count: permissions.length
-        }
+      };
+
+      return apiSuccess({ role: responseRole }, {
+        meta: { role: responseRole },
       });
     }
     
@@ -114,7 +71,7 @@ export async function GET(request: NextRequest) {
     
     if (error) {
       console.error('[roles] Query error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return apiServerError(error.message);
     }
     
     // 处理权限数量
@@ -126,21 +83,21 @@ export async function GET(request: NextRequest) {
     
     console.log('[roles] GET - returning', rolesWithCount.length, 'roles');
     
-    return NextResponse.json({ roles: rolesWithCount });
-  } catch (err: any) {
+    return apiSuccess({ roles: rolesWithCount }, {
+      meta: { roles: rolesWithCount },
+    });
+  } catch (err: unknown) {
     console.error('[roles] GET error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiServerError(getErrorMessage(err, '角色查询失败'));
   }
 }
 
 // 创建/更新角色
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
-    
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+    const currentUser = auth.user;
     
     const body = await request.json();
     const { action, id, name, description, level, code, permission_codes = [] } = body;
@@ -189,12 +146,13 @@ export async function POST(request: NextRequest) {
         metadata: { target_role_id: id, permission_count: permission_codes.length },
       });
       
-      return NextResponse.json({
-        success: true,
-        role: {
+      const responseRole = {
           ...updatedRole,
           permission_count: updatedRole?.role_permissions?.length || 0
-        }
+      };
+
+      return apiSuccess({ role: responseRole }, {
+        meta: { role: responseRole },
       });
     }
     
@@ -216,10 +174,10 @@ export async function POST(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Create error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return apiServerError(error.message);
       }
       
-      return NextResponse.json({ success: true, role: newRole });
+      return apiSuccess({ role: newRole }, { meta: { role: newRole } });
     }
     
     // 更新角色
@@ -233,10 +191,10 @@ export async function POST(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Update error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return apiServerError(error.message);
       }
       
-      return NextResponse.json({ success: true, role: updatedRole });
+      return apiSuccess({ role: updatedRole }, { meta: { role: updatedRole } });
     }
     
     // 删除角色
@@ -251,7 +209,7 @@ export async function POST(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Delete error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return apiServerError(error.message);
       }
       
       // 记录安全日志
@@ -264,24 +222,21 @@ export async function POST(request: NextRequest) {
         metadata: { target_role_id: id },
       });
       
-      return NextResponse.json({ success: true });
+      return apiSuccess(null);
     }
     
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (err: any) {
+    return apiBadRequest('Invalid action');
+  } catch (err: unknown) {
     console.error('[roles] POST error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiServerError(getErrorMessage(err, '角色操作失败'));
   }
 }
 
 // 批量操作（PUT）
 export async function PUT(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
-    
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
     
     // 从 URL 获取 ID
     const { searchParams } = new URL(request.url);
@@ -333,36 +288,35 @@ export async function PUT(request: NextRequest) {
         .eq('id', parseInt(id))
         .single();
       
-      return NextResponse.json({
-        success: true,
-        role: {
+      const responseRole = {
           ...updatedRole,
           permission_count: updatedRole?.role_permissions?.length || 0
-        }
+      };
+
+      return apiSuccess({ role: responseRole }, {
+        meta: { role: responseRole },
       });
     }
     
-    return NextResponse.json({ error: '角色ID不能为空' }, { status: 400 });
-  } catch (err: any) {
+    return apiBadRequest('角色ID不能为空');
+  } catch (err: unknown) {
     console.error('[roles] PUT error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiServerError(getErrorMessage(err, '角色更新失败'));
   }
 }
 
 // 删除角色（DELETE）
 export async function DELETE(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
-    
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+    const currentUser = auth.user;
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     
     if (!id) {
-      return NextResponse.json({ error: '角色ID不能为空' }, { status: 400 });
+      return apiBadRequest('角色ID不能为空');
     }
     
     console.log('[roles] DELETE - id:', id);
@@ -380,7 +334,7 @@ export async function DELETE(request: NextRequest) {
     
     if (error) {
       console.error('[roles] DELETE error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return apiServerError(error.message);
     }
     
     // 记录安全日志
@@ -393,9 +347,9 @@ export async function DELETE(request: NextRequest) {
       metadata: { target_role_id: parseInt(id) },
     });
     
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
+    return apiSuccess(null);
+  } catch (err: unknown) {
     console.error('[roles] DELETE error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiServerError(getErrorMessage(err, '角色删除失败'));
   }
 }

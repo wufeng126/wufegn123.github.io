@@ -1,9 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getCurrentUser } from '@/lib/auth';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -24,20 +28,25 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query.range(from, from + pageSize - 1);
 
     if (error) throw new Error(error.message);
-    return NextResponse.json({ success: true, data: data || [], pagination: { page, pageSize, total: count || 0 } });
+    return apiSuccess(data || [], {
+      meta: { pagination: { page, pageSize, total: count || 0 } },
+    });
   } catch (e: unknown) {
-    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '查询失败' }, { status: 500 });
+    return apiServerError(getErrorMessage(e, '查询失败'));
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
+    const user = auth.user;
     const body = await request.json();
     const { project_id, log_date, location, content, headcount, issues } = body;
 
     if (!project_id || !log_date || !content) {
-      return NextResponse.json({ success: false, error: '项目、日期和施工内容不能为空' }, { status: 400 });
+      return apiBadRequest('项目、日期和施工内容不能为空');
     }
 
     const supabase = getSupabaseClient();
@@ -88,8 +97,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, data });
+    return apiSuccess(data);
   } catch (e: unknown) {
-    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '提交失败' }, { status: 500 });
+    return apiServerError(getErrorMessage(e, '提交失败'));
   }
 }

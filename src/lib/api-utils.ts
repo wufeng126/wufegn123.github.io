@@ -1,25 +1,85 @@
-// API 统一响应格式工具函数
-
 import { NextResponse } from 'next/server';
 
-interface ApiResponse {
-  success: boolean;
-  data?: any;
-  error?: string | null;
+export type ApiMeta = Record<string, unknown>;
+
+export interface ApiSuccessResponse<T = unknown> {
+  success: true;
+  data: T;
+  error: null;
+  code: string;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  data: null;
+  error: string;
+  code: string;
+  details?: unknown;
+}
+
+export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+interface ApiSuccessOptions {
   code?: string;
+  status?: number;
+  meta?: ApiMeta;
 }
 
-/** 成功响应 */
-export function apiSuccess(data: any, code = 'OK') {
-  return NextResponse.json({ success: true, data, error: null, code });
+interface ApiResultOptions {
+  code?: string;
+  status?: number;
+  error?: string | null;
+  meta?: ApiMeta;
 }
 
-/** 客户端错误响应 (4xx) */
-export function apiError(message: string, status: number, code: string) {
-  return NextResponse.json(
-    { success: false, data: null, error: message, code },
-    { status }
-  );
+/** 成功响应。meta 会保留旧接口常用的顶层字段，例如 pagination、total、roles。 */
+export function apiSuccess<T = unknown>(
+  data: T,
+  codeOrOptions: string | ApiSuccessOptions = 'OK'
+) {
+  const options = typeof codeOrOptions === 'string' ? { code: codeOrOptions } : codeOrOptions;
+  const body: ApiSuccessResponse<T> & ApiMeta = {
+    success: true,
+    data,
+    error: null,
+    code: options.code || 'OK',
+    ...(options.meta || {}),
+  };
+
+  return NextResponse.json(body, { status: options.status || 200 });
+}
+
+/** 自定义 success 状态的响应，适合批量同步、部分成功等场景。 */
+export function apiResult<T = unknown>(
+  success: boolean,
+  data: T,
+  options: ApiResultOptions = {}
+) {
+  return NextResponse.json({
+    success,
+    data,
+    error: success ? null : options.error || '操作未完全成功',
+    code: options.code || (success ? 'OK' : 'OPERATION_FAILED'),
+    ...(options.meta || {}),
+  }, { status: options.status || 200 });
+}
+
+/** 失败响应 */
+export function apiError(
+  message: string,
+  status = 500,
+  code = 'INTERNAL_ERROR',
+  details?: unknown
+) {
+  const body: ApiErrorResponse = {
+    success: false,
+    data: null,
+    error: message,
+    code,
+    ...(details === undefined ? {} : { details }),
+  };
+
+  return NextResponse.json(body, { status });
 }
 
 /** 未登录 401 */
@@ -45,6 +105,23 @@ export function apiNotFound(message = '资源不存在') {
 /** 服务端错误 500 */
 export function apiServerError(message = '服务器内部错误') {
   return apiError(message, 500, 'INTERNAL_ERROR');
+}
+
+export function getErrorMessage(error: unknown, fallback = '服务器内部错误'): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error) return error;
+  return fallback;
+}
+
+export async function withApiErrorHandling<T>(
+  handler: () => Promise<NextResponse<ApiResponse<T>> | NextResponse>,
+  fallback = '服务器内部错误'
+) {
+  try {
+    return await handler();
+  } catch (error) {
+    return apiServerError(getErrorMessage(error, fallback));
+  }
 }
 
 /** 验证 session token，返回 userId 或 null */
