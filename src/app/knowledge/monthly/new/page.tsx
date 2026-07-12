@@ -440,6 +440,67 @@ export default function NewMonthlyKnowledgePage() {
               </div>
             </div>
           </section>
+          {Object.keys(tradeWages).length > 0 && (
+            <section className="monthly-readonly p-5">
+              <div className="mb-3 flex items-center gap-2 text-[#165DFF]">
+                <FileText className="h-5 w-5" />
+                <h2 className="text-lg font-semibold text-[#1D2129]">👷 工种工资拆分</h2>
+              </div>
+              <div className="rounded-lg border border-[rgba(0,0,0,0.06)] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-[#FAFBFC] border-b border-[rgba(0,0,0,0.06)]">
+                    <th className="text-left px-4 py-2.5 text-[#4E5969] font-medium">工种</th>
+                    <th className="text-right px-4 py-2.5 text-[#4E5969] font-medium">金额（元）</th>
+                    <th className="text-right px-4 py-2.5 text-[#4E5969] font-medium">占比</th>
+                  </tr></thead>
+                  <tbody>
+                    {Object.entries(tradeWages)
+                      .sort(([,a]:[string,number],[,b]:[string,number]) => b - a)
+                      .map(([trade, amount]) => (
+                      <tr key={trade} className="border-b border-[rgba(0,0,0,0.04)] last:border-0">
+                        <td className="px-4 py-2.5">{trade}</td>
+                        <td className="text-right px-4 py-2.5 tabular-nums">{(amount as number).toLocaleString()}</td>
+                        <td className="text-right px-4 py-2.5 tabular-nums text-[#8A8F98]">
+                          {tradeWageTotal > 0 ? ((amount as number / tradeWageTotal) * 100).toFixed(1) + '%' : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-[#FAFBFC] font-medium">
+                      <td className="px-4 py-2.5">合计</td>
+                      <td className="text-right px-4 py-2.5 tabular-nums">{tradeWageTotal.toLocaleString()}</td>
+                      <td className="text-right px-4 py-2.5 text-[#8A8F98]">100%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+          {reportItems.length > 0 && (
+            <section className="monthly-readonly p-5">
+              <div className="mb-3 flex items-center gap-2 text-[#165DFF]">
+                <FileText className="h-5 w-5" />
+                <h2 className="text-lg font-semibold text-[#1D2129]">📋 对上报量明细</h2>
+              </div>
+              <div className="rounded-lg border border-[rgba(0,0,0,0.06)] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-[#FAFBFC] border-b border-[rgba(0,0,0,0.06)]">
+                    <th className="text-left px-4 py-2.5 text-[#4E5969] font-medium">项目子项</th>
+                    <th className="text-right px-4 py-2.5 text-[#4E5969] font-medium">本月上报量</th>
+                    <th className="text-left px-4 py-2.5 text-[#4E5969] font-medium">单位</th>
+                  </tr></thead>
+                  <tbody>
+                    {reportItems.map((item, i) => (
+                      <tr key={i} className="border-b border-[rgba(0,0,0,0.04)] last:border-0">
+                        <td className="px-4 py-2.5">{item.name}</td>
+                        <td className="text-right px-4 py-2.5 tabular-nums">{item.qty.toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-[#8A8F98]">{item.unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {/* 施工日志相关提醒 */}
           {constructionLogs.length > 0 && (
