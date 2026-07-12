@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/contexts/permission-context';
 import { FloatingAIAssistant } from '@/components/floating-ai-assistant';
+import NotificationBell from '@/components/notification-bell';
 
 // 菜单权限映射 - 用于判断哪些一级菜单对当前角色可见
 // 使用各 Tab 中权限最宽松的 code（通常是 :view 或 :list），用户拥有其中任意一个即可看到菜单
@@ -522,17 +523,7 @@ export default function SidebarLayout({
           {/* 右侧操作区 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {/* 通知铃铛 */}
-            <Link
-              href="/notifications"
-              aria-label="消息通知"
-              title="消息通知"
-              className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors duration-200"
-              style={{ color: 'var(--color-text-3)' }}
-              onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = '#F2F3F5'; }}
-              onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            >
-              <Bell className="w-[18px] h-[18px]" />
-            </Link>
+            <NotificationBell />
 
             {/* 用户信息 */}
             <div className="flex items-center gap-2">
