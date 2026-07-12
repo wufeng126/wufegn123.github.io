@@ -123,6 +123,18 @@ export default function NewMonthlyKnowledgePage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedDocId, setSavedDocId] = useState<number | null>(null);
+  const [users, setUsers] = useState<{id:number;name:string;role:string}[]>([]);
+  const [selectedApprover, setSelectedApprover] = useState('');
+  const [approveComment, setApproveComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // 加载用户列表（用于选择审批人）
+  useEffect(() => {
+    fetch('/api/auth/center/users').then(r => r.json()).then(d => {
+      if (d.users) setUsers(d.users.filter((u:any) => u.username !== 'admin'));
+    }).catch(() => {});
+  }, []);
   const [error, setError] = useState('');
   const [constructionLogs, setConstructionLogs] = useState<any[]>([]);
   const [tradeWages, setTradeWages] = useState<Record<string, number>>({});
@@ -280,12 +292,40 @@ export default function NewMonthlyKnowledgePage() {
       }
 
       const id = json.data?.id;
-      router.push(id ? `/knowledge/${id}` : '/knowledge');
-      router.refresh();
+      setSavedDocId(id);
+      // 不再自动跳转，展示提交审批面板
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       setError(e.message || '保存为知识失败');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSubmitWorkflow() {
+    if (!savedDocId || !selectedApprover) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/ai/knowledge/monthly/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          knowledgeId: savedDocId,
+          action: 'submit_to_manager',
+          comment: approveComment,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        router.push(`/knowledge/${savedDocId}`);
+        router.refresh();
+      } else {
+        setError(json.error || '提交审批失败');
+      }
+    } catch (e: any) {
+      setError(e.message || '提交审批失败');
+    } finally {
+      setSubmitting(false);
     }
   }
 

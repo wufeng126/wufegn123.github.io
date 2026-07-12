@@ -114,6 +114,14 @@ async function initPermissions(supabaseUrl: string, serviceKey: string) {
     { module: 'data', code: 'data.supplier_cost.view', name: '供应商成本看板', sort_order: 230 },
     { module: 'data', code: 'data.worker_cost.view', name: '工人成本看板', sort_order: 240 },
     { module: 'data', code: 'data.fund_management.view', name: '资金综合管理看板', sort_order: 250 },
+  { module: 'construction_log', code: 'construction_log.view', name: '施工日志', sort_order: 155 },
+  { module: 'construction_log', code: 'construction_log.edit', name: '写施工日志', sort_order: 156 },
+  { module: 'knowledge', code: 'knowledge.view', name: '知识库', sort_order: 157 },
+  { module: 'knowledge', code: 'knowledge.monthly_analysis', name: '月度分析', sort_order: 158 },
+  { module: 'knowledge', code: 'knowledge.approval_manage', name: '审批流程参与', sort_order: 159 },
+  { module: 'cost', code: 'cost.view', name: '成本测算', sort_order: 160 },
+  { module: 'cost', code: 'cost.bid', name: '投标测算', sort_order: 161 },
+
   ];
 
   let definitionsInserted = 0;
@@ -220,7 +228,14 @@ async function initPermissions(supabaseUrl: string, serviceKey: string) {
     { resource: 'cost_center', action: 'profit', name: '利润分析', category: '数据与决策' },
     // 数据看板
     { resource: 'data_board', action: 'supplier_cost_view', name: '供应商成本看板', category: '数据看板' },
-    { resource: 'data_board', action: 'worker_cost_view', name: '工人成本看板', category: '数据看板' },
+    { resource: 'construction_logs', action: 'view', name: '查看施工日志', category: '现场管理' },
+  { resource: 'construction_logs', action: 'edit', name: '写施工日志', category: '现场管理' },
+  { resource: 'knowledge_base', action: 'view', name: '知识库', category: '知识管理' },
+  { resource: 'knowledge_base', action: 'monthly_analysis', name: '月度分析', category: '知识管理' },
+  { resource: 'knowledge_base', action: 'approval', name: '审批流程', category: '知识管理' },
+  { resource: 'cost_estimation', action: 'view', name: '成本测算', category: '成本管控' },
+  { resource: 'cost_estimation', action: 'bid', name: '投标测算', category: '成本管控' },
+  { resource: 'data_board', action: 'worker_cost_view', name: '工人成本看板', category: '数据看板' },
     { resource: 'data_board', action: 'fund_management_view', name: '资金综合管理看板', category: '数据看板' },
     // 月度经营月报
     { resource: 'reports', action: 'monthly_view', name: '月度经营月报', category: '报表中心' },

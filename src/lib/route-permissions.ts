@@ -68,6 +68,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/bid-estimations': { permission: 'projects:view' },
   '/api/system/workflow-config': { permission: 'system:manage' },
   '/api/admins': { permission: 'system:permission_manage' },
+  '/api/ai/knowledge': {},
 
   // === 新导航容器页 ===
   '/workspace': { permission: 'projects:view' },
@@ -195,6 +196,10 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
 
   // 施工日志
   '/api/construction-logs': 'construction_logs:edit',
+  '/api/ai/knowledge/monthly/workflow': 'knowledge_base:approval',
+
+  // 投标测算
+  '/api/bid-estimations': 'cost_estimation:bid',
 
   // 证件管理
   '/api/certificates': 'certificates:edit',
