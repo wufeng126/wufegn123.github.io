@@ -165,6 +165,35 @@ const PERMISSION_MENU = [
       { name: '角色管理', code: 'roles:edit' },
     ]
   },
+  {
+    name: '施工日志',
+    code: 'construction_logs',
+    icon: '📋',
+    children: [
+      { name: '施工日志-查看', code: 'construction_logs:view' },
+      { name: '施工日志-写日志', code: 'construction_logs:edit' },
+    ]
+  },
+  {
+    name: '成本测算',
+    code: 'cost_estimation',
+    icon: '📊',
+    children: [
+      { name: '成本测算-查看', code: 'cost_estimation:view' },
+      { name: '成本测算-投标', code: 'cost_estimation:bid' },
+    ]
+  },
+  {
+    name: '知识库',
+    code: 'knowledge',
+    icon: '📚',
+    children: [
+      { name: '知识库-查看', code: 'knowledge:view' },
+      { name: '写知识', code: 'knowledge:write' },
+      { name: '月度分析', code: 'knowledge:monthly_analysis' },
+      { name: '审批流程', code: 'knowledge:approval' },
+    ]
+  },
 ];
 
 interface Role {
