@@ -189,24 +189,37 @@ export async function GET(request: Request) {
     });
 
     // ========== 甲方报量和付款数据 ==========
-    
-    // 甲方报量 - 支持项目筛选和时间范围筛选，排除已作废
+
+    // === 累计全量数据（不受时间范围影响，用于待回款计算）===
+
+    // 全量甲方报量 - 排除已作废
+    let allReportsQuery = client
+      .from('client_reports')
+      .select('settlement_amount, report_amount, status');
+    if (projectId) allReportsQuery = allReportsQuery.eq('project_id', parseInt(projectId));
+    const { data: allReports } = await allReportsQuery;
+    const totalMeasurementAmount = allReports?.filter(r => r.status !== 'voided').reduce((sum, r) => {
+      return sum + parseFloat(r.settlement_amount || r.report_amount || '0');
+    }, 0) || 0;
+
+    // 全量甲方付款 - 仅已完成
+    let allPaymentsQuery = client
+      .from('client_payments')
+      .select('payment_amount, status');
+    if (projectId) allPaymentsQuery = allPaymentsQuery.eq('project_id', parseInt(projectId));
+    const { data: allPayments } = await allPaymentsQuery;
+    const totalPaid = allPayments?.filter(r => r.status === 'completed').reduce((sum, r) => {
+      return sum + parseFloat(r.payment_amount || '0');
+    }, 0) || 0;
+
+    // === 按时间范围筛选（用于当月/当月产值等指标）===
+
     let clientReportsQuery = client
       .from('client_reports')
       .select('report_amount, settlement_amount, invoice_amount, project_id, projects(name), report_date, status');
-    
-    if (projectId) {
-      clientReportsQuery = clientReportsQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      clientReportsQuery = clientReportsQuery.gte('report_date', rangeStartDate);
-    }
-    
+    if (projectId) clientReportsQuery = clientReportsQuery.eq('project_id', parseInt(projectId));
+    if (timeRange !== 'year') clientReportsQuery = clientReportsQuery.gte('report_date', rangeStartDate);
     const { data: clientReports } = await clientReportsQuery;
-
-    const totalMeasurementAmount = clientReports?.filter(r => r.status !== 'voided').reduce((sum, record) => {
-      return sum + parseFloat(record.settlement_amount || record.report_amount || '0');
-    }, 0) || 0;
 
     // 本月甲方报量
     const currentMonthClientReports = clientReports?.filter(r => {
@@ -215,30 +228,17 @@ export async function GET(request: Request) {
       const yearMonth = `${reportDate.getFullYear()}-${String(reportDate.getMonth() + 1).padStart(2, '0')}`;
       return yearMonth === currentMonth;
     }) || [];
-
     const currentMonthClientReportAmount = currentMonthClientReports.filter(r => r.status !== 'voided').reduce((sum, r) => {
       return sum + parseFloat(r.settlement_amount || r.report_amount || '0');
     }, 0);
 
-    // 甲方付款 - 支持项目筛选和时间范围筛选
+    // 甲方付款（按时间范围）
     let clientPaymentsQuery = client
       .from('client_payments')
       .select('payment_amount, project_id, projects(name), status, payment_date');
-    
-    if (projectId) {
-      clientPaymentsQuery = clientPaymentsQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      clientPaymentsQuery = clientPaymentsQuery.gte('payment_date', rangeStartDate);
-    }
-    
+    if (projectId) clientPaymentsQuery = clientPaymentsQuery.eq('project_id', parseInt(projectId));
+    if (timeRange !== 'year') clientPaymentsQuery = clientPaymentsQuery.gte('payment_date', rangeStartDate);
     const { data: clientPayments } = await clientPaymentsQuery;
-
-    const totalPaid = clientPayments
-      ?.filter(record => record.status === 'completed')
-      .reduce((sum, record) => {
-        return sum + parseFloat(record.payment_amount || '0');
-      }, 0) || 0;
 
     // ========== 预警计算 ==========
     
