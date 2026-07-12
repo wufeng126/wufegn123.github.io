@@ -87,17 +87,13 @@ export function RouteGuard({ children }: RouteGuardProps) {
     // 缓存过期或首次访问，需要重新验证
     try {
       // 始终从 localStorage 读取 token 附加到请求头（兜底 Cookie 不存储的情况）
-      let authUrl = '/api/auth/me';
       const storedToken = getStoredToken();
       const fetchOptions: RequestInit = { credentials: 'include' };
       if (storedToken) {
-        // 优先通过 URL 参数传递（middleware 可读取）
-        authUrl += `?token=${encodeURIComponent(storedToken)}`;
-        // 同时通过 Authorization header 传递（API 层可读取）
         fetchOptions.headers = { 'Authorization': `Bearer ${storedToken}` };
       }
 
-      const res = await fetch(authUrl, fetchOptions);
+      const res = await fetch('/api/auth/me', fetchOptions);
       if (!res.ok) {
         cachedUser = null;
         cacheExpiry = 0;

@@ -12,7 +12,7 @@ interface MatchRow {
   status: 'pending' | 'confirmed' | 'rejected';
 }
 
-interface WorkType { name: string; unit: string; }
+interface WorkType { name: string; unit: string; category?: string; }
 
 function normalize(s: string) { return s.replace(/[（(].*?[）)]/g, '').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').toLowerCase(); }
 

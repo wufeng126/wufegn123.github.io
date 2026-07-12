@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Database, BarChart3, Search, X, Upload } from 'lucide-react';
+import { Plus, Trash2, Database, BarChart3, Search, X, Upload, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
 interface UnitPrice {
@@ -13,7 +13,7 @@ interface UnitPrice {
 interface PriceStat {
   work_type: string; unit: string; min_price: number; max_price: number;
   median_price: number; avg_price: number; samples: number;
-  projects: string; years: string;
+  projects: string; years: string; category?: string; has_prices?: boolean; from_standard?: boolean;
 }
 
 interface Project { id: number; name: string; }
@@ -32,12 +32,12 @@ export default function CostEstimationPage() {
 
   async function load() {
     try {
-      const [pRes, sRes, projRes] = await Promise.all([
-        fetch('/api/cost-estimation'),
-        fetch('/api/cost-estimation/stats'),
-        fetch('/api/projects'),
-      ]);
-      const pJ = await pRes.json(), sJ = await sRes.json(), projJ = await projRes.json();
+        const [pRes, sRes, projRes] = await Promise.all([
+          fetch('/api/cost-estimation'),
+          fetch('/api/cost-estimation/stats'),
+          fetch('/api/projects'),
+        ]);
+        const pJ = await pRes.json(), sJ = await sRes.json(), projJ = await projRes.json();
       setPrices(Array.isArray(pJ.data) ? pJ.data : []);
       setStats(Array.isArray(sJ.data) ? sJ.data : []);
       setProjects(Array.isArray(projJ.projects) ? projJ.projects : []);
@@ -96,6 +96,20 @@ export default function CostEstimationPage() {
           </Link>
         </div>
 
+        {/* 快捷入口 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+         <Link href="/cost-estimation/import" className="bg-white rounded-xl border border-[#E5E6EB] p-4 hover:border-[#165DFF]/30 transition text-center">
+           <Upload className="h-5 w-5 text-[#165DFF] mx-auto mb-1.5" />
+           <p className="text-xs font-medium text-[#1D2129]">批量导入</p>
+           <p className="text-[10px] text-[#86909C] mt-0.5">Excel导入报价</p>
+         </Link>
+         <Link href="/cost-estimation/bid" className="bg-white rounded-xl border border-[#E5E6EB] p-4 hover:border-[#00A870]/30 transition text-center">
+           <TrendingUp className="h-5 w-5 text-[#00A870] mx-auto mb-1.5" />
+           <p className="text-xs font-medium text-[#1D2129]">投标测算</p>
+           <p className="text-[10px] text-[#86909C] mt-0.5">引用单价→报价</p>
+         </Link>
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-1 bg-[#F2F3F5] rounded-xl p-1 mb-5">
           <button onClick={() => setTab('stats')} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${tab === 'stats' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
@@ -104,6 +118,7 @@ export default function CostEstimationPage() {
           <button onClick={() => setTab('prices')} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${tab === 'prices' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
             <BarChart3 className="h-4 w-4 inline mr-1" />全部记录
           </button>
+
         </div>
 
         {/* 价格参考库 */}
@@ -116,25 +131,38 @@ export default function CostEstimationPage() {
               </div>
             )}
             {stats.map((s, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#E5E6EB] overflow-hidden cursor-pointer hover:border-[#165DFF]/30 transition" onClick={() => setSelectedStat(selectedStat?.work_type === s.work_type ? null : s)}>
+              <div key={i} className={`bg-white rounded-xl border overflow-hidden cursor-pointer transition ${s.has_prices === false ? 'border-dashed border-[#E5E6EB] opacity-60 hover:opacity-100' : 'border-[#E5E6EB] hover:border-[#165DFF]/30'}`} onClick={() => setSelectedStat(selectedStat?.work_type === s.work_type ? null : s)}>
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <h3 className="font-semibold text-[#1D2129]">{s.work_type}</h3>
-                      <p className="text-xs text-[#86909C] mt-0.5">{s.unit ? `${s.unit} · ` : ''}{s.samples}条记录 · {s.years || ''}</p>
+                      <p className="text-xs text-[#86909C] mt-0.5">
+                        {s.unit ? `${s.unit}` : ''}
+                        {s.category ? ` · ${s.category}` : ''}
+                        {s.from_standard && !s.has_prices ? ' · 暂无报价' : ''}
+                        {s.years ? ` · ${s.years}` : ''}
+                        {s.samples > 0 ? ` · ${s.samples}条记录` : ''}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-[#165DFF]">{s.median_price}<span className="text-xs font-normal text-[#86909C]"> 中位价</span></p>
+                      {s.has_prices ? (
+                        <p className="text-lg font-bold text-[#165DFF]">{s.median_price}<span className="text-xs font-normal text-[#86909C]"> 中位价</span></p>
+                      ) : (
+                        <p className="text-xs text-[#C9CDD4]">待录入</p>
+                      )}
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <span className="text-xs text-[#86909C]">最低 {s.min_price}</span>
-                    <div className="flex-1 h-1.5 bg-[#E5E6EB] rounded-full overflow-hidden relative">
-                      <div className="absolute h-full bg-gradient-to-r from-[#165DFF] to-[#7C3AED] rounded-full" style={{ width: `${Math.min(100, ((s.median_price - s.min_price) / (s.max_price - s.min_price || 1)) * 100)}%` }} />
+                  {s.has_prices && s.min_price !== s.max_price && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <span className="text-xs text-[#86909C]">最低 {s.min_price}</span>
+                      <div className="flex-1 h-1.5 bg-[#E5E6EB] rounded-full overflow-hidden relative">
+                        <div className="absolute h-full bg-gradient-to-r from-[#165DFF] to-[#7C3AED] rounded-full" style={{ width: `${Math.min(100, ((s.median_price - s.min_price) / (s.max_price - s.min_price || 1)) * 100)}%` }} />
+                      </div>
+                      <span className="text-xs text-[#86909C]">最高 {s.max_price}</span>
                     </div>
-                    <span className="text-xs text-[#86909C]">最高 {s.max_price}</span>
-                  </div>
-                  <p className="text-xs text-[#A9AEB8] mt-2">平均 {s.avg_price} · 参与项目: {s.projects}</p>
+                  )}
+                  {s.has_prices && <p className="text-xs text-[#A9AEB8] mt-2">平均 {s.avg_price} · 参与项目: {s.projects}</p>}
+                  {!s.from_standard && <p className="text-xs text-[#F59E0B] mt-2">⚠ 未归入标准工序</p>}
                 </div>
 
                 {/* 展开显示详细记录 */}
@@ -158,6 +186,7 @@ export default function CostEstimationPage() {
           </div>
         )}
 
+        {/* 全部记录 */}
         {/* 全部记录 */}
         {tab === 'prices' && (
           <div>
@@ -194,6 +223,7 @@ export default function CostEstimationPage() {
             )}
           </div>
         )}
+
 
         {/* 录入弹窗 */}
         {showForm && (

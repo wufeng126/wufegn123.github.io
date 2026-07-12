@@ -21,7 +21,8 @@ import {
   AlertCircle, Bell, PieChart as PieChartIcon, LineChart as LineChartIcon,
   Activity, FilePlus, UserPlus, AlertOctagon, TrendingDown,
   ShieldCheck, UsersRound, Package, Wrench, FolderOpen, BarChart2,
-  Tag, Download, CalendarDays, ArrowUpRight, ArrowDownRight, Info, 
+  Tag, Download, CalendarDays, ArrowUpRight, ArrowDownRight, Info,
+  PenSquare, 
   FileCheck, ListTodo, Timer, CircleDot, Kanban, Gauge,
 } from 'lucide-react';
 import EChartsWrapper, { CHART_COLORS } from '@/components/charts/echarts-wrapper';
@@ -409,13 +410,44 @@ export default function HomePage() {
   }
 
   if (!stats) {
+    // 即使数据加载失败，也显示UI布局（填入空数据方便预览）
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <AlertCircle className="w-16 h-16 mb-4" style={{ color: '#86909C' }} />
-        <p className="text-lg font-medium mb-2" style={{ color: '#1D2129' }}>数据加载失败</p>
-        <p className="text-sm mb-4" style={{ color: '#86909C' }}>{error || '请检查网络连接后重试'}</p>
-        <button onClick={fetchStats} className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: '#165DFF' }}>重新加载</button>
-      </div>
+      <TooltipProvider>
+        <div className="..." style={{ background: '#F5F6FA', minHeight: '100%', padding: '16px 20px' }}>
+          <div className="mx-auto" style={{ maxWidth: 1400 }}>
+            {/* 错误提示条 */}
+            <div className="flex items-center gap-2 p-3 mb-4 rounded-lg" style={{ background: '#FFF7E6', border: '1px solid #FFD591' }}>
+              <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#FA8C16' }} />
+              <p className="text-sm" style={{ color: '#D46B08' }}>{error || '数据加载失败，部分内容可能不可用'}</p>
+              <button onClick={fetchStats} className="ml-auto text-xs font-medium px-3 py-1 rounded" style={{ background: '#FA8C16', color: 'white' }}>重试</button>
+            </div>
+            {/* 快捷入口 */}
+            <div className={`grid grid-cols-4 md:grid-cols-8 gap-2`}>
+              {[
+                { title: '施工日志', href: '/construction-logs', icon: ClipboardList, color: '#13C2C2' },
+                { title: '写知识', href: '/knowledge/new', icon: PenSquare, color: '#F7BA1E' },
+                { title: '新增项目', href: '/projects', icon: FolderOpen, color: '#165DFF' },
+                { title: '花名册', href: '/workers/roster', icon: UsersRound, color: '#00B42A' },
+                { title: '工程量', href: '/work-items', icon: BarChart2, color: '#722ED1' },
+                { title: '报量', href: '/client-reports', icon: FileText, color: '#FF7D00' },
+                { title: '回款', href: '/client-payments', icon: CreditCard, color: '#722ED1' },
+                { title: '月度工资', href: '/workers/salaries', icon: Receipt, color: '#13C2C2' },
+                { title: '证件', href: '/certificates', icon: ShieldCheck, color: '#F7BA1E' },
+                { title: '通知', href: '/notifications', icon: Bell, color: '#EB2F96' },
+              ].map((link, i) => (
+                <Link key={i} href={link.href}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-white transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+                  style={{ border: '1px solid #E5E6EB' }}>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${link.color}10` }}>
+                    <link.icon className="w-4.5 h-4.5" style={{ color: link.color }} />
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: '#1D2129' }}>{link.title}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </TooltipProvider>
     );
   }
 
@@ -721,6 +753,8 @@ export default function HomePage() {
       {/* ========== 快捷入口 ========== */}
       <div className={`grid grid-cols-4 md:grid-cols-8 gap-2 transition-all duration-500 delay-400 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0'}`}>
         {[
+          { title: '施工日志', href: '/construction-logs', icon: ClipboardList, color: '#13C2C2' },
+          { title: '写知识', href: '/knowledge/new', icon: PenSquare, color: '#F7BA1E' },
           { title: '新增项目', href: '/projects', icon: FolderOpen, color: '#165DFF' },
           { title: '花名册', href: '/workers/roster', icon: UsersRound, color: '#00B42A' },
           { title: '工程量', href: '/work-items', icon: BarChart2, color: '#722ED1' },
