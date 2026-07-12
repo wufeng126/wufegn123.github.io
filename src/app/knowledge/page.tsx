@@ -25,6 +25,9 @@ type KnowledgeDoc = {
   updated_at?: string | null;
   tags?: string[] | string | null;
   source_ref?: string | null;
+  file_key?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
 };
 
 type Project = {
@@ -654,152 +657,100 @@ export default function KnowledgePage() {
           </section>
 
           <section className="kb-card">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div className="kb-section-title">
-                <Layers className="h-5 w-5" />
-                <h2>项目知识</h2>
-              </div>
-              <span className="text-xs text-[#86909C]">{projectCards.length} 个项目 · 点击查看知识详情</span>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {projectCards.length > 0 ? (
-                projectCards.map(({ project, knowledgeCount, costCount }) => {
-                  // 查找该项目的最新知识
-                  const projectDocs = docs.filter(d => {
-                    const tags = normalizeTags(d.tags);
-                    return tags.includes(project.name) || String(d.source_ref || '').includes(String(project.id));
-                  });
-                  const latestDoc = projectDocs.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())[0];
-                  const docCount = projectDocs.filter(d => {
-                    const tags = normalizeTags(d.tags);
-                    return tags.includes('月度分析');
-                  }).length;
-
+            {activeCategory === '全部' ? (
+              <div className="divide-y divide-[#E5E6EB]">
+                {['项目档案', '经验总结', '投标策略'].map(cat => {
+                  const catDocs = filteredDocs.filter(d => getCategoryLabel(d.category) === cat);
+                  if (catDocs.length === 0) return null;
+                  const icons: Record<string, string> = { '项目档案': '📄', '经验总结': '📝', '投标策略': '🏆' };
                   return (
-                    <Link
-                      key={project.id}
-                      href={`/knowledge/project/${project.id}`}
-                      className="group rounded-xl border border-[#E5E6EB] bg-white p-4 transition-all hover:border-[#165DFF]/30 hover:shadow-[0_4px_16px_rgba(22,93,255,0.06)]"
-                    >
-                      {/* 顶部：项目名 + 状态 */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-base font-semibold text-[#1D2129] group-hover:text-[#165DFF] transition-colors">{project.name}</h3>
-                          <p className="mt-0.5 text-xs text-[#86909C]">{project.partner || '暂无合同信息'}</p>
-                        </div>
-                        <div className="shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-[#165DFF] to-[#7C3AED] flex items-center justify-center shadow-sm">
-                          <BookOpen className="h-4 w-4 text-white" />
-                        </div>
+                    <div key={cat} className="px-5 py-5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-base">{icons[cat] || '📋'}</span>
+                        <h3 className="text-base font-semibold text-[#1D2129]">{cat}</h3>
+                        <span className="text-xs text-[#86909C]">{catDocs.length} 条</span>
                       </div>
-
-                      {/* 中间：合同额 + 知识统计 */}
-                      <div className="mt-3 flex items-center gap-4">
-                        <div className="flex-1">
-                          <p className="text-xs text-[#A9AEB8]">合同额</p>
-                          <p className="text-lg font-bold text-[#1D2129]">{formatAmount(project.contract_amount)}</p>
-                        </div>
-                        <div className="flex gap-3">
-                          <div className="text-center">
-                            <p className="text-lg font-bold text-[#165DFF]">{knowledgeCount}</p>
-                            <p className="text-xs text-[#86909C]">知识篇</p>
-                          </div>
-                          <div className="w-px bg-[#E5E6EB]" />
-                          <div className="text-center">
-                            <p className="text-lg font-bold text-[#7C3AED]">{costCount}</p>
-                            <p className="text-xs text-[#86909C]">成本数据</p>
-                          </div>
-                          <div className="w-px bg-[#E5E6EB]" />
-                          <div className="text-center">
-                            <p className="text-lg font-bold text-[#10B981]">{docCount}</p>
-                            <p className="text-xs text-[#86909C]">月度分析</p>
-                          </div>
-                        </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {catDocs.slice(0, 6).map(doc => {
+                          const tags = normalizeTags(doc.tags);
+                          const hasFile = doc.file_key && !doc.file_key.startsWith('bid:');
+                          return (
+                            <Link key={doc.id} href={`/knowledge/${doc.id}`}
+                              className="group rounded-xl border border-[#E5E6EB] p-4 hover:border-[#165DFF]/30 hover:shadow-sm transition block">
+                              <div className="flex items-start gap-3">
+                                <span className="text-lg shrink-0 mt-0.5">{icons[cat] || '📄'}</span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-[#1D2129] group-hover:text-[#165DFF] line-clamp-1">{doc.title}</p>
+                                  <p className="text-xs text-[#86909C] mt-1 line-clamp-2">{stripMarkdown(doc.content) || '暂无摘要'}</p>
+                                  <div className="flex items-center gap-2 mt-2 text-[10px] text-[#A9AEB8]">
+                                    <span>{formatDate(doc.updated_at || doc.created_at)}</span>
+                                    {hasFile && <span>📎 含附件</span>}
+                                    {tags.slice(0, 2).map(t => <span key={t} className="inline-flex items-center gap-0.5 rounded bg-[#F7F8FA] px-1.5 py-0.5"><Tag className="h-2.5 w-2.5" />{t}</span>)}
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        })}
                       </div>
-
-                      {/* 底部：最新知识预览 */}
-                      {latestDoc && (
-                        <div className="mt-3 pt-3 border-t border-[#F2F3F5]">
-                          <div className="flex items-start gap-2">
-                            <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-[#165DFF] shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-xs text-[#4E5969] truncate">{latestDoc.title}</p>
-                              <p className="text-[10px] text-[#A9AEB8] mt-0.5">
-                                {latestDoc.created_at ? new Date(latestDoc.created_at).toLocaleDateString('zh-CN') : ''}
-                                {latestDoc.tags && normalizeTags(latestDoc.tags).filter(t => !t.startsWith('状态:')).slice(0, 2).map(t => (
-                                  <span key={t} className="ml-1.5 inline-block px-1 py-0.5 rounded bg-[#F2F3F5] text-[10px]">{t}</span>
-                                ))}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                      {catDocs.length > 6 && (
+                        <button onClick={() => setActiveCategory(cat)}
+                          className="mt-3 text-xs text-[#165DFF] hover:underline">
+                          查看全部 {catDocs.length} 条 →
+                        </button>
                       )}
-
-                      {/* 全无知识时的提示 */}
-                      {!latestDoc && (
-                        <div className="mt-3 pt-3 border-t border-[#F2F3F5]">
-                          <p className="text-xs text-[#C9CDD4]">暂无知识记录，点击创建</p>
-                        </div>
-                      )}
-                    </Link>
+                    </div>
                   );
-                })
-              ) : (
-                <div className="col-span-2 rounded-xl border border-dashed border-[#E5E6EB] p-8 text-center text-sm text-[#86909C]">
-                  暂无项目数据
+                })}
+                {filteredDocs.length === 0 && (
+                  <div className="py-10 text-center text-sm text-[#86909C]">暂无知识条目</div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
+                  <div className="kb-section-title">
+                    <FileText className="h-5 w-5" />
+                    <h2>{activeCategory}</h2>
+                  </div>
+                  <span className="text-sm text-[#86909C]">{filteredDocs.length} 条</span>
                 </div>
-              )}
-            </div>
-          </section>
-
-          <section className="kb-card">
-            <div className="flex items-center justify-between gap-3">
-              <div className="kb-section-title">
-                <FileText className="h-5 w-5" />
-                <h2>最新知识</h2>
+                <div className="mt-4 divide-y divide-[#E5E6EB]">
+                  {loading ? (
+                    <div className="py-10 text-center text-sm text-[#86909C]">正在加载知识库...</div>
+                  ) : filteredDocs.length > 0 ? (
+                    filteredDocs.slice(0, 12).map(doc => {
+                      const tags = normalizeTags(doc.tags);
+                      return (
+                        <Link href={`/knowledge/${doc.id}`} key={doc.id} className="group block py-4 transition hover:bg-[#F8FAFF]">
+                          <div className="flex items-start justify-between gap-4 px-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-base font-semibold text-[#1D2129] group-hover:text-[#165DFF]">{doc.title}</h3>
+                                <span className="rounded-full bg-[#F0F5FF] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc.category)}</span>
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#4E5969]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
+                              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#86909C]">
+                                <span>作者：{doc.created_by || '系统'}</span>
+                                <span>更新：{formatDate(doc.updated_at || doc.created_at)}</span>
+                                {tags.slice(0, 4).map(tag => (
+                                  <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#F7F8FA] px-2 py-1">
+                                    <Tag className="h-3 w-3" />{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#C9CDD4] transition group-hover:translate-x-1 group-hover:text-[#165DFF]" />
+                          </div>
+                        </Link>
+                      );
+                    })
+                  ) : (
+                    <div className="py-10 text-center text-sm text-[#86909C]">没有匹配的知识条目</div>
+                  )}
+                </div>
               </div>
-              <span className="text-sm text-[#86909C]">{filteredDocs.length} 条</span>
-            </div>
-            <div className="mt-4 divide-y divide-[#E5E6EB]">
-              {loading ? (
-                <div className="py-10 text-center text-sm text-[#86909C]">正在加载知识库...</div>
-              ) : filteredDocs.length > 0 ? (
-                filteredDocs.slice(0, 12).map(doc => {
-                  const tags = normalizeTags(doc.tags);
-                  return (
-                    <Link
-                      href={`/knowledge/${doc.id}`}
-                      key={doc.id}
-                      className="group block py-4 transition hover:bg-[#F8FAFF]"
-                    >
-                      <div className="flex items-start justify-between gap-4 px-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base font-semibold text-[#1D2129] group-hover:text-[#165DFF]">{doc.title}</h3>
-                            <span className="rounded-full bg-[#F0F5FF] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc.category)}</span>
-                          </div>
-                          <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#4E5969]">
-                            {stripMarkdown(doc.content) || '暂无摘要'}
-                          </p>
-                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#86909C]">
-                            <span>作者：{doc.created_by || '系统'}</span>
-                            <span>更新：{formatDate(doc.updated_at || doc.created_at)}</span>
-                            {tags.slice(0, 4).map(tag => (
-                              <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#F7F8FA] px-2 py-1">
-                                <Tag className="h-3 w-3" />
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#C9CDD4] transition group-hover:translate-x-1 group-hover:text-[#165DFF]" />
-                      </div>
-                    </Link>
-                  );
-                })
-              ) : (
-                <div className="py-10 text-center text-sm text-[#86909C]">没有匹配的知识条目</div>
-              )}
-            </div>
+            )}
           </section>
         </div>
 

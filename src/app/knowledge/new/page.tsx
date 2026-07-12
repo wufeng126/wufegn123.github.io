@@ -1,16 +1,22 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Upload, FileText, Loader2, Lightbulb } from 'lucide-react';
 
-type Project = {
-  id: string | number;
+interface Project {
+  id: number;
   name: string;
-};
+}
 
 const categories = ['项目档案', '成本分析', '工序单价', '经验总结', '投标策略'];
+
+const categoryHints: Record<string, string[]> = {
+  '经验总结': ['本次遇到的主要问题是什么？', '采取了什么措施？', '效果如何？', '下次遇到类似情况有什么建议？'],
+  '项目档案': ['项目概况', '合同关键条款', '主要参建单位', '特殊工艺要求'],
+  '投标策略': ['投标项目名称', '报价策略', '中标/未中标原因', '下次投标改进点'],
+};
 
 export default function NewKnowledgePage() {
   const router = useRouter();
@@ -23,6 +29,11 @@ export default function NewKnowledgePage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // 文件上传
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -63,6 +74,27 @@ export default function NewKnowledgePage() {
 
     try {
       setSubmitting(true);
+
+      // 1. 上传文件（如果有）
+      let fileKey = '';
+      let fileName = '';
+      let fileSize = 0;
+      if (file) {
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('projectId', projectId || '0');
+        const uploadRes = await fetch('/api/project-contracts', { method: 'POST', body: formData });
+        const uploadJson = await uploadRes.json();
+        if (uploadJson.success) {
+          fileKey = uploadJson.data.storage_path;
+          fileName = file.name;
+          fileSize = file.size;
+        }
+        setUploading(false);
+      }
+
+      // 2. 保存知识条目
       const payload = {
         title: title.trim(),
         category,
@@ -70,6 +102,9 @@ export default function NewKnowledgePage() {
         source_ref: selectedProject ? `project:${selectedProject.id}:${selectedProject.name}` : null,
         tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
         content: content.trim(),
+        file_key: fileKey || null,
+        file_name: fileName || null,
+        file_size: fileSize || null,
         created_by: '手动录入',
       };
 
@@ -225,7 +260,7 @@ export default function NewKnowledgePage() {
               disabled={submitting}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Save className="h-4 w-4" />
+              <FileText className="h-4 w-4" />
               {submitting ? '提交中...' : '提交'}
             </button>
           </div>

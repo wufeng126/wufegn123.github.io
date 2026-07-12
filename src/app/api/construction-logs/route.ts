@@ -53,6 +53,41 @@ export async function POST(request: NextRequest) {
     }).select().single();
 
     if (error) throw new Error(error.message);
+
+    // 智能萃取：检测施工日志中的潜在变更/签证事件
+    if (data) {
+      const text = `${content || ''} ${issues || ''}`;
+      const keywords = ['变更', '签证', '变更通知', '设计变更', '甲方要求', '洽商', '索赔', '图纸变更', '方案调整', '新增工作'];
+      const matched = keywords.filter(k => text.includes(k));
+      if (matched.length > 0 && project_id) {
+        // 获取项目名称
+        const { data: proj } = await supabase.from('projects').select('name').eq('id', parseInt(project_id)).single();
+        const projName = (proj as any)?.name || `项目${project_id}`;
+
+        // 自动创建知识条目（经验总结分类）
+        await supabase.from('ai_knowledge_docs').insert({
+          title: `${projName} ${log_date || ''} 施工日志 - 潜在变更`,
+          category: '经验总结',
+          source_type: 'construction_log',
+          source_ref: `cl:${data.id}`,
+          tags: ['施工日志', '变更', projName],
+          content: `## 潜在变更事件\n\n**项目**：${projName}\n**日期**：${log_date || ''}\n**施工内容**：${content || ''}\n**异常情况**：${issues || ''}\n\n**触发关键词**：${matched.join('、')}\n\n> 由施工日志自动识别，建议预算员跟进确认是否涉及签证/变更。`,
+          created_by: '系统（施工日志萃取）',
+        });
+
+        // 发送通知
+        await supabase.from('business_notifications').insert({
+          type: 'construction_log_alert',
+          title: `⚠️ ${projName} 施工日志疑似涉及变更`,
+          content: `${log_date || ''} ${content ? content.substring(0, 30) : ''}... 含关键词：${matched.join('、')}。请及时确认是否需办理签证。`,
+          related_type: 'construction_log',
+          related_id: data.id,
+          severity: 'warning',
+        });
+        console.log(`[Construction Log Alert] 项目${project_id}: ${matched.join(',')}`);
+      }
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (e: unknown) {
     return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '提交失败' }, { status: 500 });

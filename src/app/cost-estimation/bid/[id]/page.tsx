@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Calculator, Users } from 'lucide-react';
+import { ArrowLeft, FileText, Calculator, Users, Loader2 } from 'lucide-react';
 
 interface Bid { id: number; name: string; project_type: string; duration_months: number; profit_rate: number; management_fee: string; total_labor_cost: string; total_amount: string; status: string; remark: string; created_at: string; }
 interface BidItem { id: number; work_type: string; unit: string; quantity: number; unit_price: number; amount: number; }
@@ -12,6 +12,7 @@ interface MgmtFee { id: number; position: string; monthly_salary: number; headco
 export default function BidDetailPage() {
   const params = useParams();
   const [bid, setBid] = useState<Bid | null>(null);
+  const [archiving, setArchiving] = useState(false);
   const [items, setItems] = useState<BidItem[]>([]);
   const [fees, setFees] = useState<MgmtFee[]>([]);
 
@@ -27,6 +28,37 @@ export default function BidDetailPage() {
       if (fJ.success) setFees(fJ.data);
     });
   }, [params.id]);
+
+  async function archiveToKnowledge() {
+    if (!bid) return;
+    setArchiving(true);
+    try {
+      const content = `# ${bid.name} 投标报价单\n\n**项目类型**：${bid.project_type || '-'}\n**工期**：${bid.duration_months}个月\n**利润率**：${bid.profit_rate}%\n\n## 报价汇总\n- 人工费合计：¥${parseFloat(bid.total_labor_cost || '0').toLocaleString()}\n- 管理费合计：¥${parseFloat(bid.management_fee || '0').toLocaleString()}\n- 投标总价：¥${parseFloat(bid.total_amount || '0').toLocaleString()}\n- 利润率：${bid.profit_rate}%\n\n## 状态\n${bid.status}`;
+      const res = await fetch('/api/ai/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${bid.name} 投标报价`,
+          category: '投标策略',
+          source_type: 'bid_archive',
+          source_ref: `bid:${bid.id}`,
+          tags: ['投标策略', bid.status, bid.project_type || ''].filter(Boolean),
+          content,
+          created_by: '投标测算归档',
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert('已归档到知识库 → 投标策略分类');
+      } else {
+        alert('归档失败: ' + (json.error || '未知错误'));
+      }
+    } catch (e: any) {
+      alert('归档失败: ' + e.message);
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   const totalLabor = useMemo(() => items.reduce((s, i) => s + i.amount, 0), [items]);
   const totalMgmt = useMemo(() => fees.reduce((s, f) => s + f.amount, 0), [fees]);

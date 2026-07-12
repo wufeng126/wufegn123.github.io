@@ -67,6 +67,19 @@ export default function ApprovalConfigPage() {
     } catch {}
   }
 
+  function createNewWorkflow() {
+    const newConfig: WorkflowConfig = {
+      id: 0,
+      workflow_type: 'new_' + Date.now(),
+      name: '新审批流程',
+      steps: [
+        { state: 'step_1', label: '第一步', role: 'admin,super_admin', actor: '负责人' },
+        { state: 'completed', label: '完成', role: '', actor: '' },
+      ],
+    };
+    setEditing(newConfig);
+  }
+
   async function save() {
     if (!editing) return;
     try {
@@ -130,11 +143,24 @@ export default function ApprovalConfigPage() {
   return (
     <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
       <div className="mx-auto max-w-4xl">
-        <Link href="/system-management" className="inline-flex items-center gap-1 text-sm text-[#86909C] hover:text-[#165DFF] mb-4">
-          <ArrowLeft className="h-4 w-4" /> 返回系统管理
-        </Link>
-        <h1 className="text-2xl font-bold text-[#1D2129] mb-1">审批流程配置</h1>
-        <p className="text-sm text-[#86909C] mb-6">自定义月度分析等业务流程的审批节点和责任人</p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <Link href="/system-management" className="inline-flex items-center gap-1 text-sm text-[#86909C] hover:text-[#165DFF] mb-2">
+              <ArrowLeft className="h-4 w-4" /> 返回系统管理
+            </Link>
+            <h1 className="text-2xl font-bold text-[#1D2129]">审批流程配置</h1>
+            <p className="text-sm text-[#86909C] mt-0.5">自定义月度分析等业务流程的审批节点和责任人</p>
+          </div>
+          <button onClick={createNewWorkflow} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white shadow-md hover:bg-[#0E49D8]">
+            <Plus className="h-4 w-4" /> 新建流程
+          </button>
+        </div>
+
+        {configs.length === 0 && !loading ? (
+          <div className="bg-white rounded-xl border border-dashed border-[#E5E6EB] p-14 text-center">
+            <p className="text-sm text-[#86909C] mb-4">暂无审批流程，点击"新建流程"创建</p>
+          </div>
+        ) : null}
 
         {configs.map(config => (
           <div key={config.id} className="bg-white rounded-xl border border-[#E5E6EB] overflow-hidden mb-5">

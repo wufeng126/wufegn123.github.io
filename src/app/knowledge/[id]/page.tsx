@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Link2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Download, FileText, Link2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
 
 type KnowledgeDoc = {
   id: string | number;
@@ -14,6 +14,9 @@ type KnowledgeDoc = {
   created_at?: string | null;
   updated_at?: string | null;
   tags?: string[] | string | null;
+  file_key?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
 };
 
 type WorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
@@ -330,7 +333,23 @@ export default function KnowledgeDetailPage() {
               </div>
             </article>
 
-            {/* 审批操作区域 - 仅当前阶段操作人可见 */}
+            {/* 附件预览 */}
+            {doc.file_key && (
+              <div className="knowledge-card p-5">
+                <h3 className="text-sm font-semibold text-[#1D2129] mb-3">📎 附件</h3>
+                <a href={`/api/project-contracts/download?id=${doc.id}`}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-[#E5E6EB] hover:border-[#165DFF]/30 transition group">
+                  <FileText className="h-8 w-8 text-[#165DFF] shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-[#1D2129] truncate">{doc.file_name || '附件'}</p>
+                    <p className="text-xs text-[#86909C]">{doc.file_size ? `${(doc.file_size / 1024).toFixed(1)}KB` : ''}</p>
+                  </div>
+                  <Download className="h-4 w-4 text-[#86909C] group-hover:text-[#165DFF] transition" />
+                </a>
+              </div>
+            )}
+
+            {/* 审批操作区域 */}
             {isMonthly && canAct && (
               <div className="knowledge-card p-5">
                 <p className="text-sm font-medium text-[#1D2129]">{actionByState[workflowState]?.label}</p>

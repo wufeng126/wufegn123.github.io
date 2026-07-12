@@ -169,6 +169,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 审批完成 → 自动归档到知识库（添加"成本分析"标签）
+    if (config.to === 'completed') {
+      const currentTags = normalizeTags(updated?.tags);
+      if (!currentTags.includes('成本分析')) {
+        await supabase
+          .from('ai_knowledge_docs')
+          .update({ tags: [...currentTags, '成本分析'] })
+          .eq('id', knowledgeId);
+      }
+    }
+
     return NextResponse.json({ success: true, data: updated });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message || '月度分析审批流处理失败' }, { status: 500 });
