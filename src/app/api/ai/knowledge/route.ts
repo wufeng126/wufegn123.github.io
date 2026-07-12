@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       status: kbSuccess ? 'active' : 'error',
       error_message: kbSuccess ? null : '向量库同步失败',
       chunk_count: kbSuccess ? 1 : 0,
-      created_by,
+      created_by: created_by ? (isNaN(Number(created_by)) ? null : Number(created_by)) : null,
       last_sync_at: kbSuccess ? new Date().toISOString() : null,
     }).select().single();
 

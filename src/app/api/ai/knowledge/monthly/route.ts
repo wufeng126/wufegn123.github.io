@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectFinancialSummary } from '@/lib/data-aggregation';
 import { yearMonthToRange } from '@/lib/format';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -36,6 +37,42 @@ export async function GET(request: NextRequest) {
       getProjectFinancialSummary(projectId),
     ]);
 
+    // 查询当月各工种工资拆分
+    const supabase = getSupabaseClient();
+    const { data: tradeWages } = await supabase
+      .from('worker_salaries')
+      .select('gross_pay, workers!inner(work_type)')
+      .eq('project_id', projectId)
+      .eq('year_month', yearMonth)
+      .not('workers.work_type', 'is', null);
+
+    // 查询当月对上报量
+    const { data: monthlyReports } = await supabase
+      .from('subitem_monthly_reports')
+      .select('report_quantity, work_item_subitems!inner(subitem_name, unit)')
+      .eq('work_item_subitems.project_id', projectId)
+      .eq('year_month', yearMonth);
+
+    // 统计各工种工资
+    const tradeWageMap: Record<string, number> = {};
+    let totalTradeWage = 0;
+    (tradeWages || []).forEach((r: any) => {
+      const wt = r.workers?.work_type || '其他';
+      const pay = parseFloat(r.gross_pay) || 0;
+      tradeWageMap[wt] = (tradeWageMap[wt] || 0) + pay;
+      totalTradeWage += pay;
+    });
+
+    // 统计对上报量
+    const reportItems: { name: string; qty: number; unit: string }[] = [];
+    (monthlyReports || []).forEach((r: any) => {
+      reportItems.push({
+        name: r.work_item_subitems?.subitem_name || '未知',
+        qty: parseFloat(r.report_quantity) || 0,
+        unit: r.work_item_subitems?.unit || '',
+      });
+    });
+
     if (!monthlySummary || !cumulativeSummary) {
       return NextResponse.json(
         { success: false, error: '未找到项目财务数据' },
@@ -44,6 +81,9 @@ export async function GET(request: NextRequest) {
     }
 
     const data = {
+      tradeWages: tradeWageMap,
+      tradeWageTotal: totalTradeWage,
+      reportItems,
       projectId,
       projectName: monthlySummary.projectName,
       yearMonth,

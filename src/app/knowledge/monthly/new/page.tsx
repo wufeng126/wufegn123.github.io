@@ -125,6 +125,9 @@ export default function NewMonthlyKnowledgePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [constructionLogs, setConstructionLogs] = useState<any[]>([]);
+  const [tradeWages, setTradeWages] = useState<Record<string, number>>({});
+  const [tradeWageTotal, setTradeWageTotal] = useState(0);
+  const [reportItems, setReportItems] = useState<{name:string;qty:number;unit:string}[]>([]);
   const [selectedLogIndices, setSelectedLogIndices] = useState<number[]>([]);
 
   const searchParams = useSearchParams();
@@ -210,6 +213,16 @@ export default function NewMonthlyKnowledgePage() {
         setConstructionLogs(filtered.slice(0, 8));
         setSelectedLogIndices([]);
       } catch { setConstructionLogs([]); }
+
+      // 加载工种工资拆分明细
+      try {
+        if (json.data?.tradeWages) {
+          setTradeWages(json.data.tradeWages);
+          setTradeWageTotal(json.data.tradeWageTotal || 0);
+          setReportItems(json.data.reportItems || []);
+        }
+      } catch { /* ignore */ }
+
     } catch (e: any) {
       setMonthlyData(null);
       setError(e.message || '月度数据加载失败');

@@ -308,9 +308,9 @@ export default function WorkerCostDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiCard label="项目总数" value={stats.projectCount.toString()} />
           <KpiCard label="现场工人数" value={stats.activeWorkerCount.toString()} />
-          <KpiCard label="应付金额" value={formatAmountSmart(stats.totalGrossPay)} unit="元" />
-          <KpiCard label="实发金额" value={formatAmountSmart(stats.totalNetPay)} unit="元" />
-          <KpiCard label="已付金额" value={formatAmountSmart(stats.totalPaid)} unit="元" />
+          <KpiCard label="应付金额" value={formatAmountSmart(stats.totalGrossPay)} />
+          <KpiCard label="实发金额" value={formatAmountSmart(stats.totalNetPay)} />
+          <KpiCard label="已付金额" value={formatAmountSmart(stats.totalPaid)} />
           <KpiCard label="未付金额" value={formatAmountSmart(stats.totalUnpaid)} unit="元"
             risk={stats.totalUnpaid > 0 ? 'danger' : 'normal'} />
         </div>

@@ -59,6 +59,16 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   // === 根路由 ===
   '/': { permission: 'projects:view' },
 
+  // === API 路由（生产环境必需注册，否则 403） ===
+  '/api/construction-logs': { permission: 'projects:view' },
+  '/api/construction-logs/stats': { permission: 'projects:view' },
+  '/api/cost-estimation': { permission: 'projects:view' },
+  '/api/cost-estimation/stats': { permission: 'projects:view' },
+  '/api/cost-estimation/work-types': { permission: 'projects:view' },
+  '/api/bid-estimations': { permission: 'projects:view' },
+  '/api/system/workflow-config': { permission: 'system:manage' },
+  '/api/admins': { permission: 'system:permission_manage' },
+
   // === 新导航容器页 ===
   '/workspace': { permission: 'projects:view' },
   '/project-center': { permission: 'projects:view' },
@@ -182,6 +192,9 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/salary-payments': 'salaries:pay',
   '/api/worker-payments': 'salaries:pay',
   '/api/worker-payments/batch': 'salaries:pay',
+
+  // 施工日志
+  '/api/construction-logs': 'construction_logs:edit',
 
   // 证件管理
   '/api/certificates': 'certificates:edit',
