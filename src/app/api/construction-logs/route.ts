@@ -75,16 +75,16 @@ export async function POST(request: NextRequest) {
           created_by: '系统（施工日志萃取）',
         });
 
-        // 发送通知
-        await supabase.from('business_notifications').insert({
+        // 发送系统通知（同时触发钉钉推送如果已配置）
+        const { pushBusinessNotification } = await import('@/lib/business-notification');
+        await pushBusinessNotification({
           type: 'construction_log_alert',
           title: `⚠️ ${projName} 施工日志疑似涉及变更`,
           content: `${log_date || ''} ${content ? content.substring(0, 30) : ''}... 含关键词：${matched.join('、')}。请及时确认是否需办理签证。`,
-          related_type: 'construction_log',
-          related_id: data.id,
           severity: 'warning',
+          relatedId: data.id,
+          relatedType: 'construction_log',
         });
-        console.log(`[Construction Log Alert] 项目${project_id}: ${matched.join(',')}`);
       }
     }
 

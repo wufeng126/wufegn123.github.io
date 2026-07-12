@@ -196,17 +196,18 @@ export async function GET(request: Request) {
     let allReportsQuery = client
       .from('client_reports')
       .select('settlement_amount, report_amount, status');
-    if (projectId) allReportsQuery = allReportsQuery.eq('project_id', parseInt(projectId));
+    if (projectId) allReportsQuery = allReportsQuery.eq('project_id', parseInt(projectId, 10));
     const { data: allReports } = await allReportsQuery;
+
     const totalMeasurementAmount = allReports?.filter(r => r.status !== 'voided').reduce((sum, r) => {
       return sum + parseFloat(r.settlement_amount || r.report_amount || '0');
     }, 0) || 0;
 
-    // 全量甲方付款 - 仅已完成
+    // 全量甲方付款 - 只统计已完成的
     let allPaymentsQuery = client
       .from('client_payments')
-      .select('payment_amount, status');
-    if (projectId) allPaymentsQuery = allPaymentsQuery.eq('project_id', parseInt(projectId));
+      .select('payment_amount, status, payment_date');
+    if (projectId) allPaymentsQuery = allPaymentsQuery.eq('project_id', parseInt(projectId, 10));
     const { data: allPayments } = await allPaymentsQuery;
     const totalPaid = allPayments?.filter(r => r.status === 'completed').reduce((sum, r) => {
       return sum + parseFloat(r.payment_amount || '0');

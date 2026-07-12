@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     }
 
     const webhookUrl = settings.feishu_webhook.value;
-    const baseUrl = process.env.COZE_PROJECT_DOMAIN_DEFAULT || 'http://localhost:5000';
+    const baseUrl = process.env.COZE_PROJECT_DOMAIN_DEFAULT || 'https://sxshhy.top';
 
     let result;
 

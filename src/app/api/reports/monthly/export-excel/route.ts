@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Fetch monthly summary data from the internal API
     const baseUrl = process.env.DEPLOY_RUN_PORT
       ? `http://localhost:${process.env.DEPLOY_RUN_PORT}`
-      : 'http://localhost:5000';
+      : 'https://sxshhy.top';
     const summaryUrl = `${baseUrl}/api/reports/monthly/summary?month=${reportMonth}${projectId && projectId !== 'all' ? `&projectId=${projectId}` : ''}`;
 
     const summaryRes = await fetch(summaryUrl, {
