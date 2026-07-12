@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Database, TrendingUp, BarChart3, DollarSign, Calculator, Search, X, Upload } from 'lucide-react';
+import { Plus, Trash2, Database, BarChart3, Search, X, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 interface UnitPrice {

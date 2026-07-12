@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle, ArrowLeft, Save, Search, Loader2, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { Upload, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle, ArrowLeft, Save, Search, Loader2, Sparkles } from 'lucide-react';
 
 interface MatchRow {
   sourceName: string; price: number; unit?: string; notes?: string;
@@ -56,7 +56,7 @@ export default function ImportPricesPage() {
       const unitKey = headers.find(h => /单位/i.test(h)) || '';
       const notesKey = headers.find(h => /备注|说明|项目|年份/i.test(h)) || '';
 
-      const parsed: MatchRow[] = json.map((row: any, i: number) => {
+      const parsed: MatchRow[] = json.map((row: any) => {
         const rawName = String(row[nameKey] || '').trim();
         const rawPrice = parseFloat(String(row[priceKey] || '0').replace(/[^0-9.-]/g, '')) || 0;
         const unit = unitKey ? String(row[unitKey] || '').trim() : '';
