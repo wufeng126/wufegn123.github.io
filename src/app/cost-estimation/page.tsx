@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Database, BarChart3, Search, X, Upload, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, Database, BarChart3, Search, X, Upload, TrendingUp, Download } from 'lucide-react';
 import Link from 'next/link';
 
 interface UnitPrice {
@@ -103,6 +103,16 @@ export default function CostEstimationPage() {
            <p className="text-xs font-medium text-[#1D2129]">批量导入</p>
            <p className="text-[10px] text-[#86909C] mt-0.5">Excel导入报价</p>
          </Link>
+         <button onClick={async () => {
+           const a = document.createElement('a');
+           a.href = '/api/cost-estimation/export';
+           a.download = '成本测算_价格参考库.xlsx';
+           a.click();
+         }} className="bg-white rounded-xl border border-[#E5E6EB] p-4 hover:border-[#165DFF]/30 transition text-center cursor-pointer">
+           <Download className="h-5 w-5 text-[#00B42A] mx-auto mb-1.5" />
+           <p className="text-xs font-medium text-[#1D2129]">导出参考价</p>
+           <p className="text-[10px] text-[#86909C] mt-0.5">Excel导出</p>
+         </button>
          <Link href="/cost-estimation/bid" className="bg-white rounded-xl border border-[#E5E6EB] p-4 hover:border-[#00A870]/30 transition text-center">
            <TrendingUp className="h-5 w-5 text-[#00A870] mx-auto mb-1.5" />
            <p className="text-xs font-medium text-[#1D2129]">投标测算</p>

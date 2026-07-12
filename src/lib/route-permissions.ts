@@ -65,6 +65,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/cost-estimation': { permission: 'projects:view' },
   '/api/cost-estimation/stats': { permission: 'projects:view' },
   '/api/cost-estimation/work-types': { permission: 'projects:view' },
+  '/api/cost-estimation/export': { permission: 'projects:view' },
   '/api/bid-estimations': { permission: 'projects:view' },
   '/api/system/workflow-config': { permission: 'system:manage' },
   '/api/admins': { permission: 'system:permission_manage' },

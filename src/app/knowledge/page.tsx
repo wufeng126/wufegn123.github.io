@@ -195,6 +195,8 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
     lastY: 0,
   });
   const [stats, setStats] = useState({ nodes: 0, links: 0, categories: 0 });
+  const [filterCat, setFilterCat] = useState('');
+  const [hoverNode, setHoverNode] = useState<{label:string;category:string} | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -206,12 +208,12 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
 
     let animationId = 0;
     let width = 0;
-    let height = 260;
+    let height = 400;
     const dpr = window.devicePixelRatio || 1;
 
     const resize = () => {
       width = wrap.clientWidth;
-      height = 260;
+      height = 400;
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
@@ -403,7 +405,7 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
   }, [docs]);
 
   return (
-    <section className="kb-card">
+    <section className="kb-card" style={{ position: 'relative' }}>
       <div className="kb-section-title">
         <Network className="h-5 w-5" />
         <h2>知识图谱</h2>
@@ -425,6 +427,17 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
           <p>分类数</p>
         </div>
       </div>
+      <div className="mt-2 flex items-center gap-3 text-[10px] text-[#8A8F98]">
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#165DFF] mr-1" />项目档案</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#F59E0B] mr-1" />经验总结</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#7C3AED] mr-1" />投标策略</span>
+      </div>
+      {hoverNode && (
+        <div className="absolute left-3 bottom-14 bg-white/90 backdrop-blur rounded-lg border border-[rgba(0,0,0,0.06)] shadow-sm px-2.5 py-1.5 text-xs z-10">
+          <p className="font-medium text-[#171717]">{hoverNode.label}</p>
+          <p className="text-[#8A8F98]">{hoverNode.category}</p>
+        </div>
+      )}
     </section>
   );
 }

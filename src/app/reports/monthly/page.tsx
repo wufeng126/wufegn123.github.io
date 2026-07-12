@@ -106,7 +106,7 @@ interface CollectionLagItem {
   responsiblePerson: string | null; riskLevel: 'low' | 'medium' | 'high' | 'critical';
 }
 
-type ReportMode = 'boss' | 'detail';
+type ReportMode = 'boss' | 'analysis' | 'detail';
 
 interface MonthlyReportData {
   overview: Overview;
@@ -190,6 +190,29 @@ export default function MonthlyReportPage() {
   const [aiInterpreting, setAiInterpreting] = useState(false);
   const [aiContent, setAiContent] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [analysisData, setAnalysisData] = useState<{id:number;title:string;content:string;tags:string[]} | null>(null);
+  const [monthAnalysisMap, setMonthAnalysisMap] = useState<Record<string, boolean>>({});
+
+  // 加载该项目的所有已归档月度分析
+  useEffect(() => {
+    if (!data) return;
+    const projId = projectId !== 'all' ? projectId : '';
+    fetch('/api/ai/knowledge?category=成本分析&page_size=100')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.data)) {
+          const map: Record<string, boolean> = {};
+          d.data.forEach((doc: any) => {
+            const ref = doc.source_ref || '';
+            const match = ref.match(/monthly:(\d+):(\d{4}-\d{2})/);
+            if (match && (!projId || match[1] === projId)) {
+              map[match[2]] = true;
+            }
+          });
+          setMonthAnalysisMap(map);
+        }
+      }).catch(() => {});
+  }, [data, projectId]);
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -328,7 +351,14 @@ export default function MonthlyReportPage() {
   const handlePrint = () => window.print();
 
   const handleCreateAnalysis = () => {
-    router.push(`/knowledge/monthly/new?from=report&month=${month}&project=${projectId}`);
+    if (analysisData) {
+      router.push(`/knowledge/${analysisData.id}`);
+    } else {
+      router.push(`/knowledge/monthly/new?from=report&month=${month}&project=${projectId}`);
+    }
+  };
+  const handleViewAnalysis = () => {
+    router.push(`/knowledge/${analysisData?.id}`);
   };
 
   const handleArchiveReport = async () => {
@@ -507,14 +537,14 @@ export default function MonthlyReportPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center bg-muted rounded-md p-0.5 text-xs">
-              {([['boss', '老板汇报'], ['detail', '项目明细']] as const).map(([mode, label]) => (
+              {([['boss', '老板汇报'], ['analysis', '分析'], ['detail', '项目明细']] as const).map(([mode, label]) => (
                 <button key={mode} onClick={() => setReportMode(mode as ReportMode)}
                   className={`px-3 py-1.5 rounded-sm transition-colors ${reportMode === mode ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
                   {label}
                 </button>
               ))}
             </div>
-            <Button variant="outline" size="sm" onClick={handleCreateAnalysis}><FileText className="w-3.5 h-3.5 mr-1" />写本月分析</Button>
+            <Button variant="outline" size="sm" onClick={handleCreateAnalysis}><FileText className="w-3.5 h-3.5 mr-1" />{analysisData ? '查看本月分析' : '写本月分析'}</Button>
             <Button variant="outline" size="sm" onClick={loadData} disabled={loading}><RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />刷新</Button>
             <Button variant="outline" size="sm" onClick={handleExportExcel}><Download className="w-3.5 h-3.5 mr-1" />Excel</Button>
             <Button variant="outline" size="sm" onClick={handleExportPDF}><FileText className="w-3.5 h-3.5 mr-1" />PDF</Button>
