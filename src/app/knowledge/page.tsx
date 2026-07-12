@@ -119,7 +119,10 @@ function isDocRelatedToProject(doc: KnowledgeDoc, project: Project) {
   const sourceRef = String(doc.source_ref || '');
   const title = doc.title || '';
   const content = doc.content || '';
-  return sourceRef.includes(projectId) || sourceRef.includes(project.name) || title.includes(project.name) || content.includes(project.name);
+  const tags = normalizeTags(doc.tags).join(' ');
+  // 精确匹配 source_ref 中的项目ID（避免子串误匹配）
+  const refMatch = sourceRef.includes(`:${projectId}:`) || sourceRef.includes(`:${projectId}`) || sourceRef === projectId;
+  return refMatch || tags.includes(project.name) || title.includes(project.name) || content.includes(project.name) || sourceRef.includes(project.name);
 }
 
 function buildGraph(docs: KnowledgeDoc[], width: number, height: number) {

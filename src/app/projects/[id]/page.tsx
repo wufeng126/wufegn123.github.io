@@ -37,6 +37,7 @@ import { ProjectExpenses } from '@/components/projects/project-expenses';
 import { ProjectSupplierPayments } from '@/components/projects/project-supplier-payments';
 import { ProjectMiscMaterials } from '@/components/projects/project-misc-materials';
 import { SupplierLink } from '@/components/linkable-cell';
+import ProjectContracts from './components/project-contracts';
 
 // 类型定义
 interface Project {
@@ -830,6 +831,7 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="comprehensiveExpenses">综合费用</TabsTrigger>
           <TabsTrigger value="miscMaterials">零星材料</TabsTrigger>
           <TabsTrigger value="supplierPayments">供应商付款</TabsTrigger>
+          <TabsTrigger value="contracts">📄 合同文件</TabsTrigger>
         </TabsList>
 
         {/* 预算工程量标签页 */}
@@ -1414,6 +1416,10 @@ export default function ProjectDetailPage() {
         {/* 供应商付款标签页 */}
         <TabsContent value="supplierPayments" className="space-y-4">
           <ProjectSupplierPayments projectId={params.id as unknown as number} />
+        </TabsContent>
+
+        <TabsContent value="contracts">
+          <ProjectContracts projectId={params.id as string} />
         </TabsContent>
       </Tabs>
 
