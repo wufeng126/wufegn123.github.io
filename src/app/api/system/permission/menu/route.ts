@@ -131,6 +131,35 @@ const PERMISSION_MENU_STRUCTURE = [
     ]
   },
   {
+    name: '施工日志',
+    code: 'construction_logs',
+    icon: 'clipboard',
+    children: [
+      { name: '施工日志-查看', code: 'construction_logs:view', icon: 'list' },
+      { name: '施工日志-写日志', code: 'construction_logs:edit', icon: 'edit' },
+    ]
+  },
+  {
+    name: '成本测算',
+    code: 'cost_estimation',
+    icon: 'calculator',
+    children: [
+      { name: '成本测算-查看', code: 'cost_estimation:view', icon: 'list' },
+      { name: '投标测算', code: 'cost_estimation:bid', icon: 'target' },
+    ]
+  },
+  {
+    name: '知识库',
+    code: 'knowledge',
+    icon: 'book',
+    children: [
+      { name: '知识库-查看', code: 'knowledge:view', icon: 'list' },
+      { name: '写知识', code: 'knowledge:write', icon: 'edit' },
+      { name: '月度分析', code: 'knowledge:monthly_analysis', icon: 'chart' },
+      { name: '审批流程参与', code: 'knowledge:approval', icon: 'check-circle' },
+    ]
+  },
+  {
     name: '系统管理',
     code: 'system',
     icon: 'settings',
