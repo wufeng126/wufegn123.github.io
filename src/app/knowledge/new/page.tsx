@@ -132,24 +132,24 @@ export default function NewKnowledgePage() {
     <div className="min-h-full bg-[#F5F7FB] p-4 md:p-6">
       <style jsx global>{`
         .knowledge-form-card {
-          border: 1px solid #E5E6EB;
+          border: 1px solid rgba(0,0,0,0.06);
           border-radius: 12px;
           background: #FFFFFF;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
         }
 
         .knowledge-label {
-          color: #1D2129;
+          color: #171717;
           font-size: 14px;
           font-weight: 600;
         }
 
         .knowledge-field {
           width: 100%;
-          border: 1px solid #E5E6EB;
+          border: 1px solid rgba(0,0,0,0.06);
           border-radius: 10px;
           background: #FBFCFF;
-          color: #1D2129;
+          color: #171717;
           font-size: 14px;
           outline: none;
           transition: all 0.2s ease;
@@ -165,12 +165,12 @@ export default function NewKnowledgePage() {
       <div className="mx-auto max-w-5xl">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-[#1D2129]">写知识</h1>
-            <p className="mt-1 text-sm text-[#86909C]">沉淀项目档案、成本分析、工序单价和投标策略。</p>
+            <h1 className="text-2xl font-bold text-[#171717]">写知识</h1>
+            <p className="mt-1 text-sm text-[#8A8F98]">沉淀项目档案、成本分析、工序单价和投标策略。</p>
           </div>
           <Link
             href="/knowledge"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
           >
             <ArrowLeft className="h-4 w-4" />
             返回
@@ -251,7 +251,7 @@ export default function NewKnowledgePage() {
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Link
               href="/knowledge"
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E5E6EB] bg-white px-4 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-4 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
             >
               取消
             </Link>

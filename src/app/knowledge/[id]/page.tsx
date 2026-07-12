@@ -224,7 +224,7 @@ export default function KnowledgeDetailPage() {
     <div className="min-h-full bg-[#F5F7FB] p-4 md:p-6">
       <style jsx global>{`
         .knowledge-card {
-          border: 1px solid #E5E6EB;
+          border: 1px solid rgba(0,0,0,0.06);
           border-radius: 12px;
           background: #FFFFFF;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
@@ -243,7 +243,7 @@ export default function KnowledgeDetailPage() {
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
             href="/knowledge"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
           >
             <ArrowLeft className="h-4 w-4" />
             返回知识库
@@ -257,7 +257,7 @@ export default function KnowledgeDetailPage() {
         </div>
 
         {loading ? (
-          <section className="knowledge-card p-10 text-center text-sm text-[#86909C]">正在加载知识详情...</section>
+          <section className="knowledge-card p-10 text-center text-sm text-[#8A8F98]">正在加载知识详情...</section>
         ) : error || !doc ? (
           <section className="knowledge-card p-10 text-center">
             <BookOpen className="mx-auto h-10 w-10 text-[#C9CDD4]" />
@@ -266,7 +266,7 @@ export default function KnowledgeDetailPage() {
         ) : (
           <div className="space-y-5">
             <article className="knowledge-card overflow-hidden">
-              <header className="border-b border-[#E5E6EB] px-5 py-6 md:px-7">
+              <header className="border-b border-[rgba(0,0,0,0.06)] px-5 py-6 md:px-7">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className="inline-flex rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[#165DFF]">
                     {getCategoryLabel(doc.category)}
@@ -278,7 +278,7 @@ export default function KnowledgeDetailPage() {
                     </span>
                   ))}
                 </div>
-                <h1 className="text-2xl font-bold leading-tight text-[#1D2129] md:text-3xl">{doc.title}</h1>
+                <h1 className="text-2xl font-bold leading-tight text-[#171717] md:text-3xl">{doc.title}</h1>
                 <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
                   <span className="knowledge-meta-item">
                     <UserRound className="h-4 w-4" />
@@ -300,7 +300,7 @@ export default function KnowledgeDetailPage() {
                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${stateBadgeClasses[workflowState]}`}>
                       {stateLabels[workflowState]}
                     </span>
-                    <span className="ml-2 text-xs text-[#86909C]">月度分析</span>
+                    <span className="ml-2 text-xs text-[#8A8F98]">月度分析</span>
                   </div>
                 )}
 
@@ -312,12 +312,12 @@ export default function KnowledgeDetailPage() {
                       const done = i <= stepIdx;
                       return (
                         <div key={step.state} className={`flex items-center ${i < workflowSteps.length - 1 ? 'flex-1' : ''}`}>
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${done ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#F2F3F5] text-[#86909C]'}`}>
+                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${done ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#F2F3F5] text-[#8A8F98]'}`}>
                             {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
                             <span>{step.label}</span>
                           </div>
                           {i < workflowSteps.length - 1 && (
-                            <div className={`h-px flex-1 mx-1 ${i < stepIdx ? 'bg-[#165DFF]' : 'bg-[#E5E6EB]'}`} />
+                            <div className={`h-px flex-1 mx-1 ${i < stepIdx ? 'bg-[#165DFF]' : 'bg-[rgba(0,0,0,0.06)]'}`} />
                           )}
                         </div>
                       );
@@ -327,7 +327,7 @@ export default function KnowledgeDetailPage() {
               </header>
 
               <div className="px-5 py-6 md:px-7">
-                <div className="min-h-[280px] whitespace-pre-wrap break-words rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-5 text-sm leading-7 text-[#1D2129]">
+                <div className="min-h-[280px] whitespace-pre-wrap break-words rounded-xl border border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] p-5 text-sm leading-7 text-[#171717]">
                   {doc.content || '暂无正文内容'}
                 </div>
               </div>
@@ -336,15 +336,15 @@ export default function KnowledgeDetailPage() {
             {/* 附件预览 */}
             {doc.file_key && (
               <div className="knowledge-card p-5">
-                <h3 className="text-sm font-semibold text-[#1D2129] mb-3">📎 附件</h3>
+                <h3 className="text-sm font-semibold text-[#171717] mb-3">📎 附件</h3>
                 <a href={`/api/project-contracts/download?id=${doc.id}`}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-[#E5E6EB] hover:border-[#165DFF]/30 transition group">
+                  className="flex items-center gap-3 p-3 rounded-xl border border-[rgba(0,0,0,0.06)] hover:border-[#165DFF]/30 transition group">
                   <FileText className="h-8 w-8 text-[#165DFF] shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[#1D2129] truncate">{doc.file_name || '附件'}</p>
-                    <p className="text-xs text-[#86909C]">{doc.file_size ? `${(doc.file_size / 1024).toFixed(1)}KB` : ''}</p>
+                    <p className="text-sm font-medium text-[#171717] truncate">{doc.file_name || '附件'}</p>
+                    <p className="text-xs text-[#8A8F98]">{doc.file_size ? `${(doc.file_size / 1024).toFixed(1)}KB` : ''}</p>
                   </div>
-                  <Download className="h-4 w-4 text-[#86909C] group-hover:text-[#165DFF] transition" />
+                  <Download className="h-4 w-4 text-[#8A8F98] group-hover:text-[#165DFF] transition" />
                 </a>
               </div>
             )}
@@ -352,11 +352,11 @@ export default function KnowledgeDetailPage() {
             {/* 审批操作区域 */}
             {isMonthly && canAct && (
               <div className="knowledge-card p-5">
-                <p className="text-sm font-medium text-[#1D2129]">{actionByState[workflowState]?.label}</p>
+                <p className="text-sm font-medium text-[#171717]">{actionByState[workflowState]?.label}</p>
                 <textarea
                   value={comment}
                   onChange={e => setComment(e.target.value)}
-                  className="mt-2 w-full min-h-[80px] rounded-lg border border-[#E5E6EB] bg-white p-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="mt-2 w-full min-h-[80px] rounded-lg border border-[rgba(0,0,0,0.06)] bg-white p-3 text-sm outline-none focus:border-[#165DFF]"
                   placeholder={actionByState[workflowState]?.placeholder}
                 />
                 <button
@@ -383,13 +383,13 @@ export default function KnowledgeDetailPage() {
             {/* 审批意见展示 */}
             {isMonthly && workflowComments.length > 0 && (
               <div className="knowledge-card p-5">
-                <h3 className="text-sm font-semibold text-[#1D2129] flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-[#171717] flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-[#165DFF]" /> 审批流程意见
                 </h3>
                 <div className="mt-3 space-y-3">
                   {workflowComments.map((item, i) => (
                     <div key={i} className="rounded-lg bg-[#F7F8FA] p-3 text-sm">
-                      <p className="font-medium text-[#1D2129]">{item.title}</p>
+                      <p className="font-medium text-[#171717]">{item.title}</p>
                       <p className="mt-1 text-[#4E5969] whitespace-pre-wrap">{item.body}</p>
                     </div>
                   ))}
@@ -400,7 +400,7 @@ export default function KnowledgeDetailPage() {
             <section className="knowledge-card p-5 md:p-6">
               <div className="flex items-center gap-2 text-[#165DFF]">
                 <Link2 className="h-5 w-5" />
-                <h2 className="text-lg font-semibold text-[#1D2129]">关联知识</h2>
+                <h2 className="text-lg font-semibold text-[#171717]">关联知识</h2>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {relatedLinks.length > 0 ? (
@@ -419,7 +419,7 @@ export default function KnowledgeDetailPage() {
                     );
                   })
                 ) : (
-                  <p className="text-sm text-[#86909C]">正文中暂无 [[双链]] 关联。</p>
+                  <p className="text-sm text-[#8A8F98]">正文中暂无 [[双链]] 关联。</p>
                 )}
               </div>
             </section>

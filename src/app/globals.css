@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -1849,4 +1850,179 @@ input::placeholder, textarea::placeholder {
   background: linear-gradient(90deg, #F2F3F5 25%, #E5E6EB 50%, #F2F3F5 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+
+/* ========== Linear Light 风格系统 ========== */
+:root {
+  --bg-page: #F5F6F7;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F7F8F8;
+  
+  --text-primary: #171717;
+  --text-secondary: #4E5969;
+  --text-muted: #8A8F98;
+  
+  --color-primary: #165DFF;
+  --color-gradient: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%);
+  --color-success: #00A870;
+  --color-danger: #F53F3F;
+  --color-warning: #FA8C16;
+  
+  --border-color: rgba(0,0,0,0.06);
+  --border-light: rgba(0,0,0,0.04);
+  --border-accent: rgba(22,93,255,0.15);
+  
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+  --shadow-elevated: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-btn: 0 2px 8px rgba(22,93,255,0.2);
+  
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+}
+
+/* 字体特性 */
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+}
+
+/* 通用卡片 */
+.kb-card, .knowledge-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* 主按钮渐变 */
+.btn-gradient {
+  background: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 7px !important;
+  box-shadow: 0 2px 8px rgba(22,93,255,0.2) !important;
+  transition: all 0.15s ease !important;
+}
+.btn-gradient:hover {
+  box-shadow: 0 4px 14px rgba(22,93,255,0.3) !important;
+  transform: translateY(-1px);
+}
+
+/* 次要按钮 */
+.btn-ghost {
+  background: rgba(0,0,0,0.02) !important;
+  color: #4E5969 !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 7px !important;
+  transition: all 0.15s ease !important;
+}
+.btn-ghost:hover {
+  background: rgba(0,0,0,0.04) !important;
+  color: #171717 !important;
+}
+
+/* Tab 标签 */
+.kb-pill {
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  font-weight: 510 !important;
+  color: #8A8F98 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  border: none !important;
+  background: transparent !important;
+}
+.kb-pill:hover {
+  color: #171717 !important;
+  background: rgba(0,0,0,0.03) !important;
+}
+.kb-pill-active {
+  color: #165DFF !important;
+  background: rgba(22,93,255,0.06) !important;
+}
+
+/* KPI 条目 */
+.kb-kpi {
+  background: #F7F8F8 !important;
+  border: 1px solid rgba(0,0,0,0.04) !important;
+  border-radius: 10px !important;
+  padding: 14px 16px !important;
+  text-align: center !important;
+}
+
+/* 输入框/搜索框 */
+.kb-input {
+  background: #F7F8F8 !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  font-size: 13px !important;
+  outline: none !important;
+  transition: border-color 0.15s ease !important;
+}
+.kb-input:focus {
+  border-color: #165DFF !important;
+}
+
+/* Badge 标签 */
+.kb-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  border: 1px solid !important;
+}
+
+.kb-badge-primary {
+  background: rgba(22,93,255,0.04) !important;
+  border-color: rgba(22,93,255,0.1) !important;
+  color: #165DFF !important;
+}
+
+.kb-badge-success {
+  background: rgba(0,168,112,0.04) !important;
+  border-color: rgba(0,168,112,0.1) !important;
+  color: #00A870 !important;
+}
+
+.kb-badge-danger {
+  background: rgba(245,63,63,0.04) !important;
+  border-color: rgba(245,63,63,0.1) !important;
+  color: #F53F3F !important;
+}
+
+.kb-badge-warning {
+  background: rgba(250,140,22,0.04) !important;
+  border-color: rgba(250,140,22,0.1) !important;
+  color: #FA8C16 !important;
+}
+
+/* 分隔线 */
+.kb-divider {
+  height: 1px !important;
+  background: rgba(0,0,0,0.04) !important;
+  border: none !important;
+}
+
+/* 分区标题 */
+.kb-section-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.kb-section-title h2 {
+  font-size: 14px !important;
+  font-weight: 510 !important;
+  color: #171717 !important;
+  letter-spacing: -0.15px !important;
+}
+.kb-section-title .kb-section-icon {
+  color: #165DFF !important;
 }

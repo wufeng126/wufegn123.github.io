@@ -54,9 +54,9 @@ type GraphLink = {
   target: string;
 };
 
-const categories = ['全部', '项目档案', '成本分析', '工序单价', '经验总结', '投标策略'];
+const categories = ['全部', '项目档案', '经验总结', '投标策略'];
 
-const quickLinks = ['项目档案', '工序单价库', '成本对比', '经验总结', '定额参考', '投标策略'];
+const quickLinks = ['项目档案', '经验总结', '投标策略', '月度分析'];
 
 const categoryColors: Record<string, string> = {
   项目档案: '#165DFF',
@@ -411,7 +411,7 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
         <Network className="h-5 w-5" />
         <h2>知识图谱</h2>
       </div>
-      <div ref={wrapRef} className="mt-4 overflow-hidden rounded-xl border border-[#E5E6EB]">
+      <div ref={wrapRef} className="mt-4 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.06)]">
         <canvas ref={canvasRef} className="block cursor-grab" />
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3">
@@ -537,10 +537,10 @@ export default function KnowledgePage() {
   return (
     <div className="min-h-full bg-[var(--bg-page)] p-3 md:p-6">
       <style jsx global>{`
-        .kb-card { border: 1px solid #E5E6EB; border-radius: 12px; background: #FFFFFF; box-shadow: 0 10px 30px rgba(15,23,42,0.04); padding: 16px; }
+        .kb-card { border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03); padding: 16px; }
         @media (min-width:768px) { .kb-card { padding: 20px; } }
         .kb-section-title { display: flex; align-items: center; gap: 8px; color: #1D2129; font-size: 15px; font-weight: 600; }
-        .kb-pill { white-space: nowrap; padding: 4px 12px; border-radius: 20px; font-size: 13px; border: 1px solid #E5E6EB; background: #FFF; color: #4E5969; transition: all .15s; }
+        .kb-pill { white-space: nowrap; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 510; border: none; background: transparent; color: #8A8F98; transition: all .15s; }
         .kb-pill-active, .kb-pill:hover { background: #165DFF; color: #FFF; border-color: #165DFF; }
         .kb-stat { border: 1px solid #E5E6EB; border-radius: 10px; background: linear-gradient(180deg,#FFF,#F8FAFF); padding: 12px; text-align: center; }
         .kb-stat span { color: #165DFF; font-size: 20px; font-weight: 700; }
@@ -550,8 +550,8 @@ export default function KnowledgePage() {
       {/* 标题+操作 */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#1D2129] md:text-2xl">知识库</h1>
-          <p className="mt-0.5 text-xs text-[#86909C] md:text-sm">沉淀项目档案、成本经验、工序单价和投标策略</p>
+          <h1 className="text-xl font-bold text-[#171717] md:text-2xl">知识库</h1>
+          <p className="mt-0.5 text-xs text-[#8A8F98] md:text-sm">经验沉淀 · 策略复盘 · 项目档案</p>
         </div>
         <div className="flex items-center gap-2">
           {pendingCount > 0 && (
@@ -560,7 +560,7 @@ export default function KnowledgePage() {
           <Link href="/knowledge/new" className="inline-flex h-9 md:h-10 items-center justify-center gap-1.5 rounded-lg bg-[#165DFF] px-3 md:px-4 text-xs md:text-sm font-medium text-white shadow-md hover:bg-[#0E49D8]">
             <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" /><span className="hidden md:inline">写知识</span>
           </Link>
-          <Link href="/knowledge/monthly/new" className="inline-flex h-9 md:h-10 items-center justify-center gap-1.5 rounded-lg border border-[#165DFF] bg-white px-3 md:px-4 text-xs md:text-sm font-medium text-[#165DFF] hover:bg-[#F0F5FF]">
+          <Link href="/knowledge/monthly/new" className="inline-flex h-9 md:h-10 items-center justify-center gap-1.5 rounded-lg border border-[#165DFF] bg-white px-3 md:px-4 text-xs md:text-sm font-medium text-[#165DFF] hover:bg-[rgba(22,93,255,0.06)]">
             <FileText className="h-3.5 w-3.5 md:h-4 md:w-4" /><span className="hidden md:inline">写月度分析</span>
           </Link>
         </div>
@@ -576,7 +576,7 @@ export default function KnowledgePage() {
         ].filter(s => s.show !== false).map((s, i) => (
           <div key={i} className="rounded-[10px] bg-white p-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
             <p className="text-xl md:text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
-            <p className="mt-0.5 text-[10px] md:text-xs text-[#86909C]">{s.label}</p>
+            <p className="mt-0.5 text-[10px] md:text-xs text-[#8A8F98]">{s.label}</p>
           </div>
         ))}
       </div>
@@ -584,10 +584,10 @@ export default function KnowledgePage() {
       {/* 搜索+分类 */}
       <div className="mb-4 rounded-[10px] bg-white p-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
         <div className="relative mb-3">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A8F98]" />
           <input value={query} onChange={e => setQuery(e.target.value)}
             placeholder="搜索标题、正文、作者或标签"
-            className="h-10 w-full rounded-[10px] border border-[#E5E6EB] bg-[#FBFCFF] pl-10 pr-4 text-sm outline-none focus:border-[#165DFF] focus:ring-4 focus:ring-[#165DFF]/10" />
+            className="h-10 w-full rounded-[10px] border border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] pl-10 pr-4 text-sm outline-none focus:border-[#165DFF] focus:ring-4 focus:ring-[#165DFF]/10" />
         </div>
         <div className="flex flex-wrap gap-1.5">
           {categories.slice(0, 5).map(cat => (
@@ -601,7 +601,7 @@ export default function KnowledgePage() {
                 className={`kb-pill ${categories.slice(5).includes(activeCategory) ? 'kb-pill-active' : ''}`}
                 onClick={() => setShowMoreCategories(!showMoreCategories)}>更多▾</button>
               {showMoreCategories && (
-                <div className="absolute top-full left-0 mt-1 z-10 bg-white border border-[#E5E6EB] rounded-lg p-2 shadow-lg min-w-[120px]">
+                <div className="absolute top-full left-0 mt-1 z-10 bg-white border border-[rgba(0,0,0,0.06)] rounded-lg p-2 shadow-lg min-w-[120px]">
                   {categories.slice(5).map(cat => (
                     <button key={cat} type="button"
                       className={`block w-full text-left px-3 py-1.5 rounded text-xs hover:bg-[#F2F3F5] ${activeCategory === cat ? 'text-[#165DFF] font-medium' : 'text-[#4E5969]'}`}
@@ -625,12 +625,12 @@ export default function KnowledgePage() {
           <section className="rounded-[10px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A8F98]" />
                 <input
                   value={query}
                   onChange={event => setQuery(event.target.value)}
                   placeholder="搜索标题、正文、作者或标签"
-                  className="h-11 w-full rounded-[10px] border border-[#E5E6EB] bg-[#FBFCFF] pl-10 pr-4 text-sm text-[#1D2129] outline-none transition focus:border-[#165DFF] focus:bg-white focus:ring-4 focus:ring-[#165DFF]/10"
+                  className="h-11 w-full rounded-[10px] border border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] pl-10 pr-4 text-sm text-[#171717] outline-none transition focus:border-[#165DFF] focus:bg-white focus:ring-4 focus:ring-[#165DFF]/10"
                 />
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
@@ -667,8 +667,8 @@ export default function KnowledgePage() {
                     <div key={cat} className="px-5 py-5">
                       <div className="flex items-center gap-2 mb-4">
                         <span className="text-base">{icons[cat] || '📋'}</span>
-                        <h3 className="text-base font-semibold text-[#1D2129]">{cat}</h3>
-                        <span className="text-xs text-[#86909C]">{catDocs.length} 条</span>
+                        <h3 className="text-base font-semibold text-[#171717]">{cat}</h3>
+                        <span className="text-xs text-[#8A8F98]">{catDocs.length} 条</span>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         {catDocs.slice(0, 6).map(doc => {
@@ -676,12 +676,12 @@ export default function KnowledgePage() {
                           const hasFile = doc.file_key && !doc.file_key.startsWith('bid:');
                           return (
                             <Link key={doc.id} href={`/knowledge/${doc.id}`}
-                              className="group rounded-xl border border-[#E5E6EB] p-4 hover:border-[#165DFF]/30 hover:shadow-sm transition block">
+                              className="group rounded-xl border border-[rgba(0,0,0,0.06)] p-4 hover:border-[#165DFF]/30 hover:shadow-sm transition block">
                               <div className="flex items-start gap-3">
                                 <span className="text-lg shrink-0 mt-0.5">{icons[cat] || '📄'}</span>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-[#1D2129] group-hover:text-[#165DFF] line-clamp-1">{doc.title}</p>
-                                  <p className="text-xs text-[#86909C] mt-1 line-clamp-2">{stripMarkdown(doc.content) || '暂无摘要'}</p>
+                                  <p className="text-sm font-medium text-[#171717] group-hover:text-[#165DFF] line-clamp-1">{doc.title}</p>
+                                  <p className="text-xs text-[#8A8F98] mt-1 line-clamp-2">{stripMarkdown(doc.content) || '暂无摘要'}</p>
                                   <div className="flex items-center gap-2 mt-2 text-[10px] text-[#A9AEB8]">
                                     <span>{formatDate(doc.updated_at || doc.created_at)}</span>
                                     {hasFile && <span>📎 含附件</span>}
@@ -703,7 +703,7 @@ export default function KnowledgePage() {
                   );
                 })}
                 {filteredDocs.length === 0 && (
-                  <div className="py-10 text-center text-sm text-[#86909C]">暂无知识条目</div>
+                  <div className="py-10 text-center text-sm text-[#8A8F98]">暂无知识条目</div>
                 )}
               </div>
             ) : (
@@ -713,11 +713,11 @@ export default function KnowledgePage() {
                     <FileText className="h-5 w-5" />
                     <h2>{activeCategory}</h2>
                   </div>
-                  <span className="text-sm text-[#86909C]">{filteredDocs.length} 条</span>
+                  <span className="text-sm text-[#8A8F98]">{filteredDocs.length} 条</span>
                 </div>
                 <div className="mt-4 divide-y divide-[#E5E6EB]">
                   {loading ? (
-                    <div className="py-10 text-center text-sm text-[#86909C]">正在加载知识库...</div>
+                    <div className="py-10 text-center text-sm text-[#8A8F98]">正在加载知识库...</div>
                   ) : filteredDocs.length > 0 ? (
                     filteredDocs.slice(0, 12).map(doc => {
                       const tags = normalizeTags(doc.tags);
@@ -726,11 +726,11 @@ export default function KnowledgePage() {
                           <div className="flex items-start justify-between gap-4 px-2">
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-base font-semibold text-[#1D2129] group-hover:text-[#165DFF]">{doc.title}</h3>
-                                <span className="rounded-full bg-[#F0F5FF] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc.category)}</span>
+                                <h3 className="text-base font-semibold text-[#171717] group-hover:text-[#165DFF]">{doc.title}</h3>
+                                <span className="rounded-full bg-[rgba(22,93,255,0.06)] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc.category)}</span>
                               </div>
                               <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#4E5969]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
-                              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#86909C]">
+                              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#8A8F98]">
                                 <span>作者：{doc.created_by || '系统'}</span>
                                 <span>更新：{formatDate(doc.updated_at || doc.created_at)}</span>
                                 {tags.slice(0, 4).map(tag => (
@@ -746,7 +746,7 @@ export default function KnowledgePage() {
                       );
                     })
                   ) : (
-                    <div className="py-10 text-center text-sm text-[#86909C]">没有匹配的知识条目</div>
+                    <div className="py-10 text-center text-sm text-[#8A8F98]">没有匹配的知识条目</div>
                   )}
                 </div>
               </div>

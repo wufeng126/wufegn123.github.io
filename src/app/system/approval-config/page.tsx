@@ -27,25 +27,33 @@ const AVAILABLE_ROLES = [
   { value: 'team_leader', label: '班组长' },
 ];
 
+interface SystemUser {
+  id: number;
+  username: string;
+  name?: string;
+  role: string;
+}
+
 export default function ApprovalConfigPage() {
   const [configs, setConfigs] = useState<WorkflowConfig[]>([]);
   const [editing, setEditing] = useState<WorkflowConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<SystemUser[]>([]);
 
   useEffect(() => {
-    fetch('/api/system/workflow-config')
-      .then(r => r.json())
-      .then(d => {
-        if (d.success) {
-          if (d.data && d.data.length > 0) {
-            setConfigs(d.data);
-          } else {
-            // 无数据时，创建默认审批流程
-            createDefaultConfig();
-          }
+    Promise.all([
+      fetch('/api/system/workflow-config').then(r => r.json()),
+      fetch('/api/auth/center/users').then(r => r.json()),
+    ]).then(([wJ, uJ]) => {
+      if (uJ && uJ.users) setUsers(uJ.users);
+      if (wJ.success) {
+        if (wJ.data && wJ.data.length > 0) {
+          setConfigs(wJ.data);
+        } else {
+          createDefaultConfig();
         }
-      })
-      .finally(() => setLoading(false));
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
   async function createDefaultConfig() {
@@ -116,8 +124,22 @@ export default function ApprovalConfigPage() {
   function updateStep(i: number, field: string, value: string) {
     if (!editing) return;
     const steps = [...editing.steps];
+    if (field === 'role' && value.startsWith('user:')) {
+      // 选择了用户 → 自动填充角色和责任人
+      const userId = parseInt(value.replace('user:', ''));
+      const user = users.find(u => u.id === userId);
+      if (user) {
+        steps[i] = {
+          role: user.role === 'super_admin' ? 'admin,super_admin' : user.role,
+          label: steps[i].label || '',
+          state: steps[i].state || '',
+          actor: user.name || user.username,
+        };
+      }
+      setEditing({ ...editing, steps });
+      return;
+    }
     steps[i] = { ...steps[i], [field]: value };
-    // 自动生成 state 字段
     if (field === 'label' && !steps[i].state) {
       steps[i].state = value
         .replace(/[（(].*[）)]/g, '').trim()
@@ -231,17 +253,22 @@ export default function ApprovalConfigPage() {
                               className="w-full h-8 rounded border border-[#E5E6EB] px-2 text-xs outline-none focus:border-[#165DFF]" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[#86909C]">责任人标注</label>
+                            <label className="text-[10px] text-[#8A8F98]">责任人标注</label>
                             <input value={step.actor} onChange={e => updateStep(i, 'actor', e.target.value)}
-                              className="w-full h-8 rounded border border-[#E5E6EB] px-2 text-xs outline-none focus:border-[#165DFF]" />
+                              placeholder="审批人姓名"
+                              className="w-full h-8 rounded border border-[rgba(0,0,0,0.06)] px-2 text-xs outline-none focus:border-[#165DFF]" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[#86909C]">角色权限</label>
+                            <label className="text-[10px] text-[#8A8F98]">指定审批人</label>
                             <select value={step.role} onChange={e => updateStep(i, 'role', e.target.value)}
-                              className="w-full h-8 rounded border border-[#E5E6EB] px-2 text-xs outline-none focus:border-[#165DFF]">
-                              <option value="">选择角色</option>
-                              {AVAILABLE_ROLES.map(r => (
-                                <option key={r.value} value={r.value}>{r.label}</option>
+                              className="w-full h-8 rounded border border-[rgba(0,0,0,0.06)] px-2 text-xs outline-none focus:border-[#165DFF]">
+                              <option value="">选择用户</option>
+                              {users
+                                .filter(u => u.username !== 'admin')
+                                .map(u => (
+                                <option key={u.id} value={`user:${u.id}`}>
+                                  {u.name || u.username} · {u.role}
+                                </option>
                               ))}
                             </select>
                           </div>

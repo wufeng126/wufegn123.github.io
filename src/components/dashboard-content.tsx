@@ -316,13 +316,13 @@ export default function HomePage() {
         const income = params.find((p: any) => p.seriesName === '收入')?.value || 0;
         const cost = params.find((p: any) => p.seriesName === '成本')?.value || 0;
         const profit = income - cost;
-        html += `<div style="border-top:1px solid #E5E6EB;margin-top:4px;padding-top:4px;font-weight:600;color:${profit >= 0 ? '#00B42A' : '#F53F3F'}">利润：${(profit / 10000).toFixed(2)}万元</div>`;
+        html += `<div style="border-top:1px solid rgba(0,0,0,0.06);margin-top:4px;padding-top:4px;font-weight:600;color:${profit >= 0 ? '#00B42A' : '#F53F3F'}">利润：${(profit / 10000).toFixed(2)}万元</div>`;
         return html;
       }},
-      legend: { data: ['收入', '成本'], top: 0, right: 0, itemWidth: 12, itemHeight: 12, textStyle: { fontSize: 11, color: '#86909C' } },
+      legend: { data: ['收入', '成本'], top: 0, right: 0, itemWidth: 12, itemHeight: 12, textStyle: { fontSize: 11, color: '#8A8F98' } },
       grid: { left: 10, right: 10, top: 30, bottom: 5, containLabel: true },
-      xAxis: { type: 'category', data: data.map(d => d.name.length > 6 ? d.name.slice(0, 6) + '…' : d.name), axisLabel: { fontSize: 10, color: '#86909C', rotate: data.length > 4 ? 20 : 0 }, axisTick: { show: false }, axisLine: { lineStyle: { color: '#E5E6EB' } } },
-      yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#86909C', formatter: (v: number) => (v / 10000).toFixed(0) + '万' }, splitLine: { lineStyle: { color: '#F2F3F5', type: 'dashed' } }, axisLine: { show: false }, axisTick: { show: false } },
+      xAxis: { type: 'category', data: data.map(d => d.name.length > 6 ? d.name.slice(0, 6) + '…' : d.name), axisLabel: { fontSize: 10, color: '#8A8F98', rotate: data.length > 4 ? 20 : 0 }, axisTick: { show: false }, axisLine: { lineStyle: { color: 'rgba(0,0,0,0.06)' } } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#8A8F98', formatter: (v: number) => (v / 10000).toFixed(0) + '万' }, splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)', type: 'dashed' } }, axisLine: { show: false }, axisTick: { show: false } },
       series: [
         { name: '收入', type: 'bar', barWidth: '30%', data: data.map(d => d.income), itemStyle: { color: CHART_COLORS.primary, borderRadius: [4, 4, 0, 0] }, animationDelay: (idx: number) => idx * 80 },
         { name: '成本', type: 'bar', barWidth: '30%', data: data.map(d => d.cost), itemStyle: { color: CHART_COLORS.warning, borderRadius: [4, 4, 0, 0] }, animationDelay: (idx: number) => idx * 80 + 40 },
@@ -342,10 +342,10 @@ export default function HomePage() {
         params.forEach((p: any) => { html += `<div style="display:flex;align-items:center;gap:4px;margin:2px 0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span><span>${p.seriesName}：</span><span style="font-weight:600">${(p.value / 10000).toFixed(2)}万元</span></div>`; });
         return html;
       }},
-      legend: { data: ['收入', '成本'], top: 0, right: 0, itemWidth: 12, itemHeight: 12, textStyle: { fontSize: 11, color: '#86909C' } },
+      legend: { data: ['收入', '成本'], top: 0, right: 0, itemWidth: 12, itemHeight: 12, textStyle: { fontSize: 11, color: '#8A8F98' } },
       grid: { left: 10, right: 10, top: 30, bottom: 5, containLabel: true },
-      xAxis: { type: 'category', data: filteredData.map(d => d.month.substring(5) + '月'), axisLabel: { fontSize: 11, color: '#86909C' }, axisTick: { show: false }, axisLine: { lineStyle: { color: '#E5E6EB' } }, boundaryGap: false },
-      yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#86909C', formatter: (v: number) => (v / 10000).toFixed(0) + '万' }, splitLine: { lineStyle: { color: '#F2F3F5', type: 'dashed' } }, axisLine: { show: false }, axisTick: { show: false } },
+      xAxis: { type: 'category', data: filteredData.map(d => d.month.substring(5) + '月'), axisLabel: { fontSize: 11, color: '#8A8F98' }, axisTick: { show: false }, axisLine: { lineStyle: { color: 'rgba(0,0,0,0.06)' } }, boundaryGap: false },
+      yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#8A8F98', formatter: (v: number) => (v / 10000).toFixed(0) + '万' }, splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)', type: 'dashed' } }, axisLine: { show: false }, axisTick: { show: false } },
       series: [
         { name: '收入', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, data: filteredData.map(d => d.income), lineStyle: { width: 2.5, color: CHART_COLORS.success }, itemStyle: { color: CHART_COLORS.success }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,180,42,0.25)' }, { offset: 1, color: 'rgba(0,180,42,0.02)' }] } }, animationDuration: 1500 },
         { name: '成本', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, data: filteredData.map(d => d.cost), lineStyle: { width: 2.5, color: CHART_COLORS.danger }, itemStyle: { color: CHART_COLORS.danger }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(245,63,63,0.15)' }, { offset: 1, color: 'rgba(245,63,63,0.02)' }] } }, animationDuration: 1500 },
@@ -367,13 +367,13 @@ export default function HomePage() {
         label: { show: false }, emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.1)' } },
         data: [
           { name: '已回款', value: paid, itemStyle: { color: '#722ED1' } },
-          { name: '待回款', value: pending, itemStyle: { color: '#E5E6EB' } },
+          { name: '待回款', value: pending, itemStyle: { color: 'rgba(0,0,0,0.06)' } },
         ],
         animationType: 'scale', animationDuration: 1000,
       }],
       graphic: [
         { type: 'text', left: 'center', top: '35%', style: { text: `${paidPercent}%`, fontSize: 16, fontWeight: 'bold', fill: '#722ED1', textAlign: 'center' } },
-        { type: 'text', left: 'center', top: '48%', style: { text: '回款率', fontSize: 9, fill: '#86909C', textAlign: 'center' } },
+        { type: 'text', left: 'center', top: '48%', style: { text: '回款率', fontSize: 9, fill: '#8A8F98', textAlign: 'center' } },
       ],
     };
   }, [stats?.totalPaid, stats?.pendingPayment]);
@@ -437,11 +437,11 @@ export default function HomePage() {
               ].map((link, i) => (
                 <Link key={i} href={link.href}
                   className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-white transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
-                  style={{ border: '1px solid #E5E6EB' }}>
+                  style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${link.color}10` }}>
                     <link.icon className="w-4.5 h-4.5" style={{ color: link.color }} />
                   </div>
-                  <span className="text-xs font-medium" style={{ color: '#1D2129' }}>{link.title}</span>
+                  <span className="text-xs font-medium" style={{ color: '#171717' }}>{link.title}</span>
                 </Link>
               ))}
             </div>
@@ -457,14 +457,14 @@ export default function HomePage() {
       {/* ========== 顶部：项目筛选 + 操作 ========== */}
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold" style={{ color: '#1D2129' }}>业务工作台</h1>
+          <h1 className="text-lg font-bold" style={{ color: '#171717' }}>业务工作台</h1>
           {stats.lastUpdated && (
             <span className="text-xs" style={{ color: '#C9CDD4' }}>更新于 {formatTime(stats.lastUpdated)}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {/* 时间筛选 */}
-          <div className="flex rounded-md overflow-hidden" style={{ border: '1px solid #E5E6EB' }}>
+          <div className="flex rounded-md overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
             {([
               { key: 'month', label: '本月' },
               { key: 'quarter', label: '本季' },
@@ -472,15 +472,15 @@ export default function HomePage() {
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTimeRange(t.key)}
                 className="px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{ background: timeRange === t.key ? '#165DFF' : 'transparent', color: timeRange === t.key ? '#fff' : '#86909C' }}>
+                style={{ background: timeRange === t.key ? '#165DFF' : 'transparent', color: timeRange === t.key ? '#fff' : '#8A8F98' }}>
                 {t.label}
               </button>
             ))}
           </div>
           {/* 项目筛选 */}
           <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-            <SelectTrigger className="w-[160px] h-8 text-sm" style={{ border: '1px solid #E5E6EB', background: '#FFF' }}>
-              <Building2 className="w-3.5 h-3.5 mr-1" style={{ color: '#86909C' }} />
+            <SelectTrigger className="w-[160px] h-8 text-sm" style={{ border: '1px solid rgba(0,0,0,0.06)', background: '#FFF' }}>
+              <Building2 className="w-3.5 h-3.5 mr-1" style={{ color: '#8A8F98' }} />
               <SelectValue placeholder="选择项目" />
             </SelectTrigger>
             <SelectContent className="bg-white">
@@ -495,7 +495,7 @@ export default function HomePage() {
               ))}
             </SelectContent>
           </Select>
-          <button onClick={fetchStats} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs transition-colors hover:bg-gray-50" style={{ color: '#86909C', border: '1px solid #E5E6EB' }}>
+          <button onClick={fetchStats} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs transition-colors hover:bg-gray-50" style={{ color: '#8A8F98', border: '1px solid rgba(0,0,0,0.06)' }}>
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -505,7 +505,7 @@ export default function HomePage() {
       <div className={`transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0'}`}>
         <div className="flex items-center gap-2 mb-3">
           <ListTodo className="w-4.5 h-4.5" style={{ color: '#FF7D00' }} />
-          <h2 className="text-sm font-semibold" style={{ color: '#1D2129' }}>待办事项</h2>
+          <h2 className="text-sm font-semibold" style={{ color: '#171717' }}>待办事项</h2>
           {todoItems.length > 0 && (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: '#FF7D0010', color: '#FF7D00' }}>{todoItems.length}</span>
           )}
@@ -517,7 +517,7 @@ export default function HomePage() {
                 className="flex items-start gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group"
                 style={{
                   background: item.level === 'danger' ? '#FFF7F0' : item.level === 'warning' ? '#FFFBF0' : '#F7F8FA',
-                  border: `1px solid ${item.level === 'danger' ? '#F53F3F20' : item.level === 'warning' ? '#FF7D0020' : '#E5E6EB'}`
+                  border: `1px solid ${item.level === 'danger' ? '#F53F3F20' : item.level === 'warning' ? '#FF7D0020' : 'rgba(0,0,0,0.06)'}`
                 }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
                   style={{ background: item.level === 'danger' ? '#F53F3F10' : item.level === 'warning' ? '#FF7D0010' : '#165DFF10' }}>
@@ -525,20 +525,20 @@ export default function HomePage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium group-hover:text-blue-600 transition-colors truncate"
-                    style={{ color: item.level === 'danger' ? '#F53F3F' : item.level === 'warning' ? '#FF7D00' : '#1D2129' }}>
+                    style={{ color: item.level === 'danger' ? '#F53F3F' : item.level === 'warning' ? '#FF7D00' : '#171717' }}>
                     {item.title}
                   </p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: '#86909C' }}>{item.desc}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: '#8A8F98' }}>{item.desc}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 flex-shrink-0 mt-2 group-hover:translate-x-0.5 transition-transform" style={{ color: '#C9CDD4' }} />
               </Link>
             ))}
           </div>
         ) : (
-          <div className="py-8 text-center rounded-xl" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+          <div className="py-8 text-center rounded-xl" style={{ background: '#F7F8FA', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CheckCircle2 className="w-8 h-8 mx-auto mb-2" style={{ color: '#00B42A' }} />
-            <p className="text-sm font-medium" style={{ color: '#1D2129' }}>暂无待办事项</p>
-            <p className="text-xs mt-1" style={{ color: '#86909C' }}>所有业务处理正常</p>
+            <p className="text-sm font-medium" style={{ color: '#171717' }}>暂无待办事项</p>
+            <p className="text-xs mt-1" style={{ color: '#8A8F98' }}>所有业务处理正常</p>
           </div>
         )}
       </div>
@@ -546,26 +546,26 @@ export default function HomePage() {
       {/* ========== 三栏：项目概况 + 趋势图 + 回款/预警 ========== */}
       <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0'}`}>
         {/* 项目概况 */}
-        <Card style={{ background: '#FFF', border: '1px solid #E5E6EB' }}>
+        <Card style={{ background: '#FFF', border: '1px solid rgba(0,0,0,0.06)' }}>
           <CardHeader className="pb-2 pt-3 px-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>项目概况</CardTitle>
+              <CardTitle className="text-sm font-semibold" style={{ color: '#171717' }}>项目概况</CardTitle>
               <Link href="/projects" className="text-xs flex items-center gap-0.5 hover:underline" style={{ color: '#165DFF' }}>全部 <ChevronRight className="w-3 h-3" /></Link>
             </div>
           </CardHeader>
           <CardContent className="pt-1 pb-3 px-4">
-            <div className="grid grid-cols-3 gap-3 mb-4 pb-3 border-b" style={{ borderColor: '#F2F3F5' }}>
+            <div className="grid grid-cols-3 gap-3 mb-4 pb-3 border-b" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
               <div className="text-center">
                 <p className="text-xl font-bold tabular-nums" style={{ color: '#165DFF' }}>{stats.activeProjectCount}</p>
-                <p className="text-xs mt-0.5" style={{ color: '#86909C' }}>在建项目</p>
+                <p className="text-xs mt-0.5" style={{ color: '#8A8F98' }}>在建项目</p>
               </div>
               <div className="text-center">
                 <p className="text-xl font-bold tabular-nums" style={{ color: '#00B42A' }}>{stats.inServiceCount}</p>
-                <p className="text-xs mt-0.5" style={{ color: '#86909C' }}>在场工人</p>
+                <p className="text-xs mt-0.5" style={{ color: '#8A8F98' }}>在场工人</p>
               </div>
               <div className="text-center">
-                <p className="text-xl font-bold tabular-nums" style={{ color: '#86909C' }}>{stats.leftCount}</p>
-                <p className="text-xs mt-0.5" style={{ color: '#86909C' }}>退场工人</p>
+                <p className="text-xl font-bold tabular-nums" style={{ color: '#8A8F98' }}>{stats.leftCount}</p>
+                <p className="text-xs mt-0.5" style={{ color: '#8A8F98' }}>退场工人</p>
               </div>
             </div>
             <div className="space-y-2.5">
@@ -573,10 +573,10 @@ export default function HomePage() {
                 <Link key={project.id} href={`/projects/${project.id}`} className="flex items-center justify-between group py-1.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${project.status === '进行中' ? 'bg-blue-500' : project.status === '已完成' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                    <span className="text-sm truncate group-hover:text-blue-600 transition-colors" style={{ color: '#1D2129' }}>{project.name}</span>
+                    <span className="text-sm truncate group-hover:text-blue-600 transition-colors" style={{ color: '#171717' }}>{project.name}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs tabular-nums" style={{ color: '#86909C' }}>{fmt(project.reportedAmount)}万</span>
+                    <span className="text-xs tabular-nums" style={{ color: '#8A8F98' }}>{fmt(project.reportedAmount)}万</span>
                     <ChevronRight className="w-3.5 h-3.5" style={{ color: '#C9CDD4' }} />
                   </div>
                 </Link>
@@ -586,10 +586,10 @@ export default function HomePage() {
         </Card>
 
         {/* 月度趋势 */}
-        <Card style={{ background: '#FFF', border: '1px solid #E5E6EB' }}>
+        <Card style={{ background: '#FFF', border: '1px solid rgba(0,0,0,0.06)' }}>
           <CardHeader className="pb-2 pt-3 px-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>收支趋势<span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：万元</span></CardTitle>
+              <CardTitle className="text-sm font-semibold" style={{ color: '#171717' }}>收支趋势<span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：万元</span></CardTitle>
               <button onClick={() => exportChart('trend', '月度趋势')} className="p-1 rounded hover:bg-gray-50" title="导出"><Download className="w-3.5 h-3.5" style={{ color: '#C9CDD4' }} /></button>
             </div>
           </CardHeader>
@@ -606,23 +606,23 @@ export default function HomePage() {
 
         {/* 回款 + 预警 */}
         <div className="space-y-4">
-          <Card style={{ background: '#FFF', border: '1px solid #E5E6EB' }}>
+          <Card style={{ background: '#FFF', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CardHeader className="pb-1 pt-3 px-4">
-              <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>回款进度<span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：万元</span></CardTitle>
+              <CardTitle className="text-sm font-semibold" style={{ color: '#171717' }}>回款进度<span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：万元</span></CardTitle>
             </CardHeader>
             <CardContent className="pt-1 pb-3 px-4">
               <div data-chart-id="payment-ring" className="h-32">
                 <EChartsWrapper option={paymentRingOption} />
               </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-2 border-t" style={{ borderColor: '#F2F3F5' }}>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-2 border-t" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
                 <div className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: '#722ED1' }} />
-                  <span className="text-xs whitespace-nowrap" style={{ color: '#86909C' }}>已回款</span>
+                  <span className="text-xs whitespace-nowrap" style={{ color: '#8A8F98' }}>已回款</span>
                 </div>
                 <div className="text-sm font-bold tabular-nums text-right" style={{ color: '#722ED1' }}>{fmt(stats?.totalPaid || '0')}<span className="text-xs font-normal ml-0.5" style={{ color: '#C9CDD4' }}>万</span></div>
                 <div className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: '#E5E6EB' }} />
-                  <span className="text-xs whitespace-nowrap" style={{ color: '#86909C' }}>待回款</span>
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: 'rgba(0,0,0,0.06)' }} />
+                  <span className="text-xs whitespace-nowrap" style={{ color: '#8A8F98' }}>待回款</span>
                 </div>
                 <div className="text-sm font-bold tabular-nums text-right" style={{ color: '#FF7D00' }}>{fmt(stats?.pendingPayment || '0')}<span className="text-xs font-normal ml-0.5" style={{ color: '#C9CDD4' }}>万</span></div>
               </div>
@@ -630,10 +630,10 @@ export default function HomePage() {
           </Card>
 
           {/* 异常提醒 */}
-          <Card style={{ background: '#FFF', border: '1px solid #E5E6EB' }}>
+          <Card style={{ background: '#FFF', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CardHeader className="pb-1 pt-3 px-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-1.5" style={{ color: '#1D2129' }}>
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5" style={{ color: '#171717' }}>
                   <AlertTriangle className="w-4 h-4" style={{ color: '#F53F3F' }} />
                   异常提醒
                 </CardTitle>
@@ -646,15 +646,15 @@ export default function HomePage() {
                   {riskWarnings.slice(0, 3).map((w: any, i: number) => (
                     <Link key={i} href={w.href} className="flex items-center gap-2 py-1.5 group">
                       <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: w.level === 'danger' ? '#F53F3F' : '#FF7D00' }} />
-                      <span className="text-xs truncate flex-1 group-hover:text-blue-600 transition-colors" style={{ color: '#1D2129' }}>{w.title}</span>
-                      <span className="text-xs font-medium tabular-nums" style={{ color: '#86909C' }}>{w.value}</span>
+                      <span className="text-xs truncate flex-1 group-hover:text-blue-600 transition-colors" style={{ color: '#171717' }}>{w.title}</span>
+                      <span className="text-xs font-medium tabular-nums" style={{ color: '#8A8F98' }}>{w.value}</span>
                     </Link>
                   ))}
                 </div>
               ) : (
                 <div className="py-4 text-center">
                   <CheckCircle2 className="w-6 h-6 mx-auto mb-1" style={{ color: '#00B42A' }} />
-                  <p className="text-xs" style={{ color: '#86909C' }}>暂无异常</p>
+                  <p className="text-xs" style={{ color: '#8A8F98' }}>暂无异常</p>
                 </div>
               )}
             </CardContent>
@@ -665,10 +665,10 @@ export default function HomePage() {
       {/* ========== 收支对比 + 对上/对下 ========== */}
       <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 transition-all duration-500 delay-300 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0'}`}>
         {/* 各项目收入/成本对比 */}
-        <Card className="lg:col-span-2" style={{ background: '#FFF', border: '1px solid #E5E6EB' }}>
+        <Card className="lg:col-span-2" style={{ background: '#FFF', border: '1px solid rgba(0,0,0,0.06)' }}>
           <CardHeader className="pb-2 pt-3 px-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>各项目收入/成本对比<span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：万元</span></CardTitle>
+              <CardTitle className="text-sm font-semibold" style={{ color: '#171717' }}>各项目收入/成本对比<span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：万元</span></CardTitle>
               <button onClick={() => exportChart('income-cost', '收入成本对比')} className="p-1 rounded hover:bg-gray-50" title="导出"><Download className="w-3.5 h-3.5" style={{ color: '#C9CDD4' }} /></button>
             </div>
           </CardHeader>
@@ -684,16 +684,16 @@ export default function HomePage() {
         </Card>
 
         {/* 对上/对下核心数据 */}
-        <Card style={{ background: '#FFF', border: '1px solid #E5E6EB' }}>
+        <Card style={{ background: '#FFF', border: '1px solid rgba(0,0,0,0.06)' }}>
           <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>对上/对下核心数据</CardTitle>
+            <CardTitle className="text-sm font-semibold" style={{ color: '#171717' }}>对上/对下核心数据</CardTitle>
           </CardHeader>
           <CardContent className="pt-1 pb-3 px-4">
             <div className="space-y-4">
               {/* 对上报量 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>对上报量</span>
+                  <span className="text-xs font-medium" style={{ color: '#8A8F98' }}>对上报量</span>
                   <Link href="/client-reports" className="text-xs hover:underline" style={{ color: '#165DFF' }}>详情</Link>
                 </div>
                 <div className="flex items-baseline gap-1 mb-1.5">
@@ -701,10 +701,10 @@ export default function HomePage() {
                   <span className="text-xs" style={{ color: '#C9CDD4' }}>万元/本月</span>
                 </div>
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span style={{ color: '#86909C' }}>完成进度</span>
+                  <span style={{ color: '#8A8F98' }}>完成进度</span>
                   <span className="font-medium tabular-nums" style={{ color: parseFloat(stats.reportPercent || '0') > 100 ? '#F53F3F' : '#165DFF' }}>{stats.reportPercent || '0'}%</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F2F3F5' }}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.04)' }}>
                   <div className="h-full rounded-full transition-all duration-500" style={{
                     width: `${Math.min(parseFloat(stats.reportPercent || '0'), 100)}%`,
                     background: parseFloat(stats.reportPercent || '0') > 100 ? '#F53F3F' : parseFloat(stats.reportPercent || '0') > 80 ? '#FF7D00' : '#165DFF',
@@ -712,12 +712,12 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="border-t" style={{ borderColor: '#F2F3F5' }} />
+              <div className="border-t" style={{ borderColor: 'rgba(0,0,0,0.04)' }} />
 
               {/* 对下结算 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>对下结算</span>
+                  <span className="text-xs font-medium" style={{ color: '#8A8F98' }}>对下结算</span>
                   <Link href="/work-items" className="text-xs hover:underline" style={{ color: '#722ED1' }}>详情</Link>
                 </div>
                 <div className="flex items-baseline gap-1 mb-1.5">
@@ -725,10 +725,10 @@ export default function HomePage() {
                   <span className="text-xs" style={{ color: '#C9CDD4' }}>万元/本月</span>
                 </div>
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span style={{ color: '#86909C' }}>完成进度</span>
+                  <span style={{ color: '#8A8F98' }}>完成进度</span>
                   <span className="font-medium tabular-nums" style={{ color: '#722ED1' }}>{stats.settlementPercent || '0'}%</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F2F3F5' }}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.04)' }}>
                   <div className="h-full rounded-full transition-all duration-500" style={{
                     width: `${Math.min(parseFloat(stats.settlementPercent || '0'), 100)}%`,
                     background: '#722ED1',
@@ -736,11 +736,11 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="border-t" style={{ borderColor: '#F2F3F5' }} />
+              <div className="border-t" style={{ borderColor: 'rgba(0,0,0,0.04)' }} />
 
               {/* 差额 */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: '#86909C' }}>对上对下差额</span>
+                <span className="text-xs font-medium" style={{ color: '#8A8F98' }}>对上对下差额</span>
                 <span className="text-sm font-bold tabular-nums" style={{ color: parseFloat(stats.differenceAmount || '0') < 0 ? '#F53F3F' : '#00B42A' }}>
                   {fmt(stats.differenceAmount)}<span className="text-xs font-normal ml-0.5" style={{ color: '#C9CDD4' }}>万</span>
                 </span>
@@ -766,11 +766,11 @@ export default function HomePage() {
         ].map((link, i) => (
           <Link key={i} href={link.href}
             className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-white transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
-            style={{ border: '1px solid #E5E6EB' }}>
+            style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
             <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${link.color}10` }}>
               <link.icon className="w-4.5 h-4.5" style={{ color: link.color }} />
             </div>
-            <span className="text-xs font-medium" style={{ color: '#1D2129' }}>{link.title}</span>
+            <span className="text-xs font-medium" style={{ color: '#171717' }}>{link.title}</span>
           </Link>
         ))}
       </div>

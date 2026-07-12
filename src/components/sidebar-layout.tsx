@@ -410,7 +410,7 @@ export default function SidebarLayout({
                     >
                       <Icon
                         className="w-[18px] h-[18px] transition-colors duration-200"
-                        style={{ color: isActive ? 'var(--primary)' : '#86909C' }}
+                        style={{ color: isActive ? 'var(--primary)' : '#8A8F98' }}
                       />
                     </div>
                     {!isEffectivelyCollapsed && (
