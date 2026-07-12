@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // 保存到数据库
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('ai_knowledge_docs').insert({
+    const insertData: Record<string, any> = {
       title,
       category,
       source_type: source_type || 'manual',
@@ -67,9 +67,14 @@ export async function POST(request: NextRequest) {
       status: kbSuccess ? 'active' : 'error',
       error_message: kbSuccess ? null : '向量库同步失败',
       chunk_count: kbSuccess ? 1 : 0,
-      created_by: created_by ? (isNaN(Number(created_by)) ? null : Number(created_by)) : null,
       last_sync_at: kbSuccess ? new Date().toISOString() : null,
-    }).select().single();
+    };
+    // created_by 为整数时才传入，避免字符串写入 integer 字段报错
+    const createdByNum = typeof created_by === 'number' ? created_by :
+      (typeof created_by === 'string' && /^\d+$/.test(created_by) ? parseInt(created_by, 10) : NaN);
+    if (!isNaN(createdByNum)) insertData.created_by = createdByNum;
+
+    const { data, error } = await supabase.from('ai_knowledge_docs').insert(insertData).select().single();
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
