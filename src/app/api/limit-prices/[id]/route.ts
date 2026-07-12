@@ -1,51 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { jwtVerify } from 'jose';
-import { isSuperAdminUser } from '@/lib/route-permissions';
+import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-);
-
-interface UserPayload {
-  id: number;
-  username: string;
-  name?: string;
-  role: string;
-  roleId?: number;
-  is_super_admin: boolean;
-}
+type UserPayload = RequestAuthUser;
 
 async function getAuthUser(request: NextRequest): Promise<UserPayload | null> {
-  try {
-    const token = request.cookies.get('auth_token')?.value;
-    if (!token) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        const { payload } = await jwtVerify(authHeader.substring(7), JWT_SECRET);
-        return {
-          id: payload.userId as number,
-          username: payload.username as string,
-          role: payload.role as string,
-          roleId: payload.roleId as number,
-          is_super_admin: isSuperAdminUser(payload.role as string, payload.roleId as number)
-        };
-      }
-      return null;
-    }
-
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return {
-      id: payload.userId as number,
-      username: payload.username as string,
-      role: payload.role as string,
-      roleId: payload.roleId as number,
-      is_super_admin: isSuperAdminUser(payload.role as string, payload.roleId as number)
-    };
-  } catch (error) {
-    console.error('Auth error:', error);
-    return null;
-  }
+  return getRequestAuthUser(request);
 }
 
 function logAction(

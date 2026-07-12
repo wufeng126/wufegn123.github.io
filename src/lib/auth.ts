@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies, headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { isSuperAdminUser } from './route-permissions';
 
 // JWT 密钥 - 生产环境应使用环境变量
 const SECRET_KEY = process.env.JWT_SECRET || 'construction-labor-management-secret-key-2024';
@@ -20,6 +21,24 @@ export interface UserPayload {
   role_id?: number;
   permissions?: string[]; // 权限码列表
 }
+
+export interface RequestAuthUser {
+  id: number;
+  username: string;
+  name?: string;
+  role: string;
+  roleId: number;
+  permissions?: string[];
+  project_ids?: number[];
+  is_super_admin: boolean;
+}
+
+type LegacyTokenPayload = UserPayload & {
+  userId?: number;
+  roleId?: number;
+  project_ids?: number[];
+  is_super_admin?: boolean;
+};
 
 // 获取密钥
 function getSecretKey() {
@@ -46,6 +65,28 @@ export async function verifyToken(token: string): Promise<UserPayload | null> {
   } catch {
     return null;
   }
+}
+
+export function normalizeAuthUser(payload: UserPayload | null): RequestAuthUser | null {
+  if (!payload) return null;
+
+  const legacyPayload = payload as LegacyTokenPayload;
+  const id = legacyPayload.id ?? legacyPayload.userId;
+  if (!id) return null;
+
+  const role = legacyPayload.role || 'user';
+  const roleId = legacyPayload.role_id ?? legacyPayload.roleId ?? 0;
+
+  return {
+    id,
+    username: legacyPayload.username,
+    name: legacyPayload.name,
+    role,
+    roleId,
+    permissions: legacyPayload.permissions,
+    project_ids: legacyPayload.project_ids,
+    is_super_admin: legacyPayload.is_super_admin ?? isSuperAdminUser(role, roleId),
+  };
 }
 
 // 设置认证 Cookie
@@ -121,6 +162,10 @@ export async function verifyRequest(request: NextRequest): Promise<UserPayload |
   }
 
   return null;
+}
+
+export async function getRequestAuthUser(request: NextRequest): Promise<RequestAuthUser | null> {
+  return normalizeAuthUser(await verifyRequest(request));
 }
 
 // 登录页面路径

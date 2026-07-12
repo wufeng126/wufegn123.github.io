@@ -58,8 +58,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
 
     // ═══════════════ 开发预览模式 ═══════════════
-    // 返回模拟超级管理员信息（后续上线务必恢复）
-    if (process.env.COZE_PROJECT_ENV !== 'PROD') {
+    // 仅在显式开启时返回模拟超级管理员，避免部署环境变量漏配导致认证绕过。
+    if (process.env.COZE_PROJECT_ENV !== 'PROD' && process.env.ENABLE_AUTH_BYPASS === 'true') {
       const mockUser = {
         id: 1,
         username: 'admin',

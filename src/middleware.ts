@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { ROUTE_PERMISSIONS, PUBLIC_PAGES, isSuperAdminUser, findMatchingRoute, checkApiWritePermission } from '@/lib/route-permissions';
+import { normalizeAuthUser, verifyToken } from '@/lib/auth';
 
 // 钉钉可信域名（用于 CORS）
 const DINGTALK_ORIGINS = [
@@ -79,7 +80,7 @@ function isApiRequest(pathname: string): boolean {
   return pathname.startsWith('/api/');
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. 静态资源、_next 路径直接放行
@@ -92,8 +93,8 @@ export function middleware(request: NextRequest) {
   }
 
   // ═══════════════ 开发预览模式 ═══════════════
-  // 跳过所有登录认证，模拟超级管理员（后续上线务必恢复）
-  if (process.env.COZE_PROJECT_ENV !== 'PROD') {
+  // 仅在显式开启时跳过登录认证，避免部署环境变量漏配导致管理员绕过。
+  if (process.env.COZE_PROJECT_ENV !== 'PROD' && process.env.ENABLE_AUTH_BYPASS === 'true') {
     const nextResp = NextResponse.next();
     nextResp.headers.set('x-user-id', '1');
     nextResp.headers.set('x-user-role', 'super_admin');
@@ -176,11 +177,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 9. 解析 token
-  let payload: { id: number; role: string; roleId: number; permissions?: string[] };
-  try {
-    payload = JSON.parse(atob(token.split('.')[1]));
-  } catch {
+  // 9. 验证并解析 token
+  const authUser = normalizeAuthUser(await verifyToken(token));
+  if (!authUser) {
     // Token无效 — 不再服务端重定向，清除无效 cookie 后放行，由前端处理
     console.log(`[Middleware] token解析失败, 放行由前端处理: ${pathname}`);
     const nextResp = NextResponse.next();
@@ -188,11 +187,11 @@ export function middleware(request: NextRequest) {
     return nextResp;
   }
 
-  const userId = payload.id;
-  const userRole = payload.role || 'user';
-  const roleId = payload.roleId || 0;
+  const userId = authUser.id;
+  const userRole = authUser.role || 'user';
+  const roleId = authUser.roleId || 0;
   const isSuperAdmin = isSuperAdminUser(userRole, roleId);
-  const userPermissions = payload.permissions || [];
+  const userPermissions = authUser.permissions || [];
 
   // 辅助函数：为响应设置用户头 + 如果 token 来自 URL 则补设 Cookie
   function finalizeResponse(response: NextResponse): NextResponse {
