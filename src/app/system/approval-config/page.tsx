@@ -35,9 +35,37 @@ export default function ApprovalConfigPage() {
   useEffect(() => {
     fetch('/api/system/workflow-config')
       .then(r => r.json())
-      .then(d => { if (d.success) setConfigs(d.data || []); })
+      .then(d => {
+        if (d.success) {
+          if (d.data && d.data.length > 0) {
+            setConfigs(d.data);
+          } else {
+            // 无数据时，创建默认审批流程
+            createDefaultConfig();
+          }
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  async function createDefaultConfig() {
+    const defaultSteps: WorkflowStep[] = [
+      { state: 'draft', label: '预算员填报', role: 'admin,super_admin', actor: '预算员' },
+      { state: 'manager_review', label: '项目经理补充', role: 'project_manager', actor: '项目经理' },
+      { state: 'budget_confirm', label: '预算确认', role: 'admin,super_admin', actor: '预算员' },
+      { state: 'boss_review', label: '老板批复', role: 'boss', actor: '老板' },
+      { state: 'completed', label: '完成', role: '', actor: '' },
+    ];
+    try {
+      const res = await fetch('/api/system/workflow-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflow_type: 'monthly_analysis', name: '月度分析审批流程', steps: defaultSteps }),
+      });
+      const json = await res.json();
+      if (json.success) setConfigs([json.data]);
+    } catch {}
+  }
 
   async function save() {
     if (!editing) return;
@@ -167,7 +195,7 @@ export default function ApprovalConfigPage() {
                     </button>
                   </div>
                   <div className="space-y-3">
-                    {editing.steps.filter(s => s.role).map((step, i) => (
+                    {editing.steps.filter(s => s.label).map((step, i) => (
                       <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-[#E5E6EB] bg-[#FAFBFC]">
                         <span className="text-xs text-[#86909C] w-5 shrink-0">{i + 1}</span>
                         <div className="flex-1 grid grid-cols-3 gap-2">
