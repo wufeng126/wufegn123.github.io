@@ -70,7 +70,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
         <div className="border border-dashed border-[#E5E6EB] rounded-xl p-8 text-center">
           <FileText className="h-10 w-10 text-[#C9CDD4] mx-auto mb-3" />
           <p className="text-sm text-[#86909C]">暂无合同文件</p>
-          <p className="text-xs text-[#A9AEB8] mt-1">点击"上传合同"上传PDF、Word、Excel等文件</p>
+          <p className="text-xs text-[#A9AEB8] mt-1">点击「上传合同」上传PDF、Word、Excel等文件</p>
         </div>
       ) : (
         <div className="space-y-2">
