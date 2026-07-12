@@ -411,7 +411,7 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
       <div ref={wrapRef} className="mt-4 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.06)]">
         <canvas ref={canvasRef} className="block cursor-grab" />
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="kb-stat">
           <span>{stats.nodes}</span>
           <p>节点数</p>
@@ -564,7 +564,7 @@ export default function KnowledgePage() {
       </div>
 
       {/* KPI 摘要条 */}
-      <div className="mb-4 grid grid-cols-3 gap-2 md:gap-3 md:grid-cols-4">
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none md:grid md:grid-cols-4 md:gap-3">
         {[
           { label: '知识总数', value: docs.length, color: '#165DFF' },
           { label: '项目数', value: projectCards.length, color: '#7C3AED' },
