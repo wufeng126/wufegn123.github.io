@@ -1,6 +1,6 @@
 export type ConstructionRiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
 export type ConstructionRiskLevel = 'low' | 'medium' | 'high';
-export type ConstructionRiskWorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'visa_created';
+export type ConstructionRiskWorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
 
 export interface ConstructionLogRisk {
   hasRisk: boolean;
@@ -86,7 +86,8 @@ export function getRiskWorkflowStatusLabel(status?: ConstructionRiskWorkflowStat
     pending: '待确认',
     ignored: '确认无影响',
     resolved: '已处理',
-    monthly: '加入月报说明',
+    monthly: '待入月报',
+    monthly_included: '已进入月报',
     visa_created: '已转签证',
   };
   return map[status || ''] || '待确认';
@@ -97,7 +98,8 @@ export function getRiskWorkflowStatusFromTags(tags?: string[] | null): Construct
   const label = statusTag?.replace('风险状态:', '').trim();
   if (label === '确认无影响') return 'ignored';
   if (label === '已处理') return 'resolved';
-  if (label === '加入月报说明') return 'monthly';
+  if (label === '加入月报说明' || label === '待入月报') return 'monthly';
+  if (label === '已进入月报') return 'monthly_included';
   if (label === '已转签证') return 'visa_created';
   return 'pending';
 }

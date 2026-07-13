@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BookOpen, FileText, BarChart3, Users, ClipboardList, CalendarDays, Tag, DollarSign, TrendingUp, AlertTriangle, CheckCircle2, Circle, MessageSquare, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, BarChart3, Users, ClipboardList, CalendarDays, DollarSign, TrendingUp, AlertTriangle, Loader2 } from 'lucide-react';
 
 type Project = { id: number; name: string; partner?: string; contract_amount?: number; created_at?: string; status?: string };
 type KnowledgeDoc = { id: number | string; title: string; category?: string; content?: string; tags?: any; created_by?: string; created_at?: string; updated_at?: string; source_ref?: string };
@@ -58,6 +58,7 @@ export default function ProjectKnowledgePage() {
   const params = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
+  const [allKnowledgeDocs, setAllKnowledgeDocs] = useState<KnowledgeDoc[]>([]);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,7 +68,7 @@ export default function ProjectKnowledgePage() {
       try {
         const [projRes, knowRes, logRes] = await Promise.all([
           fetch(`/api/projects/${params.id}`),
-          fetch('/api/ai/knowledge?page_size=200&status=active'),
+          fetch('/api/ai/knowledge?page_size=500&status=active'),
           fetch(`/api/construction-logs?pageSize=20&projectId=${params.id}`),
         ]);
         const projJson = await projRes.json();
@@ -79,6 +80,7 @@ export default function ProjectKnowledgePage() {
         setProject(proj.id ? proj : null);
 
         const allDocs = Array.isArray(knowJson.data) ? knowJson.data : [];
+        setAllKnowledgeDocs(allDocs);
         const projName = proj?.name || '';
         setDocs(allDocs.filter((d: KnowledgeDoc) => {
           const tags = normalizeTags(d.tags);
@@ -103,6 +105,29 @@ export default function ProjectKnowledgePage() {
   }), [docs]);
   const experienceDocs = useMemo(() => docs.filter(d => d.category === '经验总结'), [docs]);
   const riskLogs = useMemo(() => logs.filter(log => log.risk_level), [logs]);
+  const riskKnowledgeDocs = useMemo(() => docs.filter(d => normalizeTags(d.tags).includes('施工日志风险')), [docs]);
+  const projectRiskTypes = useMemo(() => {
+    const types = riskKnowledgeDocs.flatMap(doc => normalizeTags(doc.tags))
+      .filter(tag => tag.startsWith('风险类型:'))
+      .map(tag => tag.replace('风险类型:', ''));
+    return Array.from(new Set(types));
+  }, [riskKnowledgeDocs]);
+  const riskTypeStats = useMemo(() => projectRiskTypes.map(type => ({
+    type,
+    count: riskKnowledgeDocs.filter(doc => normalizeTags(doc.tags).includes(`风险类型:${type}`)).length,
+  })).sort((a, b) => b.count - a.count), [projectRiskTypes, riskKnowledgeDocs]);
+  const monthlyIncludedCount = useMemo(() => riskKnowledgeDocs.filter(doc => normalizeTags(doc.tags).includes('风险状态:已进入月报')).length, [riskKnowledgeDocs]);
+  const similarRiskDocs = useMemo(() => {
+    if (projectRiskTypes.length === 0) return [];
+    return allKnowledgeDocs
+      .filter(doc => {
+        const tags = normalizeTags(doc.tags);
+        if (!tags.includes('施工日志风险')) return false;
+        if (tags.includes(`项目ID:${params.id}`) || tags.includes(project?.name || '')) return false;
+        return projectRiskTypes.some(type => tags.includes(`风险类型:${type}`));
+      })
+      .slice(0, 6);
+  }, [allKnowledgeDocs, params.id, project?.name, projectRiskTypes]);
 
   const sections = [
     { key: 'overview', icon: BookOpen, label: '项目概况', desc: '基本信息、合同概要', count: 1, color: 'from-[#165DFF] to-[#4080FF]' },
@@ -185,6 +210,81 @@ export default function ProjectKnowledgePage() {
             </Link>
           ))}
         </div>
+
+        {(riskKnowledgeDocs.length > 0 || riskLogs.length > 0) && (
+          <section className="bg-white rounded-xl border border-[#E5E6EB] p-5 mb-5">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="h-5 w-5 text-[#F53F3F]" />
+              <h2 className="text-base font-semibold text-[#1D2129]">风险知识沉淀</h2>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg bg-[#F7F8FA] p-4">
+                <p className="text-xs text-[#86909C]">施工日志风险知识</p>
+                <p className="mt-1 text-2xl font-bold text-[#1D2129]">{riskKnowledgeDocs.length}</p>
+                <p className="mt-2 text-xs text-[#86909C]">已进入月报 {monthlyIncludedCount} 条</p>
+              </div>
+              <div className="rounded-lg bg-[#F7F8FA] p-4">
+                <p className="text-xs text-[#86909C]">主要风险类型</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {riskTypeStats.length > 0 ? riskTypeStats.slice(0, 5).map(item => (
+                    <span key={item.type} className="rounded-full bg-white px-2 py-1 text-xs text-[#4E5969]">
+                      {item.type} {item.count}
+                    </span>
+                  )) : <span className="text-xs text-[#C9CDD4]">暂无分类</span>}
+                </div>
+              </div>
+              <div className="rounded-lg bg-[#F7F8FA] p-4">
+                <p className="text-xs text-[#86909C]">复用建议</p>
+                <p className="mt-2 text-sm text-[#4E5969]">
+                  {projectRiskTypes.length > 0
+                    ? `后续遇到${projectRiskTypes.slice(0, 3).join('、')}问题时，优先回看本项目月报和相似项目记录。`
+                    : '先从施工日志中沉淀风险记录，后续月报会自动形成经验材料。'}
+                </p>
+              </div>
+            </div>
+
+            {riskKnowledgeDocs.length > 0 && (
+              <div className="mt-4">
+                <h3 className="mb-2 text-sm font-semibold text-[#1D2129]">来源链路</h3>
+                <div className="space-y-2">
+                  {riskKnowledgeDocs.slice(0, 5).map(doc => {
+                    const tags = normalizeTags(doc.tags);
+                    const logId = String(doc.source_ref || '').replace('cl:', '');
+                    const state = tags.find(tag => tag.startsWith('风险状态:'))?.replace('风险状态:', '') || '待确认';
+                    const month = tags.find(tag => tag.startsWith('月份:'))?.replace('月份:', '') || '';
+                    return (
+                      <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-[#E5E6EB] p-3 text-sm transition hover:border-[#165DFF]/30">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-[#1D2129]">{doc.title}</p>
+                          <p className="mt-0.5 text-xs text-[#86909C]">来源施工日志 {logId || '-'}{month ? ` · ${month}` : ''}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-[#FFF7E8] px-2 py-0.5 text-xs text-[#D46B08]">{state}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {similarRiskDocs.length > 0 && (
+              <div className="mt-4">
+                <h3 className="mb-2 text-sm font-semibold text-[#1D2129]">相似风险推荐</h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {similarRiskDocs.map(doc => {
+                    const tags = normalizeTags(doc.tags);
+                    const types = tags.filter(tag => tag.startsWith('风险类型:')).map(tag => tag.replace('风险类型:', '')).slice(0, 3);
+                    return (
+                      <Link key={doc.id} href={`/knowledge/${doc.id}`} className="rounded-lg border border-[#E5E6EB] p-3 text-sm transition hover:border-[#165DFF]/30">
+                        <p className="truncate font-medium text-[#1D2129]">{doc.title}</p>
+                        <p className="mt-1 text-xs text-[#86909C]">{types.length > 0 ? types.join('、') : '施工日志风险'}</p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 月度分析列表 */}
         {monthlyDocs.length > 0 && (

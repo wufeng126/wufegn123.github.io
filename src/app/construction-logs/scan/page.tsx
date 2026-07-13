@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RotateCcw, Send } from 'lucide-react';
 
 type Project = { id: number | string; name: string };
+type RecognizedFile = { name: string; size: number; storageKey?: string; textLength?: number };
 
 export default function ConstructionLogScanPage() {
   const router = useRouter();
@@ -17,7 +18,9 @@ export default function ConstructionLogScanPage() {
   const [headcount, setHeadcount] = useState('');
   const [issues, setIssues] = useState('');
   const [rawText, setRawText] = useState('');
-  const [preview, setPreview] = useState('');
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [recognizedFiles, setRecognizedFiles] = useState<RecognizedFile[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [recognizing, setRecognizing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -35,16 +38,18 @@ export default function ConstructionLogScanPage() {
   }, []);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
 
     setMessage('');
     setRawText('');
-    setPreview(URL.createObjectURL(file));
+    setWarnings([]);
+    setRecognizedFiles([]);
+    setPreviews(files.map(file => URL.createObjectURL(file)));
     setRecognizing(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      files.forEach(file => formData.append('files', file));
       const res = await fetch('/api/construction-logs/ocr', { method: 'POST', body: formData });
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '识别失败');
@@ -57,6 +62,8 @@ export default function ConstructionLogScanPage() {
       if (draft.content) setContent(draft.content);
       if (draft.headcount) setHeadcount(draft.headcount);
       if (draft.issues) setIssues(draft.issues);
+      setRecognizedFiles(Array.isArray(data.files) ? data.files : []);
+      setWarnings(Array.isArray(data.warnings) ? data.warnings : data.warning ? [data.warning] : []);
       setMessage(data.warning || '已自动整理为草稿，请人工核对后提交');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '识别失败，请人工补录');
@@ -72,7 +79,9 @@ export default function ConstructionLogScanPage() {
     setHeadcount('');
     setIssues('');
     setRawText('');
-    setPreview('');
+    setPreviews([]);
+    setRecognizedFiles([]);
+    setWarnings([]);
     setMessage('');
   }
 
@@ -139,22 +148,41 @@ export default function ConstructionLogScanPage() {
         <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
             <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 text-center hover:border-[#165DFF]">
-              {preview ? (
-                <img src={preview} alt="施工日志照片预览" className="max-h-[240px] max-w-full rounded-lg object-contain" />
+              {previews.length > 0 ? (
+                <div className="grid w-full grid-cols-2 gap-2">
+                  {previews.slice(0, 6).map((preview, index) => (
+                    <img key={preview} src={preview} alt={`施工日志照片预览${index + 1}`} className="h-28 w-full rounded-lg object-cover" />
+                  ))}
+                </div>
               ) : (
                 <>
                   <Camera className="mb-3 h-10 w-10 text-[#165DFF]" />
                   <span className="text-sm font-medium text-[#1D2129]">拍照或上传日志本照片</span>
-                  <span className="mt-1 text-xs text-[#86909C]">支持 png、jpg、webp、bmp，建议照片清晰平整</span>
+                  <span className="mt-1 text-xs text-[#86909C]">可一次选择多张，建议照片清晰平整</span>
                 </>
               )}
-              <input type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
+              <input type="file" accept="image/*" capture="environment" multiple onChange={handleFile} className="hidden" />
             </label>
 
             {recognizing && (
               <div className="mt-3 flex items-center gap-2 rounded-lg bg-[#E8F3FF] px-3 py-2 text-sm text-[#165DFF]">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 正在识别并整理草稿...
+              </div>
+            )}
+
+            {(warnings.length > 0 || recognizedFiles.length > 0) && (
+              <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-[#FAFBFF] p-3">
+                {recognizedFiles.length > 0 && (
+                  <p className="text-xs text-[#86909C]">已识别 {recognizedFiles.length} 张照片</p>
+                )}
+                {warnings.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {warnings.map((item, index) => (
+                      <p key={index} className="text-xs text-[#D46B08]">{item}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

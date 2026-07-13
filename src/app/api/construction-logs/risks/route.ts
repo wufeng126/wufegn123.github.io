@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
           pending: risks.filter((item: any) => item.workflow_status === 'pending').length,
           visaCreated: risks.filter((item: any) => item.workflow_status === 'visa_created').length,
           monthly: risks.filter((item: any) => item.workflow_status === 'monthly').length,
+          monthlyIncluded: risks.filter((item: any) => item.workflow_status === 'monthly_included').length,
           resolved: risks.filter((item: any) => item.workflow_status === 'resolved').length,
           ignored: risks.filter((item: any) => item.workflow_status === 'ignored').length,
         },

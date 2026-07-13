@@ -31,7 +31,36 @@ type MonthlyData = {
   cumulative?: Record<string, number>;
 };
 
+type MonthlyRiskReminder = {
+  log_id: number;
+  project_name?: string;
+  log_date?: string;
+  location?: string;
+  content?: string;
+  issues?: string;
+  risk_level?: 'low' | 'medium' | 'high' | null;
+  risk_types?: string[];
+  risk_summary?: string;
+  risk_recommendation?: string;
+  workflow_status?: string;
+};
+
 const planOptions = ['报量', '结算', '签证', '单价谈判', '其他'];
+
+const riskLevelLabels: Record<string, string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+const riskTypeLabels: Record<string, string> = {
+  change: '变更',
+  visa: '签证',
+  delay: '工期',
+  quality: '质量',
+  safety: '安全',
+  cost: '成本',
+};
 
 function getCurrentYearMonth() {
   const now = new Date();
@@ -58,6 +87,7 @@ function buildKnowledgeContent(params: {
   experienceNote: string;
   selectedPlans: string[];
   otherPlan: string;
+  selectedRiskReminders: MonthlyRiskReminder[];
 }) {
   const {
     data,
@@ -67,11 +97,22 @@ function buildKnowledgeContent(params: {
     experienceNote,
     selectedPlans,
     otherPlan,
+    selectedRiskReminders,
   } = params;
   const brief = data.brief;
   const plans = selectedPlans
     .map(plan => (plan === '其他' ? otherPlan.trim() : plan))
     .filter(Boolean);
+  const riskReminderText = selectedRiskReminders.length > 0
+    ? selectedRiskReminders.map(risk => {
+      const level = risk.risk_level ? `${riskLevelLabels[risk.risk_level] || risk.risk_level}风险` : '风险';
+      const types = (risk.risk_types || []).map(type => riskTypeLabels[type] || type).join('、') || '未分类';
+      const location = risk.location ? `，部位：${risk.location}` : '';
+      const issues = risk.issues ? `，异常：${risk.issues}` : '';
+      const recommendation = risk.risk_recommendation ? `，建议：${risk.risk_recommendation}` : '';
+      return `- ${risk.log_date || '未填日期'} ${level}（${types}）${location}：${risk.risk_summary || risk.content || '无摘要'}${issues}${recommendation}`;
+    }).join('\n')
+    : '- 暂无待入月报风险提醒';
 
   return `# ${data.projectName} ${data.yearMonth} 月度分析
 
@@ -100,6 +141,10 @@ ${upstreamDownstreamChange.trim() || '暂无记录'}
 ## 下月需要注意什么？
 
 ${nextMonthAttention.trim() || '暂无记录'}
+
+## 本月风险提醒
+
+${riskReminderText}
 
 ## 下月计划
 
@@ -141,6 +186,8 @@ export default function NewMonthlyKnowledgePage() {
   const [tradeWageTotal, setTradeWageTotal] = useState(0);
   const [reportItems, setReportItems] = useState<{name:string;qty:number;unit:string}[]>([]);
   const [selectedLogIndices, setSelectedLogIndices] = useState<number[]>([]);
+  const [monthlyRiskReminders, setMonthlyRiskReminders] = useState<MonthlyRiskReminder[]>([]);
+  const [selectedMonthlyRiskIds, setSelectedMonthlyRiskIds] = useState<number[]>([]);
 
   const searchParams = useSearchParams();
   const reportFromUrl = searchParams.get('from');
@@ -214,6 +261,22 @@ export default function NewMonthlyKnowledgePage() {
 
       setMonthlyData(json.data);
 
+      // 加载已经标记为待入月报的风险提醒，只作为月报写作素材
+      try {
+        const riskParams = new URLSearchParams({ projectId, status: 'monthly', pageSize: '200' });
+        const riskRes = await fetch(`/api/construction-logs/risks?${riskParams.toString()}`);
+        const riskJson = await riskRes.json();
+        const allRisks = Array.isArray(riskJson.data) ? riskJson.data : [];
+        const monthRisks = allRisks
+          .filter((risk: MonthlyRiskReminder) => !risk.log_date || risk.log_date.slice(0, 7) === yearMonth)
+          .slice(0, 30);
+        setMonthlyRiskReminders(monthRisks);
+        setSelectedMonthlyRiskIds(monthRisks.map((risk: MonthlyRiskReminder) => Number(risk.log_id)).filter(Boolean));
+      } catch {
+        setMonthlyRiskReminders([]);
+        setSelectedMonthlyRiskIds([]);
+      }
+
       // 同时加载施工日志
       try {
         const logRes = await fetch(`/api/construction-logs?projectId=${projectId}`);
@@ -266,6 +329,7 @@ export default function NewMonthlyKnowledgePage() {
       experienceNote,
       selectedPlans,
       otherPlan,
+      selectedRiskReminders: monthlyRiskReminders.filter(risk => selectedMonthlyRiskIds.includes(Number(risk.log_id))),
     });
 
     try {
@@ -293,6 +357,21 @@ export default function NewMonthlyKnowledgePage() {
 
       const id = json.data?.id;
       setSavedDocId(id);
+      if (id && selectedMonthlyRiskIds.length > 0) {
+        await Promise.all(selectedMonthlyRiskIds.map(logId => fetch('/api/construction-logs/risks/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            logId,
+            action: 'mark_monthly_included',
+            reportMonth: yearMonth,
+            monthlyDocId: id,
+            note: '月度分析已引用该风险提醒',
+          }),
+        })));
+        setMonthlyRiskReminders(current => current.filter(risk => !selectedMonthlyRiskIds.includes(Number(risk.log_id))));
+        setSelectedMonthlyRiskIds([]);
+      }
       // 不再自动跳转，展示提交审批面板
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
@@ -396,6 +475,8 @@ export default function NewMonthlyKnowledgePage() {
                   onChange={event => {
                     setProjectId(event.target.value);
                     setMonthlyData(null);
+                    setMonthlyRiskReminders([]);
+                    setSelectedMonthlyRiskIds([]);
                   }}
                   className="monthly-field h-11 px-3"
                   disabled={loadingProjects}
@@ -416,6 +497,8 @@ export default function NewMonthlyKnowledgePage() {
                   onChange={event => {
                     setYearMonth(event.target.value);
                     setMonthlyData(null);
+                    setMonthlyRiskReminders([]);
+                    setSelectedMonthlyRiskIds([]);
                   }}
                   className="monthly-field h-11 px-3"
                   placeholder="2026-07"
@@ -538,6 +621,46 @@ export default function NewMonthlyKnowledgePage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </section>
+          )}
+
+          {/* 风险池进入月报的提醒 */}
+          {monthlyRiskReminders.length > 0 && (
+            <section className="monthly-card p-5">
+              <div className="flex items-center gap-2 text-[#F53F3F] mb-3">
+                <ClipboardList className="h-5 w-5" />
+                <h2 className="text-lg font-semibold text-[#1D2129]">本月待入月报风险提醒</h2>
+                <span className="text-xs text-[#86909C]">({monthlyRiskReminders.length}条)</span>
+              </div>
+              <p className="text-xs text-[#86909C] mb-3">这些记录只用于提醒和月报沉淀，不在这里处理业务；保存月报后会标记为已进入月报。</p>
+              <div className="space-y-2">
+                {monthlyRiskReminders.map(risk => {
+                  const logId = Number(risk.log_id);
+                  const checked = selectedMonthlyRiskIds.includes(logId);
+                  const level = risk.risk_level ? `${riskLevelLabels[risk.risk_level] || risk.risk_level}风险` : '风险提醒';
+                  const types = (risk.risk_types || []).map(type => riskTypeLabels[type] || type).join('、');
+                  return (
+                    <label key={logId} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${checked ? 'border-[#F53F3F] bg-[#FFF7F7]' : 'border-[#E5E6EB] hover:border-[#F53F3F]/30'}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setSelectedMonthlyRiskIds(prev => (
+                          prev.includes(logId) ? prev.filter(id => id !== logId) : [...prev, logId]
+                        ))}
+                        className="mt-1 h-4 w-4 accent-[#F53F3F]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-[#86909C]">
+                          {risk.log_date || '未填日期'}{risk.location ? ` · ${risk.location}` : ''} · {level}{types ? ` · ${types}` : ''}
+                        </p>
+                        <p className="text-sm text-[#4E5969] mt-0.5">{risk.risk_summary || risk.content || '未填写风险摘要'}</p>
+                        {risk.issues && <p className="text-xs text-[#F53F3F] mt-0.5">异常：{risk.issues}</p>}
+                        {risk.risk_recommendation && <p className="text-xs text-[#86909C] mt-1">建议：{risk.risk_recommendation}</p>}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </section>
           )}

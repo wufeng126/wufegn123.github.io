@@ -4,6 +4,17 @@ export interface ParsedConstructionLogDraft {
   content: string;
   headcount?: string;
   issues?: string;
+  materials?: string;
+  machines?: string;
+  coordination?: string;
+}
+
+export interface ConstructionLogOcrQuality {
+  textLength: number;
+  hasDate: boolean;
+  hasLocation: boolean;
+  hasContent: boolean;
+  warnings: string[];
 }
 
 function pickLine(lines: string[], labels: string[]) {
@@ -20,6 +31,16 @@ function normalizeDate(text: string) {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
+function pickBlock(lines: string[], labels: string[]) {
+  const start = lines.findIndex(line => labels.some(label => line.includes(label)));
+  if (start < 0) return '';
+  return lines
+    .slice(start, Math.min(start + 5, lines.length))
+    .map((line, index) => index === 0 ? line.replace(/^.*?[:：]/, '').trim() : line)
+    .filter(Boolean)
+    .join('\n');
+}
+
 export function parseConstructionLogText(rawText: string): ParsedConstructionLogDraft {
   const text = rawText.replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
@@ -28,6 +49,9 @@ export function parseConstructionLogText(rawText: string): ParsedConstructionLog
   const headcountLine = pickLine(lines, ['出勤', '人数', '工人']);
   const headcount = headcountLine.match(/\d+/)?.[0] || text.match(/(\d+)\s*(人|名)/)?.[1] || '';
   const logDate = normalizeDate(text);
+  const materials = pickBlock(lines, ['材料', '进场材料', '材料使用']);
+  const machines = pickBlock(lines, ['机械', '设备', '台班']);
+  const coordination = pickBlock(lines, ['协调', '交底', '会议', '甲方', '监理']);
 
   const contentLabelIndex = lines.findIndex(line => ['施工内容', '工作内容', '今日施工'].some(label => line.includes(label)));
   let content = '';
@@ -46,11 +70,42 @@ export function parseConstructionLogText(rawText: string): ParsedConstructionLog
       .join('\n');
   }
 
+  const extraBlocks = [
+    materials ? `材料：${materials}` : '',
+    machines ? `机械设备：${machines}` : '',
+    coordination ? `协调事项：${coordination}` : '',
+  ].filter(Boolean);
+  if (extraBlocks.length > 0) {
+    content = [content, ...extraBlocks].filter(Boolean).join('\n\n');
+  }
+
   return {
     log_date: logDate || undefined,
     location: location || undefined,
     content,
     headcount: headcount || undefined,
     issues: issues || undefined,
+    materials: materials || undefined,
+    machines: machines || undefined,
+    coordination: coordination || undefined,
+  };
+}
+
+export function analyzeConstructionLogOcrQuality(
+  rawText: string,
+  draft: ParsedConstructionLogDraft,
+): ConstructionLogOcrQuality {
+  const textLength = rawText.replace(/\s/g, '').length;
+  const warnings: string[] = [];
+  if (textLength < 30) warnings.push('识别文字偏少，建议补拍更清晰、更完整的日志页。');
+  if (!draft.log_date) warnings.push('未识别到日期，请人工确认日期。');
+  if (!draft.location) warnings.push('未识别到施工部位，请人工补充。');
+  if (!draft.content || draft.content.replace(/\s/g, '').length < 10) warnings.push('施工内容不完整，请人工补充后再提交。');
+  return {
+    textLength,
+    hasDate: Boolean(draft.log_date),
+    hasLocation: Boolean(draft.location),
+    hasContent: Boolean(draft.content && draft.content.replace(/\s/g, '').length >= 10),
+    warnings,
   };
 }

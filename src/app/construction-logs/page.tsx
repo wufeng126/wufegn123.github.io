@@ -7,18 +7,16 @@ import {
   BarChart3,
   BookOpenCheck,
   Camera,
-  CheckCircle2,
   ClipboardList,
   FileCheck2,
   FileText,
   Plus,
   Users,
-  XCircle,
 } from 'lucide-react';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
-type WorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'visa_created';
+type WorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
 
 type LogItem = {
   id: number;
@@ -79,7 +77,8 @@ const STATUS_LABELS: Record<WorkflowStatus, string> = {
   pending: '待确认',
   ignored: '确认无影响',
   resolved: '已处理',
-  monthly: '加入月报说明',
+  monthly: '待入月报',
+  monthly_included: '已进入月报',
   visa_created: '已转签证',
 };
 
@@ -93,6 +92,7 @@ function statusClass(status: WorkflowStatus) {
   if (status === 'pending') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
   if (status === 'visa_created') return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
   if (status === 'monthly') return 'border-[#7C3AED] bg-[#F3E8FF] text-[#6D28D9]';
+  if (status === 'monthly_included') return 'border-[#10B981] bg-[#E8FFEA] text-[#047857]';
   if (status === 'resolved') return 'border-[#10B981] bg-[#E8FFEA] text-[#047857]';
   return 'border-[#C9CDD4] bg-[#F7F8FA] text-[#4E5969]';
 }
@@ -172,27 +172,21 @@ export default function ConstructionLogsPage() {
     return date >= weekAgo;
   }).length;
 
-  async function handleRiskAction(logId: number, action: 'ignore' | 'resolve' | 'monthly' | 'create_visa') {
+  async function handleRiskAction(logId: number) {
     setActionBusy(logId);
     setMessage('');
     try {
-      const noteMap = {
-        ignore: '现场复核后确认暂无业务影响',
-        resolve: '已完成现场闭环处理',
-        monthly: '纳入月度报告风险说明',
-        create_visa: '人工确认需要转入签证台账跟进',
-      };
       const res = await fetch('/api/construction-logs/risks/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logId, action, note: noteMap[action] }),
+        body: JSON.stringify({ logId, action: 'monthly', note: '纳入月度报告风险提醒候选' }),
       });
       const json = await res.json();
-      if (!res.ok || json.success === false) throw new Error(json.error || '处理失败');
-      setMessage(action === 'create_visa' ? '已生成待办理签证草稿，并同步知识库状态' : '风险状态已更新，并同步到知识库');
+      if (!res.ok || json.success === false) throw new Error(json.error || '标记失败');
+      setMessage('已标记为待入月报，月报保存后会自动回写为已进入月报');
       await loadRisks();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '处理失败');
+      setMessage(error instanceof Error ? error.message : '标记失败');
     } finally {
       setActionBusy(null);
     }
@@ -266,8 +260,8 @@ export default function ConstructionLogsPage() {
           <div className="space-y-3">
             <div className="flex flex-col gap-3 rounded-xl border border-[#E5E6EB] bg-white p-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="font-semibold text-[#1D2129]">风险业务流转</h2>
-                <p className="mt-1 text-xs text-[#86909C]">识别只是入口，转签证、入月报、忽略或闭环都需要人工确认</p>
+                <h2 className="font-semibold text-[#1D2129]">风险提醒</h2>
+                <p className="mt-1 text-xs text-[#86909C]">风险池只做提醒和月报候选，不在这里实际处理业务</p>
               </div>
               <select value={riskStatus} onChange={event => setRiskStatus(event.target.value as 'all' | WorkflowStatus)} className="h-9 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
                 <option value="all">全部状态</option>
@@ -313,18 +307,10 @@ export default function ConstructionLogsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="grid min-w-[280px] grid-cols-2 gap-2">
-                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id, 'create_visa')} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-[#165DFF] px-3 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-                      <FileCheck2 className="h-3.5 w-3.5" />转签证
-                    </button>
-                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id, 'monthly')} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-[#7C3AED] px-3 text-xs font-medium text-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50">
-                      <BookOpenCheck className="h-3.5 w-3.5" />入月报
-                    </button>
-                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id, 'resolve')} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-[#10B981] px-3 text-xs font-medium text-[#047857] disabled:cursor-not-allowed disabled:opacity-50">
-                      <CheckCircle2 className="h-3.5 w-3.5" />已处理
-                    </button>
-                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id, 'ignore')} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-[#C9CDD4] px-3 text-xs font-medium text-[#4E5969] disabled:cursor-not-allowed disabled:opacity-50">
-                      <XCircle className="h-3.5 w-3.5" />无影响
+                  <div className="min-w-[150px]">
+                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id)} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#7C3AED] px-3 text-xs font-medium text-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50">
+                      <BookOpenCheck className="h-3.5 w-3.5" />
+                      {risk.workflow_status === 'monthly_included' ? '已进月报' : risk.workflow_status === 'monthly' ? '待入月报' : '纳入月报'}
                     </button>
                   </div>
                 </div>

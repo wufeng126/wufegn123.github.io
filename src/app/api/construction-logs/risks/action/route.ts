@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { insertWithSequenceFix } from '@/lib/audit-log';
 import {
   buildRiskKnowledgeContent,
   buildRiskKnowledgeTags,
@@ -13,13 +12,11 @@ import {
 } from '@/lib/construction-log-risk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-type RiskAction = 'ignore' | 'resolve' | 'monthly' | 'create_visa';
+type RiskAction = 'monthly' | 'mark_monthly_included';
 
 const ACTION_CONFIG: Record<RiskAction, { status: ConstructionRiskWorkflowStatus; label: string }> = {
-  ignore: { status: 'ignored', label: '确认无影响' },
-  resolve: { status: 'resolved', label: '标记已处理' },
-  monthly: { status: 'monthly', label: '加入月报说明' },
-  create_visa: { status: 'visa_created', label: '转签证' },
+  monthly: { status: 'monthly', label: '待入月报' },
+  mark_monthly_included: { status: 'monthly_included', label: '已进入月报' },
 };
 
 function toArrayTags(tags: unknown): string[] {
@@ -47,9 +44,11 @@ export async function POST(request: NextRequest) {
     const logId = Number(body.logId || body.log_id);
     const action = body.action as RiskAction;
     const note = typeof body.note === 'string' ? body.note.trim() : '';
+    const monthlyDocId = body.monthlyDocId ? Number(body.monthlyDocId) : null;
+    const reportMonth = typeof body.reportMonth === 'string' ? body.reportMonth.trim() : '';
 
     if (!logId) return apiBadRequest('缺少施工日志ID');
-    if (!ACTION_CONFIG[action]) return apiBadRequest('未知处理动作');
+    if (!ACTION_CONFIG[action]) return apiBadRequest('未知提醒标记');
 
     const supabase = getSupabaseClient();
     const { data: log, error: logError } = await supabase
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (logError || !log) throw new Error(logError?.message || '施工日志不存在');
 
     const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
-    if (!risk.hasRisk) return apiBadRequest('该日志未识别到风险，不需要进入风险流转');
+    if (!risk.hasRisk) return apiBadRequest('该日志未识别到风险，不需要加入风险提醒');
 
     const { data: project } = await supabase
       .from('projects')
@@ -114,36 +113,12 @@ export async function POST(request: NextRequest) {
     const config = ACTION_CONFIG[action];
     const operator = auth.user?.name || auth.user?.username || '当前用户';
     let nextTags = upsertRiskWorkflowTags(toArrayTags(doc.tags), config.status, config.label);
-    let visa: any = null;
 
-    if (action === 'create_visa') {
-      const existedVisaTag = nextTags.find(tag => tag.startsWith('签证ID:'));
-      if (!existedVisaTag) {
-        const visaNumber = `CL-${logId}-${Date.now().toString().slice(-6)}`;
-        const { data: visaData, error: visaError } = await insertWithSequenceFix('visas', {
-          visa_number: visaNumber,
-          visa_name: `${projectName}${log.log_date || ''}施工日志风险转签证`,
-          project_id: log.project_id,
-          occurrence_date: log.log_date,
-          visa_quantity: null,
-          visa_unit: null,
-          visa_amount: 0,
-          status: '待办理',
-          handler: operator,
-          remark: [
-            `由施工日志风险池人工转入。`,
-            `日志ID：${logId}`,
-            `风险摘要：${risk.summary}`,
-            note ? `处理说明：${note}` : '',
-            `原施工内容：${log.content || ''}`,
-            log.issues ? `异常情况：${log.issues}` : '',
-          ].filter(Boolean).join('\n'),
-          attachments: null,
-        }, supabase);
-        if (visaError) throw new Error(visaError.message);
-        visa = Array.isArray(visaData) ? visaData[0] : visaData;
-        if (visa?.id) nextTags = [...nextTags, `签证ID:${visa.id}`];
-      }
+    if (reportMonth) {
+      nextTags = [...nextTags.filter(tag => !tag.startsWith('月报月份:')), `月报月份:${reportMonth}`];
+    }
+    if (monthlyDocId) {
+      nextTags = [...nextTags.filter(tag => !tag.startsWith('月报ID:')), `月报ID:${monthlyDocId}`];
     }
 
     const nextContent = appendActionRecord(doc.content || '', config.label, operator, note);
@@ -166,9 +141,8 @@ export async function POST(request: NextRequest) {
       workflow_status: config.status,
       workflow_status_label: config.label,
       knowledge_doc: updatedDoc,
-      visa,
     });
   } catch (e: unknown) {
-    return apiServerError(getErrorMessage(e, '风险流转处理失败'));
+    return apiServerError(getErrorMessage(e, '风险提醒标记失败'));
   }
 }
