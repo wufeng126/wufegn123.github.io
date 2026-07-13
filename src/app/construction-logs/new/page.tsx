@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Send, Loader2, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, ClipboardList, Camera } from 'lucide-react';
 
 type Project = { id: number | string; name: string };
 
@@ -77,9 +77,14 @@ export default function NewConstructionLogPage() {
   return (
     <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
       <div className="mx-auto max-w-2xl">
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-3">
           <Link href="/construction-logs" className="p-2 rounded-lg hover:bg-[#F2F3F5]"><ArrowLeft className="h-5 w-5 text-[#4E5969]" /></Link>
           <div><h1 className="text-xl font-bold text-[#1D2129]">写施工日志</h1><p className="text-xs text-[#86909C]">现场人员每日填写</p></div>
+          </div>
+          <Link href="/construction-logs/scan" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#165DFF] px-3 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+            <Camera className="h-4 w-4" />拍照识别
+          </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 space-y-4 shadow-sm border border-[#E5E6EB]">

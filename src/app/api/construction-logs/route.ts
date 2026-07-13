@@ -2,7 +2,14 @@ import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { detectConstructionLogRisk, enrichConstructionLog, getRiskTypeLabel } from '@/lib/construction-log-risk';
+import {
+  buildRiskKnowledgeContent,
+  buildRiskKnowledgeTags,
+  detectConstructionLogRisk,
+  enrichConstructionLog,
+  getRiskLevelLabel,
+  getRiskTypeLabel,
+} from '@/lib/construction-log-risk';
 
 export async function GET(request: NextRequest) {
   try {
@@ -82,36 +89,24 @@ export async function POST(request: NextRequest) {
         .single();
       const projName = (proj as any)?.name || `项目${project_id}`;
       const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
-      const levelLabel = risk.level === 'high' ? '高' : risk.level === 'medium' ? '中' : '低';
-
-      const knowledgeContent = [
-        `## 施工日志风险事件`,
-        ``,
-        `**项目**：${projName}`,
-        `**日期**：${log_date || ''}`,
-        `**部位**：${location || '未填写'}`,
-        `**风险类型**：${risk.types.map(getRiskTypeLabel).join('、') || '未分类'}`,
-        `**风险等级**：${levelLabel}`,
-        `**触发关键词**：${risk.matchedKeywords.join('、')}`,
-        ``,
-        `### 施工内容`,
-        content || '',
-        ``,
-        `### 异常情况`,
-        issues || '未填写',
-        ``,
-        `### 跟进建议`,
-        risk.recommendation || '建议项目、预算、现场管理人员共同复核。工程量、影响原因和责任边界确认后，可同步进入签证、成本测算或月度分析。',
-        ``,
-        `> 来源：施工日志自动识别，日志ID：${data.id}`,
-      ].join('\n');
+      const levelLabel = getRiskLevelLabel(risk.level);
+      const knowledgeContent = buildRiskKnowledgeContent({
+        projectName: projName,
+        projectId: project_id,
+        logId: data.id,
+        logDate: log_date,
+        location,
+        content,
+        issues,
+        risk,
+      });
 
       const insertDoc: Record<string, any> = {
         title: `${projName} ${log_date || ''} 施工日志 - ${typeLabel}${levelLabel ? `(${levelLabel})` : ''}`,
         category: risk.types.includes('cost') ? '成本分析' : risk.types.includes('visa') ? '签证' : '经验总结',
         source_type: 'construction_log',
         source_ref: `cl:${data.id}`,
-        tags: ['施工日志', projName, `项目ID:${project_id}`, `风险等级:${levelLabel}`, ...risk.tags],
+        tags: buildRiskKnowledgeTags({ projectId: project_id, projectName: projName, logDate: log_date, risk }),
         content: knowledgeContent,
         status: 'active',
       };
