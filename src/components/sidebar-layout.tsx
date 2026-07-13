@@ -14,13 +14,11 @@ import {
   Zap,
   Building2,
   Users,
-  Truck,
   BarChart3,
   BookOpen,
   Calculator,
   ClipboardList,
   Settings,
-  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/contexts/permission-context';
@@ -34,22 +32,21 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/project-center': ['projects:view', 'work_items:view', 'visas:view', 'client_reports:view', 'client_payments:view'],
   '/hr-salary': ['workers:view', 'certificates:view', 'salaries:view', 'salaries:pay', 'salaries:query'],
   '/supplier-expense': ['suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
-  '/business-analysis': ['cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view'],
+  '/business-analysis': ['cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/construction-logs': [],
   '/cost-estimation': [],
   '/knowledge': [],
   '/system-management': ['system:manage', 'system:permission_manage', 'system:dingtalk_manage', 'notifications:view', 'system:ai_manage', 'audit:view'],
 };
 
-// 6个一级菜单
+// 一级导航
 const TOP_LEVEL_MENUS = [
   { name: '工作台', href: '/workspace', icon: LayoutDashboard },
-  { name: '项目经营', href: '/project-center', icon: Building2 },
-  { name: '人力工资', href: '/hr-salary', icon: Users },
-  { name: '供应商与费用', href: '/supplier-expense', icon: Truck },
+  { name: '项目管理', href: '/project-center', icon: Building2 },
+  { name: '施工管理', href: '/construction-logs', icon: ClipboardList },
+  { name: '人力资源', href: '/hr-salary', icon: Users },
   { name: '经营分析', href: '/business-analysis', icon: BarChart3 },
-  { name: '施工日志', href: '/construction-logs', icon: ClipboardList },
-  { name: '成本测算', href: '/cost-estimation', icon: Calculator },
+  { name: '投标测算', href: '/cost-estimation', icon: Calculator },
   { name: '知识库', href: '/knowledge', icon: BookOpen },
   { name: '系统管理', href: '/system-management', icon: Settings },
 ];
@@ -58,12 +55,12 @@ const TOP_LEVEL_MENUS = [
 const PAGE_TITLE_MAP: Record<string, string> = {
   '/': '业务工作台',
   '/workspace': '工作台',
-  '/project-center': '项目经营',
-  '/hr-salary': '人力工资',
+  '/project-center': '项目管理',
+  '/hr-salary': '人力资源',
   '/supplier-expense': '供应商与费用',
   '/business-analysis': '经营分析',
-  '/construction-logs': '施工日志',
-  '/cost-estimation': '成本测算',
+  '/construction-logs': '施工管理',
+  '/cost-estimation': '投标测算',
   '/knowledge': '知识库',
   '/system-management': '系统管理',
   // 保留旧路由标题映射
@@ -117,7 +114,7 @@ export default function SidebarLayout({
   const router = useRouter();
 
   const { user, isSuperAdmin, isLoading, permissions } = usePermission();
-  const isLoginPage = pathname === '/login' || pathname === '/dingtalk';
+  const isLoginPage = pathname === '/login' || pathname === '/dingtalk' || pathname === '/ui-preview';
 
   useEffect(() => {
     const checkMobile = () => {
@@ -157,19 +154,22 @@ export default function SidebarLayout({
   const getActiveMenu = () => {
     // 工作台特殊处理
     if (pathname === '/' || pathname === '/workspace') return '/workspace';
-    if (pathname.startsWith('/reports/monthly') || pathname.startsWith('/ai-assistant')) return '/workspace';
+    if (pathname.startsWith('/ai-assistant')) return '/workspace';
 
-    // 项目经营
+    // 项目管理
     if (['/project-center', '/projects', '/work-items', '/limit-prices', '/visas', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
 
-    // 人力工资
+    // 人力资源
     if (['/hr-salary', '/workers', '/certificates'].some(p => pathname.startsWith(p))) return '/hr-salary';
 
-    // 供应商与费用
-    if (['/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/supplier-expense';
+    // 施工管理
+    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/reports/monthly')) return '/construction-logs';
 
     // 经营分析
-    if (['/business-analysis', '/cost-center', '/data-board'].some(p => pathname.startsWith(p))) return '/business-analysis';
+    if (['/business-analysis', '/cost-center', '/data-board', '/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/business-analysis';
+
+    // 投标测算
+    if (pathname.startsWith('/cost-estimation')) return '/cost-estimation';
 
     // 知识库
     if (pathname.startsWith('/knowledge')) return '/knowledge';
@@ -220,9 +220,9 @@ export default function SidebarLayout({
         bottom: 0,
         width: Math.min(280, viewportWidth * 0.8) + 'px',
         zIndex: 50,
-        background: 'var(--sidebar-bg)',
-        borderRight: '1px solid var(--border)',
-        boxShadow: sidebarOpen ? '4px 0 24px rgba(0,0,0,0.12)' : 'none',
+        background: '#FFFFFF',
+        borderRight: '1px solid #E5E7EB',
+        boxShadow: sidebarOpen ? '4px 0 24px rgba(15, 23, 42, 0.12)' : 'none',
         transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
         transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         overflowY: 'hidden',
@@ -233,8 +233,8 @@ export default function SidebarLayout({
         width: `${sidebarWidth}px`,
         minWidth: `${sidebarWidth}px`,
         zIndex: 'auto',
-        background: 'var(--sidebar-bg)',
-        borderRight: '1px solid var(--border)',
+        background: '#FFFFFF',
+        borderRight: '1px solid #E5E7EB',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         overflowY: 'hidden',
         WebkitOverflowScrolling: 'touch',
@@ -295,8 +295,8 @@ export default function SidebarLayout({
             minHeight: '56px',
             padding: isEffectivelyCollapsed ? '0 10px' : '0 16px',
             justifyContent: isEffectivelyCollapsed ? 'center' : undefined,
-            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            background: '#FFFFFF',
+            borderBottom: '1px solid #E5E7EB',
           }}
         >
           {/* Logo图标 */}
@@ -309,18 +309,18 @@ export default function SidebarLayout({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              background: 'linear-gradient(135deg, #165DFF 0%, #7C3AED 100%)',
-              boxShadow: '0 4px 12px rgba(22, 93, 255, 0.35)',
+              background: '#2563EB',
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.22)',
             }}
           >
             <Zap className="w-5 h-5 text-white" />
           </div>
           {!isEffectivelyCollapsed && (
             <div style={{ flex: 1, minWidth: 0, marginLeft: '12px' }}>
-              <h1 style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <h1 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 建筑劳务管理
               </h1>
-              <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>
+              <p style={{ fontSize: '10px', color: '#64748B', letterSpacing: '0.5px' }}>
                 Construction Management
               </p>
             </div>
@@ -337,7 +337,7 @@ export default function SidebarLayout({
                 height: '36px',
                 marginRight: '-8px',
                 borderRadius: '8px',
-                color: 'rgba(255,255,255,0.6)',
+                color: '#64748B',
                 flexShrink: 0,
                 background: 'transparent',
                 border: 'none',
@@ -351,7 +351,7 @@ export default function SidebarLayout({
           )}
         </div>
 
-        {/* 导航菜单 - 只有6个一级菜单 */}
+        {/* 导航菜单 */}
         <nav
           className="sidebar-nav-scroll flex-1"
           style={{
@@ -377,10 +377,10 @@ export default function SidebarLayout({
                       isEffectivelyCollapsed ? 'justify-center px-0 py-3' : 'px-3 py-3'
                     )}
                     style={{
-                      background: isActive ? 'var(--sidebar-active)' : 'transparent',
-                      color: isActive ? 'var(--sidebar-accent-foreground)' : 'var(--color-text-2)',
+                      background: isActive ? '#EFF6FF' : 'transparent',
+                      color: isActive ? '#1D4ED8' : '#475569',
                     }}
-                    onMouseOver={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#F7F8FA'; }}
+                    onMouseOver={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
                     onMouseOut={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     title={isEffectivelyCollapsed ? menu.name : undefined}
                     onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
@@ -392,8 +392,7 @@ export default function SidebarLayout({
                         style={{
                           width: '3px',
                           height: '60%',
-                          background: 'var(--sidebar-active-border)',
-                          boxShadow: '0 0 6px var(--sidebar-active-border)',
+                          background: '#2563EB',
                           transition: 'all 0.2s ease',
                         }}
                       />
@@ -405,19 +404,19 @@ export default function SidebarLayout({
                       )}
                       style={{
                         borderRadius: '8px',
-                        background: isActive ? 'rgba(22, 93, 255, 0.1)' : '#F2F3F5',
+                        background: isActive ? '#DBEAFE' : '#F1F5F9',
                       }}
                     >
                       <Icon
                         className="w-[18px] h-[18px] transition-colors duration-200"
-                        style={{ color: isActive ? 'var(--primary)' : '#8A8F98' }}
+                        style={{ color: isActive ? '#2563EB' : '#64748B' }}
                       />
                     </div>
                     {!isEffectivelyCollapsed && (
                       <span
                         className="text-[13px] transition-colors duration-200"
                         style={{
-                          color: isActive ? 'var(--primary)' : 'var(--color-text-2)',
+                          color: isActive ? '#1D4ED8' : '#475569',
                           fontWeight: isActive ? 600 : 400,
                         }}
                       >
@@ -432,7 +431,7 @@ export default function SidebarLayout({
                         width: '5px',
                         height: '5px',
                         borderRadius: '50%',
-                        background: 'var(--primary)',
+                        background: '#2563EB',
                       }} />
                     )}
                   </Link>

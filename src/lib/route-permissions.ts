@@ -159,6 +159,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 export const PUBLIC_PAGES = [
   '/login',
   '/dingtalk',
+  '/ui-preview',
   '/api/auth/login',
   '/api/auth/init',
   '/api/auth/me',
