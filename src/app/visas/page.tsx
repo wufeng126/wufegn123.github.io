@@ -2,6 +2,7 @@
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -140,6 +141,8 @@ interface Attachment {
 }
 
 export default function VisasPage() {
+  const searchParams = useSearchParams();
+  const statusFromUrl = searchParams.get('status');
   const { toast } = useToast();
   const [visas, setVisas] = useState<Visa[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -175,7 +178,7 @@ export default function VisasPage() {
   // 筛选条件
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>(statusFromUrl || 'all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 

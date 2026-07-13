@@ -1,7 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  AlertTriangle,
-  ArrowUpRight,
+  AlertCircle,
   BarChart3,
   BookOpen,
   Building2,
@@ -9,18 +8,17 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  FileCheck2,
+  FilePlus2,
+  FileSearch,
   FileText,
-  Gauge,
   HardHat,
   Home,
-  Layers3,
   Library,
   Menu,
-  MessageSquareText,
-  Plus,
+  PenSquare,
   Search,
   Settings,
-  ShieldAlert,
   Sparkles,
   Users,
   WalletCards,
@@ -30,133 +28,144 @@ type NavItem = {
   name: string;
   icon: LucideIcon;
   active?: boolean;
-  muted?: boolean;
 };
 
-type StatItem = {
-  label: string;
-  value: string;
-  helper: string;
+type EntryItem = {
+  title: string;
+  desc: string;
   icon: LucideIcon;
   tone: string;
 };
 
-const navGroups: { title: string; items: NavItem[] }[] = [
-  {
-    title: '一级导航',
-    items: [
-      { name: '工作台', icon: Home, active: true },
-      { name: '项目管理', icon: Building2 },
-      { name: '施工管理', icon: ClipboardList },
-      { name: '人力资源', icon: Users },
-      { name: '经营分析', icon: BarChart3 },
-      { name: '投标测算', icon: WalletCards },
-      { name: '知识库', icon: Library },
-      { name: '系统管理', icon: Settings },
-    ],
-  },
+type PendingItem = {
+  title: string;
+  desc: string;
+  action: string;
+  count: number;
+  unit: string;
+  href: string;
+  icon: LucideIcon;
+  tone: string;
+  valueTone: string;
+};
+
+const navItems: NavItem[] = [
+  { name: '工作台', icon: Home, active: true },
+  { name: '项目管理', icon: Building2 },
+  { name: '施工管理', icon: ClipboardList },
+  { name: '人力资源', icon: Users },
+  { name: '经营分析', icon: BarChart3 },
+  { name: '投标测算', icon: WalletCards },
+  { name: '知识库', icon: Library },
+  { name: '系统管理', icon: Settings },
 ];
 
-const stats: StatItem[] = [
+const quickEntries: EntryItem[] = [
+  { title: '拍照录施工日志', desc: '手写日志拍照识别', icon: Camera, tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
+  { title: '新建施工日志', desc: '手动补录当天日志', icon: PenSquare, tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
+  { title: '查看我的日志', desc: '查看已提交和待确认日志', icon: FileSearch, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
+  { title: '月报填报', desc: '整理本月施工进展', icon: FileText, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  { title: '签证办理', desc: '提交、跟进、查看签证资料', icon: FileCheck2, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
+  { title: '工资查询', desc: '查看工资记录和发放状态', icon: WalletCards, tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
+  { title: '新建知识', desc: '沉淀施工经验和管理方法', icon: FilePlus2, tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100' },
+  { title: '查找经验', desc: '搜索可复用的项目做法', icon: Search, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
+  { title: '月报经验沉淀', desc: '从月报中整理可复用内容', icon: BookOpen, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+];
+
+const pendingItems: PendingItem[] = [
   {
-    label: '在建项目',
-    value: '12',
-    helper: '3 个本周有关键节点',
-    icon: Building2,
+    title: '3 条施工日志待确认',
+    desc: '拍照识别已完成，需要核对后提交',
+    action: '去确认',
+    count: 3,
+    unit: '条',
+    href: '/construction-logs?status=pending-confirm',
+    icon: Camera,
     tone: 'bg-blue-50 text-blue-700 ring-blue-100',
+    valueTone: 'text-blue-700',
   },
   {
-    label: '今日日志',
-    value: '28',
-    helper: '5 条待人工确认',
-    icon: ClipboardList,
+    title: '月报待填报',
+    desc: '本月施工进展还未完成整理',
+    action: '去填报',
+    count: 1,
+    unit: '份',
+    href: '/reports/monthly?status=pending',
+    icon: FileText,
     tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    valueTone: 'text-emerald-700',
   },
   {
-    label: '风险提醒',
-    value: '7',
-    helper: '只提醒，不进入复杂处理',
-    icon: AlertTriangle,
+    title: '签证待办理',
+    desc: '资料已提交，等待补充处理意见',
+    action: '去办理',
+    count: 2,
+    unit: '个',
+    href: '/visas?status=todo',
+    icon: FileCheck2,
     tone: 'bg-amber-50 text-amber-700 ring-amber-100',
+    valueTone: 'text-amber-700',
   },
   {
-    label: '可复用知识',
-    value: '46',
-    helper: '9 条推荐用于新项目',
+    title: '知识待整理',
+    desc: '从月报中提取到可沉淀经验',
+    action: '去沉淀',
+    count: 4,
+    unit: '条',
+    href: '/knowledge?status=pending',
     icon: BookOpen,
-    tone: 'bg-slate-100 text-slate-700 ring-slate-200',
+    tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100',
+    valueTone: 'text-indigo-700',
   },
 ];
 
-const projectRows = [
-  { name: '城东商业综合体二标段', phase: '主体施工', progress: 68, status: '正常推进', tone: 'text-emerald-700 bg-emerald-50' },
-  { name: '高新区厂房改造项目', phase: '装饰安装', progress: 42, status: '需关注材料', tone: 'text-amber-700 bg-amber-50' },
-  { name: '南环路市政配套工程', phase: '收尾验收', progress: 91, status: '月报待整理', tone: 'text-blue-700 bg-blue-50' },
-];
-
-const reminders = [
-  { title: '城东商业综合体二标段', desc: '今日施工日志已识别，等待现场人员确认', icon: Camera, tone: 'bg-blue-50 text-blue-700' },
-  { title: '高新区厂房改造项目', desc: '连续 2 天出现材料到场延迟提醒', icon: ShieldAlert, tone: 'bg-amber-50 text-amber-700' },
-  { title: '南环路市政配套工程', desc: '本月月报缺少现场照片和下月计划', icon: FileText, tone: 'bg-slate-100 text-slate-700' },
-];
-
-const knowledgeItems = [
-  { title: '雨季基坑排水组织经验', meta: '施工管理 · 推荐复用', tag: '适用：土方/基坑' },
-  { title: '钢结构吊装签证资料清单', meta: '签证变更 · 标准经验', tag: '适用：变更索赔' },
-  { title: '投标阶段临设费用测算口径', meta: '投标策略 · 已整理', tag: '适用：成本测算' },
-];
+const pendingTotal = pendingItems.reduce((sum, item) => sum + item.count, 0);
 
 export default function UiPreviewPage() {
   return (
-    <main className="min-h-screen bg-[#f4f6f8] text-slate-950">
+    <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[244px] shrink-0 border-r border-slate-200 bg-white text-slate-950 lg:flex lg:flex-col">
+        <aside className="hidden w-[244px] shrink-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
           <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
               <HardHat className="h-5 w-5" />
             </div>
-            <div>
-              <div className="text-sm font-semibold">工程管理系统</div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">建筑劳务管理</div>
               <div className="text-xs text-slate-500">Project Console</div>
             </div>
           </div>
 
-          <div className="flex-1 space-y-6 px-3 py-5">
-            {navGroups.map(group => (
-              <section key={group.title}>
-                <div className="mb-2 px-3 text-[11px] font-medium text-slate-500">{group.title}</div>
-                <div className="space-y-1">
-                  {group.items.map(item => {
-                    const Icon = item.icon;
-                    return (
-                      <div
-                        key={item.name}
-                        className={[
-                          'flex h-10 items-center gap-3 rounded-md px-3 text-sm',
-                          item.active
-                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
-                            : item.muted
-                              ? 'text-slate-400'
-                              : 'text-slate-600',
-                        ].join(' ')}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.name}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+          <nav className="flex-1 px-3 py-5">
+            <div className="mb-2 px-3 text-[11px] font-medium text-slate-500">一级导航</div>
+            <div className="space-y-1">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.name}
+                    className={[
+                      'flex h-10 items-center gap-3 rounded-md px-3 text-sm transition-colors',
+                      item.active
+                        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                        : 'text-slate-600 hover:bg-slate-50',
+                    ].join(' ')}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{item.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </nav>
 
           <div className="border-t border-slate-200 p-4">
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
                 <Sparkles className="h-4 w-4 text-blue-600" />
-                AI 整理助手
+                快捷工作台
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">识别施工日志、整理月报摘要、沉淀知识经验。</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">只放员工每天最容易用到的入口。</p>
             </div>
           </div>
         </aside>
@@ -169,173 +178,103 @@ export default function UiPreviewPage() {
               </button>
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-lg font-semibold">工作台</h1>
-                <p className="truncate text-xs text-slate-500">把项目、日志、月报、风险提醒和知识复用放在同一个入口里</p>
+                <p className="truncate text-xs text-slate-500">面向所有员工的高频操作入口</p>
               </div>
-              <div className="hidden h-10 w-[280px] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 md:flex">
+              <div className="hidden h-10 w-[320px] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 md:flex">
                 <Search className="h-4 w-4" />
-                搜索项目、日志、知识
+                搜索日志、签证、工资、知识
               </div>
-              <button className="flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white shadow-sm">
-                <Plus className="h-4 w-4" />
-                新建
-              </button>
             </div>
           </header>
 
-          <div className="mx-auto max-w-[1440px] space-y-6 p-4 md:p-6">
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {stats.map(item => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-slate-500">{item.label}</p>
-                        <p className="mt-2 text-3xl font-semibold tracking-normal">{item.value}</p>
-                      </div>
-                      <div className={`flex h-11 w-11 items-center justify-center rounded-lg ring-1 ${item.tone}`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs text-slate-500">{item.helper}</p>
-                  </div>
-                );
-              })}
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-              <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <div>
-                    <h2 className="text-base font-semibold">项目进展</h2>
-                    <p className="text-xs text-slate-500">重点看进度、状态和最近提醒</p>
-                  </div>
-                  <button className="flex items-center gap-1 text-sm font-medium text-blue-600">
-                    查看全部
-                    <ArrowUpRight className="h-4 w-4" />
-                  </button>
+          <div className="mx-auto max-w-[1320px] space-y-6 p-4 md:p-6">
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold">常用功能</h2>
+                  <p className="mt-2 text-sm text-slate-500">只保留员工真正需要频繁点击的入口，打开首页就能直接办事。</p>
                 </div>
-                <div className="divide-y divide-slate-100">
-                  {projectRows.map(row => (
-                    <div key={row.name} className="grid gap-4 px-5 py-4 md:grid-cols-[1fr_140px_180px_110px] md:items-center">
-                      <div>
-                        <div className="font-medium">{row.name}</div>
-                        <div className="mt-1 text-xs text-slate-500">{row.phase}</div>
-                      </div>
-                      <div className="text-sm text-slate-600">进度 {row.progress}%</div>
-                      <div className="h-2 rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-blue-600" style={{ width: `${row.progress}%` }} />
-                      </div>
-                      <div className={`w-fit rounded-md px-2.5 py-1 text-xs font-medium ${row.tone}`}>{row.status}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-5 py-4">
-                  <h2 className="text-base font-semibold">待处理提醒</h2>
-                  <p className="text-xs text-slate-500">只放真正需要用户关注的事情</p>
-                </div>
-                <div className="space-y-3 p-4">
-                  {reminders.map(item => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.title} className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${item.tone}`}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">{item.title}</div>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">{item.desc}</p>
-                        </div>
-                        <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-slate-400" />
-                      </div>
-                    );
-                  })}
+                <div className="rounded-md bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+                  9 个高频入口
                 </div>
               </div>
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <div>
-                    <h2 className="text-base font-semibold">知识复用推荐</h2>
-                    <p className="text-xs text-slate-500">从项目经验里找可直接借鉴的内容</p>
+            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                    <AlertCircle className="h-5 w-5" />
                   </div>
-                  <BookOpen className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <h2 className="text-base font-semibold">待我办理</h2>
+                    <p className="mt-1 text-xs text-slate-500">只显示和当前工作台入口相关的待办事项</p>
+                  </div>
                 </div>
-                <div className="space-y-3 p-4">
-                  {knowledgeItems.map(item => (
-                    <div key={item.title} className="rounded-lg border border-slate-100 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-medium">{item.title}</div>
-                          <div className="mt-1 text-xs text-slate-500">{item.meta}</div>
-                        </div>
-                        <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{item.tag}</span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  {pendingTotal} 项待处理
                 </div>
               </div>
-
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-5 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold">施工日志手机录入预览</h2>
-                    <p className="text-xs text-slate-500">现场人员重点做三件事：拍照、确认、提交</p>
-                  </div>
-                  <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">移动端优先</span>
-                </div>
-                <div className="grid gap-5 md:grid-cols-[260px_1fr] md:items-center">
-                  <div className="mx-auto w-[240px] rounded-[28px] border border-slate-300 bg-slate-950 p-2 shadow-xl">
-                    <div className="rounded-[22px] bg-white p-3">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="text-sm font-semibold">今日施工日志</div>
-                        <Camera className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <button className="flex h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50 text-blue-700">
-                        <Camera className="h-7 w-7" />
-                        <span className="text-sm font-medium">拍照识别</span>
-                      </button>
-                      <div className="mt-3 space-y-2">
-                        <div className="rounded-lg bg-slate-50 p-3">
-                          <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            已自动整理
-                          </div>
-                          <p className="mt-2 text-xs leading-5 text-slate-500">今日完成 3 层钢筋绑扎，机械 2 台，人员 18 人。</p>
+              <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+                {pendingItems.map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <a
+                      key={item.title}
+                      href={item.href}
+                      className="group rounded-lg border border-slate-100 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                    >
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ring-1 ${item.tone}`}>
+                          <Icon className="h-5 w-5" />
                         </div>
-                        <button className="h-10 w-full rounded-lg bg-blue-600 text-sm font-medium text-white">确认提交</button>
+                        <div className="text-right">
+                          <div className={`text-3xl font-semibold tabular-nums ${item.valueTone}`}>{item.count}</div>
+                          <div className="text-xs text-slate-400">{item.unit}</div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                      <div className="text-sm font-semibold text-slate-950 group-hover:text-blue-700">{item.title}</div>
+                      <p className="mt-1 min-h-[40px] text-xs leading-5 text-slate-500">{item.desc}</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-[11px] text-slate-400">{item.href}</span>
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600">
+                        {item.action}
+                        <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                        </span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg bg-slate-50 p-4">
-                      <MessageSquareText className="mb-3 h-5 w-5 text-blue-600" />
-                      <div className="text-sm font-medium">识别后自动整理</div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">把手写内容整理成标准日志字段，减少现场人员输入。</p>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-4">
-                      <Gauge className="mb-3 h-5 w-5 text-emerald-600" />
-                      <div className="text-sm font-medium">只保留关键确认</div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">用户只改错别字、补人数机械、确认风险提醒。</p>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-4">
-                      <Layers3 className="mb-3 h-5 w-5 text-amber-600" />
-                      <div className="text-sm font-medium">自动进入月报素材</div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">确认后的日志进入项目动态，月底可汇总成月报。</p>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-4">
-                      <Library className="mb-3 h-5 w-5 text-slate-700" />
-                      <div className="text-sm font-medium">经验可沉淀知识库</div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">有复用价值的处理办法，可以转成知识库条目。</p>
-                    </div>
-                  </div>
+            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-base font-semibold">快捷入口</h2>
+                  <p className="mt-1 text-xs text-slate-500">不再按板块分类，直接展示所有高频操作。</p>
                 </div>
+                <div className="rounded-md bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+                  {quickEntries.length} 个入口
+                </div>
+              </div>
+              <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                {quickEntries.map(item => {
+                  const ItemIcon = item.icon;
+                  return (
+                    <button
+                      key={item.title}
+                      className="group min-h-[118px] rounded-lg border border-slate-100 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                    >
+                      <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-lg ring-1 ${item.tone}`}>
+                        <ItemIcon className="h-5 w-5" />
+                      </div>
+                      <div className="text-sm font-semibold text-slate-950 group-hover:text-blue-700">{item.title}</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">{item.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           </div>

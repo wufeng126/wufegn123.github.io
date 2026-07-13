@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { detectConstructionLogRisk, getRiskWorkflowStatusFromTags } from '@/lib/construction-log-risk';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 function toArrayTags(tags: unknown): string[] {
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     const status = searchParams.get('status') || 'all';
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '100', 10), 300);
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
 
     let query = supabase
       .from('construction_logs')
@@ -35,7 +37,42 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(pageSize);
 
-    if (projectId && projectId !== 'all') query = query.eq('project_id', parseInt(projectId, 10));
+    if (projectId && projectId !== 'all') {
+      const parsedProjectId = parseInt(projectId, 10);
+      if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
+        return apiSuccess([], {
+          meta: {
+            stats: {
+              total: 0,
+              pending: 0,
+              visaCreated: 0,
+              monthly: 0,
+              monthlyIncluded: 0,
+              resolved: 0,
+              ignored: 0,
+            },
+          },
+        });
+      }
+      query = query.eq('project_id', parsedProjectId);
+    } else if (Array.isArray(accessibleProjectIds)) {
+      if (accessibleProjectIds.length === 0) {
+        return apiSuccess([], {
+          meta: {
+            stats: {
+              total: 0,
+              pending: 0,
+              visaCreated: 0,
+              monthly: 0,
+              monthlyIncluded: 0,
+              resolved: 0,
+              ignored: 0,
+            },
+          },
+        });
+      }
+      query = query.in('project_id', accessibleProjectIds);
+    }
 
     const [{ data: logs, error: logError }, { data: docs, error: docError }, { data: projects }] = await Promise.all([
       query,

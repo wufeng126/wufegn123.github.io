@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   BarChart3,
@@ -98,23 +99,41 @@ function statusClass(status: WorkflowStatus) {
 }
 
 export default function ConstructionLogsPage() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const statusParam = searchParams.get('status');
+  const mineOnly = searchParams.get('mine') === '1';
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [stats, setStats] = useState<StatItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [riskLoading, setRiskLoading] = useState(false);
-  const [tab, setTab] = useState<'stats' | 'logs' | 'risks'>('risks');
+  const [tab, setTab] = useState<'stats' | 'logs' | 'risks'>(
+    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' ? tabParam : 'risks',
+  );
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [riskStatus, setRiskStatus] = useState<'all' | WorkflowStatus>('all');
+  const [riskStatus, setRiskStatus] = useState<'all' | WorkflowStatus>(
+    statusParam === 'pending' || statusParam === 'ignored' || statusParam === 'resolved' || statusParam === 'monthly' || statusParam === 'monthly_included' || statusParam === 'visa_created'
+      ? statusParam
+      : 'all',
+  );
   const [actionBusy, setActionBusy] = useState<number | null>(null);
   const [message, setMessage] = useState('');
 
   async function loadBase() {
     setLoading(true);
     try {
+      let userFilter = '';
+      if (mineOnly) {
+        const meRes = await fetch('/api/auth/me');
+        const meJson = await meRes.json();
+        const currentUserId = meJson?.user?.id || meJson?.data?.id;
+        if (currentUserId) userFilter = `&userId=${currentUserId}`;
+      }
+
       const [logRes, statsRes, projRes] = await Promise.all([
-        fetch('/api/construction-logs?pageSize=100'),
+        fetch(`/api/construction-logs?pageSize=100${userFilter}`),
         fetch(`/api/construction-logs/stats?month=${month}`),
         fetch('/api/projects'),
       ]);
@@ -148,7 +167,7 @@ export default function ConstructionLogsPage() {
 
   useEffect(() => {
     loadBase();
-  }, [month]);
+  }, [month, mineOnly]);
 
   useEffect(() => {
     loadRisks();

@@ -1,0 +1,256 @@
+import { NextRequest } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { detectConstructionLogRisk, getRiskWorkflowStatusFromTags } from '@/lib/construction-log-risk';
+import { normalizeKnowledgeTags } from '@/lib/knowledge-taxonomy';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+
+type TodoKey = 'constructionLogsPending' | 'monthlyReportsPending' | 'visasPending' | 'knowledgePending';
+
+type TodoItem = {
+  key: TodoKey;
+  label: string;
+  desc: string;
+  action: string;
+  count: number;
+  unit: string;
+  href: string;
+};
+
+type SupabaseClient = ReturnType<typeof getSupabaseClient>;
+
+type ConstructionLogRow = {
+  id: number;
+  project_id?: number | null;
+  content?: string | null;
+  issues?: string | null;
+};
+
+type KnowledgeDocRow = {
+  source_ref?: string | null;
+  tags?: string[] | string | null;
+};
+
+type ProjectRow = {
+  id: number;
+  name?: string | null;
+  status?: string | null;
+};
+
+function getCurrentYearMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function hasProjectAccess(projectId: unknown, accessibleProjectIds: number[] | null) {
+  if (accessibleProjectIds === null) return true;
+  return accessibleProjectIds.includes(Number(projectId));
+}
+
+function getLogIdFromSourceRef(sourceRef?: string | null) {
+  const match = String(sourceRef || '').match(/^cl:(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
+function getProjectIdFromMonthlySourceRef(sourceRef?: string | null) {
+  const match = String(sourceRef || '').match(/^monthly:(\d+):\d{4}-\d{2}$/);
+  return match ? Number(match[1]) : null;
+}
+
+function isRoleActionableKnowledge(tags: string[], role: string, isSuperAdmin: boolean) {
+  if (!tags.includes('月度分析')) return false;
+
+  const state = tags.find(tag => tag.startsWith('状态:'))?.replace('状态:', '');
+  const isAdmin = isSuperAdmin || role === 'admin' || role === 'super_admin';
+
+  if (state === '草稿' && isAdmin) return true;
+  if (state === '待项目经理补充' && role === 'project_manager') return true;
+  if (state === '待预算确认' && isAdmin) return true;
+  if (state === '待老板批复' && role === 'boss') return true;
+  return false;
+}
+
+async function countPendingConstructionLogRisks(client: SupabaseClient, accessibleProjectIds: number[] | null) {
+  if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
+
+  let logsQuery = client
+    .from('construction_logs')
+    .select('id,project_id,content,issues')
+    .order('created_at', { ascending: false })
+    .limit(1000);
+
+  if (Array.isArray(accessibleProjectIds)) {
+    logsQuery = logsQuery.in('project_id', accessibleProjectIds);
+  }
+
+  const { data: logs, error: logError } = await logsQuery;
+  if (logError) throw new Error(logError.message);
+
+  const riskLogs = ((logs || []) as ConstructionLogRow[]).filter((log) =>
+    detectConstructionLogRisk({ content: log.content, issues: log.issues }).hasRisk
+  );
+  if (riskLogs.length === 0) return 0;
+
+  const sourceRefs = riskLogs.map((log) => `cl:${log.id}`);
+  const { data: docs, error: docError } = await client
+    .from('ai_knowledge_docs')
+    .select('source_ref,tags')
+    .eq('source_type', 'construction_log')
+    .eq('status', 'active')
+    .in('source_ref', sourceRefs);
+
+  if (docError) throw new Error(docError.message);
+
+  const docsByLogId = new Map<number, KnowledgeDocRow>();
+  ((docs || []) as KnowledgeDocRow[]).forEach((doc) => {
+    const logId = getLogIdFromSourceRef(doc.source_ref);
+    if (logId) docsByLogId.set(logId, doc);
+  });
+
+  return riskLogs.filter((log) => {
+    const doc = docsByLogId.get(Number(log.id));
+    const workflowStatus = getRiskWorkflowStatusFromTags(normalizeKnowledgeTags(doc?.tags));
+    return workflowStatus === 'pending';
+  }).length;
+}
+
+async function countPendingMonthlyReports(client: SupabaseClient, accessibleProjectIds: number[] | null, currentMonth: string) {
+  if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
+
+  let projectsQuery = client
+    .from('projects')
+    .select('id,name,status')
+    .eq('status', '进行中');
+
+  if (Array.isArray(accessibleProjectIds)) {
+    projectsQuery = projectsQuery.in('id', accessibleProjectIds);
+  }
+
+  const { data: projects, error: projectError } = await projectsQuery;
+  if (projectError) throw new Error(projectError.message);
+  if (!projects?.length) return 0;
+
+  const projectRows = (projects || []) as ProjectRow[];
+  const monthlyRefs = projectRows.map((project) => `monthly:${project.id}:${currentMonth}`);
+  const { data: docs, error: docError } = await client
+    .from('ai_knowledge_docs')
+    .select('source_ref')
+    .eq('status', 'active')
+    .in('source_ref', monthlyRefs);
+
+  if (docError) throw new Error(docError.message);
+
+  const existingRefs = new Set(((docs || []) as KnowledgeDocRow[]).map((doc) => doc.source_ref));
+  return projectRows.filter((project) => !existingRefs.has(`monthly:${project.id}:${currentMonth}`)).length;
+}
+
+async function countPendingVisas(client: SupabaseClient, accessibleProjectIds: number[] | null) {
+  if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
+
+  let query = client
+    .from('visas')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', '待办理');
+
+  if (Array.isArray(accessibleProjectIds)) {
+    query = query.in('project_id', accessibleProjectIds);
+  }
+
+  const { count, error } = await query;
+  if (error) throw new Error(error.message);
+  return count || 0;
+}
+
+async function countPendingKnowledge(client: SupabaseClient, accessibleProjectIds: number[] | null, role: string, isSuperAdmin: boolean) {
+  const { data, error } = await client
+    .from('ai_knowledge_docs')
+    .select('id,source_ref,tags')
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1000);
+
+  if (error) throw new Error(error.message);
+
+  return ((data || []) as KnowledgeDocRow[]).filter((doc) => {
+    const tags = normalizeKnowledgeTags(doc.tags);
+    if (!isRoleActionableKnowledge(tags, role, isSuperAdmin)) return false;
+
+    const projectId = getProjectIdFromMonthlySourceRef(doc.source_ref);
+    if (projectId && !hasProjectAccess(projectId, accessibleProjectIds)) return false;
+    return true;
+  }).length;
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
+    const client = getSupabaseClient();
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const currentMonth = getCurrentYearMonth();
+
+    const [
+      constructionLogsPending,
+      monthlyReportsPending,
+      visasPending,
+      knowledgePending,
+    ] = await Promise.all([
+      countPendingConstructionLogRisks(client, accessibleProjectIds),
+      countPendingMonthlyReports(client, accessibleProjectIds, currentMonth),
+      countPendingVisas(client, accessibleProjectIds),
+      countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin),
+    ]);
+
+    const items: TodoItem[] = [
+      {
+        key: 'constructionLogsPending',
+        label: '施工日志待确认',
+        desc: '照片识别或日志风险已生成，需要人工核对确认',
+        action: '去确认',
+        count: constructionLogsPending,
+        unit: '条',
+        href: '/construction-logs?tab=risks&status=pending',
+      },
+      {
+        key: 'monthlyReportsPending',
+        label: '月报待填报',
+        desc: '当前权限项目中，本月还没有完成月度分析沉淀',
+        action: '去填报',
+        count: monthlyReportsPending,
+        unit: '项',
+        href: '/reports/monthly?todo=pending',
+      },
+      {
+        key: 'visasPending',
+        label: '签证待办理',
+        desc: '当前权限项目中仍处于待办理状态的签证',
+        action: '去办理',
+        count: visasPending,
+        unit: '个',
+        href: '/visas?status=待办理',
+      },
+      {
+        key: 'knowledgePending',
+        label: '知识待整理',
+        desc: '月度分析和经验沉淀流程中，需要你处理的内容',
+        action: '去整理',
+        count: knowledgePending,
+        unit: '条',
+        href: '/knowledge?status=pending',
+      },
+    ];
+
+    return apiSuccess({
+      total: items.reduce((sum, item) => sum + item.count, 0),
+      items,
+      scope: {
+        projectIds: accessibleProjectIds,
+        currentMonth,
+      },
+    });
+  } catch (error: unknown) {
+    return apiServerError(getErrorMessage(error, '工作台待办统计失败'));
+  }
+}

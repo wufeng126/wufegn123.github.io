@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   FileText,
@@ -419,12 +420,15 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
 }
 
 export default function KnowledgePage() {
+  const searchParams = useSearchParams();
+  const statusFromUrl = searchParams.get('status');
+  const queryFromUrl = searchParams.get('query');
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(queryFromUrl || '');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ role?: string; username?: string; name?: string } | null>(null);
-  const [pendingOnly, setPendingOnly] = useState(false);
+  const [pendingOnly, setPendingOnly] = useState(statusFromUrl === 'pending');
   const [showMoreCategories, setShowMoreCategories] = useState(false);
   const [activeQuality, setActiveQuality] = useState('全部等级');
 
