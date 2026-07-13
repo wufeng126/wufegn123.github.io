@@ -1,61 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { decodeJwt } from 'jose';
-import { isSuperAdminUser } from '@/lib/route-permissions';
 import { getProjectFinancialSummary } from '@/lib/data-aggregation';
 import { formatAmountSmart, formatPercent, toWanYuan } from '@/lib/format';
-
-// 获取用户可访问的项目列表
-async function getUserAccessibleProjects(client: any, tokenPayload: any): Promise<number[] | null> {
-  if (!tokenPayload || isSuperAdminUser(tokenPayload.role, tokenPayload.role_id)) {
-    return null;
-  }
-  
-  const userId = tokenPayload.id;
-  if (!userId) return [];
-  
-  const { data: user } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', userId)
-    .single();
-  
-  if (!user) return [];
-  
-  let accessibleProjects: number[] = [];
-  
-  if (user.managed_projects) {
-    try {
-      const parsed = typeof user.managed_projects === 'string' 
-        ? JSON.parse(user.managed_projects) 
-        : user.managed_projects;
-      if (Array.isArray(parsed)) {
-        accessibleProjects = parsed.filter((p: any) => typeof p === 'number');
-      }
-    } catch (e) {
-      accessibleProjects = [];
-    }
-  }
-  
-  return accessibleProjects.length > 0 ? accessibleProjects : [];
-}
+import { requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
 
-    const token = request.cookies.get('auth_token')?.value;
     const client = getSupabaseClient();
     
-    let tokenPayload: any = null;
-    if (token) {
-      try {
-        tokenPayload = decodeJwt(token);
-      } catch (e) {}
-    }
-    
-    const accessibleProjects = await getUserAccessibleProjects(client, tokenPayload);
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     
     // ========== 1. 获取所有项目 ==========
     let projectsQuery = client

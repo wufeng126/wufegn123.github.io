@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { decodeJwt } from 'jose';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { validateStatusTransition } from '@/lib/business-logic';
-import { isSuperAdminUser } from '@/lib/route-permissions';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // 安全解析 numeric 类型（PostgreSQL numeric 返回对象格式）
 function parseNumeric(value: any): number {
@@ -47,68 +47,18 @@ function calculateTaxInfo(invoiceAmount: number, taxRate: number) {
   };
 }
 
-// 获取用户可访问的项目列表
-async function getUserAccessibleProjects(client: any, tokenPayload: any): Promise<number[] | null> {
-  // 超级管理员或未登录用户返回 null（可访问全部）
-  if (!tokenPayload || isSuperAdminUser(tokenPayload.role, tokenPayload.role_id)) {
-    return null;
-  }
-  
-  // 从 token 获取用户 ID（注意：token 中的字段是 id，不是 user_id）
-  const userId = tokenPayload.id;
-  if (!userId) return [];
-  
-  // 从数据库获取用户的 managed_projects
-  const { data: user } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', userId)
-    .single();
-  
-  if (!user) return [];
-  
-  // 解析 managed_projects
-  let accessibleProjects: number[] = [];
-  
-  if (user.managed_projects) {
-    try {
-      const parsed = typeof user.managed_projects === 'string' 
-        ? JSON.parse(user.managed_projects) 
-        : user.managed_projects;
-      if (Array.isArray(parsed)) {
-        accessibleProjects = parsed.filter((p: any) => typeof p === 'number');
-      }
-    } catch (e) {
-      accessibleProjects = [];
-    }
-  }
-  
-  return accessibleProjects.length > 0 ? accessibleProjects : [];
-}
-
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get('project_id');
-
-    // 获取 token
-    const token = request.cookies.get('auth_token')?.value;
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
     
     // 创建 Supabase 客户端
     const client = getSupabaseClient();
     
-    // 获取 token payload
-    let tokenPayload: any = null;
-    if (token) {
-      try {
-        tokenPayload = decodeJwt(token);
-      } catch (e) {
-        // token 无效，继续但不过滤
-      }
-    }
-    
     // 获取用户可访问的项目列表
-    const accessibleProjects = await getUserAccessibleProjects(client, tokenPayload);
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     
     let query = client
       .from('client_reports')
@@ -236,6 +186,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     
     // 支持批量录入
@@ -315,6 +268,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, settlement_amount, invoice_amount, deduction_amount, proportional_payment, tax_rate, report_date, remark, status } = body;
 
@@ -355,13 +311,7 @@ export async function PUT(request: NextRequest) {
       updateData.status = status;
       if (status === 'reviewed') {
         updateData.reviewed_at = new Date().toISOString();
-        try {
-          const token = request.cookies.get('auth_token')?.value;
-          if (token) {
-            const payload = decodeJwt(token);
-            updateData.reviewed_by = payload.username || payload.name || 'system';
-          }
-        } catch (e) {}
+        updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
       }
     }
 
@@ -392,6 +342,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

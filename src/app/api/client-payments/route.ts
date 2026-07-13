@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { decodeJwt } from 'jose';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
-import { isSuperAdminUser } from '@/lib/route-permissions';
 import { logSecurityEvent } from '@/lib/security-log';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // 安全解析 numeric 类型（PostgreSQL numeric 返回对象格式如 { "$numberDecimal": "123.45" } 或 { "0": "...", "1": 1, "2": 1, "3": false, ... }）
 function parseNumeric(value: any): number {
@@ -30,62 +30,18 @@ function parseNumeric(value: any): number {
   return 0;
 }
 
-// 获取用户可访问的项目列表
-async function getUserAccessibleProjects(client: any, tokenPayload: any): Promise<number[] | null> {
-  if (!tokenPayload || isSuperAdminUser(tokenPayload.role, tokenPayload.role_id)) {
-    return null;
-  }
-  
-  const userId = tokenPayload.id;
-  if (!userId) return [];
-  
-  const { data: user } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', userId)
-    .single();
-  
-  if (!user) return [];
-  
-  let accessibleProjects: number[] = [];
-  
-  if (user.managed_projects) {
-    try {
-      const parsed = typeof user.managed_projects === 'string' 
-        ? JSON.parse(user.managed_projects) 
-        : user.managed_projects;
-      if (Array.isArray(parsed)) {
-        accessibleProjects = parsed.filter((p: any) => typeof p === 'number');
-      }
-    } catch (e) {
-      accessibleProjects = [];
-    }
-  }
-  
-  return accessibleProjects.length > 0 ? accessibleProjects : [];
-}
-
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get('project_id');
-
-    // 获取 token
-    const token = request.cookies.get('auth_token')?.value;
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
     
     // 创建 Supabase 客户端
     const client = getSupabaseClient();
     
-    // 获取 token payload
-    let tokenPayload: any = null;
-    if (token) {
-      try {
-        tokenPayload = decodeJwt(token);
-      } catch (e) {}
-    }
-    
     // 获取用户可访问的项目列表
-    const accessibleProjects = await getUserAccessibleProjects(client, tokenPayload);
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     
     // 查询甲方付款记录
     let query = client
@@ -195,6 +151,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { project_id, amount, payment_date, payment_method, status, remark } = body;
 
@@ -289,6 +248,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, amount, payment_date, payment_method, status, remark } = body;
 
@@ -328,6 +290,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
