@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { detectConstructionLogRisk, enrichConstructionLog, getRiskTypeLabel } from '@/lib/construction-log-risk';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,11 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '50');
 
-    let query = supabase.from('construction_logs').select('*', { count: 'exact' }).order('log_date', { ascending: false }).order('created_at', { ascending: false });
+    let query = supabase
+      .from('construction_logs')
+      .select('*', { count: 'exact' })
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (projectId) query = query.eq('project_id', parseInt(projectId));
     if (userId) query = query.eq('user_id', parseInt(userId));
@@ -28,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query.range(from, from + pageSize - 1);
 
     if (error) throw new Error(error.message);
-    return apiSuccess(data || [], {
+    return apiSuccess((data || []).map(enrichConstructionLog), {
       meta: { pagination: { page, pageSize, total: count || 0 } },
     });
   } catch (e: unknown) {
@@ -50,54 +55,88 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('construction_logs').insert({
-      project_id: parseInt(project_id),
-      user_id: user?.id || 0,
-      user_name: user?.name || user?.username || '未知',
-      log_date,
-      location: location || null,
-      content,
-      headcount: headcount ? parseInt(headcount) : null,
-      issues: issues || null,
-    }).select().single();
+    const { data, error } = await supabase
+      .from('construction_logs')
+      .insert({
+        project_id: parseInt(project_id),
+        user_id: user?.id || 0,
+        user_name: user?.name || user?.username || '未知',
+        log_date,
+        location: location || null,
+        content,
+        headcount: headcount ? parseInt(headcount) : null,
+        issues: issues || null,
+      })
+      .select()
+      .single();
 
     if (error) throw new Error(error.message);
 
-    // 智能萃取：检测施工日志中的潜在变更/签证事件
-    if (data) {
-      const text = `${content || ''} ${issues || ''}`;
-      const keywords = ['变更', '签证', '变更通知', '设计变更', '甲方要求', '洽商', '索赔', '图纸变更', '方案调整', '新增工作'];
-      const matched = keywords.filter(k => text.includes(k));
-      if (matched.length > 0 && project_id) {
-        // 获取项目名称
-        const { data: proj } = await supabase.from('projects').select('name').eq('id', parseInt(project_id)).single();
-        const projName = (proj as any)?.name || `项目${project_id}`;
+    const risk = detectConstructionLogRisk({ content, issues });
 
-        // 自动创建知识条目（经验总结分类）
-        await supabase.from('ai_knowledge_docs').insert({
-          title: `${projName} ${log_date || ''} 施工日志 - 潜在变更`,
-          category: '经验总结',
-          source_type: 'construction_log',
-          source_ref: `cl:${data.id}`,
-          tags: ['施工日志', '变更', projName],
-          content: `## 潜在变更事件\n\n**项目**：${projName}\n**日期**：${log_date || ''}\n**施工内容**：${content || ''}\n**异常情况**：${issues || ''}\n\n**触发关键词**：${matched.join('、')}\n\n> 由施工日志自动识别，建议预算员跟进确认是否涉及签证/变更。`,
-          created_by: '系统（施工日志萃取）',
-        });
+    if (data && risk.hasRisk) {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', parseInt(project_id))
+        .single();
+      const projName = (proj as any)?.name || `项目${project_id}`;
+      const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
+      const levelLabel = risk.level === 'high' ? '高' : risk.level === 'medium' ? '中' : '低';
 
-        // 发送系统通知（同时触发钉钉推送如果已配置）
-        const { pushBusinessNotification } = await import('@/lib/business-notification');
-        await pushBusinessNotification({
-          type: 'construction_log_alert',
-          title: `⚠️ ${projName} 施工日志疑似涉及变更`,
-          content: `${log_date || ''} ${content ? content.substring(0, 30) : ''}... 含关键词：${matched.join('、')}。请及时确认是否需办理签证。`,
-          severity: 'warning',
-          relatedId: data.id,
-          relatedType: 'construction_log',
-        });
-      }
+      const knowledgeContent = [
+        `## 施工日志风险事件`,
+        ``,
+        `**项目**：${projName}`,
+        `**日期**：${log_date || ''}`,
+        `**部位**：${location || '未填写'}`,
+        `**风险类型**：${risk.types.map(getRiskTypeLabel).join('、') || '未分类'}`,
+        `**风险等级**：${levelLabel}`,
+        `**触发关键词**：${risk.matchedKeywords.join('、')}`,
+        ``,
+        `### 施工内容`,
+        content || '',
+        ``,
+        `### 异常情况`,
+        issues || '未填写',
+        ``,
+        `### 跟进建议`,
+        risk.recommendation || '建议项目、预算、现场管理人员共同复核。工程量、影响原因和责任边界确认后，可同步进入签证、成本测算或月度分析。',
+        ``,
+        `> 来源：施工日志自动识别，日志ID：${data.id}`,
+      ].join('\n');
+
+      const insertDoc: Record<string, any> = {
+        title: `${projName} ${log_date || ''} 施工日志 - ${typeLabel}${levelLabel ? `(${levelLabel})` : ''}`,
+        category: risk.types.includes('cost') ? '成本分析' : risk.types.includes('visa') ? '签证' : '经验总结',
+        source_type: 'construction_log',
+        source_ref: `cl:${data.id}`,
+        tags: ['施工日志', projName, `项目ID:${project_id}`, `风险等级:${levelLabel}`, ...risk.tags],
+        content: knowledgeContent,
+        status: 'active',
+      };
+      if (user?.id) insertDoc.created_by = user.id;
+
+      await supabase.from('ai_knowledge_docs').insert(insertDoc);
+
+      const { pushBusinessNotification } = await import('@/lib/business-notification');
+      await pushBusinessNotification({
+        type: 'construction_log_alert',
+        title: `${projName} 施工日志识别到${typeLabel}风险`,
+        content: `${log_date || ''} ${risk.summary}。${risk.recommendation}`,
+        severity: risk.level === 'high' ? 'danger' : 'warning',
+        projectId: parseInt(project_id),
+        relatedId: data.id,
+        relatedType: 'construction_log',
+        metadata: {
+          riskTypes: risk.types,
+          riskLevel: risk.level,
+          matchedKeywords: risk.matchedKeywords,
+        },
+      });
     }
 
-    return apiSuccess(data);
+    return apiSuccess(enrichConstructionLog(data));
   } catch (e: unknown) {
     return apiServerError(getErrorMessage(e, '提交失败'));
   }

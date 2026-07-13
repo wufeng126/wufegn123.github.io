@@ -7,7 +7,40 @@ import { ArrowLeft, BookOpen, FileText, BarChart3, Users, ClipboardList, Calenda
 
 type Project = { id: number; name: string; partner?: string; contract_amount?: number; created_at?: string; status?: string };
 type KnowledgeDoc = { id: number | string; title: string; category?: string; content?: string; tags?: any; created_by?: string; created_at?: string; updated_at?: string; source_ref?: string };
-type LogItem = { id: number; log_date: string; content: string; issues?: string; user_name?: string; location?: string };
+type RiskLevel = 'low' | 'medium' | 'high';
+type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
+type LogItem = {
+  id: number;
+  log_date: string;
+  content: string;
+  issues?: string;
+  user_name?: string;
+  location?: string;
+  risk_level?: RiskLevel | null;
+  risk_types?: RiskType[];
+  risk_summary?: string;
+};
+
+const RISK_TYPE_LABELS: Record<RiskType, string> = {
+  change: '变更',
+  visa: '签证',
+  delay: '工期',
+  quality: '质量',
+  safety: '安全',
+  cost: '成本',
+};
+
+const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+function riskClass(level?: RiskLevel | null) {
+  if (level === 'high') return 'bg-[#FFF1F0] text-[#F53F3F]';
+  if (level === 'medium') return 'bg-[#FFF7E8] text-[#D46B08]';
+  return 'bg-[#E8F3FF] text-[#165DFF]';
+}
 
 function normalizeTags(tags?: any): string[] {
   if (Array.isArray(tags)) return tags.filter(Boolean).map(String);
@@ -35,7 +68,7 @@ export default function ProjectKnowledgePage() {
         const [projRes, knowRes, logRes] = await Promise.all([
           fetch(`/api/projects/${params.id}`),
           fetch('/api/ai/knowledge?page_size=200&status=active'),
-          fetch('/api/construction-logs?pageSize=20'),
+          fetch(`/api/construction-logs?pageSize=20&projectId=${params.id}`),
         ]);
         const projJson = await projRes.json();
         const knowJson = await knowRes.json();
@@ -49,11 +82,14 @@ export default function ProjectKnowledgePage() {
         const projName = proj?.name || '';
         setDocs(allDocs.filter((d: KnowledgeDoc) => {
           const tags = normalizeTags(d.tags);
-          return tags.includes(projName) || String(d.source_ref || '').includes(String(params.id)) || (d.title || '').includes(projName);
+          return tags.includes(projName)
+            || tags.includes(`项目ID:${params.id}`)
+            || String(d.source_ref || '').includes(`project:${params.id}`)
+            || (d.title || '').includes(projName);
         }));
 
         const allLogs = Array.isArray(logJson.data) ? logJson.data : [];
-        setLogs(allLogs.filter((l: LogItem) => l.content?.includes(projName)));
+        setLogs(allLogs);
       } catch {} finally { if (mounted) setLoading(false); }
     }
     if (params.id) load();
@@ -66,6 +102,7 @@ export default function ProjectKnowledgePage() {
     return cat === '成本分析' || cat === '工序单价';
   }), [docs]);
   const experienceDocs = useMemo(() => docs.filter(d => d.category === '经验总结'), [docs]);
+  const riskLogs = useMemo(() => logs.filter(log => log.risk_level), [logs]);
 
   const sections = [
     { key: 'overview', icon: BookOpen, label: '项目概况', desc: '基本信息、合同概要', count: 1, color: 'from-[#165DFF] to-[#4080FF]' },
@@ -116,12 +153,13 @@ export default function ProjectKnowledgePage() {
         </div>
 
         {/* 快速统计 */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
             { icon: BookOpen, label: '知识总数', value: docs.length, color: '#165DFF' },
             { icon: BarChart3, label: '成本分析', value: costDocs.length, color: '#7C3AED' },
             { icon: CalendarDays, label: '月度分析', value: monthlyDocs.length, color: '#10B981' },
             { icon: ClipboardList, label: '施工日志', value: logs.length, color: '#F59E0B' },
+            { icon: AlertTriangle, label: '风险日志', value: riskLogs.length, color: '#F53F3F' },
           ].map((s, i) => (
             <div key={i} className="bg-white rounded-xl border border-[#E5E6EB] p-4">
               <s.icon className="h-5 w-5 mb-2" style={{ color: s.color }} />
@@ -193,6 +231,19 @@ export default function ProjectKnowledgePage() {
                     {log.location && <><span className="w-px h-3 bg-[#E5E6EB]" /><span>{log.location}</span></>}
                   </div>
                   <p className="text-[#4E5969]">{log.content}</p>
+                  {log.risk_level && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClass(log.risk_level)}`}>
+                        {RISK_LEVEL_LABELS[log.risk_level]}风险
+                      </span>
+                      {(log.risk_types || []).slice(0, 3).map(type => (
+                        <span key={type} className="rounded-full bg-white px-2 py-0.5 text-xs text-[#4E5969]">
+                          {RISK_TYPE_LABELS[type] || type}
+                        </span>
+                      ))}
+                      {log.risk_summary && <span className="text-xs text-[#86909C]">{log.risk_summary}</span>}
+                    </div>
+                  )}
                   {log.issues && <p className="text-xs text-[#F53F3F] mt-1">⚠️ {log.issues}</p>}
                 </div>
               ))}

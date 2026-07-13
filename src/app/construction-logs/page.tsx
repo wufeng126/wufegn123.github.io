@@ -2,11 +2,50 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, FileText, Users, CalendarDays, BarChart3, ClipboardList } from 'lucide-react';
+import { Plus, FileText, Users, CalendarDays, BarChart3, ClipboardList, AlertTriangle } from 'lucide-react';
 
-type LogItem = { id: number; project_id: number; user_name: string; log_date: string; location: string; content: string; headcount: number; issues: string; created_at: string };
-type StatItem = { user_id: number; user_name: string; count: number; last_date: string };
+type RiskLevel = 'low' | 'medium' | 'high';
+type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
+type LogItem = {
+  id: number;
+  project_id: number;
+  user_name: string;
+  log_date: string;
+  location: string;
+  content: string;
+  headcount: number;
+  issues: string;
+  created_at: string;
+  risk_type?: RiskType | null;
+  risk_types?: RiskType[];
+  risk_level?: RiskLevel | null;
+  risk_summary?: string;
+  risk_recommendation?: string;
+  risk_matched_keywords?: string[];
+};
+type StatItem = { user_id: number; user_name: string; count: number; last_date: string; risk_count?: number; high_risk_count?: number; cost_risk_count?: number };
 type Project = { id: number; name: string };
+
+const RISK_TYPE_LABELS: Record<RiskType, string> = {
+  change: '变更',
+  visa: '签证',
+  delay: '工期',
+  quality: '质量',
+  safety: '安全',
+  cost: '成本',
+};
+
+const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};
+
+function riskBadgeClass(level?: RiskLevel | null) {
+  if (level === 'high') return 'border-[#F53F3F] bg-[#FFF1F0] text-[#C62828]';
+  if (level === 'medium') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
+  return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
+}
 
 export default function ConstructionLogsPage() {
   const [logs, setLogs] = useState<LogItem[]>([]);
@@ -40,6 +79,8 @@ export default function ConstructionLogsPage() {
 
   const totalLogs = logs.length;
   const totalPeople = stats.length;
+  const totalRisks = logs.filter(l => l.risk_level).length;
+  const highRisks = logs.filter(l => l.risk_level === 'high').length;
   const weekLogs = logs.filter(l => {
     const d = new Date(l.log_date);
     const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
@@ -61,7 +102,7 @@ export default function ConstructionLogsPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div className="bg-white rounded-xl border border-[#E5E6EB] p-4 text-center">
             <FileText className="h-5 w-5 text-[#165DFF] mx-auto mb-1" />
             <p className="text-2xl font-bold text-[#1D2129]">{totalLogs}</p>
@@ -76,6 +117,11 @@ export default function ConstructionLogsPage() {
             <CalendarDays className="h-5 w-5 text-[#10B981] mx-auto mb-1" />
             <p className="text-2xl font-bold text-[#1D2129]">{weekLogs}</p>
             <p className="text-xs text-[#86909C]">本周提交</p>
+          </div>
+          <div className="bg-white rounded-xl border border-[#E5E6EB] p-4 text-center">
+            <AlertTriangle className="h-5 w-5 text-[#F59E0B] mx-auto mb-1" />
+            <p className="text-2xl font-bold text-[#1D2129]">{totalRisks}</p>
+            <p className="text-xs text-[#86909C]">风险日志{highRisks > 0 ? ` · 高${highRisks}` : ''}</p>
           </div>
         </div>
 
@@ -103,14 +149,15 @@ export default function ConstructionLogsPage() {
                     <th className="text-left py-3 px-4 font-medium">排名</th>
                     <th className="text-left py-3 px-4 font-medium">姓名</th>
                     <th className="text-center py-3 px-4 font-medium">提交次数</th>
+                    <th className="text-center py-3 px-4 font-medium">风险日志</th>
                     <th className="text-center py-3 px-4 font-medium">最近提交</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={4} className="text-center py-8 text-[#86909C]">加载中...</td></tr>
+                    <tr><td colSpan={5} className="text-center py-8 text-[#86909C]">加载中...</td></tr>
                   ) : stats.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center py-8 text-[#86909C]">本月暂无提交记录</td></tr>
+                    <tr><td colSpan={5} className="text-center py-8 text-[#86909C]">本月暂无提交记录</td></tr>
                   ) : stats.map((s, i) => (
                     <tr key={s.user_id} className="border-t border-[#F2F3F5] hover:bg-[#FAFBFF]">
                       <td className="py-3 px-4 text-[#86909C]">
@@ -121,6 +168,15 @@ export default function ConstructionLogsPage() {
                         <span className={`inline-flex items-center justify-center min-w-[32px] h-7 rounded-full text-sm font-bold ${s.count >= 20 ? 'bg-[#E8FFEA] text-[#00A870]' : s.count >= 10 ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#F2F3F5] text-[#4E5969]'}`}>
                           {s.count}
                         </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {(s.risk_count || 0) > 0 ? (
+                          <span className={`inline-flex items-center justify-center min-w-[32px] h-7 rounded-full text-sm font-bold ${(s.high_risk_count || 0) > 0 ? 'bg-[#FFF1F0] text-[#F53F3F]' : (s.cost_risk_count || 0) > 0 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#E8F3FF] text-[#165DFF]'}`}>
+                            {s.risk_count}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#C9CDD4]">无</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-center text-[#86909C]">{s.last_date}</td>
                     </tr>
@@ -149,10 +205,29 @@ export default function ConstructionLogsPage() {
                       {log.location && <><span className="w-px h-3 bg-[#E5E6EB]" /><span>📍 {log.location}</span></>}
                     </div>
                     <p className="text-sm text-[#1D2129]">{log.content}</p>
+                    {log.risk_level && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${riskBadgeClass(log.risk_level)}`}>
+                          <AlertTriangle className="h-3 w-3" />
+                          {RISK_LEVEL_LABELS[log.risk_level]}风险
+                        </span>
+                        {(log.risk_types || []).slice(0, 4).map(type => (
+                          <span key={type} className="rounded-full bg-[#F2F3F5] px-2 py-0.5 text-xs text-[#4E5969]">
+                            {RISK_TYPE_LABELS[type] || type}
+                          </span>
+                        ))}
+                        {log.risk_summary && <span className="text-xs text-[#86909C]">{log.risk_summary}</span>}
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mt-2 text-xs text-[#86909C]">
                       {log.headcount != null && <span>👥 {log.headcount}人</span>}
                       {log.issues && <span className="text-[#F53F3F]">⚠️ {log.issues}</span>}
                     </div>
+                    {log.risk_recommendation && (
+                      <p className="mt-2 rounded-lg bg-[#FAFBFF] px-3 py-2 text-xs text-[#4E5969]">
+                        跟进建议：{log.risk_recommendation}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
