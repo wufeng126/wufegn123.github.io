@@ -16,6 +16,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
 
   // === 项目经营模块 ===
   '/projects': ['projects:view'],
+  '/quantity-reporting': ['work_items:view'],
   '/work-items': ['work_items:view'],
   '/limit-prices': ['work_items:view'],
   '/visas': ['visas:view'],

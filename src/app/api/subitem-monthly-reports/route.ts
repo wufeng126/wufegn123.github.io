@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       .from('subitem_monthly_reports')
       .select(`
         *,
-        subitem:work_item_subitems(id, subitem_name, unit, budget_quantity, contract_price)
+        subitem:work_item_subitems(id, subitem_name, unit, budget_quantity, contract_price, project_id)
       `)
       .order('year_month', { ascending: false });
 

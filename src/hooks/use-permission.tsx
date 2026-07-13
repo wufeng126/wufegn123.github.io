@@ -28,6 +28,7 @@ export const routePermissionMap: Record<string, string> = {
   "/suppliers/misc-materials": "misc_material.view",
   "/finance/client-reports": "client_report.view",
   "/finance/client-payments": "client_payment.view",
+  "/quantity-reporting": "work_items.view",
   "/work-items": "work_items.view",
   "/visas": "visas.view",
   "/cost-center": "cost_center.view",

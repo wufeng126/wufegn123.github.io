@@ -86,6 +86,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 
   // === 项目经营模块 ===
   '/projects': { permission: 'projects:view' },
+  '/quantity-reporting': { permission: 'work_items:view' },
   '/work-items': { permission: 'work_items:view' },
   '/limit-prices': { permission: 'work_items:view' },
   '/visas': { permission: 'visas:view' },

@@ -10,6 +10,7 @@ export interface TabItem {
   label: string;
   href: string;
   content: React.ComponentType;
+  aliases?: string[];
   /** 访问该 Tab 所需的权限码，未配置则所有人可见 */
   permission?: string;
 }
@@ -36,8 +37,11 @@ export function TabContainer({ tabs, defaultTab }: TabContainerProps) {
   useEffect(() => {
     const urlTab = searchParams.get('tab');
     // URL 指定的 Tab 在可见列表中 → 直接使用
-    if (urlTab && visibleTabs.some(t => t.key === urlTab)) {
-      setActiveTab(urlTab);
+    const matchedTab = urlTab
+      ? visibleTabs.find(t => t.key === urlTab || t.aliases?.includes(urlTab))
+      : null;
+    if (matchedTab) {
+      setActiveTab(matchedTab.key);
       return;
     }
     // defaultTab 在可见列表中 → 使用默认

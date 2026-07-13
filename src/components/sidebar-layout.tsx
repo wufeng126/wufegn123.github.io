@@ -56,6 +56,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/': '业务工作台',
   '/workspace': '工作台',
   '/project-center': '项目管理',
+  '/quantity-reporting': '报量管理',
   '/hr-salary': '人力资源',
   '/supplier-expense': '供应商与费用',
   '/business-analysis': '经营分析',
@@ -65,7 +66,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/system-management': '系统管理',
   // 保留旧路由标题映射
   '/projects': '项目管理',
-  '/work-items': '工程量统计',
+  '/work-items': '报量管理',
   '/limit-prices': '限价管理',
   '/visas': '签证管理',
   '/workers/roster': '花名册',
@@ -157,7 +158,7 @@ export default function SidebarLayout({
     if (pathname.startsWith('/ai-assistant')) return '/workspace';
 
     // 项目管理
-    if (['/project-center', '/projects', '/work-items', '/limit-prices', '/visas', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
+    if (['/project-center', '/projects', '/quantity-reporting', '/work-items', '/limit-prices', '/visas', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
 
     // 人力资源
     if (['/hr-salary', '/workers', '/certificates'].some(p => pathname.startsWith(p))) return '/hr-salary';

@@ -137,9 +137,9 @@ export default function ProjectDetailPage() {
     const encodedProjectId = encodeURIComponent(projectId);
     return [
       {
-        title: '工程量',
-        desc: '维护预算工程量、完成工程量和月度报量',
-        href: `/project-center?tab=work-items&projectId=${encodedProjectId}`,
+        title: '报量管理',
+        desc: '维护预算工程量、对上报量、对下结算和差异提醒',
+        href: `/project-center?tab=quantity-reporting&projectId=${encodedProjectId}`,
         value: `${stats?.workItemCount || 0} 个分项`,
         icon: ListTree,
         color: 'text-blue-700',

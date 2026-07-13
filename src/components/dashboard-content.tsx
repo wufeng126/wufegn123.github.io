@@ -471,7 +471,7 @@ export default function HomePage() {
                 { title: '写知识', href: '/knowledge/new', icon: PenSquare, color: '#F7BA1E' },
                 { title: '新增项目', href: '/projects', icon: FolderOpen, color: '#165DFF' },
                 { title: '花名册', href: '/workers/roster', icon: UsersRound, color: '#00B42A' },
-                { title: '工程量', href: '/work-items', icon: BarChart2, color: '#722ED1' },
+                { title: '报量管理', href: '/project-center?tab=quantity-reporting', icon: BarChart2, color: '#722ED1' },
                 { title: '报量', href: '/client-reports', icon: FileText, color: '#FF7D00' },
                 { title: '回款', href: '/client-payments', icon: CreditCard, color: '#722ED1' },
                 { title: '月度工资', href: '/workers/salaries', icon: Receipt, color: '#13C2C2' },
@@ -761,7 +761,7 @@ export default function HomePage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium" style={{ color: '#8A8F98' }}>对下结算</span>
-                  <Link href="/work-items" className="text-xs hover:underline" style={{ color: '#722ED1' }}>详情</Link>
+                  <Link href="/project-center?tab=quantity-reporting" className="text-xs hover:underline" style={{ color: '#722ED1' }}>详情</Link>
                 </div>
                 <div className="flex items-baseline gap-1 mb-1.5">
                   <span className="text-lg font-bold tabular-nums" style={{ color: '#722ED1' }}>{fmt(stats.currentMonthSettlementAmount)}</span>
@@ -800,7 +800,7 @@ export default function HomePage() {
           { title: '写知识', href: '/knowledge/new', icon: PenSquare, color: '#F7BA1E' },
           { title: '新增项目', href: '/projects', icon: FolderOpen, color: '#165DFF' },
           { title: '花名册', href: '/workers/roster', icon: UsersRound, color: '#00B42A' },
-          { title: '工程量', href: '/work-items', icon: BarChart2, color: '#722ED1' },
+          { title: '报量管理', href: '/project-center?tab=quantity-reporting', icon: BarChart2, color: '#722ED1' },
           { title: '报量', href: '/client-reports', icon: FileText, color: '#FF7D00' },
           { title: '回款', href: '/client-payments', icon: CreditCard, color: '#722ED1' },
           { title: '月度工资', href: '/workers/salaries', icon: Receipt, color: '#13C2C2' },

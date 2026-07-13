@@ -8,7 +8,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: '建筑劳务管理系统',
-  description: '建筑劳务企业数据管理系统 - 工人成本、工程量统计、甲方报量、付款情况',
+  description: '建筑劳务企业数据管理系统 - 工人成本、报量管理、甲方报量、付款情况',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
