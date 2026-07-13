@@ -12,6 +12,7 @@
  */
 
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { isVoidedStatus } from '@/lib/business-logic';
 import { parseNumeric, round2, yearMonthToRange } from './format';
 
 // ========== 类型定义 ==========
@@ -201,11 +202,12 @@ export async function getProjectFinancialSummary(
   if (contractIds.length > 0) {
     const { data: settlements } = await client
       .from('supplier_settlements')
-      .select('settlement_amount, settlement_date')
-      .in('contract_id', contractIds)
-      .neq('status', 'voided');
+      .select('settlement_amount, settlement_date, status')
+      .in('contract_id', contractIds);
 
-    settlementAmount = (settlements || []).reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+    settlementAmount = (settlements || [])
+      .filter((s: any) => !isVoidedStatus(s.status))
+      .reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
   }
 
   // 4. 工人工资（应发工资总额）

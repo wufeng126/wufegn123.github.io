@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 
 // GET /api/supplier-settlements - 获取供应商结算记录（简化版）
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('start_date');
@@ -13,7 +18,7 @@ export async function GET(request: NextRequest) {
     // 获取结算数据
     let query = supabase
       .from('supplier_settlements')
-      .select('id, settlement_date, settlement_type, settlement_amount, invoice_amount, tax_amount, remark, contract_id')
+      .select('id, settlement_date, settlement_type, settlement_amount, invoice_amount, tax_amount, remark, contract_id, status')
       .order('settlement_date', { ascending: false });
 
     if (startDate) {
@@ -26,12 +31,14 @@ export async function GET(request: NextRequest) {
     const { data: settlements, error } = await query;
     if (error) throw error;
 
-    if (!settlements || settlements.length === 0) {
+    const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+
+    if (activeSettlements.length === 0) {
       return NextResponse.json({ settlements: [] });
     }
 
     // 获取关联的合同信息
-    const contractIds = [...new Set(settlements.map((s: any) => s.contract_id).filter(Boolean))];
+    const contractIds = [...new Set(activeSettlements.map((s: any) => s.contract_id).filter(Boolean))];
     const { data: contracts } = await supabase
       .from('supplier_contracts')
       .select('id, supplier_id, project_id')
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
     (projects || []).forEach((p: any) => { projectMap[p.id] = p.name; });
 
     // 格式化为前端需要的结构
-    let result = settlements.map((s: any) => {
+    let result = activeSettlements.map((s: any) => {
       const contract = contractMap[s.contract_id] || {};
       return {
         id: s.id,
@@ -73,6 +80,7 @@ export async function GET(request: NextRequest) {
         amount: Number(s.settlement_amount || 0).toString(),
         invoice_amount: s.invoice_amount ? Number(s.invoice_amount).toString() : null,
         tax_amount: s.tax_amount ? Number(s.tax_amount).toString() : null,
+        status: s.status || REVIEW_STATUS.DRAFT,
         remark: s.remark,
       };
     });
@@ -91,6 +99,9 @@ export async function GET(request: NextRequest) {
 // POST /api/supplier-settlements - 新增结算记录
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const body = await request.json();
     const { supplier_id, project_id, settlement_date, settlement_type, amount, remark } = body;
@@ -131,7 +142,10 @@ export async function POST(request: NextRequest) {
         settlement_date,
         settlement_type: settlement_type || '月度结算',
         settlement_amount: amount,
+        status: REVIEW_STATUS.DRAFT,
         remark: remark || null,
+        created_by: auth.user.id,
+        created_by_name: auth.user.name || auth.user.username,
       })
       .select()
       .single();

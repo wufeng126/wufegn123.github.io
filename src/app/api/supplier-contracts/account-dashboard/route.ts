@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { isVoidedStatus } from '@/lib/business-logic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,7 +45,9 @@ export async function GET(request: NextRequest) {
 
     // 计算汇总数据
     const items = contracts.map((contract: any) => {
-      const contractSettlements = (settlements || []).filter((s: any) => s.contract_id === contract.id);
+      const contractSettlements = (settlements || []).filter((s: any) => (
+        s.contract_id === contract.id && !isVoidedStatus(s.status)
+      ));
       const contractPayments = (payments || []).filter((p: any) => p.contract_id === contract.id);
 
       // 统计结算

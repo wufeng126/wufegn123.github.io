@@ -1,6 +1,12 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { NextRequest } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
+import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const contractId = searchParams.get('contract_id');
 
@@ -17,6 +23,8 @@ export async function GET(request: Request) {
       return Response.json({ error: settlementsError.message }, { status: 500 });
     }
 
+    const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+
     // 获取所有付款记录
     const { data: payments, error: paymentsError } = await supabase
       .from('supplier_payments')
@@ -27,8 +35,8 @@ export async function GET(request: Request) {
     }
 
     // 计算全局汇总
-    const totalSettlementAmount = settlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
-    const totalPayable = settlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
+    const totalSettlementAmount = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
+    const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
     const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
 
     return Response.json({
@@ -49,6 +57,8 @@ export async function GET(request: Request) {
     return Response.json({ error: settlementsError.message }, { status: 500 });
   }
 
+  const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+
   // 获取该合同的所有付款记录
   const { data: payments, error: paymentsError } = await supabase
     .from('supplier_payments')
@@ -60,8 +70,8 @@ export async function GET(request: Request) {
   }
 
   // 计算汇总数据
-  const totalSettlementAmount = settlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
-  const totalPayable = settlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
+  const totalSettlementAmount = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
+  const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
   const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
   
   // 决算应付金额 = 累计结算金额（固定100%）
@@ -74,11 +84,11 @@ export async function GET(request: Request) {
   const totalFinalPending = totalFinalPayable - totalPaid;
 
   // 检查是否有决算
-  const hasFinalSettlement = settlements.some((s: any) => s.settlement_type === 'final');
+  const hasFinalSettlement = activeSettlements.some((s: any) => s.settlement_type === 'final');
 
   const summary = {
     contractId: Number(contractId),
-    totalSettlements: settlements.length,
+    totalSettlements: activeSettlements.length,
     totalAmount: totalSettlementAmount,
     totalPayable,
     totalFinalPayable,
@@ -86,12 +96,13 @@ export async function GET(request: Request) {
     totalProgressPending,
     totalFinalPending,
     hasFinalSettlement,
-    settlements: settlements.map((s: any) => ({
+    settlements: activeSettlements.map((s: any) => ({
       id: s.id,
       type: s.settlement_type,
       amount: s.settlement_amount,
       payable: s.payable_amount,
       date: s.settlement_date,
+      status: s.status || REVIEW_STATUS.DRAFT,
     })),
   };
 

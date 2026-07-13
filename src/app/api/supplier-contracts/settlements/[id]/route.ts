@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
-import { validateStatusTransition } from '@/lib/business-logic';
+import {
+  isReviewedStatus,
+  isVoidedStatus,
+  REVIEW_STATUS,
+  validateStatusTransition,
+} from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 export async function GET(
@@ -20,7 +25,7 @@ export async function GET(
       .select(`
         *,
         contract:contract_id(
-          id, contract_name, contract_no, supplier_id, 
+          id, contract_name, contract_no, supplier_id,
           payment_ratio_active, payment_ratio_complete
         )
       `)
@@ -29,7 +34,6 @@ export async function GET(
 
     if (error) throw error;
 
-    // 获取供应商信息
     if (data?.contract?.supplier_id) {
       const { data: supplier } = await supabase
         .from('suppliers')
@@ -55,68 +59,110 @@ export async function PUT(
     if (!auth.ok) return auth.response;
 
     const { id } = await params;
+    const settlementId = Number(id);
     const supabase = getSupabaseClient();
     const body = await request.json();
     const { settlement_amount, settlement_date, remark, status } = body;
 
-    // 获取当前结算单
     const { data: current, error: fetchError } = await supabase
       .from('supplier_settlements')
       .select('*')
-      .eq('id', id)
+      .eq('id', settlementId)
       .single();
 
     if (fetchError || !current) {
       return NextResponse.json({ error: '结算单不存在' }, { status: 404 });
     }
 
-    // 获取关联合同
-    const { data: contract } = await supabase
-      .from('supplier_contracts')
-      .select('*')
-      .eq('id', current.contract_id)
-      .single();
+    if (isVoidedStatus(current.status)) {
+      return NextResponse.json({ error: '已作废的结算单不可变更' }, { status: 400 });
+    }
 
-    // 如果修改了结算金额，需要重新计算应付金额
-    let payable_amount = current.payable_amount;
-    let payment_ratio = current.payment_ratio;
+    const amountChanged =
+      settlement_amount !== undefined &&
+      Number(settlement_amount) !== Number(current.settlement_amount || 0);
 
-    if (settlement_amount !== undefined && settlement_amount !== current.settlement_amount) {
-      payable_amount = Number(settlement_amount) * (payment_ratio / 100);
+    if (isReviewedStatus(current.status) && amountChanged && status !== REVIEW_STATUS.DRAFT) {
+      return NextResponse.json({ error: '已审核结算单不可直接修改金额，请先反审核' }, { status: 400 });
+    }
+
+    let payableAmount = Number(current.payable_amount || 0);
+    const paymentRatio = Number(current.payment_ratio || 0);
+
+    if (amountChanged) {
+      payableAmount = Number(settlement_amount) * (paymentRatio / 100);
     }
 
     const updateData: any = {};
-    if (settlement_amount !== undefined) updateData.settlement_amount = settlement_amount;
+    if (settlement_amount !== undefined) updateData.settlement_amount = Number(settlement_amount);
     if (settlement_date !== undefined) updateData.settlement_date = settlement_date;
     if (remark !== undefined) updateData.remark = remark;
+    if (amountChanged) updateData.payable_amount = payableAmount.toFixed(2);
+
+    let nextStatus: string | undefined;
     if (status !== undefined) {
-      // 校验状态流转合法性
-      const validation = validateStatusTransition(current.status, status);
+      const validation = validateStatusTransition(current.status || REVIEW_STATUS.DRAFT, status);
       if (!validation.valid) {
         return NextResponse.json({ error: validation.message || '状态流转不合法' }, { status: 400 });
       }
+
+      nextStatus = status;
       updateData.status = status;
-      // 审核时记录审核人和时间
-      if (status === 'reviewed') {
+      if (status === REVIEW_STATUS.REVIEWED) {
         updateData.reviewed_at = new Date().toISOString();
         updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
       }
+      if (status === REVIEW_STATUS.DRAFT) {
+        updateData.reviewed_at = null;
+        updateData.reviewed_by = null;
+      }
     }
-    if (payable_amount !== current.payable_amount) updateData.payable_amount = payable_amount.toFixed(2);
 
     const { data, error } = await supabase
       .from('supplier_settlements')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', settlementId)
       .select()
       .single();
 
     if (error) throw error;
 
+    if (nextStatus && current.settlement_type === 'final') {
+      if (nextStatus === REVIEW_STATUS.REVIEWED) {
+        await supabase
+          .from('supplier_contracts')
+          .update({
+            contract_status: '已完结',
+            locked: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', current.contract_id);
+
+        await supabase.from('supplier_contract_logs').insert({
+          contract_id: current.contract_id,
+          action: '总终结算审核通过',
+          operator_id: auth.user.id,
+          operator_name: auth.user.name || auth.user.username,
+          detail: { settlement_no: current.settlement_no, settlement_amount: data?.settlement_amount, payable_amount: data?.payable_amount },
+        });
+      }
+
+      if (nextStatus === REVIEW_STATUS.DRAFT) {
+        await supabase
+          .from('supplier_contracts')
+          .update({
+            contract_status: '履约中',
+            locked: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', current.contract_id);
+      }
+    }
+
     await auditLog({
       operationType: 'update',
       resourceType: 'supplier_settlement',
-      resourceId: Number(id),
+      resourceId: settlementId,
       details: { settlement_no: current?.settlement_no, changes: Object.keys(updateData) },
       request,
     });
@@ -136,24 +182,27 @@ export async function DELETE(
     if (!auth.ok) return auth.response;
 
     const { id } = await params;
+    const settlementId = Number(id);
     const supabase = getSupabaseClient();
 
-    // 获取当前结算单
     const { data: current } = await supabase
       .from('supplier_settlements')
       .select('*')
-      .eq('id', id)
+      .eq('id', settlementId)
       .single();
 
     if (!current) {
       return NextResponse.json({ error: '结算单不存在' }, { status: 404 });
     }
 
-    // 检查是否有关联的付款记录
+    if (isReviewedStatus(current.status)) {
+      return NextResponse.json({ error: '已审核结算单不可删除，请先反审核或作废' }, { status: 400 });
+    }
+
     const { data: payments } = await supabase
       .from('supplier_payments')
       .select('id')
-      .eq('settlement_id', id)
+      .eq('settlement_id', settlementId)
       .limit(1);
 
     if (payments && payments.length > 0) {
@@ -163,23 +212,22 @@ export async function DELETE(
     const { error } = await supabase
       .from('supplier_settlements')
       .delete()
-      .eq('id', id);
+      .eq('id', settlementId);
 
     if (error) throw error;
 
     await auditLog({
       operationType: 'delete',
       resourceType: 'supplier_settlement',
-      resourceId: Number(id),
+      resourceId: settlementId,
       details: { settlement_no: current?.settlement_no, settlement_type: current?.settlement_type },
       request,
     });
 
-    // 如果删除的是结算完结算单，需要将合同状态恢复为履约中
-    if (current.settlement_type === '结算完') {
+    if (current.settlement_type === 'final') {
       await supabase
         .from('supplier_contracts')
-        .update({ contract_status: '履约中' })
+        .update({ contract_status: '履约中', locked: false })
         .eq('id', current.contract_id);
     }
 

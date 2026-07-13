@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
-import { validateStatusTransition } from '@/lib/business-logic';
+import { REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 
 /**
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     // 查询当前记录
     const { data: record, error: fetchError } = await client
       .from(resource.table)
-      .select('id, status')
+      .select('*')
       .eq('id', parseInt(resource_id))
       .single();
 
@@ -101,6 +101,10 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       throw new Error(`操作失败: ${error.message}`);
+    }
+
+    if (resource_type === 'supplier_settlement') {
+      await syncSupplierSettlementReviewSideEffects(client, data, targetStatus, auth.user);
     }
 
     // 记录审计日志
@@ -167,4 +171,40 @@ async function checkVoidConstraints(
     }
   }
   return { canVoid: true, message: '' };
+}
+
+async function syncSupplierSettlementReviewSideEffects(
+  client: any,
+  settlement: any,
+  targetStatus: string,
+  user: any
+) {
+  if (!settlement || settlement.settlement_type !== 'final' || !settlement.contract_id) {
+    return;
+  }
+
+  const shouldLock = targetStatus === REVIEW_STATUS.REVIEWED;
+
+  await client
+    .from('supplier_contracts')
+    .update({
+      contract_status: shouldLock ? '\u5df2\u5b8c\u7ed3' : '\u5c65\u7ea6\u4e2d',
+      locked: shouldLock,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', settlement.contract_id);
+
+  if (shouldLock) {
+    await client.from('supplier_contract_logs').insert({
+      contract_id: settlement.contract_id,
+      action: '\u603b\u7ec8\u7ed3\u7b97\u5ba1\u6838\u901a\u8fc7',
+      operator_id: user.id,
+      operator_name: user.name || user.username,
+      detail: {
+        settlement_no: settlement.settlement_no,
+        settlement_amount: settlement.settlement_amount,
+        payable_amount: settlement.payable_amount,
+      },
+    });
+  }
 }

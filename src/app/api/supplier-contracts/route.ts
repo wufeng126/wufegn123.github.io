@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
+import { isVoidedStatus } from '@/lib/business-logic';
 
 // GET /api/supplier-contracts - 获取合同列表
 export async function GET(request: NextRequest) {
@@ -38,18 +39,20 @@ export async function GET(request: NextRequest) {
         // 获取结算统计
         const { data: settlements } = await supabase
           .from('supplier_settlements')
-          .select('settlement_amount, payable_amount, settlement_type')
+          .select('settlement_amount, payable_amount, settlement_type, status')
           .eq('contract_id', contract.id);
 
-        const totalSettlement = (settlements || []).reduce(
+        const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+
+        const totalSettlement = activeSettlements.reduce(
           (sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0
         );
-        const totalPayable = (settlements || []).reduce(
+        const totalPayable = activeSettlements.reduce(
           (sum: number, s: any) => sum + Number(s.payable_amount || 0), 0
         );
 
         // 获取已完结结算单
-        const completeSettlement = (settlements || []).find((s: any) => s.settlement_type === '结算完');
+        const completeSettlement = activeSettlements.find((s: any) => s.settlement_type === '结算完');
 
         // 获取付款统计
         const { data: payments } = await supabase

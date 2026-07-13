@@ -213,11 +213,11 @@ export async function getContractSettlementSummary(contractId: number) {
   const { data: settlements } = await client
     .from('supplier_settlements')
     .select('settlement_amount, payable_amount, status')
-    .eq('contract_id', contractId)
-    .neq('status', 'voided'); // 排除已作废的结算
+    .eq('contract_id', contractId);
 
-  const totalSettlement = (settlements || []).reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
-  const totalPayable = (settlements || []).reduce((sum: number, s: any) => sum + parseNumeric(s.payable_amount), 0);
+  const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+  const totalSettlement = activeSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+  const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.payable_amount), 0);
 
   return {
     totalSettlement,  // 决算应付 = 累计结算金额
@@ -293,12 +293,16 @@ export async function validateSupplierSettlementPayment(params: {
 
   const { data: settlement } = await client
     .from('supplier_settlements')
-    .select('id, payable_amount')
+    .select('id, payable_amount, status')
     .eq('id', params.settlement_id)
     .single();
 
   if (!settlement) {
     return { valid: false, unpaidBalance: 0, message: '结算单不存在' };
+  }
+
+  if (isVoidedStatus(settlement.status)) {
+    return { valid: false, unpaidBalance: 0, message: '结算单已作废，不能付款' };
   }
 
   let paymentQuery = client
@@ -398,6 +402,35 @@ export async function validateClientPayment(params: {
 
 export type ReviewStatus = 'draft' | 'reviewed' | 'voided';
 
+export const REVIEW_STATUS = {
+  DRAFT: 'draft',
+  REVIEWED: 'reviewed',
+  VOIDED: 'voided',
+} as const;
+
+export function normalizeReviewStatus(status?: string | null): ReviewStatus {
+  if (status === REVIEW_STATUS.REVIEWED || status === REVIEW_STATUS.VOIDED) {
+    return status;
+  }
+  return REVIEW_STATUS.DRAFT;
+}
+
+export function isAllowedReviewStatus(status?: string | null): status is ReviewStatus {
+  return (
+    status === REVIEW_STATUS.DRAFT ||
+    status === REVIEW_STATUS.REVIEWED ||
+    status === REVIEW_STATUS.VOIDED
+  );
+}
+
+export function isReviewedStatus(status?: string | null): boolean {
+  return normalizeReviewStatus(status) === REVIEW_STATUS.REVIEWED;
+}
+
+export function isVoidedStatus(status?: string | null): boolean {
+  return normalizeReviewStatus(status) === REVIEW_STATUS.VOIDED;
+}
+
 /**
  * 校验状态流转是否合法
  * draft → reviewed ✓（审核）
@@ -410,13 +443,20 @@ export function validateStatusTransition(
   currentStatus: string,
   targetStatus: string
 ): { valid: boolean; message: string } {
-  if (currentStatus === 'voided') {
+  if (!isAllowedReviewStatus(targetStatus)) {
+    return { valid: false, message: '目标状态不合法' };
+  }
+
+  const current = normalizeReviewStatus(currentStatus);
+  const target = normalizeReviewStatus(targetStatus);
+
+  if (current === REVIEW_STATUS.VOIDED) {
     return { valid: false, message: '已作废的记录不可变更' };
   }
-  if (currentStatus === targetStatus) {
+  if (current === target) {
     return { valid: false, message: '状态未变更' };
   }
-  return { valid: validTransitions(currentStatus, targetStatus), message: '' };
+  return { valid: validTransitions(current, target), message: '' };
 }
 
 function validTransitions(from: string, to: string): boolean {
@@ -517,11 +557,12 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
   if (contractIds.length > 0) {
     const { data: settlements } = await client
       .from('supplier_settlements')
-      .select('settlement_amount')
-      .in('contract_id', contractIds)
-      .neq('status', 'voided');
+      .select('settlement_amount, status')
+      .in('contract_id', contractIds);
 
-    settlementAmount = (settlements || []).reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+    settlementAmount = (settlements || [])
+      .filter((s: any) => !isVoidedStatus(s.status))
+      .reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
   }
 
   // 4. 工人工资（应发工资总额）

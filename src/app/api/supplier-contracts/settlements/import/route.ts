@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { requireApiWritePermission } from '@/lib/api-auth';
+import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 
 // POST /api/supplier-contracts/settlements/import - 批量导入结算单
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const body = await request.json();
     const { settlements } = body;
@@ -12,10 +17,6 @@ export async function POST(request: NextRequest) {
     if (!settlements || !Array.isArray(settlements) || settlements.length === 0) {
       return NextResponse.json({ error: '请提供有效的结算单数据' }, { status: 400 });
     }
-
-    // 获取用户信息
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user;
 
     // 获取所有合同信息，用于验证和计算
     const { data: contracts, error: contractsError } = await supabase
@@ -85,12 +86,11 @@ export async function POST(request: NextRequest) {
         if (settlementType === 'final') {
           const { data: existingFinal } = await supabase
             .from('supplier_settlements')
-            .select('id')
+            .select('id, status')
             .eq('contract_id', contractId)
-            .eq('settlement_type', 'final')
-            .limit(1);
+            .eq('settlement_type', 'final');
 
-          if (existingFinal && existingFinal.length > 0) {
+          if ((existingFinal || []).some((s: any) => !isVoidedStatus(s.status))) {
             results.failed.push({ row: rowNum, error: `合同"${contract.contract_name}"已存在总结算` });
             continue;
           }
@@ -130,25 +130,14 @@ export async function POST(request: NextRequest) {
             payable_amount: payableAmount.toFixed(2),
             settlement_date: row.settlement_date || null,
             remark: row.remark || null,
-            created_by: user?.id,
-            created_by_name: user?.user_metadata?.username || user?.email,
+            status: REVIEW_STATUS.DRAFT,
+            created_by: auth.user.id,
+            created_by_name: auth.user.name || auth.user.username,
           }, supabase);
 
         if (insertError) {
           results.failed.push({ row: rowNum, error: insertError.message });
           continue;
-        }
-
-        // 如果是总结算，自动锁定合同
-        if (settlementType === 'final') {
-          await supabase
-            .from('supplier_contracts')
-            .update({
-              contract_status: '已完结',
-              locked: true,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', contractId);
         }
 
         results.success.push(settlementNo);

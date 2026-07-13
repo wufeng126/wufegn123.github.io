@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
+import { isVoidedStatus } from '@/lib/business-logic';
 
 export async function GET(
   request: NextRequest,
@@ -29,13 +30,15 @@ export async function GET(
       .eq('contract_id', id)
       .order('created_at', { ascending: false });
 
-    const totalSettlement = (settlements || []).reduce(
+    const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+
+    const totalSettlement = activeSettlements.reduce(
       (sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0
     );
-    const totalPayable = (settlements || []).reduce(
+    const totalPayable = activeSettlements.reduce(
       (sum: number, s: any) => sum + Number(s.payable_amount || 0), 0
     );
-    const completeSettlement = (settlements || []).find((s: any) => s.settlement_type === '结算完');
+    const completeSettlement = activeSettlements.find((s: any) => s.settlement_type === '结算完');
 
     // 获取付款统计
     const { data: payments } = await supabase
