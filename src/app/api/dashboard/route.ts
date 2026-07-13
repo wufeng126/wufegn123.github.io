@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
+import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
 
 // 获取当前月份
 function getCurrentYearMonth() {
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');
     const timeRange = searchParams.get('time_range') || 'month'; // month | quarter | year
+    const selectedProjectId = projectId ? parseInt(projectId, 10) : undefined;
     
     const client = getSupabaseClient();
     const currentMonth = getCurrentYearMonth();
@@ -55,6 +57,8 @@ export async function GET(request: Request) {
       rangeStartDate = `${now.getFullYear()}-01-01`;
       trendMonthCount = 12;
     }
+    const rangeEndDate = now.toISOString().slice(0, 10);
+    const dashboardDateRange = { start: rangeStartDate, end: rangeEndDate };
     
     // ========== 基础统计数据 ==========
     
@@ -213,6 +217,57 @@ export async function GET(request: Request) {
     const totalPaid = allPayments?.filter(r => isEffectiveClientPaymentStatus(r.status)).reduce((sum, r) => {
       return sum + parseFloat(r.payment_amount || '0');
     }, 0) || 0;
+
+    const unifiedSummary = selectedProjectId
+      ? await getProjectFinancialSummary(selectedProjectId, dashboardDateRange)
+      : await getGlobalSummary(dashboardDateRange);
+    const financialMetrics = selectedProjectId ? {
+      taxableIncome: (unifiedSummary as any)?.taxableIncome || 0,
+      clientPaidAmount: (unifiedSummary as any)?.clientPaidAmount || 0,
+      receivableAmount: (unifiedSummary as any)?.receivableAmount || 0,
+      supplierPayableAmount: (unifiedSummary as any)?.supplierPayableAmount || 0,
+      workerPayableAmount: (unifiedSummary as any)?.workerPayableAmount || 0,
+      totalPayableAmount: (unifiedSummary as any)?.totalPayableAmount || 0,
+      supplierPaidAmount: (unifiedSummary as any)?.supplierPaidAmount || 0,
+      workerPaidAmount: (unifiedSummary as any)?.workerPaidAmount || 0,
+      cashOutAmount: (unifiedSummary as any)?.cashOutAmount || 0,
+      netCashFlow: (unifiedSummary as any)?.netCashFlow || 0,
+      fundingGapAmount: (unifiedSummary as any)?.fundingGapAmount || 0,
+      paymentRate: (unifiedSummary as any)?.paymentRate || 0,
+      payablePaymentRate: (unifiedSummary as any)?.payablePaymentRate || 0,
+      costIncomeRate: (unifiedSummary as any)?.costIncomeRate || 0,
+      totalCost: (unifiedSummary as any)?.totalCost || 0,
+      totalProfit: (unifiedSummary as any)?.profit || 0,
+      profitRate: (unifiedSummary as any)?.profitRate || 0,
+      supplierCost: (unifiedSummary as any)?.settlementAmount || 0,
+      salaryCost: (unifiedSummary as any)?.salaryAmount || 0,
+      expenseCost: (unifiedSummary as any)?.expenseAmount || 0,
+      taxCost: (unifiedSummary as any)?.taxAmount || 0,
+      miscMaterialCost: (unifiedSummary as any)?.miscMaterialAmount || 0,
+    } : {
+      taxableIncome: (unifiedSummary as any).totalTaxableIncome || 0,
+      clientPaidAmount: (unifiedSummary as any).totalClientPaid || 0,
+      receivableAmount: (unifiedSummary as any).totalReceivable || 0,
+      supplierPayableAmount: (unifiedSummary as any).totalSupplierPayable || 0,
+      workerPayableAmount: (unifiedSummary as any).totalWorkerPayable || 0,
+      totalPayableAmount: (unifiedSummary as any).totalPayable || 0,
+      supplierPaidAmount: (unifiedSummary as any).totalSupplierPaid || 0,
+      workerPaidAmount: (unifiedSummary as any).totalWorkerPaid || 0,
+      cashOutAmount: ((unifiedSummary as any).totalSupplierPaid || 0) + ((unifiedSummary as any).totalWorkerPaid || 0),
+      netCashFlow: (unifiedSummary as any).netCashFlow || 0,
+      fundingGapAmount: (unifiedSummary as any).fundingGapAmount || 0,
+      paymentRate: (unifiedSummary as any).overallPaymentRate || 0,
+      payablePaymentRate: (unifiedSummary as any).payablePaymentRate || 0,
+      costIncomeRate: (unifiedSummary as any).costIncomeRate || 0,
+      totalCost: (unifiedSummary as any).totalCost || 0,
+      totalProfit: (unifiedSummary as any).totalProfit || 0,
+      profitRate: (unifiedSummary as any).profitRate || 0,
+      supplierCost: (unifiedSummary as any).totalSettlement || 0,
+      salaryCost: (unifiedSummary as any).totalSalary || 0,
+      expenseCost: (unifiedSummary as any).totalExpense || 0,
+      taxCost: (unifiedSummary as any).totalTax || 0,
+      miscMaterialCost: (unifiedSummary as any).totalMiscMaterial || 0,
+    };
 
     // === 按时间范围筛选（用于当月/当月产值等指标）===
 
@@ -402,7 +457,7 @@ export async function GET(request: Request) {
     }) || [];
 
     // ========== 待收款金额 ==========
-    const pendingPayment = totalMeasurementAmount - totalPaid;
+    const pendingPayment = financialMetrics.receivableAmount;
 
     // ========== 成本数据 ==========
     
@@ -608,6 +663,26 @@ export async function GET(request: Request) {
     // ========== 各项目收入/成本对比数据 ==========
     const projectCostData = await Promise.all(
       allProjects?.map(async (project) => {
+        const projectFinancialSummary = await getProjectFinancialSummary(project.id, dashboardDateRange);
+        if (projectFinancialSummary) {
+          return {
+            id: project.id,
+            name: project.name,
+            income: projectFinancialSummary.taxableIncome,
+            cost: projectFinancialSummary.totalCost,
+            profit: projectFinancialSummary.profit,
+            profitRate: projectFinancialSummary.profitRate,
+            receivableAmount: projectFinancialSummary.receivableAmount,
+            totalPayableAmount: projectFinancialSummary.totalPayableAmount,
+            cashOutAmount: projectFinancialSummary.cashOutAmount,
+            netCashFlow: projectFinancialSummary.netCashFlow,
+            fundingGapAmount: projectFinancialSummary.fundingGapAmount,
+            paymentRate: projectFinancialSummary.paymentRate,
+            payablePaymentRate: projectFinancialSummary.payablePaymentRate,
+            costIncomeRate: projectFinancialSummary.costIncomeRate,
+          };
+        }
+
         let projReportsQuery = client
           .from('client_reports')
           .select('report_amount, settlement_amount, invoice_amount, report_date, status')
@@ -741,7 +816,9 @@ export async function GET(request: Request) {
     const costOverrunAmount = totalSettledAmount - totalReportedAmount;
 
     // 3. 待收款过高预警（待收款 > 总产值的50%）
-    const pendingPaymentHigh = totalMeasurementAmount > 0 && (pendingPayment / totalMeasurementAmount) > 0.5;
+    const paymentWarningBase = financialMetrics.taxableIncome > 0 ? financialMetrics.taxableIncome : totalMeasurementAmount;
+    const pendingPaymentHigh = paymentWarningBase > 0 && (pendingPayment / paymentWarningBase) > 0.5;
+    const fundingGapWarning = financialMetrics.fundingGapAmount > 0;
 
     return NextResponse.json({
       // 时间范围标识
@@ -776,8 +853,20 @@ export async function GET(request: Request) {
       totalWarnings: quantityWarnings + progressWarnings,
       
       // 甲方数据
-      totalMeasurementAmount: totalMeasurementAmount.toFixed(2),
-      totalPaid: totalPaid.toFixed(2),
+      totalMeasurementAmount: financialMetrics.taxableIncome.toFixed(2),
+      totalPaid: financialMetrics.clientPaidAmount.toFixed(2),
+      receivableAmount: financialMetrics.receivableAmount.toFixed(2),
+      supplierPayableAmount: financialMetrics.supplierPayableAmount.toFixed(2),
+      workerPayableAmount: financialMetrics.workerPayableAmount.toFixed(2),
+      totalPayableAmount: financialMetrics.totalPayableAmount.toFixed(2),
+      supplierPaidAmount: financialMetrics.supplierPaidAmount.toFixed(2),
+      workerPaidAmount: financialMetrics.workerPaidAmount.toFixed(2),
+      cashOutAmount: financialMetrics.cashOutAmount.toFixed(2),
+      netCashFlow: financialMetrics.netCashFlow.toFixed(2),
+      fundingGapAmount: financialMetrics.fundingGapAmount.toFixed(2),
+      paymentRate: financialMetrics.paymentRate.toFixed(2),
+      payablePaymentRate: financialMetrics.payablePaymentRate.toFixed(2),
+      costIncomeRate: financialMetrics.costIncomeRate.toFixed(2),
       pendingPayment: pendingPayment.toFixed(2), // 待收款金额
       
       // 签证统计
@@ -835,21 +924,26 @@ export async function GET(request: Request) {
         pendingPayment: {
           isWarning: pendingPaymentHigh,
           amount: pendingPayment.toFixed(2),
-          percent: totalMeasurementAmount > 0 ? (pendingPayment / totalMeasurementAmount * 100).toFixed(1) : '0',
-          message: pendingPaymentHigh ? `待收款占比 ${(pendingPayment / totalMeasurementAmount * 100).toFixed(1)}%，建议跟进回款` : null,
+          percent: paymentWarningBase > 0 ? (pendingPayment / paymentWarningBase * 100).toFixed(1) : '0',
+          message: pendingPaymentHigh ? `待收款占比 ${(pendingPayment / paymentWarningBase * 100).toFixed(1)}%，建议跟进回款` : null,
+        },
+        fundingGap: {
+          isWarning: fundingGapWarning,
+          amount: financialMetrics.fundingGapAmount.toFixed(2),
+          message: fundingGapWarning ? `资金缺口 ¥${financialMetrics.fundingGapAmount.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}，建议优先跟进回款并安排付款计划` : null,
         },
       },
       
       // 成本数据
       costData: {
-        totalCost: totalCost.toFixed(2),
-        totalProfit: totalProfit.toFixed(2),
-        profitRate: profitRate.toFixed(1),
-        supplierCost: totalSupplierCost.toFixed(2),
-        salaryCost: totalSalaryCost.toFixed(2),
-        expenseCost: totalExpenseCost.toFixed(2),
-        taxCost: totalTaxCost.toFixed(2),
-        miscMaterialCost: totalMiscMaterialCost.toFixed(2),
+        totalCost: financialMetrics.totalCost.toFixed(2),
+        totalProfit: financialMetrics.totalProfit.toFixed(2),
+        profitRate: financialMetrics.profitRate.toFixed(1),
+        supplierCost: financialMetrics.supplierCost.toFixed(2),
+        salaryCost: financialMetrics.salaryCost.toFixed(2),
+        expenseCost: financialMetrics.expenseCost.toFixed(2),
+        taxCost: financialMetrics.taxCost.toFixed(2),
+        miscMaterialCost: financialMetrics.miscMaterialCost.toFixed(2),
       },
       
       // 月度趋势数据

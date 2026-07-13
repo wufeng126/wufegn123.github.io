@@ -56,6 +56,14 @@ interface ProjectCostItem {
   cost: number;
   profit: number;
   profitRate: number;
+  receivableAmount?: number;
+  totalPayableAmount?: number;
+  cashOutAmount?: number;
+  netCashFlow?: number;
+  fundingGapAmount?: number;
+  paymentRate?: number;
+  payablePaymentRate?: number;
+  costIncomeRate?: number;
 }
 
 interface DashboardStats {
@@ -80,6 +88,18 @@ interface DashboardStats {
   totalMeasurementAmount: string;
   totalPaid: string;
   pendingPayment?: string;
+  receivableAmount?: string;
+  supplierPayableAmount?: string;
+  workerPayableAmount?: string;
+  totalPayableAmount?: string;
+  supplierPaidAmount?: string;
+  workerPaidAmount?: string;
+  cashOutAmount?: string;
+  netCashFlow?: string;
+  fundingGapAmount?: string;
+  paymentRate?: string;
+  payablePaymentRate?: string;
+  costIncomeRate?: string;
   totalVisaCount: number;
   completedVisaCount: number;
   pendingVisaCount: number;
@@ -94,6 +114,7 @@ interface DashboardStats {
     remainingQuantity: { isWarning: boolean; percent?: string; message: string | null };
     costOverrun: { isWarning: boolean; amount?: string; message: string | null };
     pendingPayment: { isWarning: boolean; amount?: string; percent?: string; message: string | null };
+    fundingGap?: { isWarning: boolean; amount?: string; message: string | null };
   };
   costData?: {
     totalCost: string;
@@ -243,6 +264,16 @@ export default function HomePage() {
     if (pendingAmount > 0) {
       items.push({ title: `待回款 ${fmt(pendingAmount)} 万元`, desc: '甲方付款尚未到账', href: '/client-payments', level: pendingAmount > 100 ? 'danger' : 'warning', icon: Wallet });
     }
+    const fundingGapAmount = parseFloat(stats.fundingGapAmount || stats.warnings?.fundingGap?.amount || '0');
+    if (fundingGapAmount > 0) {
+      items.push({
+        title: `资金缺口 ${fmt(fundingGapAmount)} 万元`,
+        desc: stats.warnings?.fundingGap?.message || '应收不足以覆盖当前应付，需安排回款和付款计划',
+        href: '/data-board/fund-management',
+        level: 'danger',
+        icon: AlertTriangle,
+      });
+    }
     if (stats.warnings?.costOverrun?.isWarning) {
       items.push({ title: '成本超支预警', desc: stats.warnings.costOverrun.message || '对下结算超过对上报量', href: '/cost-center', level: 'danger', icon: TrendingDown });
     }
@@ -292,6 +323,18 @@ export default function HomePage() {
         value: fmt(stats.warnings.costOverrun.amount || '0') + '万元',
         message: stats.warnings.costOverrun.message || '对下结算超过对上报量',
         href: '/cost-center', icon: TrendingDown,
+      });
+    }
+    const fundingGapWarningAmount = parseFloat(stats.fundingGapAmount || stats.warnings?.fundingGap?.amount || '0');
+    if (fundingGapWarningAmount > 0) {
+      warnings.push({
+        type: 'funding-gap',
+        level: 'danger',
+        title: '资金缺口',
+        value: fmt(fundingGapWarningAmount) + '万元',
+        message: stats.warnings?.fundingGap?.message || '应收不足以覆盖当前应付',
+        href: '/data-board/fund-management',
+        icon: AlertTriangle,
       });
     }
     if (stats.certificateExpired > 0) {

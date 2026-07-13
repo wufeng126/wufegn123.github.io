@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isInactiveClientPaymentStatus } from '@/lib/business-logic';
+import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
 
 const supabase = getSupabaseClient();
 
@@ -119,6 +120,11 @@ export async function GET(request: NextRequest) {
     const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
     const lastYearMonth = `${curY - 1}-${String(curM).padStart(2, '0')}`;
     const reportMonth = month;
+    const monthEndDay = new Date(curY, curM, 0).getDate();
+    const reportDateRange = {
+      start: `${reportMonth}-01`,
+      end: `${reportMonth}-${String(monthEndDay).padStart(2, '0')}`,
+    };
 
     // Get target project IDs
     let targetProjectIds: number[] = [];
@@ -1151,6 +1157,9 @@ export async function GET(request: NextRequest) {
       seasonalNotes.push('年末甲方通常加快审批和付款进度，回款率可能高于月均值，需注意区分季节性回款与经营改善。');
     }
     const seasonalNote = seasonalNotes.length > 0 ? seasonalNotes.join('') : '';
+    const financialSummary = targetProjectIds.length === 1
+      ? await getProjectFinancialSummary(targetProjectIds[0], reportDateRange)
+      : await getGlobalSummary(reportDateRange, targetProjectIds);
 
     return NextResponse.json({
       success: true,
@@ -1172,6 +1181,7 @@ export async function GET(request: NextRequest) {
         laborCostByProject,
         supplierSettlementByProject,
         supplierPaymentsBySupplier,
+        financialSummary,
         businessConclusion,
         collectionLagAnalysis,
         seasonalNote,

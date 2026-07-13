@@ -31,7 +31,7 @@ const PAGE_TEMPLATES: Record<string, { label: string; prompt: string }[]> = {
     { label: '趋势解读', prompt: '解读工人成本月度趋势，预测下月人工成本' },
   ],
   '资金管理看板': [
-    { label: '资金风险', prompt: '分析资金数据：欠款预警、甲方回款风险、供应商付款压力' },
+    { label: '资金风险', prompt: '分析资金数据：应收未回、供应商应付、工人工资应付、现金净流、资金缺口、回款率和付款率，给出优先处理建议' },
     { label: '回款分析', prompt: '分析甲方回款率，哪些项目回款率低于预期' },
   ],
   '成本利润中心': [
@@ -45,7 +45,7 @@ const PAGE_TEMPLATES: Record<string, { label: string; prompt: string }[]> = {
     { label: '回款分析', prompt: '分析甲方付款情况：回款率、待回款金额、付款方式分布' },
   ],
   '月度经营月报': [
-    { label: '月报解读', prompt: '解读本月经营数据：收入、成本、利润同比环比变化' },
+    { label: '月报解读', prompt: '解读本月经营数据：收入、成本、利润、现金净流、资金缺口、应收应付压力及同比环比变化' },
   ],
 };
 
