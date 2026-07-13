@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { isEffectiveClientPaymentStatus, isInactiveClientPaymentStatus } from '@/lib/business-logic';
 
 const supabase = getSupabaseClient();
 
@@ -757,13 +758,13 @@ export async function GET(request: NextRequest) {
     for (const project of projects) {
       const pid = project.id;
       const projReports = clientReports.filter((r: Record<string, unknown>) => toNumber(r.project_id) === pid && r.status !== 'voided');
-      const projPayments = clientPayments.filter((p: Record<string, unknown>) => toNumber(p.project_id) === pid && p.status !== 'voided');
+      const projPayments = clientPayments.filter((p: Record<string, unknown>) => toNumber(p.project_id) === pid && !isInactiveClientPaymentStatus(p.status as string | null));
       const projVisas = visas.filter((v: Record<string, unknown>) => toNumber(v.project_id) === pid && v.status === 'approved');
 
       const cumulativeConfirmed = safeSum(projReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
       const cumulativeVisa = safeSum(projVisas.map((v: Record<string, unknown>) => Number(v.amount || 0)));
       const cumulativeReceivable = cumulativeConfirmed + cumulativeVisa;
-      const cumulativeReceived = safeSum(projPayments.filter((p: Record<string, unknown>) => p.status === 'completed').map((p: Record<string, unknown>) => Number(p.payment_amount || 0)));
+      const cumulativeReceived = safeSum(projPayments.filter((p: Record<string, unknown>) => isEffectiveClientPaymentStatus(p.status as string | null)).map((p: Record<string, unknown>) => Number(p.payment_amount || 0)));
 
       if (cumulativeReceivable <= 0 && cumulativeReceived <= 0) continue; // 无回款数据的项目跳过
 

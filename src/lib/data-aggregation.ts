@@ -12,7 +12,7 @@
  */
 
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isVoidedStatus } from '@/lib/business-logic';
+import { isEffectiveClientPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
 import { parseNumeric, round2, yearMonthToRange } from './format';
 
 // ========== 类型定义 ==========
@@ -257,7 +257,7 @@ export async function getProjectFinancialSummary(
   // 7. 甲方已回款
   let clientPaymentsQuery = client
     .from('client_payments')
-    .select('payment_amount, payment_date')
+    .select('payment_amount, payment_date, status')
     .eq('project_id', projectId);
 
   if (dateRange) {
@@ -265,7 +265,9 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: clientPayments } = await clientPaymentsQuery;
-  const clientPaidAmount = (clientPayments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+  const clientPaidAmount = (clientPayments || [])
+    .filter((p: any) => isEffectiveClientPaymentStatus(p.status))
+    .reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
 
   // 8. 供应商已付款
   let supplierPaidAmount = 0;

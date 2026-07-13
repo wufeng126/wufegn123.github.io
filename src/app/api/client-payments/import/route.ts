@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { parseExcelFile } from '@/lib/excel-utils';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { REVIEW_STATUS } from '@/lib/business-logic';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -43,6 +45,9 @@ const STATUS_MAP: Record<string, string> = {
   'completed': 'completed',
   'pending': 'pending',
   'cancelled': 'cancelled',
+  'draft': REVIEW_STATUS.DRAFT,
+  'reviewed': REVIEW_STATUS.REVIEWED,
+  'voided': REVIEW_STATUS.VOIDED,
 };
 
 interface ImportRow {
@@ -79,6 +84,9 @@ function validateRequiredFieldsCN(
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
 

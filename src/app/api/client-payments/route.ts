@@ -5,7 +5,17 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { logSecurityEvent } from '@/lib/security-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
-import { parseNumeric, validateClientPayment } from '@/lib/business-logic';
+import {
+  isEffectiveClientPaymentStatus,
+  isAllowedReviewStatus,
+  isInactiveClientPaymentStatus,
+  isPendingClientPaymentStatus,
+  isVoidedStatus,
+  REVIEW_STATUS,
+  validateStatusTransition,
+  parseNumeric,
+  validateClientPayment,
+} from '@/lib/business-logic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +35,8 @@ export async function GET(request: NextRequest) {
         payment_date,
         payment_method,
         status,
+        reviewed_at,
+        reviewed_by,
         remark,
         project_id,
         projects (
@@ -49,20 +61,22 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询付款记录失败: ${error.message}`);
     }
 
-    const total = data?.reduce((sum, record) => {
-      return sum + parseNumeric(record.payment_amount);
-    }, 0) || 0;
+    const activeData = (data || []).filter(record => !isInactiveClientPaymentStatus(record.status));
 
-    const totalPaid = data?.filter(r => r.status === 'completed').reduce((sum, record) => {
+    const total = activeData.reduce((sum, record) => {
       return sum + parseNumeric(record.payment_amount);
-    }, 0) || 0;
+    }, 0);
 
-    const totalPending = data?.filter(r => r.status === 'pending').reduce((sum, record) => {
+    const totalPaid = activeData.filter(r => isEffectiveClientPaymentStatus(r.status)).reduce((sum, record) => {
       return sum + parseNumeric(record.payment_amount);
-    }, 0) || 0;
+    }, 0);
+
+    const totalPending = activeData.filter(r => isPendingClientPaymentStatus(r.status)).reduce((sum, record) => {
+      return sum + parseNumeric(record.payment_amount);
+    }, 0);
 
     const projectMap = new Map<string, number>();
-    data?.forEach(record => {
+    activeData.forEach(record => {
       const projectName = (record.projects as any)?.name || '未知项目';
       const current = projectMap.get(projectName) || 0;
       projectMap.set(projectName, current + parseNumeric(record.payment_amount));
@@ -74,7 +88,7 @@ export async function GET(request: NextRequest) {
     }));
 
     const monthMap = new Map<string, number>();
-    data?.forEach(record => {
+    activeData.forEach(record => {
       if (record.payment_date) {
         const month = record.payment_date.substring(0, 7);
         const current = monthMap.get(month) || 0;
@@ -95,6 +109,8 @@ export async function GET(request: NextRequest) {
       payment_date: record.payment_date,
       payment_method: record.payment_method || 'bank_transfer',
       status: record.status || 'completed',
+      reviewed_at: record.reviewed_at,
+      reviewed_by: record.reviewed_by,
       remark: record.remark,
     })) || [];
 
@@ -130,8 +146,9 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
     const projectId = parseInt(project_id);
     const paymentAmount = Number(amount);
+    const nextStatus = status || 'completed';
 
-    if ((status || 'completed') === 'completed') {
+    if (isEffectiveClientPaymentStatus(nextStatus)) {
       const validation = await validateClientPayment({
         project_id: projectId,
         payment_amount: paymentAmount,
@@ -146,7 +163,7 @@ export async function POST(request: NextRequest) {
       payment_amount: paymentAmount,
       payment_date,
       payment_method: payment_method || 'bank_transfer',
-      status: status || 'completed',
+      status: nextStatus,
       remark,
     }, client);
 
@@ -218,10 +235,33 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '付款记录不存在' }, { status: 404 });
     }
 
+    if (isVoidedStatus(currentPayment.status)) {
+      return NextResponse.json({ error: '已作废记录不可修改' }, { status: 400 });
+    }
+
     const nextAmount = amount !== undefined ? Number(amount) : parseNumeric(currentPayment.payment_amount);
     const nextStatus = status || currentPayment.status || 'completed';
+    const amountChanged = amount !== undefined && nextAmount !== parseNumeric(currentPayment.payment_amount);
 
-    if (nextStatus === 'completed') {
+    if (
+      isEffectiveClientPaymentStatus(currentPayment.status) &&
+      amountChanged &&
+      !isPendingClientPaymentStatus(nextStatus)
+    ) {
+      return NextResponse.json({ error: '已确认回款不可修改金额，请先退回待确认或草稿' }, { status: 400 });
+    }
+
+    if (status !== undefined && isAllowedReviewStatus(status)) {
+      const currentReviewStatus = currentPayment.status === 'completed'
+        ? REVIEW_STATUS.REVIEWED
+        : currentPayment.status || REVIEW_STATUS.DRAFT;
+      const validation = validateStatusTransition(currentReviewStatus, status);
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.message || '状态流转不合法' }, { status: 400 });
+      }
+    }
+
+    if (isEffectiveClientPaymentStatus(nextStatus)) {
       const validation = await validateClientPayment({
         project_id: Number(currentPayment.project_id),
         payment_amount: nextAmount,
@@ -239,6 +279,14 @@ export async function PUT(request: NextRequest) {
       status: nextStatus,
       remark,
     };
+
+    if (nextStatus === REVIEW_STATUS.REVIEWED) {
+      updateData.reviewed_at = new Date().toISOString();
+      updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
+    } else if (nextStatus === REVIEW_STATUS.DRAFT) {
+      updateData.reviewed_at = null;
+      updateData.reviewed_by = null;
+    }
 
     const { data, error } = await client
       .from('client_payments')
@@ -273,11 +321,25 @@ export async function DELETE(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const paymentId = parseInt(id);
+
+    const { data: currentPayment } = await client
+      .from('client_payments')
+      .select('status')
+      .eq('id', paymentId)
+      .single();
+
+    if (
+      isEffectiveClientPaymentStatus(currentPayment?.status) ||
+      isInactiveClientPaymentStatus(currentPayment?.status)
+    ) {
+      return NextResponse.json({ error: '已确认或已作废回款不可删除' }, { status: 400 });
+    }
 
     const { error } = await client
       .from('client_payments')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', paymentId);
 
     if (error) {
       throw new Error(`删除付款记录失败: ${error.message}`);

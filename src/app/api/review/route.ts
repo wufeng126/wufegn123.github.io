@@ -63,7 +63,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 校验状态流转
-    const validation = validateStatusTransition(record.status || 'draft', targetStatus);
+    const currentStatusForValidation = resource_type === 'client_payment' && record.status === 'completed'
+      ? REVIEW_STATUS.REVIEWED
+      : record.status || REVIEW_STATUS.DRAFT;
+    const validation = validateStatusTransition(currentStatusForValidation, targetStatus);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.message }, { status: 400 });
     }

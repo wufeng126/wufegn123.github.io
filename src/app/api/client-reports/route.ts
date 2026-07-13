@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
-import { validateStatusTransition } from '@/lib/business-logic';
+import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error } = await query;
+    const activeData = (data || []).filter((record: any) => !isVoidedStatus(record.status));
 
     if (error) {
       throw new Error(`查询产值结算失败: ${error.message}`);
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
     let totalUntaxedIncome = 0;
     let totalTaxAmount = 0;
     
-    data?.forEach((record: any) => {
+    activeData.forEach((record: any) => {
       const invoice = parseNumeric(record.invoice_amount);
       const taxRate = parseNumeric(record.tax_rate) || 9;
       
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
 
     // 按时间线统计图表数据
     const timeMap = new Map<string, number>();
-    data?.forEach((record: any) => {
+    activeData.forEach((record: any) => {
       const date = record.report_date?.split('T')[0] || '未知日期';
       const current = timeMap.get(date) || 0;
       timeMap.set(date, current + (parseNumeric(record.settlement_amount) || parseNumeric(record.report_amount)));
@@ -159,7 +160,7 @@ export async function GET(request: NextRequest) {
         tax_amount: taxInfo.taxAmount,
         report_date: record.report_date,
         remark: record.remark,
-        status: record.status || 'draft',
+        status: record.status || REVIEW_STATUS.DRAFT,
         reviewed_at: record.reviewed_at,
         reviewed_by: record.reviewed_by,
       };
@@ -235,6 +236,7 @@ export async function POST(request: NextRequest) {
         deduction_amount: deduction_amount ? Number(deduction_amount) : null,
         proportional_payment: proportional_payment ? Number(proportional_payment) : null,
         tax_rate: tax_rate ? Number(tax_rate) : null,
+        status: REVIEW_STATUS.DRAFT,
       };
     }).filter(item => item.project_id && item.report_date && item.report_amount !== null && item.report_amount !== undefined);
 
@@ -291,6 +293,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
     }
 
+    if (isVoidedStatus(currentData.status)) {
+      return NextResponse.json({ error: '已作废记录不可修改' }, { status: 400 });
+    }
+
     const updateData: any = {
       settlement_amount: settlement_amount || null,
       invoice_amount: invoice_amount || null,
@@ -304,19 +310,22 @@ export async function PUT(request: NextRequest) {
 
     // 状态流转校验
     if (status !== undefined) {
-      const validation = validateStatusTransition(currentData.status || 'draft', status);
+      const validation = validateStatusTransition(currentData.status || REVIEW_STATUS.DRAFT, status);
       if (!validation.valid) {
         return NextResponse.json({ error: validation.message || '状态流转不合法' }, { status: 400 });
       }
       updateData.status = status;
-      if (status === 'reviewed') {
+      if (status === REVIEW_STATUS.REVIEWED) {
         updateData.reviewed_at = new Date().toISOString();
         updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
+      } else if (status === REVIEW_STATUS.DRAFT) {
+        updateData.reviewed_at = null;
+        updateData.reviewed_by = null;
       }
     }
 
     // 已审核记录不允许修改金额（需先反审核）
-    if ((currentData.status === 'reviewed') && (settlement_amount !== undefined || invoice_amount !== undefined) && status !== 'draft') {
+    if (isReviewedStatus(currentData.status) && (settlement_amount !== undefined || invoice_amount !== undefined) && status !== REVIEW_STATUS.DRAFT) {
       return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
     }
 
@@ -361,7 +370,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', parseInt(id))
       .single();
     
-    if (record?.status === 'reviewed') {
+    if (isReviewedStatus(record?.status)) {
       return NextResponse.json({ error: '已审核记录不可删除，请先反审核' }, { status: 400 });
     }
 

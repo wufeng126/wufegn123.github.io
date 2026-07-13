@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 
 // 费用类型
 const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工', '办公用品', '其他杂费'];
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
     // 获取所有费用用于统计
     let statsQuery = client
       .from('comprehensive_expenses')
-      .select('id, expense_type, amount, project_id, expense_date');
+      .select('id, expense_type, amount, project_id, expense_date, status');
 
     if (projectId && projectId !== 'all') {
       statsQuery = statsQuery.eq('project_id', parseInt(projectId));
@@ -94,17 +95,22 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: allExpenses } = await statsQuery;
+    const activeExpenses = (allExpenses || []).filter((e: any) => !isVoidedStatus(e.status));
+    const expenses = (data || []).map((e: any) => ({
+      ...e,
+      status: e.status || REVIEW_STATUS.DRAFT,
+    }));
 
     // 计算统计数据
-    const totalCount = allExpenses?.length || 0;
-    const totalAmount = allExpenses?.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) || 0;
+    const totalCount = activeExpenses.length;
+    const totalAmount = activeExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
     
     // 按类型统计
     const typeStats: Record<string, number> = {};
     EXPENSE_TYPES.forEach(type => {
       typeStats[type] = 0;
     });
-    allExpenses?.forEach(e => {
+    activeExpenses.forEach(e => {
       if (typeStats[e.expense_type] !== undefined) {
         typeStats[e.expense_type] += parseFloat(e.amount) || 0;
       }
@@ -112,7 +118,7 @@ export async function GET(request: NextRequest) {
 
     // 按项目统计
     const projectStats: Record<number, { name: string; amount: number; count: number }> = {};
-    allExpenses?.forEach(e => {
+    activeExpenses.forEach(e => {
       if (e.project_id) {
         if (!projectStats[e.project_id]) {
           projectStats[e.project_id] = { name: '', amount: 0, count: 0 };
@@ -138,7 +144,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      expenses: data,
+      expenses,
       pagination: {
         page,
         pageSize,
@@ -206,7 +212,8 @@ export async function POST(request: NextRequest) {
         handler: handler || null,
         remark: remark || null,
         attachments: attachments || null,
-        created_by: created_by || 'admin',
+        created_by: created_by || auth.user.username || auth.user.name || 'admin',
+        status: REVIEW_STATUS.DRAFT,
       },
       client
     );

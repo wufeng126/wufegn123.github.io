@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
+import { REVIEW_STATUS } from '@/lib/business-logic';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -179,6 +184,7 @@ export async function POST(request: NextRequest) {
         purchase_date: purchaseDate,
         purchaser: values[purchaserIdx] || null,
         remark: values[remarkIdx] || null,
+        status: REVIEW_STATUS.DRAFT,
       });
     }
 

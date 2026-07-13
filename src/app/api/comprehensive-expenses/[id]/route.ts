@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 
 // 费用类型
 const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工', '办公用品', '其他杂费'];
@@ -11,6 +13,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const client = getSupabaseClient();
 
@@ -28,7 +33,7 @@ export async function GET(
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
     }
 
-    return NextResponse.json({ expense: data });
+    return NextResponse.json({ expense: { ...data, status: data.status || REVIEW_STATUS.DRAFT } });
   } catch (error: any) {
     console.error('API Error:', error);
     return NextResponse.json(
@@ -44,6 +49,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const body = await request.json();
     const {
@@ -54,6 +62,7 @@ export async function PUT(
       handler,
       remark,
       attachments,
+      status,
     } = body;
 
     // 验证费用类型
@@ -67,6 +76,26 @@ export async function PUT(
     const client = getSupabaseClient();
     
     // 构建更新数据
+    const expenseId = parseInt(id);
+
+    const { data: currentExpense, error: currentError } = await client
+      .from('comprehensive_expenses')
+      .select('id, status, amount')
+      .eq('id', expenseId)
+      .single();
+
+    if (currentError || !currentExpense) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    if (isVoidedStatus(currentExpense.status)) {
+      return NextResponse.json({ error: '已作废记录不可修改' }, { status: 400 });
+    }
+
+    if (isReviewedStatus(currentExpense.status) && amount !== undefined && status !== REVIEW_STATUS.DRAFT) {
+      return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
+    }
+
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (project_id !== undefined) updateData.project_id = project_id || null;
     if (expense_type) updateData.expense_type = expense_type;
@@ -75,11 +104,25 @@ export async function PUT(
     if (handler !== undefined) updateData.handler = handler || null;
     if (remark !== undefined) updateData.remark = remark || null;
     if (attachments !== undefined) updateData.attachments = attachments || null;
+    if (status !== undefined) {
+      const validation = validateStatusTransition(currentExpense.status || REVIEW_STATUS.DRAFT, status);
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.message || '状态流转不合法' }, { status: 400 });
+      }
+      updateData.status = status;
+      if (status === REVIEW_STATUS.REVIEWED) {
+        updateData.reviewed_at = new Date().toISOString();
+        updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
+      } else if (status === REVIEW_STATUS.DRAFT) {
+        updateData.reviewed_at = null;
+        updateData.reviewed_by = null;
+      }
+    }
 
     const { data, error } = await client
       .from('comprehensive_expenses')
       .update(updateData)
-      .eq('id', parseInt(id))
+      .eq('id', expenseId)
       .select('*, projects(name)')
       .single();
 
@@ -90,7 +133,7 @@ export async function PUT(
     await auditLog({
       operationType: 'update',
       resourceType: 'comprehensive_expense',
-      resourceId: parseInt(id),
+      resourceId: expenseId,
       details: updateData,
       request,
     });
@@ -111,20 +154,28 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
+    const expenseId = parseInt(id);
     const client = getSupabaseClient();
 
     // 先获取记录信息用于审计日志
     const { data: existingData } = await client
       .from('comprehensive_expenses')
-      .select('id, expense_type, amount, project_id')
-      .eq('id', parseInt(id))
+      .select('id, expense_type, amount, project_id, status')
+      .eq('id', expenseId)
       .single();
+
+    if (isReviewedStatus(existingData?.status) || isVoidedStatus(existingData?.status)) {
+      return NextResponse.json({ error: '已审核或已作废记录不可删除' }, { status: 400 });
+    }
 
     const { error } = await client
       .from('comprehensive_expenses')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', expenseId);
 
     if (error) {
       throw new Error(`删除综合费用失败: ${error.message}`);
@@ -133,8 +184,8 @@ export async function DELETE(
     await auditLog({
       operationType: 'delete',
       resourceType: 'comprehensive_expense',
-      resourceId: parseInt(id),
-      details: existingData || { id: parseInt(id) },
+      resourceId: expenseId,
+      details: existingData || { id: expenseId },
       request,
     });
 

@@ -340,13 +340,14 @@ export async function getProjectReportedAmount(projectId: number): Promise<{
   const client = getSupabaseClient();
   const { data: reports } = await client
     .from('client_reports')
-    .select('settlement_amount, invoice_amount')
-    .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .select('settlement_amount, invoice_amount, status')
+    .eq('project_id', projectId);
+
+  const activeReports = (reports || []).filter((r: any) => !isVoidedStatus(r.status));
 
   return {
-    totalSettlement: (reports || []).reduce((sum: number, r: any) => sum + parseNumeric(r.settlement_amount), 0),
-    totalInvoice: (reports || []).reduce((sum: number, r: any) => sum + parseNumeric(r.invoice_amount), 0),
+    totalSettlement: activeReports.reduce((sum: number, r: any) => sum + parseNumeric(r.settlement_amount), 0),
+    totalInvoice: activeReports.reduce((sum: number, r: any) => sum + parseNumeric(r.invoice_amount), 0),
   };
 }
 
@@ -361,9 +362,9 @@ export async function getProjectPaidAmount(
 
   let query = client
     .from('client_payments')
-    .select('id, payment_amount')
+    .select('id, payment_amount, status')
     .eq('project_id', projectId)
-    .eq('status', 'completed');
+    .neq('status', 'voided');
 
   if (excludePaymentId) {
     query = query.neq('id', excludePaymentId);
@@ -371,7 +372,9 @@ export async function getProjectPaidAmount(
 
   const { data: payments } = await query;
 
-  return (payments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+  return (payments || [])
+    .filter((p: any) => isEffectiveClientPaymentStatus(p.status))
+    .reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
 }
 
 /**
@@ -429,6 +432,18 @@ export function isReviewedStatus(status?: string | null): boolean {
 
 export function isVoidedStatus(status?: string | null): boolean {
   return normalizeReviewStatus(status) === REVIEW_STATUS.VOIDED;
+}
+
+export function isEffectiveClientPaymentStatus(status?: string | null): boolean {
+  return status === 'completed' || isReviewedStatus(status);
+}
+
+export function isPendingClientPaymentStatus(status?: string | null): boolean {
+  return status === 'pending' || status === REVIEW_STATUS.DRAFT;
+}
+
+export function isInactiveClientPaymentStatus(status?: string | null): boolean {
+  return status === 'cancelled' || isVoidedStatus(status);
 }
 
 /**

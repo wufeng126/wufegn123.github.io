@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
 
 // 获取当前月份
 function getCurrentYearMonth() {
@@ -209,7 +210,7 @@ export async function GET(request: Request) {
       .select('payment_amount, status, payment_date');
     if (projectId) allPaymentsQuery = allPaymentsQuery.eq('project_id', parseInt(projectId, 10));
     const { data: allPayments } = await allPaymentsQuery;
-    const totalPaid = allPayments?.filter(r => r.status === 'completed').reduce((sum, r) => {
+    const totalPaid = allPayments?.filter(r => isEffectiveClientPaymentStatus(r.status)).reduce((sum, r) => {
       return sum + parseFloat(r.payment_amount || '0');
     }, 0) || 0;
 
@@ -568,8 +569,7 @@ export async function GET(request: Request) {
     // 按月统计回款 - 支持项目筛选
     let monthlyPaymentsQuery = client
       .from('client_payments')
-      .select('payment_amount, payment_date')
-      .eq('status', 'completed');
+      .select('payment_amount, payment_date, status');
     
     if (projectId) {
       monthlyPaymentsQuery = monthlyPaymentsQuery.eq('project_id', parseInt(projectId));
@@ -580,7 +580,7 @@ export async function GET(request: Request) {
     const monthlyPayment: Record<string, number> = {};
     recentMonths.forEach(m => monthlyPayment[m] = 0);
     
-    monthlyPayments?.forEach(p => {
+    monthlyPayments?.filter(p => isEffectiveClientPaymentStatus(p.status)).forEach(p => {
       if (!p.payment_date) return;
       const date = new Date(p.payment_date);
       const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;

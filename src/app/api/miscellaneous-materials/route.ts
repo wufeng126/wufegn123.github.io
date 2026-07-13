@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -87,10 +88,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 计算汇总统计（基于当前筛选条件）
+    const activeData = (data || []).filter((item: any) => !isVoidedStatus(item.status));
+
     let totalAmount = 0;
     const projectStats: Record<string, number> = {};
 
-    const materials = (data || []).map((item: any) => {
+    activeData.forEach((item: any) => {
       const amount = parseFloat(item.amount || '0');
       totalAmount += amount;
 
@@ -99,7 +102,9 @@ export async function GET(request: NextRequest) {
         projectStats[projectName] = 0;
       }
       projectStats[projectName] += amount;
+    });
 
+    const materials = (data || []).map((item: any) => {
       return {
         id: item.id,
         project_id: item.project_id,
@@ -111,6 +116,9 @@ export async function GET(request: NextRequest) {
         purchase_date: item.purchase_date,
         supplier: item.purchaser,
         remark: item.remark,
+        status: item.status || REVIEW_STATUS.DRAFT,
+        reviewed_at: item.reviewed_at,
+        reviewed_by: item.reviewed_by,
         created_at: item.created_at,
         projects: item.projects,
       };
@@ -127,7 +135,7 @@ export async function GET(request: NextRequest) {
         totalPages,
       },
       stats: {
-        totalCount: count || 0,
+        totalCount: activeData.length,
         totalAmount,
         projectStats,
       }
@@ -193,6 +201,7 @@ export async function POST(request: NextRequest) {
         purchase_date: purchase_date || new Date().toISOString().split('T')[0],
         purchaser: supplier?.trim() || null,
         remark: remark?.trim() || null,
+        status: REVIEW_STATUS.DRAFT,
       };
     }).filter(item => item.project_id && item.material_name);
 
@@ -229,13 +238,32 @@ export async function PUT(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { id, project_id, material_name, unit, quantity, unit_price, purchase_date, supplier, remark } = body;
+    const { id, project_id, material_name, unit, quantity, unit_price, purchase_date, supplier, remark, status } = body;
 
     if (!id) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
+    const materialId = parseInt(id);
+
+    const { data: currentMaterial, error: currentError } = await client
+      .from('miscellaneous_materials')
+      .select('id, status, quantity, unit_price, amount')
+      .eq('id', materialId)
+      .single();
+
+    if (currentError || !currentMaterial) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    if (isVoidedStatus(currentMaterial.status)) {
+      return NextResponse.json({ error: '已作废记录不可修改' }, { status: 400 });
+    }
+
+    if (isReviewedStatus(currentMaterial.status) && (quantity !== undefined || unit_price !== undefined) && status !== REVIEW_STATUS.DRAFT) {
+      return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
+    }
 
     const qty = parseFloat(quantity) || 0;
     const price = parseFloat(unit_price) || 0;
@@ -254,10 +282,25 @@ export async function PUT(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
+    if (status !== undefined) {
+      const validation = validateStatusTransition(currentMaterial.status || REVIEW_STATUS.DRAFT, status);
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.message || '状态流转不合法' }, { status: 400 });
+      }
+      updateData.status = status;
+      if (status === REVIEW_STATUS.REVIEWED) {
+        updateData.reviewed_at = new Date().toISOString();
+        updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
+      } else if (status === REVIEW_STATUS.DRAFT) {
+        updateData.reviewed_at = null;
+        updateData.reviewed_by = null;
+      }
+    }
+
     const { data, error } = await client
       .from('miscellaneous_materials')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', materialId)
       .select();
 
     if (error) {
@@ -267,7 +310,7 @@ export async function PUT(request: NextRequest) {
     await auditLog({
       operationType: 'update',
       resourceType: 'miscellaneous_material',
-      resourceId: id,
+      resourceId: materialId,
       details: { material_name, quantity, unit_price, amount },
       request,
     });
@@ -295,11 +338,22 @@ export async function DELETE(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const materialId = parseInt(id);
+
+    const { data: currentMaterial } = await client
+      .from('miscellaneous_materials')
+      .select('status')
+      .eq('id', materialId)
+      .single();
+
+    if (isReviewedStatus(currentMaterial?.status) || isVoidedStatus(currentMaterial?.status)) {
+      return NextResponse.json({ error: '已审核或已作废记录不可删除' }, { status: 400 });
+    }
 
     const { error } = await client
       .from('miscellaneous_materials')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', materialId);
 
     if (error) {
       throw new Error(`删除零星材料记录失败: ${error.message}`);
@@ -308,7 +362,7 @@ export async function DELETE(request: NextRequest) {
     await auditLog({
       operationType: 'delete',
       resourceType: 'miscellaneous_material',
-      resourceId: parseInt(id),
+      resourceId: materialId,
       request,
     });
 

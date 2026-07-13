@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { parseExcelFile } from '@/lib/excel-utils';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { REVIEW_STATUS } from '@/lib/business-logic';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -62,6 +64,9 @@ function validateRequiredFieldsCN(
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
@@ -157,6 +162,7 @@ export async function POST(request: NextRequest) {
         proportional_payment: row.proportional_payment ? parseFloat(row.proportional_payment).toString() : '0',
         report_date: reportDate,
         remark: row.remark || '',
+        status: REVIEW_STATUS.DRAFT,
       });
     });
 
@@ -182,6 +188,7 @@ export async function POST(request: NextRequest) {
           report_amount: r.settlement_amount,
           report_date: r.report_date,
           remark: r.remark,
+          status: REVIEW_STATUS.DRAFT,
         }));
 
         const { data: legacyData, error: legacyError } = await client
