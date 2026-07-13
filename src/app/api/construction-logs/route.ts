@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import {
   buildRiskKnowledgeContent,
   buildRiskKnowledgeTags,
@@ -24,6 +25,20 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '50');
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const parsedProjectId = projectId ? parseInt(projectId, 10) : null;
+
+    if (parsedProjectId && Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
+      return apiSuccess([], {
+        meta: { pagination: { page, pageSize, total: 0 } },
+      });
+    }
+
+    if (!parsedProjectId && Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) {
+      return apiSuccess([], {
+        meta: { pagination: { page, pageSize, total: 0 } },
+      });
+    }
 
     let query = supabase
       .from('construction_logs')
@@ -31,7 +46,8 @@ export async function GET(request: NextRequest) {
       .order('log_date', { ascending: false })
       .order('created_at', { ascending: false });
 
-    if (projectId) query = query.eq('project_id', parseInt(projectId));
+    if (parsedProjectId) query = query.eq('project_id', parsedProjectId);
+    else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
     if (userId) query = query.eq('user_id', parseInt(userId));
     if (dateFrom) query = query.gte('log_date', dateFrom);
     if (dateTo) query = query.lte('log_date', dateTo);
@@ -62,10 +78,16 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, user);
+    const parsedProjectId = parseInt(project_id, 10);
+    if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
+      return apiForbidden('无权提交该项目施工日志');
+    }
+
     const { data, error } = await supabase
       .from('construction_logs')
       .insert({
-        project_id: parseInt(project_id),
+        project_id: parsedProjectId,
         user_id: user?.id || 0,
         user_name: user?.name || user?.username || '未知',
         log_date,
@@ -85,7 +107,7 @@ export async function POST(request: NextRequest) {
       const { data: proj } = await supabase
         .from('projects')
         .select('name')
-        .eq('id', parseInt(project_id))
+        .eq('id', parsedProjectId)
         .single();
       const projName = (proj as any)?.name || `项目${project_id}`;
       const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
@@ -120,10 +142,12 @@ export async function POST(request: NextRequest) {
         title: `${projName} 施工日志识别到${typeLabel}风险`,
         content: `${log_date || ''} ${risk.summary}。${risk.recommendation}`,
         severity: risk.level === 'high' ? 'danger' : 'warning',
-        projectId: parseInt(project_id),
+        projectId: parsedProjectId,
         relatedId: data.id,
         relatedType: 'construction_log',
         metadata: {
+          targetRole: 'budget',
+          targetLabel: '项目预算员',
           riskTypes: risk.types,
           riskLevel: risk.level,
           matchedKeywords: risk.matchedKeywords,

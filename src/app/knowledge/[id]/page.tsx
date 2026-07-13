@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Download, FileText, Link2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Download, FileText, Link2, MessageSquare, RotateCcw, Send, Tag, UserRound } from 'lucide-react';
 import {
   getKnowledgeCategoryLabel,
   getKnowledgeProjectName,
@@ -30,9 +30,10 @@ type KnowledgeDoc = {
 };
 
 type WorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
-type WorkflowAction = 'submit_to_manager' | 'manager_review' | 'budget_confirm' | 'boss_approve';
+type WorkflowAction = 'submit_to_manager' | 'manager_review' | 'budget_confirm' | 'boss_approve' | 'withdraw';
 
 type CurrentUser = {
+  id?: string | number;
   role?: string;
   username?: string;
   name?: string;
@@ -134,6 +135,11 @@ function canUserHandleState(role: string | undefined, state: WorkflowState) {
   return false;
 }
 
+function canUserWithdraw(role: string | undefined, createdBy: string | number | null | undefined, currentUser?: CurrentUser | null) {
+  if (role === 'admin' || role === 'super_admin') return true;
+  return Boolean(createdBy && currentUser?.id && String(createdBy) === String(currentUser.id));
+}
+
 function extractWorkflowComments(content?: string | null) {
   const text = content || '';
   const sectionStart = text.indexOf('## 审批流程意见');
@@ -226,7 +232,7 @@ export default function KnowledgeDetailPage() {
 
     fetch('/api/auth/me')
       .then(r => r.json())
-      .then(u => { if (mounted) setCurrentUser(u); })
+      .then(u => { if (mounted) setCurrentUser(u?.data || u?.user || u); })
       .catch(() => {});
 
     return () => {
@@ -246,6 +252,12 @@ export default function KnowledgeDetailPage() {
   const workflowState = useMemo(() => getWorkflowState(tags), [tags]);
   const isMonthly = useMemo(() => isMonthlyAnalysis(tags), [tags]);
   const canAct = useMemo(() => canUserHandleState(currentUser?.role, workflowState), [currentUser?.role, workflowState]);
+  const canWithdraw = useMemo(() => (
+    isMonthly &&
+    workflowState !== 'draft' &&
+    workflowState !== 'completed' &&
+    canUserWithdraw(currentUser?.role, doc?.created_by, currentUser)
+  ), [currentUser, doc?.created_by, isMonthly, workflowState]);
   const workflowComments = useMemo(() => extractWorkflowComments(doc?.content), [doc?.content]);
   const relatedLinks = useMemo(() => extractWikiLinks(doc?.content), [doc?.content]);
   const titleToId = useMemo(() => {
@@ -253,6 +265,25 @@ export default function KnowledgeDetailPage() {
     docs.forEach(item => map.set(item.title, item.id));
     return map;
   }, [docs]);
+
+  async function submitWorkflowAction(action: WorkflowAction | undefined) {
+    if (!doc?.id || !action) return;
+    setActing(true);
+    try {
+      const res = await fetch('/api/ai/knowledge/monthly/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ knowledgeId: doc.id, action, comment }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '流程处理失败');
+      window.location.reload();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '流程处理失败');
+    } finally {
+      setActing(false);
+    }
+  }
 
   return (
     <div className="min-h-full bg-[#F5F7FB] p-4 md:p-6">
@@ -445,22 +476,31 @@ export default function KnowledgeDetailPage() {
                   placeholder={actionByState[workflowState]?.placeholder}
                 />
                 <button
-                  onClick={async () => {
-                    setActing(true);
-                    try {
-                      await fetch('/api/ai/knowledge/monthly/workflow', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ knowledgeId: doc.id, action: actionByState[workflowState]?.action, comment }),
-                      });
-                    } catch {}
-                    setActing(false);
-                    window.location.reload();
-                  }}
+                  onClick={() => submitWorkflowAction(actionByState[workflowState]?.action)}
                   disabled={acting}
                   className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
                 >
                   {acting ? '处理中...' : <><Send className="h-3.5 w-3.5" />{actionByState[workflowState]?.label}</>}
+                </button>
+              </div>
+            )}
+
+            {isMonthly && canWithdraw && (
+              <div className="knowledge-card p-5">
+                <p className="text-sm font-medium text-[#171717]">撤回月度分析</p>
+                <p className="mt-1 text-xs text-[#8A8F98]">撤回后状态回到草稿，可修改后重新提交。</p>
+                <textarea
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  className="mt-2 w-full min-h-[70px] rounded-lg border border-[rgba(0,0,0,0.06)] bg-white p-3 text-sm outline-none focus:border-[#165DFF]"
+                  placeholder="可填写撤回原因，例如发现数据需要调整"
+                />
+                <button
+                  onClick={() => submitWorkflowAction('withdraw')}
+                  disabled={acting}
+                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg border border-[#F59E0B] bg-[#FFF7E8] px-4 text-sm font-medium text-[#B45309] hover:bg-[#FFEFD0] disabled:opacity-60"
+                >
+                  {acting ? '处理中...' : <><RotateCcw className="h-3.5 w-3.5" />撤回到草稿</>}
                 </button>
               </div>
             )}

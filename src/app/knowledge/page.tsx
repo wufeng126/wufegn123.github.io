@@ -482,7 +482,7 @@ export default function KnowledgePage() {
         if (!mounted) return;
         const docsList = Array.isArray(knowledgeJson.data) ? knowledgeJson.data : [];
         setDocs(docsList);
-        setCurrentUser(userJson);
+        setCurrentUser(userJson?.data || userJson?.user || userJson);
       } catch {
         if (mounted) {
           setDocs([]);

@@ -27,6 +27,39 @@ const AVAILABLE_ROLES = [
   { value: 'team_leader', label: '班组长' },
 ];
 
+const DEFAULT_WORKFLOW_CONFIGS = [
+  {
+    workflow_type: 'monthly_analysis',
+    name: '月度分析审批流程',
+    steps: [
+      { state: 'draft', label: '预算员填报', role: 'admin,super_admin', actor: '预算员' },
+      { state: 'manager_review', label: '项目经理补充', role: 'project_manager', actor: '项目经理' },
+      { state: 'budget_confirm', label: '预算确认', role: 'admin,super_admin', actor: '预算员' },
+      { state: 'boss_review', label: '老板批复', role: 'boss', actor: '老板' },
+      { state: 'completed', label: '完成', role: '', actor: '' },
+    ],
+  },
+  {
+    workflow_type: 'construction_log_confirm',
+    name: '施工日志确认流程',
+    steps: [
+      { state: 'pending', label: '风险待确认', role: 'project_manager', actor: '项目经理' },
+      { state: 'budget_notice', label: '预算员提醒', role: 'admin,super_admin', actor: '预算员' },
+      { state: 'completed', label: '完成', role: '', actor: '' },
+    ],
+  },
+  {
+    workflow_type: 'visa',
+    name: '签证办理审批流程',
+    steps: [
+      { state: 'draft', label: '现场发起', role: 'project_manager,team_leader', actor: '现场人员' },
+      { state: 'budget_review', label: '预算审核', role: 'admin,super_admin', actor: '预算员' },
+      { state: 'boss_review', label: '老板审批', role: 'boss', actor: '老板' },
+      { state: 'completed', label: '完成', role: '', actor: '' },
+    ],
+  },
+];
+
 interface SystemUser {
   id: number;
   username: string;
@@ -57,35 +90,16 @@ export default function ApprovalConfigPage() {
   }, []);
 
   async function createDefaultConfig() {
-    const defaultSteps: WorkflowStep[] = [
-      { state: 'draft', label: '预算员填报', role: 'admin,super_admin', actor: '预算员' },
-      { state: 'manager_review', label: '项目经理补充', role: 'project_manager', actor: '项目经理' },
-      { state: 'budget_confirm', label: '预算确认', role: 'admin,super_admin', actor: '预算员' },
-      { state: 'boss_review', label: '老板批复', role: 'boss', actor: '老板' },
-      { state: 'completed', label: '完成', role: '', actor: '' },
-    ];
     try {
-      const res = await fetch('/api/system/workflow-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow_type: 'monthly_analysis', name: '月度分析审批流程', steps: defaultSteps }),
-      });
-      const json = await res.json();
-      if (json.success) setConfigs([json.data]);
+      const results = await Promise.all(DEFAULT_WORKFLOW_CONFIGS.map(config =>
+        fetch('/api/system/workflow-config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config),
+        }).then(res => res.json())
+      ));
+      setConfigs(results.filter(json => json.success).map(json => json.data));
     } catch {}
-  }
-
-  function createNewWorkflow() {
-    const newConfig: WorkflowConfig = {
-      id: 0,
-      workflow_type: 'new_' + Date.now(),
-      name: '新审批流程',
-      steps: [
-        { state: 'step_1', label: '第一步', role: 'admin,super_admin', actor: '负责人' },
-        { state: 'completed', label: '完成', role: '', actor: '' },
-      ],
-    };
-    setEditing(newConfig);
   }
 
   async function save() {
@@ -173,9 +187,7 @@ export default function ApprovalConfigPage() {
             <h1 className="text-2xl font-bold text-[#1D2129]">审批流程配置</h1>
             <p className="text-sm text-[#86909C] mt-0.5">自定义月度分析等业务流程的审批节点和责任人</p>
           </div>
-          <button onClick={createNewWorkflow} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white shadow-md hover:bg-[#0E49D8]">
-            <Plus className="h-4 w-4" /> 新建流程
-          </button>
+          <span className="inline-flex h-9 items-center rounded-full bg-[#E8F3FF] px-3 text-xs font-medium text-[#165DFF]">当前启用 3 类流程</span>
         </div>
 
         {configs.length === 0 && !loading ? (

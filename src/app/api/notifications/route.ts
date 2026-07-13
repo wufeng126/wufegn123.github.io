@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({
+      success: true,
       notifications: data,
       pagination: {
         page,
@@ -167,6 +168,50 @@ export async function PUT(request: NextRequest) {
     console.error('API Error:', error);
     return NextResponse.json(
       { error: error.message || '操作失败' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, all, markAllRead, isRead } = body;
+
+    const client = getSupabaseClient();
+    const readValue = isRead !== undefined ? Boolean(isRead) : true;
+
+    if (all || markAllRead) {
+      const { error } = await client
+        .from('notifications')
+        .update({
+          is_read: readValue,
+          read_at: readValue ? new Date().toISOString() : null,
+        })
+        .eq('is_read', !readValue);
+
+      if (error) throw new Error(`标记已读失败: ${error.message}`);
+      return NextResponse.json({ success: true });
+    }
+
+    if (id) {
+      const { error } = await client
+        .from('notifications')
+        .update({
+          is_read: readValue,
+          read_at: readValue ? new Date().toISOString() : null,
+        })
+        .eq('id', id);
+
+      if (error) throw new Error(`标记已读失败: ${error.message}`);
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ success: false, error: '请提供通知ID或标记全部已读' }, { status: 400 });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || '操作失败' },
       { status: 500 }
     );
   }

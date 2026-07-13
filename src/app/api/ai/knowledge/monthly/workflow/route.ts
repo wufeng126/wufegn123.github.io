@@ -4,7 +4,8 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 type WorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
-type WorkflowAction = 'submit_to_manager' | 'manager_review' | 'budget_confirm' | 'boss_approve';
+type ForwardWorkflowAction = 'submit_to_manager' | 'manager_review' | 'budget_confirm' | 'boss_approve';
+type WorkflowAction = ForwardWorkflowAction | 'withdraw';
 
 const STATE_TAGS: Record<WorkflowState, string> = {
   draft: '状态:草稿',
@@ -14,7 +15,7 @@ const STATE_TAGS: Record<WorkflowState, string> = {
   completed: '状态:已完成',
 };
 
-const ACTION_CONFIG: Record<WorkflowAction, {
+const ACTION_CONFIG: Record<ForwardWorkflowAction, {
   from: WorkflowState;
   to: WorkflowState;
   actor: 'budget' | 'project_manager' | 'boss';
@@ -104,13 +105,8 @@ export async function POST(request: NextRequest) {
     const action = body.action as WorkflowAction;
     const comment = typeof body.comment === 'string' ? body.comment : '';
 
-    if (!knowledgeId || !action || !ACTION_CONFIG[action]) {
+    if (!knowledgeId || !action || (action !== 'withdraw' && !ACTION_CONFIG[action])) {
       return NextResponse.json({ success: false, error: '缺少有效的 knowledgeId 或 action' }, { status: 400 });
-    }
-
-    const config = ACTION_CONFIG[action];
-    if (!canAct(role, config.actor)) {
-      return NextResponse.json({ success: false, error: '当前角色无权执行该审批操作' }, { status: 403 });
     }
 
     const supabase = getSupabaseClient();
@@ -126,6 +122,58 @@ export async function POST(request: NextRequest) {
 
     const tags = normalizeTags(doc.tags);
     const currentState = getStateFromTags(tags);
+
+    if (action === 'withdraw') {
+      if (currentState === 'draft' || currentState === 'completed') {
+        return NextResponse.json({ success: false, error: '当前状态不能撤回' }, { status: 400 });
+      }
+
+      const canWithdraw = role === 'admin' || role === 'super_admin' || Number(doc.created_by) === Number(user?.id);
+      if (!canWithdraw) {
+        return NextResponse.json({ success: false, error: '当前角色无权撤回该月度分析' }, { status: 403 });
+      }
+
+      const nextTags = updateStateTag(tags, 'draft');
+      const nextContent = appendComment(doc.content || '', '撤回说明', comment || '撤回到草稿重新修改', username);
+      const { data: updated, error: updateError } = await supabase
+        .from('ai_knowledge_docs')
+        .update({
+          tags: nextTags,
+          content: nextContent,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', knowledgeId)
+        .select()
+        .single();
+
+      if (updateError) {
+        return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+      }
+
+      await pushBusinessNotification({
+        type: 'monthly_analysis_workflow',
+        title: '月度分析已撤回',
+        content: `《${doc.title}》已撤回到「草稿」。${comment.trim() ? `说明：${comment.trim()}` : ''}`,
+        severity: 'warning',
+        relatedId: Number(knowledgeId),
+        relatedType: 'ai_knowledge_docs',
+        metadata: {
+          knowledgeId,
+          action,
+          from: currentState,
+          to: 'draft',
+          operatorRole: role,
+          operatorName: username,
+        },
+      });
+
+      return NextResponse.json({ success: true, data: updated });
+    }
+
+    const config = ACTION_CONFIG[action];
+    if (!canAct(role, config.actor)) {
+      return NextResponse.json({ success: false, error: '当前角色无权执行该审批操作' }, { status: 403 });
+    }
     if (currentState !== config.from) {
       return NextResponse.json({
         success: false,

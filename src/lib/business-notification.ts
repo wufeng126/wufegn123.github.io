@@ -69,6 +69,10 @@ export async function pushBusinessNotification(params: {
         'new_record_reminder_enabled',
         'settlement_reminder_enabled',
         'payment_warning_enabled',
+        'salary_reminder_enabled',
+        'client_payment_reminder_enabled',
+        'supplier_payment_reminder_enabled',
+        'cost_warning_enabled',
       ]);
 
     const typeEnabledMap: Record<string, boolean> = {};
@@ -86,6 +90,7 @@ export async function pushBusinessNotification(params: {
     if (type === 'new_supplier_payment' && (typeEnabledMap['supplier_payment_reminder_enabled'] || typeEnabledMap['payment_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
     if (type === 'cost_warning' && typeEnabledMap['cost_warning_enabled']) shouldSend = true;
     if (type === 'monthly_analysis_workflow' && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
+    if (type === 'construction_log_alert' && (typeEnabledMap['cost_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
 
     // 钉钉总开关检查
     const { data: dingtalkEnabled } = await supabase

@@ -51,10 +51,25 @@ type StatItem = {
   user_id: number;
   user_name: string;
   count: number;
+  submitted_days?: number;
+  expected_days?: number;
+  completeness_rate?: number;
   last_date: string;
   risk_count?: number;
   high_risk_count?: number;
   cost_risk_count?: number;
+};
+
+type ProjectStatItem = {
+  project_id: number;
+  project_name?: string;
+  count: number;
+  submitted_days: number;
+  expected_days: number;
+  completeness_rate: number;
+  last_date: string;
+  risk_count?: number;
+  high_risk_count?: number;
 };
 
 type Project = { id: number; name: string };
@@ -106,6 +121,7 @@ export default function ConstructionLogsPage() {
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [stats, setStats] = useState<StatItem[]>([]);
+  const [projectStats, setProjectStats] = useState<ProjectStatItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [riskLoading, setRiskLoading] = useState(false);
@@ -113,6 +129,7 @@ export default function ConstructionLogsPage() {
     tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' ? tabParam : 'risks',
   );
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [statsProjectId, setStatsProjectId] = useState('all');
   const [riskStatus, setRiskStatus] = useState<'all' | WorkflowStatus>(
     statusParam === 'pending' || statusParam === 'ignored' || statusParam === 'resolved' || statusParam === 'monthly' || statusParam === 'monthly_included' || statusParam === 'visa_created'
       ? statusParam
@@ -134,7 +151,7 @@ export default function ConstructionLogsPage() {
 
       const [logRes, statsRes, projRes] = await Promise.all([
         fetch(`/api/construction-logs?pageSize=100${userFilter}`),
-        fetch(`/api/construction-logs/stats?month=${month}`),
+        fetch(`/api/construction-logs/stats?month=${month}${statsProjectId !== 'all' ? `&projectId=${statsProjectId}` : ''}`),
         fetch('/api/projects'),
       ]);
       const logJson = await logRes.json();
@@ -142,6 +159,7 @@ export default function ConstructionLogsPage() {
       const projJson = await projRes.json();
       setLogs(Array.isArray(logJson.data) ? logJson.data : []);
       setStats(Array.isArray(statsJson.data) ? statsJson.data : []);
+      setProjectStats(Array.isArray(statsJson.project_stats) ? statsJson.project_stats : []);
       setProjects(Array.isArray(projJson.projects) ? projJson.projects : []);
     } catch {
       setMessage('施工日志数据加载失败，请稍后重试');
@@ -167,7 +185,7 @@ export default function ConstructionLogsPage() {
 
   useEffect(() => {
     loadBase();
-  }, [month, mineOnly]);
+  }, [month, mineOnly, statsProjectId]);
 
   useEffect(() => {
     loadRisks();
@@ -326,7 +344,10 @@ export default function ConstructionLogsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="min-w-[150px]">
+                  <div className="flex min-w-[150px] flex-col gap-2">
+                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
+                      查看详情
+                    </Link>
                     <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id)} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#7C3AED] px-3 text-xs font-medium text-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50">
                       <BookOpenCheck className="h-3.5 w-3.5" />
                       {risk.workflow_status === 'monthly_included' ? '已进月报' : risk.workflow_status === 'monthly' ? '待入月报' : '纳入月报'}
@@ -339,38 +360,103 @@ export default function ConstructionLogsPage() {
         )}
 
         {tab === 'stats' && (
-          <div className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
-            <div className="flex items-center justify-between border-b border-[#E5E6EB] p-4">
-              <h2 className="font-semibold text-[#1D2129]">管理员提交次数统计</h2>
-              <input type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="font-semibold text-[#1D2129]">施工日志完整率统计</h2>
+                  <p className="mt-1 text-xs text-[#86909C]">项目按当月是否有日志统计，人员按当月提交天数和提交次数统计</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select value={statsProjectId} onChange={event => setStatsProjectId(event.target.value)} className="h-9 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                    <option value="all">全部项目</option>
+                    {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
+                  </select>
+                  <input type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
+                </div>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#F7F8FA] text-[#86909C]">
-                    <th className="px-4 py-3 text-left font-medium">排名</th>
-                    <th className="px-4 py-3 text-left font-medium">姓名</th>
-                    <th className="px-4 py-3 text-center font-medium">提交次数</th>
-                    <th className="px-4 py-3 text-center font-medium">风险日志</th>
-                    <th className="px-4 py-3 text-center font-medium">最近提交</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan={5} className="py-8 text-center text-[#86909C]">加载中...</td></tr>
-                  ) : stats.length === 0 ? (
-                    <tr><td colSpan={5} className="py-8 text-center text-[#86909C]">本月暂无提交记录</td></tr>
-                  ) : stats.map((item, index) => (
-                    <tr key={item.user_id} className="border-t border-[#F2F3F5] hover:bg-[#FAFBFF]">
-                      <td className="px-4 py-3 text-[#86909C]">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-[#1D2129]">{item.user_name}</td>
-                      <td className="px-4 py-3 text-center"><span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-[#E8F3FF] px-2 text-sm font-bold text-[#165DFF]">{item.count}</span></td>
-                      <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-[#FFF7E8] px-2 text-sm font-bold text-[#D46B08]">{item.risk_count}</span> : <span className="text-xs text-[#C9CDD4]">无</span>}</td>
-                      <td className="px-4 py-3 text-center text-[#86909C]">{item.last_date}</td>
+
+            <div className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
+              <div className="border-b border-[#E5E6EB] p-4">
+                <h3 className="font-semibold text-[#1D2129]">按项目统计</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#F7F8FA] text-[#86909C]">
+                      <th className="px-4 py-3 text-left font-medium">项目</th>
+                      <th className="px-4 py-3 text-center font-medium">完整率</th>
+                      <th className="px-4 py-3 text-center font-medium">提交天数</th>
+                      <th className="px-4 py-3 text-center font-medium">提交次数</th>
+                      <th className="px-4 py-3 text-center font-medium">风险日志</th>
+                      <th className="px-4 py-3 text-center font-medium">最近提交</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr><td colSpan={6} className="py-8 text-center text-[#86909C]">加载中...</td></tr>
+                    ) : projectStats.length === 0 ? (
+                      <tr><td colSpan={6} className="py-8 text-center text-[#86909C]">本月暂无项目提交记录</td></tr>
+                    ) : projectStats.map(item => (
+                      <tr key={item.project_id} className="border-t border-[#F2F3F5] hover:bg-[#FAFBFF]">
+                        <td className="px-4 py-3 font-medium text-[#1D2129]">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex h-7 min-w-[48px] items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : item.completeness_rate >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                            {item.completeness_rate}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-[#4E5969]">{item.submitted_days}/{item.expected_days} 天</td>
+                        <td className="px-4 py-3 text-center font-semibold text-[#165DFF]">{item.count}</td>
+                        <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="text-[#D46B08]">{item.risk_count}</span> : <span className="text-xs text-[#C9CDD4]">无</span>}</td>
+                        <td className="px-4 py-3 text-center text-[#86909C]">{item.last_date || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
+              <div className="border-b border-[#E5E6EB] p-4">
+                <h3 className="font-semibold text-[#1D2129]">按人员统计</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#F7F8FA] text-[#86909C]">
+                      <th className="px-4 py-3 text-left font-medium">排名</th>
+                      <th className="px-4 py-3 text-left font-medium">姓名</th>
+                      <th className="px-4 py-3 text-center font-medium">完整率</th>
+                      <th className="px-4 py-3 text-center font-medium">提交天数</th>
+                      <th className="px-4 py-3 text-center font-medium">提交次数</th>
+                      <th className="px-4 py-3 text-center font-medium">风险日志</th>
+                      <th className="px-4 py-3 text-center font-medium">最近提交</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr><td colSpan={7} className="py-8 text-center text-[#86909C]">加载中...</td></tr>
+                    ) : stats.length === 0 ? (
+                      <tr><td colSpan={7} className="py-8 text-center text-[#86909C]">本月暂无提交记录</td></tr>
+                    ) : stats.map((item, index) => (
+                      <tr key={item.user_id} className="border-t border-[#F2F3F5] hover:bg-[#FAFBFF]">
+                        <td className="px-4 py-3 text-[#86909C]">{index + 1}</td>
+                        <td className="px-4 py-3 font-medium text-[#1D2129]">{item.user_name}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex h-7 min-w-[48px] items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : (item.completeness_rate || 0) >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                            {item.completeness_rate || 0}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-[#4E5969]">{item.submitted_days || 0}/{item.expected_days || 0} 天</td>
+                        <td className="px-4 py-3 text-center"><span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-[#E8F3FF] px-2 text-sm font-bold text-[#165DFF]">{item.count}</span></td>
+                        <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-[#FFF7E8] px-2 text-sm font-bold text-[#D46B08]">{item.risk_count}</span> : <span className="text-xs text-[#C9CDD4]">无</span>}</td>
+                        <td className="px-4 py-3 text-center text-[#86909C]">{item.last_date}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -407,6 +493,7 @@ export default function ConstructionLogsPage() {
                   {log.headcount != null && <span>{log.headcount}人</span>}
                   {highRisks > 0 && log.risk_level === 'high' && <span className="text-[#F53F3F]">高风险需优先确认</span>}
                   {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
+                  <Link href={`/construction-logs/${log.id}`} className="ml-auto font-medium text-[#165DFF] hover:underline">查看详情</Link>
                 </div>
               </div>
             ))}
