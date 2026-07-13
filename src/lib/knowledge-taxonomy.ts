@@ -8,6 +8,7 @@ export const KNOWLEDGE_BUSINESS_CATEGORIES = [
   '合同结算',
   '标准资料',
   '投标策略',
+  '月度分析',
 ] as const;
 
 export const KNOWLEDGE_CATEGORY_FILTERS = ['全部', ...KNOWLEDGE_BUSINESS_CATEGORIES] as const;
@@ -51,6 +52,7 @@ export function normalizeKnowledgeTags(tags?: string[] | string | null): string[
 }
 
 export function getKnowledgeCategoryLabel(category?: string | null, tags: string[] = []): string {
+  if (tags.includes('月度分析')) return '月度分析';
   if (tags.some(tag => tag === '施工日志风险' || tag.startsWith('风险类型:'))) return '施工管理';
   if (tags.some(tag => tag.includes('签证') || tag.includes('变更'))) return '签证变更';
   if (tags.some(tag => tag.includes('合同') || tag.includes('结算'))) return '合同结算';

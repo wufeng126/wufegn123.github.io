@@ -36,6 +36,7 @@ interface SalaryPayment {
   project_id: number;
   year_month: string;
   payment_amount: number | string | { [key: string]: string | number };
+  amount?: number | string | { [key: string]: string | number };
 }
 
 interface Project {
@@ -94,6 +95,10 @@ function formatCurrency(amount: number): string {
 }
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+
+function getPaymentAmount(payment: SalaryPayment): number {
+  return toNumber(payment.payment_amount) || toNumber(payment.amount);
+}
 
 export default function WorkerCostDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -189,10 +194,11 @@ export default function WorkerCostDashboard() {
       totalNetPay += toNumber(s.net_pay);
     });
     
-    // 已付金额从发放记录表汇总
-    filteredPayments.forEach(p => {
-      totalPaid += toNumber(p.payment_amount);
-    });
+    // 优先使用工资接口按 salary_id 汇总好的已付金额，避免查看权限与付款接口权限不一致导致卡片为 0。
+    const hasSalaryPaidAmounts = filteredSalaries.some(s => s.paid_amount !== undefined && s.paid_amount !== null);
+    totalPaid = hasSalaryPaidAmounts
+      ? filteredSalaries.reduce((sum, s) => sum + toNumber(s.paid_amount), 0)
+      : filteredPayments.reduce((sum, p) => sum + getPaymentAmount(p), 0);
     
     const totalUnpaid = totalNetPay - totalPaid;
     
@@ -228,14 +234,24 @@ export default function WorkerCostDashboard() {
       }
     });
     
-    // 已付金额从发放记录表汇总
-    filteredPayments.forEach(p => {
-      const pid = toNumber(p.project_id);
-      const data = projectMap.get(pid);
-      if (data) {
-        data.paid += toNumber(p.payment_amount);  // 已付
-      }
-    });
+    const hasSalaryPaidAmounts = filteredSalaries.some(s => s.paid_amount !== undefined && s.paid_amount !== null);
+    if (hasSalaryPaidAmounts) {
+      filteredSalaries.forEach(s => {
+        const pid = toNumber(s.project_id);
+        const data = projectMap.get(pid);
+        if (data) {
+          data.paid += toNumber(s.paid_amount);
+        }
+      });
+    } else {
+      filteredPayments.forEach(p => {
+        const pid = toNumber(p.project_id);
+        const data = projectMap.get(pid);
+        if (data) {
+          data.paid += getPaymentAmount(p);  // 已付
+        }
+      });
+    }
     
     return Array.from(projectMap.values()).map(item => ({
       ...item,
@@ -258,17 +274,27 @@ export default function WorkerCostDashboard() {
   const monthlyTrendData = useMemo(() => {
     const monthlyMap = new Map<string, { month: string; amount: number }>();
     
-    filteredSalaries.forEach(s => {
-      const month = s.year_month ? s.year_month.substring(0, 7) : '未知';
-      const existing = monthlyMap.get(month) || { month, amount: 0 };
-      existing.amount += toNumber(s.paid_amount);
-      monthlyMap.set(month, existing);
-    });
+    const hasSalaryPaidAmounts = filteredSalaries.some(s => s.paid_amount !== undefined && s.paid_amount !== null);
+    if (hasSalaryPaidAmounts) {
+      filteredSalaries.forEach(s => {
+        const month = s.year_month ? s.year_month.substring(0, 7) : '未知';
+        const existing = monthlyMap.get(month) || { month, amount: 0 };
+        existing.amount += toNumber(s.paid_amount);
+        monthlyMap.set(month, existing);
+      });
+    } else {
+      filteredPayments.forEach(p => {
+        const month = p.year_month ? p.year_month.substring(0, 7) : '未知';
+        const existing = monthlyMap.get(month) || { month, amount: 0 };
+        existing.amount += getPaymentAmount(p);
+        monthlyMap.set(month, existing);
+      });
+    }
     
     return Array.from(monthlyMap.values())
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
-  }, [filteredSalaries]);
+  }, [filteredSalaries, filteredPayments]);
 
   if (loading) {
     return (

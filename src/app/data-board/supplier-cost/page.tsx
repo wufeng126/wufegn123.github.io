@@ -77,6 +77,10 @@ interface Contract {
   contract_status?: string;
   locked?: boolean;
   supplier?: { id: number; name: string };
+  total_settlement?: number | string;
+  total_payable?: number | string;
+  total_paid?: number | string;
+  has_complete_settlement?: boolean;
 }
 
 interface Settlement {
@@ -92,7 +96,8 @@ interface Settlement {
 interface Payment {
   id: number;
   contract_id: number;
-  payment_amount: number;
+  payment_amount?: number;
+  amount?: number;
   payment_date: string;
 }
 
@@ -185,7 +190,8 @@ function SupplierCostDashboard() {
       const suppliersArray = Array.isArray(suppliersData.suppliers) ? suppliersData.suppliers
         : Array.isArray(suppliersData.data) ? suppliersData.data
         : Array.isArray(suppliersData) ? suppliersData : [];
-      const paymentsArray = Array.isArray(paymentsData.data) ? paymentsData.data
+      const paymentsArray = Array.isArray(paymentsData.payments) ? paymentsData.payments
+        : Array.isArray(paymentsData.data) ? paymentsData.data
         : Array.isArray(paymentsData) ? paymentsData : [];
 
       setContracts(contractsArray);
@@ -209,20 +215,33 @@ function SupplierCostDashboard() {
     const contractSettlements = settlements.filter(s => toNumber(s.contract_id) === contract.id);
     const contractPayments = payments.filter(p => toNumber(p.contract_id) === contract.id);
 
-    const totalSettlement = contractSettlements.reduce((sum, s) => sum + toNumber(s.settlement_amount), 0);
-    const payableAmount = contractSettlements.reduce((sum, s) => sum + toNumber(s.payable_amount), 0);
-    const paidAmount = contractPayments.reduce((sum, p) => sum + toNumber(p.payment_amount), 0);
+    const hasSettlementRows = contractSettlements.length > 0;
+    const totalSettlement = hasSettlementRows
+      ? contractSettlements.reduce((sum, s) => sum + toNumber(s.settlement_amount), 0)
+      : toNumber(contract.total_settlement);
+    const payableAmount = hasSettlementRows
+      ? contractSettlements.reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
+      : toNumber(contract.total_payable);
+    const paidAmount = contractPayments.length > 0
+      ? contractPayments.reduce((sum, p) => sum + (toNumber(p.payment_amount) || toNumber(p.amount)), 0)
+      : toNumber(contract.total_paid);
     const finalPayableAmount = totalSettlement;
-    const hasFinalSettlement = contractSettlements.some(s => s.settlement_type === 'final');
+    const hasFinalSettlement = hasSettlementRows
+      ? contractSettlements.some(s => s.settlement_type === 'final')
+      : Boolean(contract.has_complete_settlement);
     const paymentRate = payableAmount > 0 ? (paidAmount / payableAmount) * 100 : 0;
 
     // 按结算类型拆分：进度结算 vs 决算
-    const progressPayable = contractSettlements
-      .filter(s => s.settlement_type !== 'final')
-      .reduce((sum, s) => sum + toNumber(s.payable_amount), 0);
-    const finalPayable = contractSettlements
-      .filter(s => s.settlement_type === 'final')
-      .reduce((sum, s) => sum + toNumber(s.payable_amount), 0);
+    const progressPayable = hasSettlementRows
+      ? contractSettlements
+        .filter(s => s.settlement_type !== 'final')
+        .reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
+      : (hasFinalSettlement ? 0 : payableAmount);
+    const finalPayable = hasSettlementRows
+      ? contractSettlements
+        .filter(s => s.settlement_type === 'final')
+        .reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
+      : (hasFinalSettlement ? payableAmount : 0);
 
     // 付款分配：先抵扣进度应付，再抵扣决算应付
     const progressUnpaid = Math.max(0, progressPayable - paidAmount);

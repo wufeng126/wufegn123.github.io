@@ -68,6 +68,7 @@ const categoryColors: Record<string, string> = {
   合同结算: '#7C3AED',
   标准资料: '#64748B',
   投标策略: '#7C3AED',
+  月度分析: '#D46B08',
   default: '#64748B',
 };
 
@@ -78,12 +79,47 @@ const qualityColors: Record<string, string> = {
   标准经验: 'bg-[#E8FFEA] text-[#00A870]',
 };
 
+type MonthlyWorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
+
+const monthlyStateLabels: Record<MonthlyWorkflowState, string> = {
+  draft: '草稿',
+  manager_review: '待项目经理补充',
+  budget_confirm: '待预算确认',
+  boss_review: '待老板批复',
+  completed: '已完成',
+};
+
+const monthlyStateTagMap: Record<string, MonthlyWorkflowState> = {
+  '状态:草稿': 'draft',
+  '状态:待项目经理补充': 'manager_review',
+  '状态:待预算确认': 'budget_confirm',
+  '状态:待老板批复': 'boss_review',
+  '状态:已完成': 'completed',
+};
+
+const monthlyStateBadgeClasses: Record<MonthlyWorkflowState, string> = {
+  draft: 'bg-[#F2F3F5] text-[#4E5969]',
+  manager_review: 'bg-[#E8F3FF] text-[#165DFF]',
+  budget_confirm: 'bg-[#F5EEFF] text-[#722ED1]',
+  boss_review: 'bg-[#FFF7E8] text-[#D46B08]',
+  completed: 'bg-[#E8FFEA] text-[#00A870]',
+};
+
 function getCategoryLabel(doc: Pick<KnowledgeDoc, 'category' | 'tags'>) {
   return getKnowledgeCategoryLabel(doc.category, normalizeKnowledgeTags(doc.tags));
 }
 
 function visibleTags(tags?: string[] | string | null) {
-  return normalizeKnowledgeTags(tags).filter(tag => !tag.startsWith('知识等级:'));
+  return normalizeKnowledgeTags(tags).filter(tag => !tag.startsWith('知识等级:') && !tag.startsWith('状态:'));
+}
+
+function isMonthlyAnalysisDoc(doc: Pick<KnowledgeDoc, 'tags' | 'source_ref'>, tags = normalizeKnowledgeTags(doc.tags)) {
+  return tags.includes('月度分析') || String(doc.source_ref || '').startsWith('monthly:');
+}
+
+function getMonthlyWorkflowState(tags: string[]): MonthlyWorkflowState {
+  const stateTag = tags.find(tag => tag.startsWith('状态:'));
+  return stateTag ? monthlyStateTagMap[stateTag] || 'draft' : 'draft';
 }
 
 function stripMarkdown(content?: string | null) {
@@ -614,59 +650,13 @@ export default function KnowledgePage() {
 
       <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1fr_340px]">
         <div className="min-w-0 space-y-5">
-          <section className="rounded-[10px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A8F98]" />
-                <input
-                  value={query}
-                  onChange={event => setQuery(event.target.value)}
-                  placeholder="搜索标题、正文、作者或标签"
-                  className="h-11 w-full rounded-[10px] border border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] pl-10 pr-4 text-sm text-[#171717] outline-none transition focus:border-[#165DFF] focus:bg-white focus:ring-4 focus:ring-[#165DFF]/10"
-                />
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
-                {categories.map(category => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`kb-pill ${activeCategory === category ? 'kb-pill-active' : ''}`}
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category}
-                  </button>
-                ))}
-                <div className="w-px bg-[#E5E6EB] mx-1" />
-                <button
-                  type="button"
-                  className={`kb-pill ${pendingOnly ? 'kb-pill-active' : ''}`}
-                  onClick={() => setPendingOnly(!pendingOnly)}
-                >
-                  📋 待我处理{pendingCount > 0 ? ` (${pendingCount})` : ''}
-                </button>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 border-t border-[#F2F3F5] pt-3">
-              {['全部等级', ...KNOWLEDGE_QUALITY_LEVELS].map(quality => (
-                <button
-                  key={quality}
-                  type="button"
-                  className={`kb-pill ${activeQuality === quality ? 'kb-pill-active' : ''}`}
-                  onClick={() => setActiveQuality(quality)}
-                >
-                  {quality}
-                </button>
-              ))}
-            </div>
-          </section>
-
           <section className="kb-card">
             {activeCategory === '全部' ? (
               <div className="divide-y divide-[#E5E6EB]">
                 {KNOWLEDGE_BUSINESS_CATEGORIES.map(cat => {
                   const catDocs = filteredDocs.filter(d => getCategoryLabel(d) === cat);
                   if (catDocs.length === 0) return null;
-                  const icons: Record<string, string> = { 项目经验: '📄', 成本经验: '¥', 签证变更: '↻', 施工管理: '🧭', 合同结算: '§', 标准资料: '□', 投标策略: '🏆' };
+                  const icons: Record<string, string> = { 项目经验: '📄', 成本经验: '¥', 签证变更: '↻', 施工管理: '🧭', 合同结算: '§', 标准资料: '□', 投标策略: '🏆', 月度分析: '📊' };
                   return (
                     <div key={cat} className="px-5 py-5">
                       <div className="flex items-center gap-2 mb-4">
@@ -681,6 +671,8 @@ export default function KnowledgePage() {
                           const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
                           const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
                           const hasFile = doc.file_key && !doc.file_key.startsWith('bid:');
+                          const isMonthly = isMonthlyAnalysisDoc(doc, docTags);
+                          const monthlyState = getMonthlyWorkflowState(docTags);
                           return (
                             <Link key={doc.id} href={`/knowledge/${doc.id}`}
                               className="group rounded-xl border border-[rgba(0,0,0,0.06)] p-4 hover:border-[#165DFF]/30 hover:shadow-sm transition block">
@@ -691,6 +683,11 @@ export default function KnowledgePage() {
                                   <p className="text-xs text-[#8A8F98] mt-1 line-clamp-2">{stripMarkdown(doc.content) || '暂无摘要'}</p>
                                   <div className="flex items-center gap-2 mt-2 text-[10px] text-[#A9AEB8]">
                                     <span className={`rounded px-1.5 py-0.5 ${qualityColors[quality]}`}>{quality}</span>
+                                    {isMonthly && (
+                                      <span className={`rounded px-1.5 py-0.5 ${monthlyStateBadgeClasses[monthlyState]}`}>
+                                        月度分析 · {monthlyStateLabels[monthlyState]}
+                                      </span>
+                                    )}
                                     <span>{sourceLabel}</span>
                                     <span>{formatDate(doc.updated_at || doc.created_at)}</span>
                                     {hasFile && <span>📎 含附件</span>}
@@ -733,6 +730,8 @@ export default function KnowledgePage() {
                       const docTags = normalizeKnowledgeTags(doc.tags);
                       const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
                       const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
+                      const isMonthly = isMonthlyAnalysisDoc(doc, docTags);
+                      const monthlyState = getMonthlyWorkflowState(docTags);
                       return (
                         <Link href={`/knowledge/${doc.id}`} key={doc.id} className="group block py-4 transition hover:bg-[#F8FAFF]">
                           <div className="flex items-start justify-between gap-4 px-2">
@@ -741,6 +740,11 @@ export default function KnowledgePage() {
                                 <h3 className="text-base font-semibold text-[#171717] group-hover:text-[#165DFF]">{doc.title}</h3>
                                 <span className="rounded-full bg-[rgba(22,93,255,0.06)] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc)}</span>
                                 <span className={`rounded-full px-2 py-1 text-xs ${qualityColors[quality]}`}>{quality}</span>
+                                {isMonthly && (
+                                  <span className={`rounded-full px-2 py-1 text-xs ${monthlyStateBadgeClasses[monthlyState]}`}>
+                                    月度分析 · {monthlyStateLabels[monthlyState]}
+                                  </span>
+                                )}
                               </div>
                               <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#4E5969]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
                               <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#8A8F98]">

@@ -546,15 +546,11 @@ export default function MonthlyReportPage() {
             </div>
             <Button variant="outline" size="sm" onClick={handleCreateAnalysis}><FileText className="w-3.5 h-3.5 mr-1" />{analysisData ? '查看本月分析' : '写本月分析'}</Button>
             <Button variant="outline" size="sm" onClick={loadData} disabled={loading}><RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />刷新</Button>
-            <Button variant="outline" size="sm" onClick={handleExportExcel}><Download className="w-3.5 h-3.5 mr-1" />Excel</Button>
             <Button variant="outline" size="sm" onClick={handleExportPDF}><FileText className="w-3.5 h-3.5 mr-1" />PDF</Button>
             <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}><Eye className="w-3.5 h-3.5 mr-1" />预览</Button>
             <Button variant="outline" size="sm" onClick={handlePrint}><Printer className="w-3.5 h-3.5 mr-1" />打印</Button>
             <Button variant="outline" size="sm" onClick={handleArchiveReport} disabled={!data}><Archive className="w-3.5 h-3.5 mr-1" />存档</Button>
             <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}><History className="w-3.5 h-3.5 mr-1" />历史</Button>
-            <Button size="sm" onClick={handleAIInterpret} disabled={aiInterpreting}>
-              <Sparkles className="w-3.5 h-3.5 mr-1" />{aiInterpreting ? '解读中…' : 'AI解读'}
-            </Button>
           </div>
         </div>
 
