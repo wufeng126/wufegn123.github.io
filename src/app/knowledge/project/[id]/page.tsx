@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, BookOpen, FileText, BarChart3, Users, ClipboardList, CalendarDays, DollarSign, TrendingUp, AlertTriangle, Loader2 } from 'lucide-react';
+import { getKnowledgeCategoryLabel } from '@/lib/knowledge-taxonomy';
 
 type Project = { id: number; name: string; partner?: string; contract_amount?: number; created_at?: string; status?: string };
 type KnowledgeDoc = { id: number | string; title: string; category?: string; content?: string; tags?: any; created_by?: string; created_at?: string; updated_at?: string; source_ref?: string };
@@ -46,6 +47,10 @@ function normalizeTags(tags?: any): string[] {
   if (Array.isArray(tags)) return tags.filter(Boolean).map(String);
   if (typeof tags === 'string') { try { const p = JSON.parse(tags); if (Array.isArray(p)) return p.filter(Boolean).map(String); } catch {} }
   return [];
+}
+
+function getCategory(doc: KnowledgeDoc) {
+  return getKnowledgeCategoryLabel(doc.category, normalizeTags(doc.tags));
 }
 
 function formatAmount(v?: number | null) {
@@ -100,10 +105,10 @@ export default function ProjectKnowledgePage() {
 
   const monthlyDocs = useMemo(() => docs.filter(d => normalizeTags(d.tags).includes('月度分析')), [docs]);
   const costDocs = useMemo(() => docs.filter(d => {
-    const cat = d.category || '';
-    return cat === '成本分析' || cat === '工序单价';
+    const cat = getCategory(d);
+    return cat === '成本经验';
   }), [docs]);
-  const experienceDocs = useMemo(() => docs.filter(d => d.category === '经验总结'), [docs]);
+  const experienceDocs = useMemo(() => docs.filter(d => getCategory(d) === '项目经验'), [docs]);
   const riskLogs = useMemo(() => logs.filter(log => log.risk_level), [logs]);
   const riskKnowledgeDocs = useMemo(() => docs.filter(d => normalizeTags(d.tags).includes('施工日志风险')), [docs]);
   const projectRiskTypes = useMemo(() => {
@@ -136,7 +141,7 @@ export default function ProjectKnowledgePage() {
     { key: 'team', icon: Users, label: '班组信息', desc: '各班组与对下合同价', count: docs.filter(d => normalizeTags(d.tags).includes('班组信息') || d.title?.includes('班组')).length, color: 'from-[#F59E0B] to-[#FBBF24]' },
     { key: 'salary', icon: DollarSign, label: '结算台账', desc: '包活与点工结算', count: docs.filter(d => d.title?.includes('结算') || d.content?.includes('结算')).length, color: 'from-[#7C3AED] to-[#A78BFA]' },
     { key: 'cost', icon: TrendingUp, label: '成本分析', desc: '对下成本与对上差额', count: costDocs.length, color: 'from-[#EC4899] to-[#F472B6]' },
-    { key: 'visa', icon: FileText, label: '签证变更', desc: '变更洽商与签证', count: docs.filter(d => d.title?.includes('签证') || d.category === '签证').length, color: 'from-[#14B8A6] to-[#2DD4BF]' },
+    { key: 'visa', icon: FileText, label: '签证变更', desc: '变更洽商与签证', count: docs.filter(d => d.title?.includes('签证') || getCategory(d) === '签证变更').length, color: 'from-[#14B8A6] to-[#2DD4BF]' },
   ];
 
   if (loading) {

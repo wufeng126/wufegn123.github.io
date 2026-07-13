@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getAIConfig, clearAIConfigCache, AIConfig } from '@/lib/ai-service';
+import { getAIConfig, clearAIConfigCache } from '@/lib/ai-service';
+
+export const dynamic = 'force-dynamic';
 
 // GET /api/ai/config - 获取AI配置
 export async function GET() {

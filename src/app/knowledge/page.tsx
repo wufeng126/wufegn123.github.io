@@ -4,15 +4,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
-  BookOpen,
   FileText,
-  Layers,
   Network,
   Plus,
   Search,
   Sparkles,
   Tag,
 } from 'lucide-react';
+import {
+  KNOWLEDGE_BUSINESS_CATEGORIES,
+  KNOWLEDGE_CATEGORY_FILTERS,
+  KNOWLEDGE_QUALITY_LEVELS,
+  getKnowledgeCategoryLabel,
+  getKnowledgeQuality,
+  getKnowledgeSourceLabel,
+  normalizeKnowledgeTags,
+} from '@/lib/knowledge-taxonomy';
 
 type KnowledgeDoc = {
   id: string | number;
@@ -24,17 +31,11 @@ type KnowledgeDoc = {
   created_at?: string | null;
   updated_at?: string | null;
   tags?: string[] | string | null;
+  source_type?: string | null;
   source_ref?: string | null;
   file_key?: string | null;
   file_name?: string | null;
   file_size?: number | null;
-};
-
-type Project = {
-  id: string | number;
-  name: string;
-  partner?: string | null;
-  contract_amount?: string | number | null;
 };
 
 type GraphNode = {
@@ -54,40 +55,34 @@ type GraphLink = {
   target: string;
 };
 
-const categories = ['全部', '项目档案', '经验总结', '投标策略'];
+const categories: string[] = [...KNOWLEDGE_CATEGORY_FILTERS];
 
-const quickLinks = ['项目档案', '经验总结', '投标策略', '月度分析'];
+const quickLinks = ['项目经验', '成本经验', '签证变更', '施工管理', '合同结算', '标准资料', '月度分析'];
 
 const categoryColors: Record<string, string> = {
-  项目档案: '#165DFF',
-  经验总结: '#F59E0B',
+  项目经验: '#165DFF',
+  成本经验: '#0EA5E9',
+  签证变更: '#14B8A6',
+  施工管理: '#F59E0B',
+  合同结算: '#7C3AED',
+  标准资料: '#64748B',
   投标策略: '#7C3AED',
   default: '#64748B',
 };
 
-const legacyCategoryMap: Record<string, string> = {
-  business_data: '项目档案',
-  law: '定额参考',
-  company_policy: '经验总结',
-  contract_template: '投标策略',
+const qualityColors: Record<string, string> = {
+  原始记录: 'bg-[#F2F3F5] text-[#4E5969]',
+  已整理: 'bg-[#E8F3FF] text-[#165DFF]',
+  推荐复用: 'bg-[#FFF7E8] text-[#D46B08]',
+  标准经验: 'bg-[#E8FFEA] text-[#00A870]',
 };
 
-function getCategoryLabel(category?: string | null) {
-  if (!category) return '项目档案';
-  return legacyCategoryMap[category] || category;
+function getCategoryLabel(doc: Pick<KnowledgeDoc, 'category' | 'tags'>) {
+  return getKnowledgeCategoryLabel(doc.category, normalizeKnowledgeTags(doc.tags));
 }
 
-function normalizeTags(tags?: string[] | string | null) {
-  if (Array.isArray(tags)) return tags.filter(Boolean);
-  if (typeof tags === 'string') {
-    try {
-      const parsed = JSON.parse(tags);
-      if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    } catch {
-      return tags.split(',').map(tag => tag.trim()).filter(Boolean);
-    }
-  }
-  return [];
+function visibleTags(tags?: string[] | string | null) {
+  return normalizeKnowledgeTags(tags).filter(tag => !tag.startsWith('知识等级:'));
 }
 
 function stripMarkdown(content?: string | null) {
@@ -106,25 +101,6 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
-function formatAmount(value?: string | number | null) {
-  const amount = Number(value || 0);
-  if (!Number.isFinite(amount) || amount <= 0) return '未录入';
-  if (amount >= 100000000) return `${(amount / 100000000).toFixed(2)}亿元`;
-  if (amount >= 10000) return `${(amount / 10000).toFixed(2)}万元`;
-  return `${amount.toLocaleString('zh-CN')}元`;
-}
-
-function isDocRelatedToProject(doc: KnowledgeDoc, project: Project) {
-  const projectId = String(project.id);
-  const sourceRef = String(doc.source_ref || '');
-  const title = doc.title || '';
-  const content = doc.content || '';
-  const tags = normalizeTags(doc.tags).join(' ');
-  // 精确匹配 source_ref 中的项目ID（避免子串误匹配）
-  const refMatch = sourceRef.includes(`:${projectId}:`) || sourceRef.includes(`:${projectId}`) || sourceRef === projectId;
-  return refMatch || tags.includes(project.name) || title.includes(project.name) || content.includes(project.name) || sourceRef.includes(project.name);
-}
-
 function buildGraph(docs: KnowledgeDoc[], width: number, height: number) {
   const nodes = new Map<string, GraphNode>();
   const links: GraphLink[] = [];
@@ -138,7 +114,7 @@ function buildGraph(docs: KnowledgeDoc[], width: number, height: number) {
     nodes.set(id, {
       id,
       label: doc.title,
-      category: getCategoryLabel(doc.category),
+      category: getCategoryLabel(doc),
       x: width / 2 + Math.cos(angle) * radius,
       y: height / 2 + Math.sin(angle) * radius,
       vx: 0,
@@ -428,9 +404,9 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
         </div>
       </div>
       <div className="mt-2 flex items-center gap-3 text-[10px] text-[#8A8F98]">
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#165DFF] mr-1" />项目档案</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#F59E0B] mr-1" />经验总结</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#7C3AED] mr-1" />投标策略</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#165DFF] mr-1" />项目经验</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#0EA5E9] mr-1" />成本经验</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#F59E0B] mr-1" />施工管理</span>
       </div>
       {hoverNode && (
         <div className="absolute left-3 bottom-14 bg-white/90 backdrop-blur rounded-lg border border-[rgba(0,0,0,0.06)] shadow-sm px-2.5 py-1.5 text-xs z-10">
@@ -444,36 +420,32 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ role?: string; username?: string; name?: string } | null>(null);
   const [pendingOnly, setPendingOnly] = useState(false);
   const [showMoreCategories, setShowMoreCategories] = useState(false);
+  const [activeQuality, setActiveQuality] = useState('全部等级');
 
   useEffect(() => {
     let mounted = true;
 
     async function loadData() {
       try {
-        const [knowledgeRes, projectRes, userRes] = await Promise.all([
+        const [knowledgeRes, userRes] = await Promise.all([
           fetch('/api/ai/knowledge?page_size=100&status=active'),
-          fetch('/api/projects'),
           fetch('/api/auth/me'),
         ]);
         const knowledgeJson = await knowledgeRes.json();
-        const projectJson = await projectRes.json();
         const userJson = await userRes.json();
         if (!mounted) return;
         const docsList = Array.isArray(knowledgeJson.data) ? knowledgeJson.data : [];
         setDocs(docsList);
-        setProjects(Array.isArray(projectJson.projects) ? projectJson.projects : []);
         setCurrentUser(userJson);
       } catch {
         if (mounted) {
           setDocs([]);
-          setProjects([]);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -486,15 +458,17 @@ export default function KnowledgePage() {
     };
   }, []);
 
-  const monthlyDocCount = useMemo(() => docs.filter(d => {
-    const tags = normalizeTags(d.tags);
-    return tags.includes('月度分析');
-  }).length, [docs]);
+  const qualityStats = useMemo(() => {
+    return KNOWLEDGE_QUALITY_LEVELS.reduce<Record<string, number>>((acc, quality) => {
+      acc[quality] = docs.filter(doc => getKnowledgeQuality(normalizeKnowledgeTags(doc.tags), doc.source_type, doc.category) === quality).length;
+      return acc;
+    }, {});
+  }, [docs]);
 
   const pendingCount = useMemo(() => {
     const role = currentUser?.role;
     return docs.filter(doc => {
-      const tags = normalizeTags(doc.tags);
+      const tags = normalizeKnowledgeTags(doc.tags);
       if (!tags.includes('月度分析')) return false;
       const state = tags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
       if (state === '草稿' && (role === 'admin' || role === 'super_admin')) return true;
@@ -509,15 +483,18 @@ export default function KnowledgePage() {
     const keyword = query.trim().toLowerCase();
     const role = currentUser?.role;
     return docs.filter(doc => {
-      const category = getCategoryLabel(doc.category);
-      const tags = normalizeTags(doc.tags).join(' ');
-      const searchable = `${doc.title} ${doc.content || ''} ${doc.created_by || ''} ${tags} ${category}`.toLowerCase();
+      const docTags = normalizeKnowledgeTags(doc.tags);
+      const category = getCategoryLabel(doc);
+      const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
+      const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
+      const tags = docTags.join(' ');
+      const searchable = `${doc.title} ${doc.content || ''} ${doc.created_by || ''} ${tags} ${category} ${quality} ${sourceLabel}`.toLowerCase();
       const matchesKeyword = !keyword || searchable.includes(keyword);
       const matchesCategory = activeCategory === '全部' || category === activeCategory;
+      const matchesQuality = activeQuality === '全部等级' || quality === activeQuality;
 
       // 待我处理筛选
       if (pendingOnly) {
-        const docTags = normalizeTags(doc.tags);
         if (!docTags.includes('月度分析')) return false;
         const state = docTags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
         const isPending =
@@ -528,21 +505,9 @@ export default function KnowledgePage() {
         if (!isPending) return false;
       }
 
-      return matchesKeyword && matchesCategory;
+      return matchesKeyword && matchesCategory && matchesQuality;
     });
-  }, [docs, query, activeCategory, currentUser, pendingOnly]);
-
-  const projectCards = useMemo(() => {
-    return projects.slice(0, 8).map(project => {
-      const relatedDocs = docs.filter(doc => isDocRelatedToProject(doc, project));
-      const costItems = relatedDocs.filter(doc => {
-        const category = getCategoryLabel(doc.category);
-        const text = `${doc.title} ${doc.content || ''}`;
-        return /成本|单价|费用|结算/.test(text);
-      });
-      return { project, knowledgeCount: relatedDocs.length, costCount: costItems.length };
-    });
-  }, [docs, projects]);
+  }, [docs, query, activeCategory, activeQuality, currentUser, pendingOnly]);
 
   return (
     <div className="min-h-full bg-[var(--bg-page)] p-3 md:p-6">
@@ -561,7 +526,7 @@ export default function KnowledgePage() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#171717] md:text-2xl">知识库</h1>
-          <p className="mt-0.5 text-xs text-[#8A8F98] md:text-sm">经验沉淀 · 策略复盘 · 项目档案</p>
+          <p className="mt-0.5 text-xs text-[#8A8F98] md:text-sm">项目经验 · 成本经验 · 标准资料 · 复用沉淀</p>
         </div>
         <div className="flex items-center gap-2">
           {pendingCount > 0 && (
@@ -580,8 +545,9 @@ export default function KnowledgePage() {
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none md:grid md:grid-cols-4 md:gap-3">
         {[
           { label: '知识总数', value: docs.length, color: '#165DFF' },
-          { label: '项目数', value: projectCards.length, color: '#7C3AED' },
-          { label: '月度分析', value: monthlyDocCount, color: '#10B981' },
+          { label: '原始记录', value: qualityStats['原始记录'] || 0, color: '#64748B' },
+          { label: '推荐复用', value: qualityStats['推荐复用'] || 0, color: '#D46B08' },
+          { label: '标准经验', value: qualityStats['标准经验'] || 0, color: '#00A870' },
           { label: '待处理', value: pendingCount, color: '#F53F3F', show: pendingCount > 0 },
         ].filter(s => s.show !== false).map((s, i) => (
           <div key={i} className="rounded-[10px] bg-white p-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
@@ -628,6 +594,18 @@ export default function KnowledgePage() {
             📋 待办{pendingCount > 0 ? ` (${pendingCount})` : ''}
           </button>
         </div>
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[#F2F3F5] pt-3">
+          {['全部等级', ...KNOWLEDGE_QUALITY_LEVELS].map(quality => (
+            <button
+              key={quality}
+              type="button"
+              className={`kb-pill ${activeQuality === quality ? 'kb-pill-active' : ''}`}
+              onClick={() => setActiveQuality(quality)}
+            >
+              {quality}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1fr_340px]">
@@ -664,15 +642,27 @@ export default function KnowledgePage() {
                 </button>
               </div>
             </div>
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-[#F2F3F5] pt-3">
+              {['全部等级', ...KNOWLEDGE_QUALITY_LEVELS].map(quality => (
+                <button
+                  key={quality}
+                  type="button"
+                  className={`kb-pill ${activeQuality === quality ? 'kb-pill-active' : ''}`}
+                  onClick={() => setActiveQuality(quality)}
+                >
+                  {quality}
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="kb-card">
             {activeCategory === '全部' ? (
               <div className="divide-y divide-[#E5E6EB]">
-                {['项目档案', '经验总结', '投标策略'].map(cat => {
-                  const catDocs = filteredDocs.filter(d => getCategoryLabel(d.category) === cat);
+                {KNOWLEDGE_BUSINESS_CATEGORIES.map(cat => {
+                  const catDocs = filteredDocs.filter(d => getCategoryLabel(d) === cat);
                   if (catDocs.length === 0) return null;
-                  const icons: Record<string, string> = { '项目档案': '📄', '经验总结': '📝', '投标策略': '🏆' };
+                  const icons: Record<string, string> = { 项目经验: '📄', 成本经验: '¥', 签证变更: '↻', 施工管理: '🧭', 合同结算: '§', 标准资料: '□', 投标策略: '🏆' };
                   return (
                     <div key={cat} className="px-5 py-5">
                       <div className="flex items-center gap-2 mb-4">
@@ -682,7 +672,10 @@ export default function KnowledgePage() {
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         {catDocs.slice(0, 6).map(doc => {
-                          const tags = normalizeTags(doc.tags);
+                          const tags = visibleTags(doc.tags);
+                          const docTags = normalizeKnowledgeTags(doc.tags);
+                          const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
+                          const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
                           const hasFile = doc.file_key && !doc.file_key.startsWith('bid:');
                           return (
                             <Link key={doc.id} href={`/knowledge/${doc.id}`}
@@ -693,6 +686,8 @@ export default function KnowledgePage() {
                                   <p className="text-sm font-medium text-[#171717] group-hover:text-[#165DFF] line-clamp-1">{doc.title}</p>
                                   <p className="text-xs text-[#8A8F98] mt-1 line-clamp-2">{stripMarkdown(doc.content) || '暂无摘要'}</p>
                                   <div className="flex items-center gap-2 mt-2 text-[10px] text-[#A9AEB8]">
+                                    <span className={`rounded px-1.5 py-0.5 ${qualityColors[quality]}`}>{quality}</span>
+                                    <span>{sourceLabel}</span>
                                     <span>{formatDate(doc.updated_at || doc.created_at)}</span>
                                     {hasFile && <span>📎 含附件</span>}
                                     {tags.slice(0, 2).map(t => <span key={t} className="inline-flex items-center gap-0.5 rounded bg-[#F7F8FA] px-1.5 py-0.5"><Tag className="h-2.5 w-2.5" />{t}</span>)}
@@ -730,17 +725,22 @@ export default function KnowledgePage() {
                     <div className="py-10 text-center text-sm text-[#8A8F98]">正在加载知识库...</div>
                   ) : filteredDocs.length > 0 ? (
                     filteredDocs.slice(0, 12).map(doc => {
-                      const tags = normalizeTags(doc.tags);
+                      const tags = visibleTags(doc.tags);
+                      const docTags = normalizeKnowledgeTags(doc.tags);
+                      const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
+                      const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
                       return (
                         <Link href={`/knowledge/${doc.id}`} key={doc.id} className="group block py-4 transition hover:bg-[#F8FAFF]">
                           <div className="flex items-start justify-between gap-4 px-2">
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="text-base font-semibold text-[#171717] group-hover:text-[#165DFF]">{doc.title}</h3>
-                                <span className="rounded-full bg-[rgba(22,93,255,0.06)] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc.category)}</span>
+                                <span className="rounded-full bg-[rgba(22,93,255,0.06)] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc)}</span>
+                                <span className={`rounded-full px-2 py-1 text-xs ${qualityColors[quality]}`}>{quality}</span>
                               </div>
                               <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#4E5969]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
                               <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#8A8F98]">
+                                <span>来源：{sourceLabel}</span>
                                 <span>作者：{doc.created_by || '系统'}</span>
                                 <span>更新：{formatDate(doc.updated_at || doc.created_at)}</span>
                                 {tags.slice(0, 4).map(tag => (
@@ -781,7 +781,7 @@ export default function KnowledgePage() {
                   onClick={() => {
                     const target = link === '定额参考' ? '全部' : link;
                     setActiveCategory(categories.includes(target) ? target : '全部');
-                    setQuery(link === '成本对比' || link === '定额参考' ? link.replace('对比', '') : '');
+                    setQuery(link === '月度分析' ? '月度分析' : '');
                   }}
                 >
                   {link}

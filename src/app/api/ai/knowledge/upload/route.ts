@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KnowledgeClient, FetchClient, Config, DataSourceType, S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { extractForwardHeaders, addKnowledgeDoc } from '@/lib/ai-service';
+import { extractForwardHeaders } from '@/lib/ai-service';
+import { upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const SUPPORTED_EXTENSIONS = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|epub|mobi|xml)$/i;
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
             file_key: storageKey,
             file_name: fileName,
             file_size: file.size,
+            tags: upsertKnowledgeQualityTag([], '已整理'),
             chunk_count: knowledgeDocIds.length,
             status: extractedContent ? 'active' : 'error',
             dataset_name: 'coze_doc_knowledge',

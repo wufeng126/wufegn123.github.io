@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Download, FileText, Link2, MessageSquare, Send, Tag, UserRound } from 'lucide-react';
+import {
+  getKnowledgeCategoryLabel,
+  getKnowledgeProjectName,
+  getKnowledgeQuality,
+  getKnowledgeScenarioTags,
+  getKnowledgeSourceLabel,
+  normalizeKnowledgeTags,
+} from '@/lib/knowledge-taxonomy';
 
 type KnowledgeDoc = {
   id: string | number;
@@ -14,6 +22,8 @@ type KnowledgeDoc = {
   created_at?: string | null;
   updated_at?: string | null;
   tags?: string[] | string | null;
+  source_type?: string | null;
+  source_ref?: string | null;
   file_key?: string | null;
   file_name?: string | null;
   file_size?: number | null;
@@ -28,19 +38,6 @@ type CurrentUser = {
   name?: string;
 };
 
-const categoryMap: Record<string, string> = {
-  business_data: '项目档案',
-  law: '经验总结',
-  company_policy: '经验总结',
-  contract_template: '投标策略',
-  field_glossary: '工序单价',
-};
-
-function getCategoryLabel(category?: string | null) {
-  if (!category) return '项目档案';
-  return categoryMap[category] || category;
-}
-
 function formatDate(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
@@ -52,19 +49,6 @@ function formatDate(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function normalizeTags(tags?: string[] | string | null) {
-  if (Array.isArray(tags)) return tags.filter(Boolean);
-  if (typeof tags === 'string') {
-    try {
-      const parsed = JSON.parse(tags);
-      if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    } catch {
-      return tags.split(',').map(tag => tag.trim()).filter(Boolean);
-    }
-  }
-  return [];
 }
 
 function extractWikiLinks(content?: string | null) {
@@ -102,6 +86,13 @@ const stateBadgeClasses: Record<WorkflowState, string> = {
   budget_confirm: 'bg-[#F5EEFF] text-[#722ED1]',
   boss_review: 'bg-[#FFF7E8] text-[#D46B08]',
   completed: 'bg-[#E8FFEA] text-[#00A870]',
+};
+
+const qualityBadgeClasses: Record<string, string> = {
+  原始记录: 'bg-[#F2F3F5] text-[#4E5969]',
+  已整理: 'bg-[#E8F3FF] text-[#165DFF]',
+  推荐复用: 'bg-[#FFF7E8] text-[#D46B08]',
+  标准经验: 'bg-[#E8FFEA] text-[#00A870]',
 };
 
 const actionByState: Partial<Record<WorkflowState, { action: WorkflowAction; label: string; placeholder: string }>> = {
@@ -153,6 +144,41 @@ function extractWorkflowComments(content?: string | null) {
     title: match[1].trim(),
     body: match[2].trim(),
   })).filter(item => item.body);
+}
+
+function stripMarkdown(content?: string | null) {
+  return (content || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\[\[([^\]]+)\]\]/g, '$1')
+    .replace(/[#>*_`~\-[\]()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractSection(content: string | null | undefined, headingKeywords: string[]) {
+  const text = content || '';
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex(line => headingKeywords.some(keyword => line.includes(keyword)));
+  if (start < 0) return '';
+  const body: string[] = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^#{1,4}\s+/.test(line) && body.length > 0) break;
+    if (line.trim()) body.push(line.trim());
+  }
+  return stripMarkdown(body.join(' ')).slice(0, 180);
+}
+
+function getKeyTakeaway(content?: string | null) {
+  const explicit = extractSection(content, ['关键结论', '核心结论', '经验总结', '结论']);
+  if (explicit) return explicit;
+  const paragraph = stripMarkdown(content).split(/[。；;.!?？]/).filter(Boolean)[0] || '';
+  return paragraph.slice(0, 160) || '暂未提炼关键结论，可在正文中补充“关键结论”小节。';
+}
+
+function getReuseSuggestion(content?: string | null) {
+  const explicit = extractSection(content, ['复用建议', '跟进建议', '下次', '注意事项', '改进点']);
+  return explicit || '暂未形成明确复用建议，后续可补充适用条件、操作要点和注意事项。';
 }
 
 export default function KnowledgeDetailPage() {
@@ -208,7 +234,15 @@ export default function KnowledgeDetailPage() {
     };
   }, [params.id]);
 
-  const tags = useMemo(() => normalizeTags(doc?.tags), [doc?.tags]);
+  const tags = useMemo(() => normalizeKnowledgeTags(doc?.tags), [doc?.tags]);
+  const visibleTags = useMemo(() => tags.filter(tag => !tag.startsWith('知识等级:')), [tags]);
+  const categoryLabel = useMemo(() => getKnowledgeCategoryLabel(doc?.category, tags), [doc?.category, tags]);
+  const quality = useMemo(() => getKnowledgeQuality(tags, doc?.source_type, doc?.category), [tags, doc?.source_type, doc?.category]);
+  const sourceLabel = useMemo(() => getKnowledgeSourceLabel(doc?.source_type, doc?.source_ref, tags), [doc?.source_type, doc?.source_ref, tags]);
+  const projectName = useMemo(() => getKnowledgeProjectName(doc?.source_ref, tags), [doc?.source_ref, tags]);
+  const scenarioTags = useMemo(() => getKnowledgeScenarioTags(categoryLabel, tags), [categoryLabel, tags]);
+  const keyTakeaway = useMemo(() => getKeyTakeaway(doc?.content), [doc?.content]);
+  const reuseSuggestion = useMemo(() => getReuseSuggestion(doc?.content), [doc?.content]);
   const workflowState = useMemo(() => getWorkflowState(tags), [tags]);
   const isMonthly = useMemo(() => isMonthlyAnalysis(tags), [tags]);
   const canAct = useMemo(() => canUserHandleState(currentUser?.role, workflowState), [currentUser?.role, workflowState]);
@@ -269,9 +303,12 @@ export default function KnowledgeDetailPage() {
               <header className="border-b border-[rgba(0,0,0,0.06)] px-5 py-6 md:px-7">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className="inline-flex rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[#165DFF]">
-                    {getCategoryLabel(doc.category)}
+                    {categoryLabel}
                   </span>
-                  {tags.map(tag => (
+                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${qualityBadgeClasses[quality]}`}>
+                    {quality}
+                  </span>
+                  {visibleTags.map(tag => (
                     <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#F7F8FA] px-2.5 py-1 text-xs text-[#4E5969]">
                       <Tag className="h-3 w-3" />
                       {tag}
@@ -325,6 +362,54 @@ export default function KnowledgeDetailPage() {
                   </div>
                 )}
               </header>
+
+              <section className="border-b border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] px-5 py-5 md:px-7">
+                <div className="grid gap-4 md:grid-cols-[1.1fr_1fr]">
+                  <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-[#171717]">
+                      <FileText className="h-4 w-4 text-[#165DFF]" />
+                      知识业务卡片
+                    </div>
+                    <div className="mt-3 grid gap-3 text-sm text-[#4E5969] sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs text-[#8A8F98]">业务分类</p>
+                        <p className="mt-1 font-medium text-[#171717]">{categoryLabel}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#8A8F98]">知识等级</p>
+                        <p className="mt-1 font-medium text-[#171717]">{quality}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#8A8F98]">来源</p>
+                        <p className="mt-1 font-medium text-[#171717]">{sourceLabel}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#8A8F98]">关联项目</p>
+                        <p className="mt-1 font-medium text-[#171717]">{projectName || '未关联具体项目'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <p className="text-xs text-[#8A8F98]">适用场景</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {scenarioTags.map(item => (
+                          <span key={item} className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">{item}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+                      <p className="text-xs font-medium text-[#8A8F98]">关键结论</p>
+                      <p className="mt-2 text-sm leading-6 text-[#171717]">{keyTakeaway}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+                      <p className="text-xs font-medium text-[#8A8F98]">复用建议</p>
+                      <p className="mt-2 text-sm leading-6 text-[#171717]">{reuseSuggestion}</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <div className="px-5 py-6 md:px-7">
                 <div className="min-h-[280px] whitespace-pre-wrap break-words rounded-xl border border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] p-5 text-sm leading-7 text-[#171717]">

@@ -4,17 +4,27 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Upload, FileText, Loader2, Lightbulb } from 'lucide-react';
+import {
+  KNOWLEDGE_BUSINESS_CATEGORIES,
+  KNOWLEDGE_QUALITY_LEVELS,
+  type KnowledgeQualityLabel,
+  upsertKnowledgeQualityTag,
+} from '@/lib/knowledge-taxonomy';
 
 interface Project {
   id: number;
   name: string;
 }
 
-const categories = ['项目档案', '成本分析', '工序单价', '经验总结', '投标策略'];
+const categories: string[] = [...KNOWLEDGE_BUSINESS_CATEGORIES];
 
 const categoryHints: Record<string, string[]> = {
-  '经验总结': ['本次遇到的主要问题是什么？', '采取了什么措施？', '效果如何？', '下次遇到类似情况有什么建议？'],
-  '项目档案': ['项目概况', '合同关键条款', '主要参建单位', '特殊工艺要求'],
+  '项目经验': ['项目背景是什么？', '现场遇到的关键问题是什么？', '处理过程和结果如何？', '下次遇到类似项目应注意什么？'],
+  '成本经验': ['涉及哪些成本项？', '计划与实际差异在哪里？', '形成差异的原因是什么？', '以后如何控制或复用？'],
+  '签证变更': ['变更或签证的触发原因是什么？', '证据资料是否齐全？', '对工期和成本有什么影响？', '后续办理要点是什么？'],
+  '施工管理': ['现场管理动作是什么？', '责任人和班组是谁？', '风险或问题如何跟进？', '可沉淀成什么管理要求？'],
+  '合同结算': ['涉及哪类合同或结算条款？', '关键口径是什么？', '争议或风险点在哪里？', '下次签约/结算要注意什么？'],
+  '标准资料': ['资料适用范围是什么？', '关键标准或口径是什么？', '引用来源是什么？', '是否可作为标准经验复用？'],
   '投标策略': ['投标项目名称', '报价策略', '中标/未中标原因', '下次投标改进点'],
 };
 
@@ -23,6 +33,7 @@ export default function NewKnowledgePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(categories[0]);
+  const [quality, setQuality] = useState<KnowledgeQualityLabel>('已整理');
   const [projectId, setProjectId] = useState('');
   const [tags, setTags] = useState('');
   const [content, setContent] = useState('');
@@ -95,12 +106,16 @@ export default function NewKnowledgePage() {
       }
 
       // 2. 保存知识条目
+      const baseTags = tags.split(',').map(tag => tag.trim()).filter(Boolean);
+      const enrichedTags = selectedProject
+        ? [...baseTags, selectedProject.name, `项目ID:${selectedProject.id}`]
+        : baseTags;
       const payload = {
         title: title.trim(),
         category,
         source_type: 'manual',
         source_ref: selectedProject ? `project:${selectedProject.id}:${selectedProject.name}` : null,
-        tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        tags: upsertKnowledgeQualityTag(enrichedTags, quality),
         content: content.trim(),
         file_key: fileKey || null,
         file_name: fileName || null,
@@ -166,7 +181,7 @@ export default function NewKnowledgePage() {
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-[#171717]">写知识</h1>
-            <p className="mt-1 text-sm text-[#8A8F98]">沉淀项目档案、成本分析、工序单价和投标策略。</p>
+            <p className="mt-1 text-sm text-[#8A8F98]">按业务分类沉淀经验、资料和可复用做法。</p>
           </div>
           <Link
             href="/knowledge"
@@ -202,6 +217,35 @@ export default function NewKnowledgePage() {
                   </option>
                 ))}
               </select>
+              <div className="rounded-lg bg-[#F8FAFF] p-3 text-xs leading-6 text-[#4E5969]">
+                <div className="mb-1 flex items-center gap-1 font-medium text-[#165DFF]">
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  建议内容
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(categoryHints[category] || []).map(hint => (
+                    <span key={hint} className="rounded bg-white px-2 py-1">{hint}</span>
+                  ))}
+                </div>
+              </div>
+            </label>
+
+            <label className="space-y-2">
+              <span className="knowledge-label">知识等级</span>
+              <select
+                value={quality}
+                onChange={event => setQuality(event.target.value as KnowledgeQualityLabel)}
+                className="knowledge-field h-11 px-3"
+              >
+                {KNOWLEDGE_QUALITY_LEVELS.map(item => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs leading-5 text-[#8A8F98]">
+                原始记录用于留痕，已整理可查阅，推荐复用适合项目借鉴，标准经验可作为公司口径。
+              </p>
             </label>
 
             <label className="space-y-2">
@@ -221,7 +265,7 @@ export default function NewKnowledgePage() {
               </select>
             </label>
 
-            <label className="space-y-2 md:col-span-2">
+            <label className="space-y-2">
               <span className="knowledge-label">标签</span>
               <input
                 value={tags}
@@ -230,6 +274,27 @@ export default function NewKnowledgePage() {
                 placeholder="多个标签用逗号分隔，例如：劳务,单价,结算"
               />
             </label>
+
+            <div className="space-y-2 md:col-span-2">
+              <span className="knowledge-label">附件</span>
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
+                onChange={event => setFile(event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-dashed border-[#C9CDD4] bg-[#FBFCFF] px-3 py-2 text-left text-sm text-[#4E5969] transition hover:border-[#165DFF] hover:bg-white"
+              >
+                <span className="inline-flex items-center gap-2">
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin text-[#165DFF]" /> : <Upload className="h-4 w-4 text-[#165DFF]" />}
+                  {file ? file.name : '可选：上传与本条知识相关的合同、清单或现场资料'}
+                </span>
+                {file ? <span className="text-xs text-[#8A8F98]">{(file.size / 1024).toFixed(1)}KB</span> : null}
+              </button>
+            </div>
 
             <label className="space-y-2 md:col-span-2">
               <span className="knowledge-label">Markdown 内容</span>

@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { searchKnowledge, addKnowledgeDoc, extractForwardHeaders } from '@/lib/ai-service';
+import { addKnowledgeDoc, extractForwardHeaders } from '@/lib/ai-service';
 import { syncAllBusinessData, syncSingleDataType } from '@/lib/ai-knowledge-sync';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiResult, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { getKnowledgeQuality, normalizeKnowledgeTags, upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 
 // GET /api/ai/knowledge - 获取知识库文档列表
 export async function GET(request: NextRequest) {
@@ -53,6 +54,12 @@ export async function POST(request: NextRequest) {
       return apiBadRequest('标题、分类和内容不能为空');
     }
 
+    const sourceType = source_type || 'manual';
+    const normalizedTags = normalizeKnowledgeTags(tags);
+    const tagsWithQuality = normalizedTags.some(tag => tag.startsWith('知识等级:'))
+      ? normalizedTags
+      : upsertKnowledgeQualityTag(normalizedTags, getKnowledgeQuality(normalizedTags, sourceType, category));
+
     // 添加到向量知识库
     const forwardHeaders = extractForwardHeaders(request.headers);
     const kbSuccess = await addKnowledgeDoc(title, content, undefined, forwardHeaders);
@@ -62,19 +69,18 @@ export async function POST(request: NextRequest) {
     const insertData: Record<string, any> = {
       title,
       category,
-      source_type: source_type || 'manual',
+      source_type: sourceType,
       source_ref,
       content,
-      tags: Array.isArray(tags)
-        ? tags
-        : typeof tags === 'string'
-          ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
-          : [],
+      tags: tagsWithQuality,
       status: kbSuccess ? 'active' : 'error',
       error_message: kbSuccess ? null : '向量库同步失败',
       chunk_count: kbSuccess ? 1 : 0,
       last_sync_at: kbSuccess ? new Date().toISOString() : null,
     };
+    if (body.file_key) insertData.file_key = body.file_key;
+    if (body.file_name) insertData.file_name = body.file_name;
+    if (body.file_size) insertData.file_size = body.file_size;
     // created_by 为整数时才传入，避免字符串写入 integer 字段报错
     const createdByNum = typeof created_by === 'number' ? created_by :
       (typeof created_by === 'string' && /^\d+$/.test(created_by) ? parseInt(created_by, 10) : NaN);
