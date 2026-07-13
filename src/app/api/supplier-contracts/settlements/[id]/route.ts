@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { validateStatusTransition } from '@/lib/business-logic';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = getSupabaseClient();
 
@@ -47,6 +51,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = getSupabaseClient();
     const body = await request.json();
@@ -92,15 +99,7 @@ export async function PUT(
       // 审核时记录审核人和时间
       if (status === 'reviewed') {
         updateData.reviewed_at = new Date().toISOString();
-        // 从请求获取用户名
-        const token = request.cookies.get('auth_token')?.value;
-        if (token) {
-          try {
-            const { decodeJwt } = await import('jose');
-            const payload = decodeJwt(token);
-            updateData.reviewed_by = payload.username || payload.name || 'system';
-          } catch (e) {}
-        }
+        updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
       }
     }
     if (payable_amount !== current.payable_amount) updateData.payable_amount = payable_amount.toFixed(2);
@@ -133,6 +132,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = getSupabaseClient();
 

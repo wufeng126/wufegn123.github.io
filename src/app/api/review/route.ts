@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { validateStatusTransition } from '@/lib/business-logic';
-import { decodeJwt } from 'jose';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 /**
  * 统一审核/反审核/作废 API
@@ -12,6 +12,9 @@ import { decodeJwt } from 'jose';
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { resource_type, resource_id, action } = body;
 
@@ -79,13 +82,7 @@ export async function POST(request: NextRequest) {
     // 审核时记录审核人和时间
     if (action === 'review') {
       updateData.reviewed_at = new Date().toISOString();
-      try {
-        const token = request.cookies.get('auth_token')?.value;
-        if (token) {
-          const payload = decodeJwt(token);
-          updateData.reviewed_by = payload.username || payload.name || 'system';
-        }
-      } catch (e) {}
+      updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
     }
 
     // 反审核时清除审核信息

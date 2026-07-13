@@ -1,43 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { decodeJwt } from 'jose';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
-import { isSuperAdminUser } from '@/lib/route-permissions';
-
-// 获取用户可访问的项目列表
-async function getUserAccessibleProjects(client: any, tokenPayload: any): Promise<number[] | null> {
-  if (!tokenPayload || isSuperAdminUser(tokenPayload.role, tokenPayload.role_id)) {
-    return null;
-  }
-  
-  const userId = tokenPayload.id;
-  if (!userId) return [];
-  
-  const { data: user } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', userId)
-    .single();
-  
-  if (!user) return [];
-  
-  let accessibleProjects: number[] = [];
-  
-  if (user.managed_projects) {
-    try {
-      const parsed = typeof user.managed_projects === 'string' 
-        ? JSON.parse(user.managed_projects) 
-        : user.managed_projects;
-      if (Array.isArray(parsed)) {
-        accessibleProjects = parsed.filter((p: any) => typeof p === 'number');
-      }
-    } catch (e) {
-      accessibleProjects = [];
-    }
-  }
-  
-  return accessibleProjects.length > 0 ? accessibleProjects : [];
-}
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // 费用类型
 const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工', '办公用品', '其他杂费'];
@@ -45,24 +10,16 @@ const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工',
 // 获取综合费用列表
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const searchParams = request.nextUrl.searchParams;
-    
-    // 获取 token
-    const token = request.cookies.get('auth_token')?.value;
     
     // 创建 Supabase 客户端
     const client = getSupabaseClient();
     
-    // 获取 token payload
-    let tokenPayload: any = null;
-    if (token) {
-      try {
-        tokenPayload = decodeJwt(token);
-      } catch (e) {}
-    }
-    
     // 获取用户可访问的项目列表
-    const accessibleProjects = await getUserAccessibleProjects(client, tokenPayload);
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     
     // 获取查询参数
     const projectId = searchParams.get('projectId');
@@ -123,6 +80,8 @@ export async function GET(request: NextRequest) {
 
     if (projectId && projectId !== 'all') {
       statsQuery = statsQuery.eq('project_id', parseInt(projectId));
+    } else if (accessibleProjects !== null) {
+      statsQuery = statsQuery.in('project_id', accessibleProjects);
     }
     if (expenseType && expenseType !== 'all') {
       statsQuery = statsQuery.eq('expense_type', expenseType);
@@ -205,6 +164,9 @@ export async function GET(request: NextRequest) {
 // 创建综合费用
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const {
       project_id,
