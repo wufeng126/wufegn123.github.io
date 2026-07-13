@@ -7,6 +7,51 @@ import { saveToken, isDingTalkClient, resetRedirectCount } from '@/lib/auth-clie
 
 type LoginState = 'detecting' | 'logging_in' | 'success' | 'error' | 'not_dingtalk';
 
+type DingTalkJsApi = {
+  runtime?: {
+    permission?: {
+      requestAuthCode: (options: {
+        corpId: string;
+        onSuccess: (result: { code: string }) => void;
+        onFail: (error: { errorMessage?: string; [key: string]: unknown }) => void;
+      }) => void;
+    };
+  };
+};
+
+type PublicConfigResponse = {
+  success?: boolean;
+  data?: {
+    configured?: boolean;
+    corpId?: string;
+  };
+};
+
+type DingTalkLoginResponse = {
+  success?: boolean;
+  code?: string;
+  error?: string;
+  data?: {
+    token?: string;
+    user?: {
+      username?: string;
+    };
+    dingtalkUser?: {
+      name?: string;
+    };
+  };
+};
+
+declare global {
+  interface Window {
+    dd?: DingTalkJsApi;
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // 调试日志面板组件
 function DebugPanel({ logs }: { logs: string[] }) {
   if (logs.length === 0) return null;
@@ -20,7 +65,7 @@ function DebugPanel({ logs }: { logs: string[] }) {
       borderTop: '2px solid #e94560',
     }}>
       <div style={{ color: '#e94560', fontWeight: 'bold', marginBottom: '4px', fontSize: '12px' }}>
-        调试日志（部署后可见）
+        调试日志
       </div>
       {logs.map((log, i) => (
         <div key={i} style={{ padding: '1px 0', borderBottom: '1px solid #333', wordBreak: 'break-all' }}>
@@ -38,14 +83,17 @@ export default function DingTalkPage() {
   const [dingtalkUserName, setDingtalkUserName] = useState('');
   const debugLogs = useRef<string[]>([]);
   const [debugPanel, setDebugPanel] = useState<string[]>([]);
+  const showDebugPanel = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DINGTALK_DEBUG === 'true';
 
   const addDebugLog = useCallback((msg: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const logEntry = `[${timestamp}] ${msg}`;
     debugLogs.current.push(logEntry);
-    setDebugPanel([...debugLogs.current]);
+    if (showDebugPanel) {
+      setDebugPanel([...debugLogs.current]);
+    }
     console.log(msg);
-  }, []);
+  }, [showDebugPanel]);
 
   /**
    * 检测是否在钉钉客户端环境内
@@ -69,7 +117,7 @@ export default function DingTalkPage() {
       }
 
       // 已加载
-      if ((window as any).dd) {
+      if (window.dd) {
         resolve();
         return;
       }
@@ -100,7 +148,7 @@ export default function DingTalkPage() {
         addDebugLog('步骤1: 获取 public-config...');
         const configRes = await fetch('/api/dingtalk/public-config', { credentials: 'include' });
         addDebugLog(`public-config 状态: ${configRes.status}`);
-        const configData = await configRes.json();
+        const configData = await configRes.json() as PublicConfigResponse;
         addDebugLog(`configured: ${configData.data?.configured}, corpId: ${configData.data?.corpId?.substring(0, 10)}`);
         if (configData.success && configData.data?.configured) {
           corpId = configData.data.corpId || '';
@@ -110,32 +158,34 @@ export default function DingTalkPage() {
         } else {
           throw new Error('钉钉企业内部应用未配置');
         }
-      } catch (e: any) {
-        addDebugLog(`ERROR: 获取配置失败: ${e.message}`);
-        throw new Error(e.message || '获取钉钉配置失败');
+      } catch (e: unknown) {
+        const message = getErrorMessage(e);
+        addDebugLog(`ERROR: 获取配置失败: ${message}`);
+        throw new Error(message || '获取钉钉配置失败');
       }
 
       // 2. 加载钉钉 JSAPI
       addDebugLog('步骤2: 加载 JSAPI...');
       await loadDingTalkJSAPI();
 
-      const dd = (window as any).dd;
-      if (!dd || !dd.runtime) {
+      const dd = window.dd;
+      if (!dd?.runtime?.permission) {
         addDebugLog(`ERROR: dd=${!!dd}, runtime=${!!dd?.runtime}`);
         throw new Error('钉钉 JSAPI 不可用');
       }
+      const dingTalkPermission = dd.runtime.permission;
       addDebugLog('JSAPI 加载成功');
 
       // 3. 获取 authCode
       addDebugLog(`步骤3: 请求 authCode, corpId: ${corpId.substring(0, 10)}...`);
       const authCode = await new Promise<string>((resolve, reject) => {
-        dd.runtime.permission.requestAuthCode({
+        dingTalkPermission.requestAuthCode({
           corpId,
           onSuccess: (result: { code: string }) => {
             addDebugLog(`authCode 成功: ${result.code?.substring(0, 10)}...`);
             resolve(result.code);
           },
-          onFail: (err: any) => {
+          onFail: (err) => {
             addDebugLog(`ERROR: authCode 失败: ${JSON.stringify(err)}`);
             reject(new Error(err.errorMessage || '获取授权码失败'));
           },
@@ -155,15 +205,15 @@ export default function DingTalkPage() {
         body: JSON.stringify({ authCode }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as DingTalkLoginResponse;
       addDebugLog(`登录API: status=${response.status}, success=${data.success}`);
 
       if (!response.ok || !data.success) {
-        if (data.code === 'USER_NOT_FOUND' && data.data?.dingtalkUser) {
-          setDingtalkUserName(data.data.dingtalkUser.name);
-          setErrorMsg(data.error || '未找到关联的系统账号');
+        if ((data.code === 'USER_NOT_FOUND' || data.code === 'ACCOUNT_PENDING') && data.data?.dingtalkUser) {
+          setDingtalkUserName(data.data.dingtalkUser.name || '');
+          setErrorMsg(data.error || '账号正在等待管理员分配权限');
           setLoginState('error');
-          addDebugLog(`ERROR: 未找到关联账号`);
+          addDebugLog(`ERROR: ${data.code === 'ACCOUNT_PENDING' ? '账号待分配' : '未找到关联账号'}`);
           return;
         }
         addDebugLog(`ERROR: ${data.error}`);
@@ -188,9 +238,10 @@ export default function DingTalkPage() {
         window.location.href = '/';
       }, 800);
 
-    } catch (err: any) {
-      addDebugLog(`ERROR: ${err.message}`);
-      setErrorMsg(err.message || '钉钉登录失败');
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      addDebugLog(`ERROR: ${message}`);
+      setErrorMsg(message || '钉钉登录失败');
       setLoginState('error');
     }
   }, [addDebugLog, loadDingTalkJSAPI]);
@@ -353,8 +404,8 @@ export default function DingTalkPage() {
         </p>
       </div>
 
-      {/* 调试日志面板 - 部署后可见 */}
-      <DebugPanel logs={debugPanel} />
+      {/* 调试日志面板 */}
+      {showDebugPanel && <DebugPanel logs={debugPanel} />}
     </div>
   );
 }

@@ -2,6 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { getCurrentUser } from '@/lib/auth';
 
+type PermissionUser = {
+  id: number;
+  username: string;
+  name?: string | null;
+  role?: string | null;
+  is_disabled?: boolean | null;
+  managed_projects?: number[] | null;
+  dingtalk_user_id?: string | null;
+  dingtalk_mobile?: string | null;
+  dingtalk_name?: string | null;
+  dingtalk_dept_id?: string | null;
+  dingtalk_active?: boolean | null;
+  last_dingtalk_sync_at?: string | null;
+};
+
+type RoleRow = {
+  id: number;
+  name: string;
+  code?: string | null;
+};
+
+type UserRoleRow = {
+  user_id: number;
+  role_id: number;
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // 获取用户列表
 export async function GET() {
   try {
@@ -22,6 +52,7 @@ export async function GET() {
         username,
         name,
         role,
+        is_disabled,
         managed_projects,
         created_at,
         last_login,
@@ -52,16 +83,18 @@ export async function GET() {
       .select('user_id, role_id');
     
     // 关联用户角色
-    const usersWithRoles = (users || []).map((u: any) => {
-      const uRoles = (userRoles || [])
-        .filter((ur: any) => ur.user_id === u.id)
-        .map((ur: any) => roles?.find((r: any) => r.id === ur.role_id))
-        .filter(Boolean);
+    const roleRows = (roles || []) as RoleRow[];
+    const userRoleRows = (userRoles || []) as UserRoleRow[];
+    const usersWithRoles = ((users || []) as PermissionUser[]).map((u) => {
+      const uRoles = userRoleRows
+        .filter((ur) => ur.user_id === u.id)
+        .map((ur) => roleRows.find((r) => r.id === ur.role_id))
+        .filter((role): role is RoleRow => Boolean(role));
       
       return {
         ...u,
-        role_ids: uRoles.map((r: any) => r.id),
-        role_names: uRoles.map((r: any) => r.name).join(', ') || '未分配',
+        role_ids: uRoles.map((r) => r.id),
+        role_names: uRoles.map((r) => r.name).join(', ') || '未分配',
         roles: uRoles,
         allowed_projects: u.managed_projects || [],
         dingtalk_bound: !!u.dingtalk_user_id,
@@ -81,11 +114,12 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       users: usersWithRoles,
-      roles: roles || [],
+      roles: roleRows,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
     console.error('[Users API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -140,15 +174,24 @@ export async function PUT(request: NextRequest) {
       }
     }
     
-    // 更新用户的managed_projects字段
+    // 更新用户基础状态：待分配账号一旦分配角色，即允许登录
+    const userUpdate: Record<string, unknown> = {};
     if (allowed_projects !== undefined) {
+      userUpdate.managed_projects = allowed_projects;
+    }
+    if (role_ids && role_ids.length > 0 && existingUser.role === 'pending') {
+      userUpdate.role = 'admin';
+      userUpdate.is_disabled = false;
+    }
+
+    if (Object.keys(userUpdate).length > 0) {
       const { error: projectError } = await supabase
         .from('users')
-        .update({ managed_projects: allowed_projects })
+        .update(userUpdate)
         .eq('id', id);
       
       if (projectError) {
-        console.error('[Users API] Update projects error:', projectError);
+        console.error('[Users API] Update user base fields error:', projectError);
         return NextResponse.json({ error: projectError.message }, { status: 500 });
       }
     }
@@ -156,8 +199,9 @@ export async function PUT(request: NextRequest) {
     console.log('[Users API] User updated successfully:', id);
     
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
     console.error('[Users API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

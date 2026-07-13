@@ -10,7 +10,7 @@ const SECRET_KEY = process.env.JWT_SECRET || 'construction-labor-management-secr
 const TOKEN_EXPIRY = '7d';
 
 // 用户角色类型
-export type UserRole = 'super_admin' | 'admin';
+export type UserRole = 'super_admin' | 'admin' | 'pending';
 
 // 用户信息接口
 export interface UserPayload {

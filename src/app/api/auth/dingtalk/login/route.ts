@@ -8,7 +8,7 @@
  * 匹配规则：
  * 1. 优先按 dingtalk_user_id 精确匹配系统用户
  * 2. 其次按手机号匹配系统用户，匹配成功后自动绑定 dingtalk_user_id
- * 3. 无法匹配时返回 403 + 钉钉用户信息提示
+ * 3. 无法匹配时自动创建待分配账号，返回 403 提示管理员分配权限
  *
  * 安全规则：
  * - 钉钉只作为身份认证来源，系统角色和权限仍以本系统配置为准
@@ -18,12 +18,44 @@
  */
 
 import { NextResponse } from 'next/server';
-import { isDingTalkConfigured, getDingTalkConfig } from '@/lib/dingtalk-config';
+import { isDingTalkSsoConfigured } from '@/lib/dingtalk-config';
 import { callDingTalkApi } from '@/lib/dingtalk-service';
-import { generateToken, setAuthCookie, UserPayload, UserRole } from '@/lib/auth';
+import { generateToken, UserPayload, UserRole } from '@/lib/auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { apiError } from '@/lib/api-utils';
 import { logDingTalkSecurityEvent } from '@/lib/dingtalk-security-log';
+import { fetchUserPermissions, hashPassword } from '@/lib/auth-db';
+
+type DingTalkUserInfoResult = {
+  userid?: string;
+  sys?: boolean;
+  name?: string;
+};
+
+type DingTalkUserInfoResponse = DingTalkUserInfoResult & {
+  errmsg?: string;
+  result?: DingTalkUserInfoResult;
+};
+
+type DingTalkUserDetailResult = {
+  userid?: string;
+  name?: string;
+  mobile?: string;
+  unionid?: string;
+  title?: string;
+  dept_id_list?: number[];
+  avatar?: string;
+  active?: boolean;
+};
+
+type DingTalkUserDetailResponse = DingTalkUserDetailResult & {
+  errmsg?: string;
+  result?: DingTalkUserDetailResult;
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** 从请求中提取客户端IP */
 function getClientIP(request: Request): string {
@@ -48,11 +80,9 @@ function getUserAgent(request: Request): string {
  * 钉钉免登流程：authCode → userid → 用户详情
  */
 async function getDingTalkUserInfo(authCode: string) {
-  if (!isDingTalkConfigured()) {
+  if (!isDingTalkSsoConfigured()) {
     throw new Error('钉钉企业内部应用未配置');
   }
-
-  const config = getDingTalkConfig()!;
 
   // Step 1: 用 authCode 换取 userid
   const userResult = await callDingTalkApi<{
@@ -66,7 +96,7 @@ async function getDingTalkUserInfo(authCode: string) {
 
   // callDingTalkApi 返回 { success, data } 其中 data 是完整钉钉 API 响应
   // 业务数据在 data.result 中
-  const rawData = userResult.data as any;
+  const rawData = userResult.data as DingTalkUserInfoResponse | null;
   const bizResult = rawData?.result || rawData;
 
   if (!userResult.success || !bizResult?.userid) {
@@ -76,7 +106,7 @@ async function getDingTalkUserInfo(authCode: string) {
   const userId = bizResult.userid;
 
   // Step 2: 用 userid 获取用户详情
-  const detailRawData = (await callDingTalkApi<{
+  const detailResponse = await callDingTalkApi<{
     userid: string;
     name: string;
     mobile: string;
@@ -88,22 +118,23 @@ async function getDingTalkUserInfo(authCode: string) {
   }>('/topapi/v2/user/get', {
     method: 'POST',
     body: { userid: userId },
-  })).data as any;
-  const detailResult = detailRawData?.result || detailRawData;
+  });
+  const detailRawData = detailResponse.data as DingTalkUserDetailResponse | null;
+  const detailBizResult = detailRawData?.result || detailRawData;
 
-  if (!detailResult) {
-    throw new Error(`获取钉钉用户详情失败: ${userResult.errmsg || '未知错误'}`);
+  if (!detailResponse.success || !detailBizResult) {
+    throw new Error(`获取钉钉用户详情失败: ${detailResponse.errmsg || detailRawData?.errmsg || '未知错误'}`);
   }
 
   return {
     userId,
-    name: detailResult.name,
-    mobile: detailResult.mobile,
-    unionId: detailResult.unionid || '',
-    title: detailResult.title,
-    deptIdList: detailResult.dept_id_list,
-    avatar: detailResult.avatar || '',
-    active: detailResult.active !== false,
+    name: detailBizResult.name || '',
+    mobile: detailBizResult.mobile || '',
+    unionId: detailBizResult.unionid || '',
+    title: detailBizResult.title,
+    deptIdList: detailBizResult.dept_id_list,
+    avatar: detailBizResult.avatar || '',
+    active: detailBizResult.active !== false,
   };
 }
 
@@ -122,7 +153,7 @@ async function findAndBindSystemUser(
   deptIdList?: number[],
   avatar?: string,
   active?: boolean
-): Promise<{ user: UserPayload; isDisabled: boolean } | null> {
+): Promise<{ user: UserPayload; isDisabled: boolean; isPending: boolean } | null> {
   const client = getSupabaseClient();
 
   // 钉钉绑定更新数据
@@ -174,7 +205,7 @@ async function findAndBindSystemUser(
         });
         const { data: authUsers } = await adminClient.auth.admin.listUsers();
         const matchedAuthUser = authUsers?.users?.find(
-          (u: any) => u.phone === mobile || u.user_metadata?.phone === mobile
+          (u) => u.phone === mobile || u.user_metadata?.phone === mobile
         );
         if (matchedAuthUser) {
           const { data: byAuthId } = await client
@@ -186,7 +217,7 @@ async function findAndBindSystemUser(
         }
       }
     } catch (e) {
-      console.warn('[DingTalk Login] Auth Admin API 手机号匹配失败:', (e as Error).message);
+      console.warn('[DingTalk Login] Auth Admin API 手机号匹配失败:', getErrorMessage(e));
     }
   }
 
@@ -205,7 +236,7 @@ async function findAndBindSystemUser(
     .update(dingtalkUpdateData)
     .eq('id', matchedUser.id);
 
-  const userRole = (matchedUser.role && ['super_admin', 'admin'].includes(matchedUser.role))
+  const userRole = (matchedUser.role && ['super_admin', 'admin', 'pending'].includes(matchedUser.role))
     ? matchedUser.role as UserRole
     : 'admin';
 
@@ -218,6 +249,7 @@ async function findAndBindSystemUser(
       role_id: matchedUser.role_id,
     },
     isDisabled: matchedUser.is_disabled || isDingTalkInactive,
+    isPending: matchedUser.role === 'pending',
   };
 }
 
@@ -227,8 +259,8 @@ export async function POST(request: Request) {
 
   try {
     // 检查钉钉配置
-    if (!isDingTalkConfigured()) {
-      return apiError('钉钉企业内部应用未配置，无法免登', 400, 'DINGTALK_NOT_CONFIGURED');
+    if (!isDingTalkSsoConfigured()) {
+      return apiError('钉钉企业内部应用未配置完整，无法免登，请检查 AppKey、AppSecret 和 CorpId', 400, 'DINGTALK_NOT_CONFIGURED');
     }
 
     const body = await request.json();
@@ -247,7 +279,7 @@ export async function POST(request: Request) {
     // 检查钉钉用户是否已离职/停用
     if (!dingtalkUser.active) {
       await logDingTalkSecurityEvent({
-        event_type: 'dingtalk_login_success',
+        event_type: 'dingtalk_login_failed',
         dingtalk_user_id: dingtalkUser.userId,
         dingtalk_name: dingtalkUser.name,
         ip_address: ip,
@@ -271,7 +303,7 @@ export async function POST(request: Request) {
     }
 
     // 2. 匹配系统用户
-    let matchResult = await findAndBindSystemUser(
+    const matchResult = await findAndBindSystemUser(
       dingtalkUser.userId,
       dingtalkUser.name,
       dingtalkUser.mobile,
@@ -282,10 +314,14 @@ export async function POST(request: Request) {
     );
 
     if (!matchResult) {
-      // 未匹配到系统用户 → 自动创建新账号（钉钉 SSO 无感注册）
+      // 未匹配到系统用户 → 自动创建待分配账号，但不允许直接登录
       try {
         const client = getSupabaseClient();
-        const baseUsername = (dingtalkUser.name || `dt_${dingtalkUser.userId}`).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').toLowerCase().slice(0, 40);
+        const rawUsername = (dingtalkUser.name || `dt_${dingtalkUser.userId}`)
+          .replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')
+          .toLowerCase()
+          .slice(0, 40);
+        const baseUsername = rawUsername.replace(/^_+|_+$/g, '') || `dt_${dingtalkUser.userId}`;
         let username = baseUsername;
         let suffix = 1;
         while (true) {
@@ -295,15 +331,18 @@ export async function POST(request: Request) {
           suffix++;
         }
         const randomPwd = `dt_${Math.random().toString(36).slice(2, 10)}`;
-        const { hashPassword } = await import('@/lib/auth-db');
         const pwdHash = hashPassword(randomPwd);
         const { data: newUser, error: createError } = await client.from('users').insert({
           username,
+          name: dingtalkUser.name || username,
           password_hash: pwdHash,
-          role: 'admin',
+          role: 'pending',
+          is_disabled: true,
           dingtalk_user_id: dingtalkUser.userId,
+          dingtalk_union_id: dingtalkUser.unionId || null,
           dingtalk_name: dingtalkUser.name,
           dingtalk_mobile: dingtalkUser.mobile || null,
+          dingtalk_dept_id: dingtalkUser.deptIdList?.join(',') || null,
           dingtalk_avatar: dingtalkUser.avatar || null,
           dingtalk_active: true,
           last_dingtalk_sync_at: new Date().toISOString(),
@@ -314,30 +353,48 @@ export async function POST(request: Request) {
           return NextResponse.json({ success: false, error: `自动创建账号失败: ${createError?.message || '未知错误'}` }, { status: 500 });
         }
 
-        // 使用新创建的用户继续登录流程
-        matchResult = {
-          user: {
-            id: newUser.id,
-            username: newUser.username,
-            name: newUser.name || newUser.username,
-            role: newUser.role || 'admin',
-            role_id: newUser.role_id || 0,
+        await logDingTalkSecurityEvent({
+          event_type: 'dingtalk_login_failed',
+          dingtalk_user_id: dingtalkUser.userId,
+          dingtalk_name: dingtalkUser.name,
+          system_user_id: newUser.id,
+          system_username: newUser.username,
+          ip_address: ip,
+          user_agent,
+          result: 'failed',
+          error_message: '已自动创建待分配账号，等待管理员分配权限',
+          metadata: { mobile: dingtalkUser.mobile, autoCreated: true, pending: true },
+        });
+
+        console.log(`[DingTalk SSO] 自动创建待分配用户: ${username} (钉钉: ${dingtalkUser.name})`);
+        return NextResponse.json({
+          success: false,
+          data: {
+            dingtalkUser: {
+              userId: dingtalkUser.userId,
+              name: dingtalkUser.name,
+            },
+            systemUser: {
+              id: newUser.id,
+              username: newUser.username,
+              name: newUser.name || newUser.username,
+            },
           },
-          isDisabled: false,
-        };
-        console.log(`[DingTalk SSO] 自动创建用户: ${username} (钉钉: ${dingtalkUser.name})`);
+          error: `已为钉钉用户"${dingtalkUser.name}"创建系统账号，请联系管理员分配权限后再登录`,
+          code: 'ACCOUNT_PENDING',
+        }, { status: 403 });
       } catch (autoErr: unknown) {
         console.error('[DingTalk AutoCreate] 异常:', autoErr instanceof Error ? autoErr.message : autoErr);
         return NextResponse.json({ success: false, error: `账号创建失败: ${autoErr instanceof Error ? autoErr.message : '未知错误'}` }, { status: 500 });
       }
     }
 
-    const { user: systemUser, isDisabled } = matchResult;
+    const { user: systemUser, isDisabled, isPending } = matchResult;
 
     // 检查系统用户是否被禁用
-    if (isDisabled) {
+    if (isDisabled || isPending) {
       await logDingTalkSecurityEvent({
-        event_type: 'dingtalk_login_success',
+        event_type: 'dingtalk_login_failed',
         dingtalk_user_id: dingtalkUser.userId,
         dingtalk_name: dingtalkUser.name,
         system_user_id: systemUser.id,
@@ -345,8 +402,8 @@ export async function POST(request: Request) {
         ip_address: ip,
         user_agent,
         result: 'failed',
-        error_message: '系统用户已被禁用，无法登录',
-        metadata: { isDisabled: true },
+        error_message: isPending ? '系统账号待分配权限，无法登录' : '系统用户已被禁用，无法登录',
+        metadata: { isDisabled, isPending },
       });
 
       return NextResponse.json({
@@ -362,13 +419,16 @@ export async function POST(request: Request) {
             name: systemUser.name,
           },
         },
-        error: `系统用户"${systemUser.name}"已被禁用，请联系管理员启用`,
-        code: 'USER_DISABLED',
+        error: isPending
+          ? `系统账号"${systemUser.name}"正在等待管理员分配权限，请稍后再登录`
+          : `系统用户"${systemUser.name}"已被禁用，请联系管理员启用`,
+        code: isPending ? 'ACCOUNT_PENDING' : 'USER_DISABLED',
       }, { status: 403 });
     }
 
     // 3. 签发 JWT
-    const token = await generateToken(systemUser);
+    const permissions = await fetchUserPermissions(systemUser.id, systemUser.role);
+    const token = await generateToken({ ...systemUser, permissions });
     console.log(`[DingTalkLogin] 免登成功: user=${systemUser.username}, token长度=${token.length}`);
 
     // 4. 构建响应并设置认证 Cookie
@@ -426,19 +486,20 @@ export async function POST(request: Request) {
     console.log('[DingTalk Login] 免登成功:', systemUser.username);
 
     return response;
-  } catch (error: any) {
-    console.error('[DingTalk Login] 免登失败:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
+    console.error('[DingTalk Login] 免登失败:', errorMessage);
 
     await logDingTalkSecurityEvent({
-      event_type: 'dingtalk_login_success',
+      event_type: 'dingtalk_login_failed',
       ip_address: ip,
       user_agent,
       result: 'failed',
-      error_message: error.message,
+      error_message: errorMessage,
     });
 
     return apiError(
-      error.message || '钉钉免登失败',
+      errorMessage || '钉钉免登失败',
       500,
       'DINGTALK_AUTH_ERROR'
     );

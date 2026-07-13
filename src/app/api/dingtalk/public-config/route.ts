@@ -4,11 +4,11 @@
  */
 
 import { NextResponse } from 'next/server';
-import { isDingTalkConfigured, getDingTalkConfig } from '@/lib/dingtalk-config';
+import { getDingTalkConfig, isDingTalkSsoConfigured } from '@/lib/dingtalk-config';
 
 export async function GET() {
   try {
-    const configured = isDingTalkConfigured();
+    const configured = isDingTalkSsoConfigured();
 
     if (!configured) {
       return NextResponse.json({

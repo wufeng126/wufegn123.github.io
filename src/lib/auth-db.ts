@@ -44,8 +44,8 @@ export async function verifyCredentials(username: string, password: string): Pro
     const user = data as { id: number; username: string; password_hash: string; role: string; is_disabled: boolean };
     console.log('[Auth] User found, role:', user.role);
     
-    // 检查用户是否被禁用
-    if (user.is_disabled) {
+    // 检查用户是否被禁用或尚未分配权限
+    if (user.is_disabled || user.role === 'pending') {
       console.log('[Auth] User is disabled:', normalizedUsername);
       return null;
     }
@@ -64,7 +64,7 @@ export async function verifyCredentials(username: string, password: string): Pro
       .eq('id', user.id);
 
     // 确保 role 有有效值
-    const userRole: UserRole = (user.role && ['super_admin', 'admin'].includes(user.role)) 
+    const userRole: UserRole = (user.role && ['super_admin', 'admin', 'pending'].includes(user.role))
       ? user.role as UserRole 
       : 'admin';
     
@@ -82,7 +82,7 @@ export async function verifyCredentials(username: string, password: string): Pro
 }
 
 // 获取用户权限码列表
-async function fetchUserPermissions(userId: number, userRole: string): Promise<string[]> {
+export async function fetchUserPermissions(userId: number, userRole: string): Promise<string[]> {
   try {
     const client = getSupabaseClient();
     // 超级管理员拥有所有权限
@@ -90,7 +90,39 @@ async function fetchUserPermissions(userId: number, userRole: string): Promise<s
       const { data } = await client.from('permissions').select('code');
       return data?.map((p: { code: string }) => p.code) || [];
     }
-    // 其他角色按role_permissions查询
+
+    // 钉钉自动创建的待分配账号不授予任何权限
+    if (userRole === 'pending') {
+      return [];
+    }
+
+    // 优先使用 user_roles 关联表，这是当前权限中心的主数据来源
+    const { data: userRoles } = await client
+      .from('user_roles')
+      .select('role_id')
+      .eq('user_id', userId);
+
+    if (userRoles && userRoles.length > 0) {
+      const roleIds = userRoles.map((ur: { role_id: number }) => ur.role_id);
+      const { data: rolePerms } = await client
+        .from('role_permissions')
+        .select('permission_id')
+        .in('role_id', roleIds);
+
+      const permIds = [...new Set((rolePerms || []).map((rp: { permission_id: number }) => rp.permission_id))];
+      if (permIds.length === 0) {
+        return [];
+      }
+
+      const { data: perms } = await client
+        .from('permissions')
+        .select('code')
+        .in('id', permIds);
+
+      return perms?.map((p: { code: string }) => p.code) || [];
+    }
+
+    // 兼容旧账号：其他角色按 role_permissions 查询
     // 先通过角色code查找roles表
     const { data: roleRow } = await client
       .from('roles')

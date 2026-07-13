@@ -54,6 +54,15 @@ export function isDingTalkConfigured(): boolean {
 }
 
 /**
+ * 检查钉钉免登所需配置是否完整
+ * 获取 authCode 必须使用 CorpId，仅配置 AppKey/AppSecret 还不足以完成免登。
+ */
+export function isDingTalkSsoConfigured(): boolean {
+  const config = getDingTalkConfig();
+  return !!(config?.appKey && config?.appSecret && config?.corpId);
+}
+
+/**
  * 获取脱敏配置（可安全返回给前端）
  * 所有敏感字段用 * 遮盖
  */
