@@ -2,6 +2,102 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { syncSalaryPaymentStatus } from '@/lib/business-logic';
+
+function parseAmount(value: any): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isStandalonePaymentType(paymentType?: string | null) {
+  return ['预支款', '借支款', '其他'].includes(paymentType || '');
+}
+
+async function resolveSalaryForPayment(
+  client: ReturnType<typeof getSupabaseClient>,
+  params: {
+    salary_id?: number | string | null;
+    worker_id: number;
+    project_id: number;
+    year_month?: string | null;
+    payment_type?: string | null;
+    amount: number;
+  }
+) {
+  let salaryId = params.salary_id ? parseInt(String(params.salary_id)) : null;
+  let yearMonth = params.year_month || null;
+
+  if (!salaryId && yearMonth) {
+    const { data: salaryRows, error } = await client
+      .from('worker_salaries')
+      .select('id, net_pay, year_month')
+      .eq('worker_id', params.worker_id)
+      .eq('project_id', params.project_id)
+      .eq('year_month', yearMonth);
+
+    if (error) {
+      throw new Error(`匹配工资核算单失败: ${error.message}`);
+    }
+
+    if ((salaryRows || []).length > 1) {
+      throw new Error('该工人在当前项目、当前月份存在多张工资核算单，请先处理重复工资记录');
+    }
+
+    if (salaryRows && salaryRows.length === 1) {
+      salaryId = salaryRows[0].id;
+      yearMonth = salaryRows[0].year_month;
+    }
+  }
+
+  if (!salaryId && !isStandalonePaymentType(params.payment_type)) {
+    throw new Error('月度工资发放必须先有对应的工资核算单，请确认工人、项目和年月是否正确');
+  }
+
+  if (!salaryId) {
+    return { salaryId: null, yearMonth };
+  }
+
+  const { data: salaryRecord, error: salaryError } = await client
+    .from('worker_salaries')
+    .select('id, worker_id, project_id, year_month, net_pay')
+    .eq('id', salaryId)
+    .single();
+
+  if (salaryError || !salaryRecord) {
+    throw new Error('未找到对应的工资核算单');
+  }
+
+  if (
+    salaryRecord.worker_id !== params.worker_id ||
+    salaryRecord.project_id !== params.project_id ||
+    (yearMonth && salaryRecord.year_month !== yearMonth)
+  ) {
+    throw new Error('工资发放信息与工资核算单不一致，请检查工人、项目和年月');
+  }
+
+  const { data: existingPayments, error: paymentError } = await client
+    .from('salary_payments')
+    .select('payment_amount')
+    .eq('salary_id', salaryId);
+
+  if (paymentError) {
+    throw new Error(`查询已发金额失败: ${paymentError.message}`);
+  }
+
+  const paidAmount = (existingPayments || []).reduce(
+    (sum: number, payment: any) => sum + parseAmount(payment.payment_amount),
+    0
+  );
+  const netPay = parseAmount(salaryRecord.net_pay);
+
+  if (paidAmount + params.amount > netPay) {
+    throw new Error(
+      `发放超额：实发工资 ¥${netPay.toLocaleString()}，已发放 ¥${paidAmount.toLocaleString()}，本次 ¥${params.amount.toLocaleString()} 超出余额`
+    );
+  }
+
+  return { salaryId, yearMonth: salaryRecord.year_month };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,25 +194,33 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const workerId = parseInt(worker_id);
+    const projectId = parseInt(project_id);
+    const paymentAmount = parseAmount(amount);
+
+    if (paymentAmount <= 0) {
+      return NextResponse.json({ error: '发放金额必须大于0' }, { status: 400 });
+    }
+
+    const matchedSalary = await resolveSalaryForPayment(client, {
+      salary_id,
+      worker_id: workerId,
+      project_id: projectId,
+      year_month,
+      payment_type,
+      amount: paymentAmount,
+    });
     
     const insertData: any = {
-      worker_id: parseInt(worker_id),
-      project_id: parseInt(project_id),
-      payment_amount: amount,
+      salary_id: matchedSalary.salaryId,
+      worker_id: workerId,
+      project_id: projectId,
+      payment_amount: paymentAmount,
       payment_date,
       payment_type: payment_type || '甲方代付',
+      year_month: matchedSalary.yearMonth || year_month || null,
       remark,
     };
-
-    // 如果有 salary_id 则添加
-    if (salary_id) {
-      insertData.salary_id = parseInt(salary_id);
-    }
-
-    // 如果有 year_month 则添加
-    if (year_month) {
-      insertData.year_month = year_month;
-    }
 
     const result = await insertWithSequenceFix('salary_payments', insertData, client);
 
@@ -126,11 +230,15 @@ export async function POST(request: NextRequest) {
 
     const payment = Array.isArray(result.data) ? result.data[0] : result.data;
 
+    if (matchedSalary.salaryId) {
+      await syncSalaryPaymentStatus(matchedSalary.salaryId);
+    }
+
     await auditLog({
       operationType: 'create',
       resourceType: 'salary_payment',
       resourceId: payment?.id || 0,
-      details: { worker_id, project_id, amount, payment_date, payment_type },
+      details: { salary_id: matchedSalary.salaryId, worker_id, project_id, amount, payment_date, payment_type },
       request,
     });
 

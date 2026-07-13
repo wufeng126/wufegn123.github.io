@@ -48,9 +48,11 @@ export async function POST(request: NextRequest) {
     const { 
       workers, 
       importMode = 'insert_only', // insert_only: 仅新增, upsert: 覆盖更新
+      projectId,
       fileName = '未知文件',
       operator,
     } = body;
+    const defaultProjectId = projectId ? Number(projectId) : null;
 
     console.log('[Workers Batch] Received request with', workers?.length || 0, 'workers, mode:', importMode);
 
@@ -62,6 +64,26 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+
+    const { data: projectList } = await client
+      .from('projects')
+      .select('id, name');
+    const projectIdByName = new Map<string, number>();
+    if (projectList) {
+      for (const p of projectList) {
+        projectIdByName.set(String(p.name).trim(), p.id);
+      }
+    }
+
+    const resolveProjectId = (worker: any) => {
+      if (worker.project_id) return Number(worker.project_id);
+      if (worker.projectId) return Number(worker.projectId);
+      const projectName = worker.project_name?.trim();
+      if (projectName && projectIdByName.has(projectName)) {
+        return projectIdByName.get(projectName)!;
+      }
+      return defaultProjectId;
+    };
     
     // 结果统计
     const stats = {
@@ -101,7 +123,7 @@ export async function POST(request: NextRequest) {
           phone: w.phone?.trim() || null,
           bank_card: w.bank_card?.trim() || null,
           entry_date: w.entry_date?.trim() || null,
-          project_id: w.project_id ? parseInt(String(w.project_id)) : null,
+          project_id: resolveProjectId(w),
         },
         id_card_upper: w.id_card?.trim().toUpperCase() || null,
       });
@@ -376,7 +398,7 @@ export async function POST(request: NextRequest) {
     await recordImportHistory(client, {
       file_name: fileName,
       total_count: stats.total,
-      success_count: stats.inserted,
+      success_count: stats.inserted + stats.transferred,
       update_count: stats.updated,
       skip_count: stats.skipped,
       error_count: stats.errors,
@@ -394,7 +416,7 @@ export async function POST(request: NextRequest) {
     if (stats.errors > 0) messageParts.push(`格式错误 ${stats.errors} 条`);
 
     // 只要成功导入了数据，就算成功
-    const hasSuccess = stats.inserted > 0 || stats.updated > 0;
+    const hasSuccess = stats.inserted > 0 || stats.updated > 0 || stats.transferred > 0;
     let resultMessage = '';
     
     if (hasSuccess) {
@@ -418,12 +440,13 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      success: stats.inserted > 0 || stats.updated > 0,
+      success: hasSuccess,
       message: resultMessage,
       stats: {
         total: stats.total,
         inserted: stats.inserted,
         updated: stats.updated,
+        transferred: stats.transferred,
         skipped: stats.skipped,
         errors: stats.errors,
       },

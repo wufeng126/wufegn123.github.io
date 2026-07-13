@@ -296,6 +296,25 @@ export async function POST(request: NextRequest) {
     if (accessibleProjects.length > 0 && !accessibleProjects.includes(project_id)) {
       return NextResponse.json({ error: '无权在该项目下创建工资记录' }, { status: 403 });
     }
+
+    const { data: existingSalary, error: existingError } = await client
+      .from('worker_salaries')
+      .select('id')
+      .eq('worker_id', parseInt(worker_id))
+      .eq('project_id', parseInt(project_id))
+      .eq('year_month', year_month)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new Error(`检查重复工资记录失败: ${existingError.message}`);
+    }
+
+    if (existingSalary) {
+      return NextResponse.json(
+        { error: '该工人在当前项目、当前月份已有工资核算记录，请编辑原记录或先删除重复记录' },
+        { status: 400 }
+      );
+    }
     
     const { data, error } = await insertWithSequenceFix('worker_salaries', { 
         worker_id: parseInt(worker_id),

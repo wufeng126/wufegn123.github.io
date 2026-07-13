@@ -9,7 +9,8 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { workers } = body;
+    const { workers, projectId } = body;
+    const defaultProjectId = projectId ? Number(projectId) : null;
 
     if (!workers || !Array.isArray(workers) || workers.length === 0) {
       return NextResponse.json({ 
@@ -97,11 +98,23 @@ export async function POST(request: NextRequest) {
       .from('projects')
       .select('id, name');
     const projectNameMap = new Map<number, string>();
+    const projectIdByName = new Map<string, number>();
     if (projectList) {
       for (const p of projectList) {
         projectNameMap.set(p.id, p.name);
+        projectIdByName.set(String(p.name).trim(), p.id);
       }
     }
+
+    const resolveTargetProjectId = (worker: any) => {
+      if (worker.project_id) return Number(worker.project_id);
+      if (worker.projectId) return Number(worker.projectId);
+      const projectName = worker.project_name?.trim();
+      if (projectName && projectIdByName.has(projectName)) {
+        return projectIdByName.get(projectName)!;
+      }
+      return defaultProjectId;
+    };
 
     for (let i = 0; i < workers.length; i++) {
       const w = workers[i];
@@ -111,7 +124,7 @@ export async function POST(request: NextRequest) {
       const name = w.name?.trim() || '';
       const phone = w.phone?.trim() || '';
       const namePhoneKey = `${name}_${phone}`;
-      const targetProjectId = w.project_id || null;
+      const targetProjectId = resolveTargetProjectId(w);
 
       // 批次内身份证号重复
       if (idCard) {

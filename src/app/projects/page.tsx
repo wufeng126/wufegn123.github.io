@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { 
   Plus, Pencil, Trash2, Eye, FolderOpen, Building2, TrendingUp, Calendar,
   Plane, Ship, Factory, Home, Building, HardHat, ArrowUpDown, ArrowUp, ArrowDown,
-  Hammer, Wrench, Warehouse, Store, Landmark, Mountain, Users, UserCheck, UserX, Search
+  Hammer, Wrench, Warehouse, Store, Landmark, Mountain, Search
 } from 'lucide-react';
 import Link from 'next/link';
 import { LinkableCell } from '@/components/linkable-cell';
@@ -35,6 +35,7 @@ interface Project {
   contract_amount: string | null;
   icon: string | null;
   building_area: string | null;
+  tax_rate: string | number | null;
   expected_completion_date: string | null;
   created_at: string;
   budgetAmount?: number;
@@ -98,7 +99,7 @@ const getProjectIcon = (name: string, iconValue: string | null = null) => {
   return getIconByValue('HardHat');
 };
 
-type SortField = 'contract_amount' | 'year' | 'status' | 'building_area' | null;
+type SortField = 'contract_amount' | 'year' | 'status' | null;
 type SortOrder = 'asc' | 'desc';
 
 export default function ProjectsPage() {
@@ -112,7 +113,6 @@ export default function ProjectsPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [user, setUser] = useState<UserInfo | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>('all');
@@ -136,7 +136,7 @@ export default function ProjectsPage() {
     fetchUser();
   }, []);
 
-  const fetchUser = async () => {
+  async function fetchUser() {
     try {
       const res = await fetch('/api/auth/me');
       const data = await res.json();
@@ -146,7 +146,7 @@ export default function ProjectsPage() {
     } catch (error) {
       console.error('获取用户信息失败:', error);
     }
-  };
+  }
 
   useEffect(() => {
     if (!loading) {
@@ -155,7 +155,7 @@ export default function ProjectsPage() {
     }
   }, [loading]);
 
-  const fetchProjects = async () => {
+  async function fetchProjects() {
     setLoading(true);
     setShowContent(false);
     try {
@@ -167,7 +167,7 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const filteredAndSortedProjects = useMemo(() => {
     let result = [...projects];
@@ -203,10 +203,6 @@ export default function ProjectsPage() {
         case 'contract_amount':
           valueA = parseFloat(a.contract_amount || '0') || 0;
           valueB = parseFloat(b.contract_amount || '0') || 0;
-          break;
-        case 'building_area':
-          valueA = parseFloat(a.building_area || '0') || 0;
-          valueB = parseFloat(b.building_area || '0') || 0;
           break;
         case 'year':
           valueA = a.year;
@@ -306,8 +302,8 @@ export default function ProjectsPage() {
       contract_amount: project.contract_amount || '',
       icon: project.icon || 'HardHat',
       building_area: project.building_area || '',
-      tax_rate: String((project as any).tax_rate || 9),
-      expected_completion_date: (project as any).expected_completion_date || '',
+      tax_rate: String(project.tax_rate || 9),
+      expected_completion_date: project.expected_completion_date || '',
     });
     setDialogOpen(true);
   };
@@ -372,12 +368,10 @@ export default function ProjectsPage() {
   };
 
   const stats = {
+    totalCount: projects.length,
     activeCount: projects.filter(p => p.status === '进行中').length,
     totalAmount: projects.reduce((sum, p) => sum + (parseFloat(p.contract_amount || '0') || 0), 0),
     currentYearCount: projects.filter(p => p.year === new Date().getFullYear()).length,
-    totalInService: projects.reduce((sum, p) => sum + (p.inServiceCount || 0), 0),
-    totalLeft: projects.reduce((sum, p) => sum + (p.leftCount || 0), 0),
-    totalWorkers: projects.reduce((sum, p) => sum + (p.totalWorkerCount || 0), 0),
   };
 
   const getStatusStyle = (status: string) => {
@@ -393,20 +387,13 @@ export default function ProjectsPage() {
     }
   };
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 100) return 'bg-emerald-500';
-    if (progress >= 70) return 'bg-blue-500';
-    if (progress >= 40) return 'bg-amber-500';
-    return 'bg-gray-500';
-  };
-
   return (
     <div className="space-y-5">
       {/* 页面标题 */}
       <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>项目管理</h1>
-          <p className="text-sm mt-0.5" style={{ color: '#86909C' }}>管理项目信息，关联各项数据</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>项目信息</h1>
+          <p className="text-sm mt-0.5" style={{ color: '#86909C' }}>项目基础档案台账，集中维护项目名称、甲方、地址和合同信息</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -566,8 +553,22 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
-      {/* 统计卡片 - 第一行 */}
-      <div className={`grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+      {/* 统计卡片 */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <Card className="stat-card">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center gap-4">
+              <div className="stat-icon-container" style={{ background: 'linear-gradient(135deg, #4E5969 0%, #1D2129 100%)' }}>
+                <FolderOpen className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm" style={{ color: '#86909C' }}>项目总数</p>
+                <p className="text-2xl font-bold" style={{ color: '#1D2129' }}>{stats.totalCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>个</span></p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="stat-card stat-card-blue">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center gap-4">
@@ -609,34 +610,6 @@ export default function ProjectsPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="stat-card" style={{ background: 'linear-gradient(135deg, #E8FFEA 0%, #F0FFF0 100%)', borderColor: '#B8F0B8' }}>
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-4">
-              <div className="stat-icon-container" style={{ background: 'linear-gradient(135deg, #00B42A 0%, #52C41A 100%)' }}>
-                <UserCheck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>在场人数</p>
-                <p className="text-2xl font-bold" style={{ color: '#00B42A' }}>{stats.totalInService}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>人</span></p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="stat-card" style={{ background: 'linear-gradient(135deg, #FFF7E8 0%, #FFFAF0 100%)', borderColor: '#FFD8A8' }}>
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-4">
-              <div className="stat-icon-container" style={{ background: 'linear-gradient(135deg, #FF7D00 0%, #FA8C16 100%)' }}>
-                <UserX className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>退场人数</p>
-                <p className="text-2xl font-bold" style={{ color: '#FF7D00' }}>{stats.totalLeft}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>人</span></p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* 搜索与筛选栏 */}
@@ -645,7 +618,7 @@ export default function ProjectsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#86909C' }} />
           <input
             type="text"
-            placeholder="搜索项目名称..."
+            placeholder="搜索项目名称、甲方或地址..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -658,7 +631,7 @@ export default function ProjectsPage() {
           className="px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           style={{ borderColor: '#E5E6EB' }}
         >
-          <option value="">全部年度</option>
+          <option value="all">全部年度</option>
           {[2026, 2025, 2024, 2023].map(y => <option key={y} value={String(y)}>{y}年</option>)}
         </select>
         <select
@@ -667,11 +640,10 @@ export default function ProjectsPage() {
           className="px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           style={{ borderColor: '#E5E6EB' }}
         >
-          <option value="">全部状态</option>
+          <option value="all">全部状态</option>
           <option value="进行中">进行中</option>
-          <option value="已完工">已完工</option>
-          <option value="已暂停">已暂停</option>
-          <option value="未开始">未开始</option>
+          <option value="已完成">已完成</option>
+          <option value="暂停">暂停</option>
         </select>
         <span className="text-xs" style={{ color: '#86909C' }}>
           共 {filteredAndSortedProjects.length} 个项目
@@ -686,17 +658,17 @@ export default function ProjectsPage() {
               <div className="flex items-center justify-center py-16">
                 <div className="loading-spinner" />
               </div>
-            ) : filteredAndSortedProjects.length > 0 ? (
+            ) : (
               <div className="overflow-x-auto">
                 {/* 表格容器 - 使用 grid 布局确保对齐 */}
-                <div className="min-w-[1400px]">
+                <div className="min-w-[980px]">
                   {/* 表头 */}
-                  <div 
+                  <div
                     className="grid items-center border-b"
-                    style={{ 
-                      gridTemplateColumns: '200px 160px 140px 120px 90px 100px 90px 96px 120px 140px',
-                      background: '#F7F8FA', 
-                      borderColor: '#E5E6EB' 
+                    style={{
+                      gridTemplateColumns: 'minmax(200px,1.25fr) minmax(130px,.85fr) minmax(180px,1fr) 120px 80px 116px 112px',
+                      background: '#F7F8FA',
+                      borderColor: '#E5E6EB',
                     }}
                   >
                     <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>
@@ -705,19 +677,18 @@ export default function ProjectsPage() {
                         项目名称
                       </div>
                     </div>
-                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>项目地址</div>
-                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>合作单位</div>
+                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>甲方</div>
+                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>地址</div>
                     <div 
                       className="px-4 py-3.5 text-sm font-semibold text-right cursor-pointer transition-colors flex items-center justify-end gap-1"
                       style={{ color: '#1D2129' }}
                       onClick={() => handleSort('contract_amount')}
                     >
-                      合同额
+                      合同金额
                       {getSortIcon('contract_amount')}
                     </div>
-                    <div className="px-4 py-3.5 text-sm font-semibold text-center" style={{ color: '#1D2129' }}>建筑面积</div>
                     <div 
-                      className="px-4 py-3.5 text-sm font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-1"
+                      className="px-4 py-3.5 text-sm font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-1 whitespace-nowrap"
                       style={{ color: '#1D2129' }}
                       onClick={() => handleSort('year')}
                     >
@@ -725,20 +696,13 @@ export default function ProjectsPage() {
                       {getSortIcon('year')}
                     </div>
                     <div 
-                      className="px-4 py-3.5 text-sm font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-1"
+                      className="px-4 py-3.5 text-sm font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-1 whitespace-nowrap"
                       style={{ color: '#1D2129' }}
                       onClick={() => handleSort('status')}
                     >
-                      状态
+                      项目状态
                       {getSortIcon('status')}
                     </div>
-                    <div className="px-4 py-3.5 text-sm font-semibold text-center" style={{ color: '#1D2129' }}>
-                      <div className="flex items-center justify-center gap-1">
-                        <Users className="w-4 h-4" style={{ color: '#165DFF' }} />
-                        人数
-                      </div>
-                    </div>
-                    <div className="px-4 py-3.5 text-sm font-semibold text-center" style={{ color: '#1D2129' }}>进度</div>
                     <div className="px-4 py-3.5 text-sm font-semibold text-right" style={{ color: '#1D2129' }}>操作</div>
                   </div>
 
@@ -747,17 +711,14 @@ export default function ProjectsPage() {
                     {filteredAndSortedProjects.map((project, index) => {
                       const projectIcon = getProjectIcon(project.name, project.icon);
                       const IconComponent = projectIcon.icon;
-                      const progress = project.progress ?? 0;
                       const statusStyle = getStatusStyle(project.status);
-                      const inService = project.inServiceCount || 0;
-                      const left = project.leftCount || 0;
                       
                       return (
                         <div 
                           key={project.id} 
                           className="grid items-center transition-colors hover:bg-[#F0F5FF]"
                           style={{ 
-                            gridTemplateColumns: '200px 160px 140px 120px 90px 100px 90px 96px 120px 140px',
+                            gridTemplateColumns: 'minmax(200px,1.25fr) minmax(130px,.85fr) minmax(180px,1fr) 120px 80px 116px 112px',
                             background: index % 2 === 1 ? '#FAFBFD' : 'transparent',
                             borderBottom: '1px solid #E5E6EB'
                           }}
@@ -777,24 +738,19 @@ export default function ProjectsPage() {
                             </div>
                           </div>
                           
-                          {/* 项目地址 */}
-                          <div className="px-4 py-3.5 text-sm truncate" style={{ color: '#4E5969' }}>
-                            {project.address || '-'}
-                          </div>
-                          
-                          {/* 合作单位 */}
+                          {/* 甲方 */}
                           <div className="px-4 py-3.5 text-sm truncate" style={{ color: '#4E5969' }}>
                             {project.partner || '-'}
+                          </div>
+                          
+                          {/* 地址 */}
+                          <div className="px-4 py-3.5 text-sm truncate" style={{ color: '#4E5969' }}>
+                            {project.address || '-'}
                           </div>
                           
                           {/* 合同额 */}
                           <div className="px-4 py-3.5 text-right">
                             <span className="font-bold" style={{ color: '#165DFF' }}>{formatCurrency(project.contract_amount)}</span>
-                          </div>
-                          
-                          {/* 建筑面积 */}
-                          <div className="px-4 py-3.5 text-center text-sm" style={{ color: '#4E5969' }}>
-                            {project.building_area ? `${Number(project.building_area).toLocaleString('zh-CN')}㎡` : '-'}
                           </div>
                           
                           {/* 年度 */}
@@ -805,7 +761,7 @@ export default function ProjectsPage() {
                           {/* 状态 */}
                           <div className="px-4 py-3.5 text-center">
                             <span 
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
                               style={{ 
                                 background: statusStyle.bg, 
                                 color: statusStyle.color,
@@ -814,31 +770,6 @@ export default function ProjectsPage() {
                             >
                               {project.status}
                             </span>
-                          </div>
-                          
-                          {/* 人数统计 */}
-                          <div className="px-4 py-3.5 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#E8FFEA', color: '#00B42A' }}>
-                                {inService}
-                              </span>
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#FFF7E8', color: '#FF7D00' }}>
-                                {left}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {/* 进度条 */}
-                          <div className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 progress-bar">
-                                <div 
-                                  className={`progress-fill ${getProgressColor(progress)}`}
-                                  style={{ width: `${progress}%` }}
-                                />
-                              </div>
-                              <span className="text-xs font-medium w-8 text-right" style={{ color: '#86909C' }}>{progress}%</span>
-                            </div>
                           </div>
                           
                           {/* 操作 */}
@@ -860,16 +791,17 @@ export default function ProjectsPage() {
                         </div>
                       );
                     })}
+                    {filteredAndSortedProjects.length === 0 && (
+                      <div className="px-4 py-14 text-center">
+                        <div className="empty-state-icon mx-auto">
+                          <FolderOpen className="w-8 h-8" style={{ color: '#C9CDD4' }} />
+                        </div>
+                        <p className="empty-state-title mt-3">暂无项目</p>
+                        <p className="empty-state-description">点击&quot;新增项目&quot;按钮添加第一个项目</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="empty-state">
-                <div className="empty-state-icon">
-                  <FolderOpen className="w-8 h-8" style={{ color: '#C9CDD4' }} />
-                </div>
-                <p className="empty-state-title">暂无项目</p>
-                <p className="empty-state-description">点击"新增项目"按钮添加第一个项目</p>
               </div>
             )}
           </CardContent>
@@ -883,7 +815,7 @@ export default function ProjectsPage() {
             <AlertDialogTitle>确认删除项目</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                <p>确定要删除项目 <strong>"{deleteTarget?.name}"</strong> 吗？此操作不可恢复。</p>
+                <p>确定要删除项目 <strong>&quot;{deleteConfirm?.name}&quot;</strong> 吗？此操作不可恢复。</p>
                 {deleteConfirm?.counts && deleteConfirm.counts.totalCount > 0 && (
                   <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm font-medium text-red-700 mb-2">以下数据将一并删除：</p>

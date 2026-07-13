@@ -2,6 +2,123 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { syncSalaryPaymentStatus } from '@/lib/business-logic';
+
+function parseAmount(value: any): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isStandalonePaymentType(paymentType?: string | null) {
+  return ['预支款', '借支款', '其他'].includes(paymentType || '');
+}
+
+function paymentKey(payment: { worker_id: number; project_id: number | null; year_month: string | null }) {
+  return `${payment.worker_id}:${payment.project_id || ''}:${payment.year_month || ''}`;
+}
+
+async function bindPaymentsToSalaries(
+  client: ReturnType<typeof getSupabaseClient>,
+  payments: any[],
+  errors: string[]
+) {
+  const salaryKeys = [...new Set(
+    payments
+      .filter(p => p.worker_id && p.project_id && p.year_month)
+      .map(paymentKey)
+  )];
+
+  if (salaryKeys.length === 0) return [];
+
+  const workerIds = [...new Set(payments.map(p => p.worker_id).filter(Boolean))];
+  const projectIds = [...new Set(payments.map(p => p.project_id).filter(Boolean))];
+  const yearMonths = [...new Set(payments.map(p => p.year_month).filter(Boolean))];
+
+  const { data: salaries, error } = await client
+    .from('worker_salaries')
+    .select('id, worker_id, project_id, year_month, net_pay')
+    .in('worker_id', workerIds)
+    .in('project_id', projectIds)
+    .in('year_month', yearMonths);
+
+  if (error) {
+    throw new Error(`匹配工资核算单失败: ${error.message}`);
+  }
+
+  const salaryMap = new Map<string, any>();
+  const duplicateKeys = new Set<string>();
+  (salaries || []).forEach((salary: any) => {
+    const key = paymentKey(salary);
+    if (salaryMap.has(key)) duplicateKeys.add(key);
+    salaryMap.set(key, salary);
+  });
+
+  const salaryIds = (salaries || []).map((salary: any) => salary.id);
+  const paidMap = new Map<number, number>();
+  if (salaryIds.length > 0) {
+    const { data: existingPayments } = await client
+      .from('salary_payments')
+      .select('salary_id, payment_amount')
+      .in('salary_id', salaryIds);
+
+    (existingPayments || []).forEach((payment: any) => {
+      if (!payment.salary_id) return;
+      paidMap.set(payment.salary_id, (paidMap.get(payment.salary_id) || 0) + parseAmount(payment.payment_amount));
+    });
+  }
+
+  const importPaidMap = new Map<number, number>();
+  const validPayments: any[] = [];
+
+  payments.forEach((payment, index) => {
+    const rowLabel = `第${index + 1}条`;
+
+    if (!payment.project_id || !payment.year_month) {
+      if (isStandalonePaymentType(payment.payment_type)) {
+        validPayments.push(payment);
+      } else {
+        errors.push(`${rowLabel}：月度工资发放必须提供项目和年月，用于匹配工资核算单`);
+      }
+      return;
+    }
+
+    const key = paymentKey(payment);
+    if (duplicateKeys.has(key)) {
+      errors.push(`${rowLabel}：该工人当前项目、当前月份存在多张工资核算单，请先处理重复工资记录`);
+      return;
+    }
+
+    const salary = salaryMap.get(key);
+    if (!salary) {
+      if (isStandalonePaymentType(payment.payment_type)) {
+        validPayments.push(payment);
+      } else {
+        errors.push(`${rowLabel}：未找到对应工资核算单，月度工资发放未导入`);
+      }
+      return;
+    }
+
+    const alreadyPaid = paidMap.get(salary.id) || 0;
+    const importingPaid = importPaidMap.get(salary.id) || 0;
+    const amount = parseAmount(payment.payment_amount);
+    const netPay = parseAmount(salary.net_pay);
+
+    if (alreadyPaid + importingPaid + amount > netPay) {
+      errors.push(`${rowLabel}：发放超额，实发工资${netPay}，已发${alreadyPaid}，本批次已排队${importingPaid}，本次${amount}`);
+      return;
+    }
+
+    importPaidMap.set(salary.id, importingPaid + amount);
+    validPayments.push({
+      ...payment,
+      salary_id: salary.id,
+      year_month: salary.year_month,
+      project_id: salary.project_id,
+    });
+  });
+
+  return validPayments;
+}
 
 // GET: 下载导入模板（生成 xlsx 文件）
 export async function GET() {
@@ -291,8 +408,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 批量插入
+    // 匹配工资核算单并做超额校验
     const client = getSupabaseClient();
+    paymentsToInsert = await bindPaymentsToSalaries(client, paymentsToInsert, errors);
+
+    if (paymentsToInsert.length === 0) {
+      return NextResponse.json({
+        error: '没有可导入的工资发放数据',
+        details: errors.join('；')
+      }, { status: 400 });
+    }
+
+    // 批量插入
     const { data, error } = await insertWithSequenceFix('salary_payments', paymentsToInsert, client);
 
     if (error) {
@@ -312,6 +439,11 @@ export async function POST(request: NextRequest) {
 
     if (notInRoster.length > 0) {
       result.notInRoster = notInRoster;
+    }
+
+    const affectedSalaryIds = [...new Set(paymentsToInsert.map(p => p.salary_id).filter(Boolean))];
+    for (const salaryId of affectedSalaryIds) {
+      await syncSalaryPaymentStatus(Number(salaryId));
     }
 
     await auditLog({

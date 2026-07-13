@@ -435,9 +435,63 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('[Salaries Batch] Inserting', recordsToInsert.length, 'records');
+    const makeSalaryKey = (record: any) => `${record.worker_id}:${record.project_id || ''}:${record.year_month}`;
+    const seenSalaryKeys = new Set<string>();
+    const dedupedRecords = recordsToInsert.filter((record: any) => {
+      const key = makeSalaryKey(record);
+      if (seenSalaryKeys.has(key)) {
+        warnings.push(`工人ID ${record.worker_id} 在项目ID ${record.project_id || '-'}、${record.year_month} 的工资记录在本次导入中重复，已跳过重复行`);
+        return false;
+      }
+      seenSalaryKeys.add(key);
+      return true;
+    });
 
-    const { data, error: insertError } = await insertWithSequenceFix('worker_salaries', recordsToInsert, client);
+    const workerIdsToCheck = [...new Set(dedupedRecords.map((record: any) => record.worker_id).filter(Boolean))];
+    const projectIdsToCheck = [...new Set(dedupedRecords.map((record: any) => record.project_id).filter(Boolean))];
+    const yearMonthsToCheck = [...new Set(dedupedRecords.map((record: any) => record.year_month).filter(Boolean))];
+    const existingSalaryKeys = new Set<string>();
+
+    if (workerIdsToCheck.length > 0 && yearMonthsToCheck.length > 0) {
+      let existingQuery = client
+        .from('worker_salaries')
+        .select('worker_id, project_id, year_month')
+        .in('worker_id', workerIdsToCheck)
+        .in('year_month', yearMonthsToCheck);
+
+      if (projectIdsToCheck.length > 0) {
+        existingQuery = existingQuery.in('project_id', projectIdsToCheck);
+      }
+
+      const { data: existingSalaries, error: existingSalaryError } = await existingQuery;
+
+      if (existingSalaryError) {
+        return NextResponse.json({ error: `检查重复工资记录失败: ${existingSalaryError.message}` }, { status: 500 });
+      }
+
+      (existingSalaries || []).forEach((record: any) => existingSalaryKeys.add(makeSalaryKey(record)));
+    }
+
+    const finalRecordsToInsert = dedupedRecords.filter((record: any) => {
+      const key = makeSalaryKey(record);
+      if (existingSalaryKeys.has(key)) {
+        warnings.push(`工人ID ${record.worker_id} 在项目ID ${record.project_id || '-'}、${record.year_month} 已有工资核算记录，已跳过`);
+        return false;
+      }
+      return true;
+    });
+
+    if (finalRecordsToInsert.length === 0) {
+      return NextResponse.json({
+        error: '没有可导入的工资数据',
+        details: warnings.join('；') || '本次导入数据均为重复工资记录',
+        warnings,
+      }, { status: 400 });
+    }
+
+    console.log('[Salaries Batch] Inserting', finalRecordsToInsert.length, 'records');
+
+    const { data, error: insertError } = await insertWithSequenceFix('worker_salaries', finalRecordsToInsert, client);
 
     if (insertError) {
       console.error('[Salaries Batch] Insert error:', insertError);

@@ -28,6 +28,7 @@ interface Project {
 interface SalaryRecord {
   id: number;
   worker_id: number;
+  project_id: number | null;
   worker_name: string;
   project_name: string;
   year_month: string;
@@ -39,13 +40,16 @@ interface SalaryRecord {
   advance_pay: string;
   labor_insurance: string;
   net_pay: string;
+  paid_amount?: number;
   deduction: string;
   remark: string | null;
 }
 
 interface SalaryPayment {
   id: number;
+  salary_id?: number | null;
   worker_id: number;
+  project_id?: number | null;
   worker_name?: string;
   project_name?: string;
   year_month: string;
@@ -54,7 +58,9 @@ interface SalaryPayment {
 }
 
 interface WorkerSummary {
+  summary_key: string;
   worker_id: number;
+  project_id: number | null;
   worker_name: string;
   work_type: string | null;
   project_name: string;
@@ -77,7 +83,7 @@ export default function WorkerSalaryQueryPage() {
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
-  const [expandedWorkers, setExpandedWorkers] = useState<Set<number>>(new Set());
+  const [expandedWorkers, setExpandedWorkers] = useState<Set<string>>(new Set());
   
   // 筛选条件
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
@@ -96,7 +102,7 @@ export default function WorkerSalaryQueryPage() {
     }
   }, [loading]);
 
-  const fetchData = async () => {
+  async function fetchData() {
     setLoading(true);
     setShowContent(false);
     try {
@@ -120,7 +126,7 @@ export default function WorkerSalaryQueryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   // 获取年份列表
   const yearOptions = useMemo(() => {
@@ -143,8 +149,7 @@ export default function WorkerSalaryQueryPage() {
     // 按项目筛选
     if (filterProject && filterProject !== 'all') {
       const projectId = parseInt(filterProject);
-      const workerIds = workers.filter(w => w.project_id === projectId).map(w => w.id);
-      filtered = filtered.filter(s => workerIds.includes(s.worker_id));
+      filtered = filtered.filter(s => s.project_id === projectId);
     }
     
     // 按工人筛选
@@ -162,12 +167,15 @@ export default function WorkerSalaryQueryPage() {
 
     // 按工人分组计算汇总
     const summary: WorkerSummary[] = [];
-    const workerMap = new Map<number, WorkerSummary>();
+    const workerMap = new Map<string, WorkerSummary>();
     
     filtered.forEach(s => {
-      if (!workerMap.has(s.worker_id)) {
-        workerMap.set(s.worker_id, {
+      const summaryKey = `${s.worker_id}:${s.project_id || 'none'}`;
+      if (!workerMap.has(summaryKey)) {
+        workerMap.set(summaryKey, {
+          summary_key: summaryKey,
           worker_id: s.worker_id,
+          project_id: s.project_id,
           worker_name: s.worker_name || workers.find(w => w.id === s.worker_id)?.name || '未知',
           work_type: workers.find(w => w.id === s.worker_id)?.work_type || null,
           project_name: s.project_name || workers.find(w => w.id === s.worker_id)?.project_name || '未知',
@@ -184,7 +192,7 @@ export default function WorkerSalaryQueryPage() {
         });
       }
       
-      const workerData = workerMap.get(s.worker_id)!;
+      const workerData = workerMap.get(summaryKey)!;
       const grossPay = parseFloat(s.gross_pay) || 0;
       const netPay = parseFloat(s.net_pay) || 0;
       const tax = parseFloat(s.income_tax) || 0;
@@ -198,6 +206,7 @@ export default function WorkerSalaryQueryPage() {
       workerData.total_advance += advance;
       workerData.total_insurance += insurance;
       workerData.total_deduction += deduction;
+      workerData.paid += Number(s.paid_amount || 0);
       workerData.monthly_count += 1;
       workerData.records.push(s);
     });
@@ -213,8 +222,7 @@ export default function WorkerSalaryQueryPage() {
     }
     if (filterProject && filterProject !== 'all') {
       const projectId = parseInt(filterProject);
-      const workerIds = workers.filter(w => w.project_id === projectId).map(w => w.id);
-      filteredPayments = filteredPayments.filter(p => workerIds.includes(p.worker_id));
+      filteredPayments = filteredPayments.filter(p => p.project_id === projectId);
     }
     if (searchName) {
       const nameWorkerIds = workers
@@ -226,10 +234,13 @@ export default function WorkerSalaryQueryPage() {
       filteredPayments = filteredPayments.filter(p => p.worker_id === parseInt(filterWorker));
     }
     filteredPayments.forEach(p => {
-      if (!workerMap.has(p.worker_id)) {
+      const paymentKey = `${p.worker_id}:${p.project_id || 'none'}`;
+      if (!workerMap.has(paymentKey)) {
         const worker = workers.find(w => w.id === p.worker_id);
-        workerMap.set(p.worker_id, {
+        workerMap.set(paymentKey, {
+          summary_key: paymentKey,
           worker_id: p.worker_id,
+          project_id: p.project_id || null,
           worker_name: p.worker_name || worker?.name || '未知',
           work_type: worker?.work_type || null,
           project_name: p.project_name || worker?.project_name || '未知',
@@ -247,20 +258,8 @@ export default function WorkerSalaryQueryPage() {
       }
     });
     
-    // 计算已付和未付（基于工资发放数据，按筛选年份过滤）
+    // 计算未付：已发金额使用工资核算接口按 salary_id 汇总后的 paid_amount，避免独立预支款混入正式工资发放
     workerMap.forEach(w => {
-      // 从工资发放记录中查找该工人的已发金额，且按年份筛选
-      let workerPayments = salaryPayments.filter(p => p.worker_id === w.worker_id);
-      // 按年份筛选发放记录：优先匹配year_month，其次匹配payment_date
-      if (filterYear) {
-        workerPayments = workerPayments.filter(p => {
-          if (p.year_month && p.year_month.startsWith(filterYear)) return true;
-          if (p.payment_date && p.payment_date.startsWith(filterYear)) return true;
-          return false;
-        });
-      }
-      w.paid = workerPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-      // 未付 = 实发 - 已发（多发时unpaid为负数）
       w.unpaid = w.total_net_pay - w.paid;
     });
     
@@ -280,19 +279,19 @@ export default function WorkerSalaryQueryPage() {
   }), [workerSummary]);
 
   // 切换展开/折叠
-  const toggleExpand = (workerId: number) => {
+  const toggleExpand = (summaryKey: string) => {
     const newExpanded = new Set(expandedWorkers);
-    if (newExpanded.has(workerId)) {
-      newExpanded.delete(workerId);
+    if (newExpanded.has(summaryKey)) {
+      newExpanded.delete(summaryKey);
     } else {
-      newExpanded.add(workerId);
+      newExpanded.add(summaryKey);
     }
     setExpandedWorkers(newExpanded);
   };
 
   // 全部展开/折叠
   const expandAll = () => {
-    setExpandedWorkers(new Set(workerSummary.map(w => w.worker_id)));
+    setExpandedWorkers(new Set(workerSummary.map(w => w.summary_key)));
   };
 
   const collapseAll = () => {
@@ -536,12 +535,12 @@ export default function WorkerSalaryQueryPage() {
                 <TableBody>
                   {workerSummary.length > 0 ? (
                     workerSummary.map((worker, index) => {
-                      const isExpanded = expandedWorkers.has(worker.worker_id);
+                      const isExpanded = expandedWorkers.has(worker.summary_key);
                       return (
-                        <Fragment key={worker.worker_id}>
+                        <Fragment key={worker.summary_key}>
                           <TableRow 
                             className={`${index % 2 === 1 ? 'bg-slate-50/50' : ''} hover:bg-blue-50/50 cursor-pointer`}
-                            onClick={() => toggleExpand(worker.worker_id)}
+                            onClick={() => toggleExpand(worker.summary_key)}
                           >
                             <TableCell className="sticky left-0 bg-white z-10 w-12">
                               <button className="p-1 hover:bg-gray-100 rounded">
@@ -639,7 +638,7 @@ export default function WorkerSalaryQueryPage() {
                         <div className="flex flex-col items-center gap-2">
                           <FileSpreadsheet className="w-12 h-12 text-gray-300" />
                           <p>暂无工资数据</p>
-                          <p className="text-sm">请先在"月度工资"中录入工资数据</p>
+                          <p className="text-sm">请先在&quot;月度工资&quot;中录入工资数据</p>
                         </div>
                       </TableCell>
                     </TableRow>
