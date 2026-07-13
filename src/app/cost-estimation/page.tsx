@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Database, BarChart3, Search, X, Upload, TrendingUp, Download, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Database, BarChart3, Search, X, Upload, TrendingUp, Download } from 'lucide-react';
 import Link from 'next/link';
 
 interface UnitPrice {
@@ -17,47 +17,11 @@ interface PriceStat {
 }
 
 interface Project { id: number; name: string; }
-type RiskLevel = 'low' | 'medium' | 'high';
-type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
-interface ConstructionRiskLog {
-  id: number;
-  project_id: number;
-  log_date: string;
-  content: string;
-  issues?: string;
-  location?: string;
-  risk_level?: RiskLevel | null;
-  risk_types?: RiskType[];
-  risk_summary?: string;
-  risk_recommendation?: string;
-}
-
-const RISK_TYPE_LABELS: Record<RiskType, string> = {
-  change: '变更',
-  visa: '签证',
-  delay: '工期',
-  quality: '质量',
-  safety: '安全',
-  cost: '成本',
-};
-
-const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
-  low: '低',
-  medium: '中',
-  high: '高',
-};
-
-function riskTone(level?: RiskLevel | null) {
-  if (level === 'high') return 'border-[#F53F3F] bg-[#FFF1F0] text-[#C62828]';
-  if (level === 'medium') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
-  return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
-}
 
 export default function CostEstimationPage() {
   const [tab, setTab] = useState<'prices' | 'stats'>('stats');
   const [prices, setPrices] = useState<UnitPrice[]>([]);
   const [stats, setStats] = useState<PriceStat[]>([]);
-  const [riskLogs, setRiskLogs] = useState<ConstructionRiskLog[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -68,23 +32,15 @@ export default function CostEstimationPage() {
 
   async function load() {
     try {
-        const [pRes, sRes, projRes, logRes] = await Promise.all([
+        const [pRes, sRes, projRes] = await Promise.all([
           fetch('/api/cost-estimation'),
           fetch('/api/cost-estimation/stats'),
           fetch('/api/projects'),
-          fetch('/api/construction-logs?pageSize=100'),
         ]);
-        const pJ = await pRes.json(), sJ = await sRes.json(), projJ = await projRes.json(), logJ = await logRes.json();
+        const pJ = await pRes.json(), sJ = await sRes.json(), projJ = await projRes.json();
       setPrices(Array.isArray(pJ.data) ? pJ.data : []);
       setStats(Array.isArray(sJ.data) ? sJ.data : []);
       setProjects(Array.isArray(projJ.projects) ? projJ.projects : []);
-      const costRelatedLogs = Array.isArray(logJ.data)
-        ? logJ.data.filter((log: ConstructionRiskLog) => {
-          const types = log.risk_types || [];
-          return log.risk_level && (types.includes('cost') || types.includes('change') || types.includes('visa') || types.includes('delay'));
-        }).slice(0, 8)
-        : [];
-      setRiskLogs(costRelatedLogs);
     } catch {} finally { setLoading(false); }
   }
 
@@ -163,37 +119,6 @@ export default function CostEstimationPage() {
            <p className="text-[10px] text-[#86909C] mt-0.5">引用单价→报价</p>
          </Link>
         </div>
-
-        {riskLogs.length > 0 && (
-          <section className="mb-5 rounded-xl border border-[#E5E6EB] bg-white p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-[#F59E0B]" />
-                <h2 className="text-sm font-semibold text-[#1D2129]">现场成本风险提示</h2>
-              </div>
-              <Link href="/construction-logs" className="text-xs text-[#165DFF] hover:underline">查看施工日志</Link>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {riskLogs.slice(0, 4).map(log => (
-                <div key={log.id} className="rounded-lg border border-[#F2F3F5] bg-[#FAFBFC] p-3">
-                  <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-medium ${riskTone(log.risk_level)}`}>
-                      {log.risk_level ? `${RISK_LEVEL_LABELS[log.risk_level]}风险` : '风险'}
-                    </span>
-                    {(log.risk_types || []).slice(0, 3).map(type => (
-                      <span key={type} className="rounded-full bg-white px-2 py-0.5 text-[#4E5969]">{RISK_TYPE_LABELS[type] || type}</span>
-                    ))}
-                    <span className="text-[#86909C]">{log.log_date}</span>
-                  </div>
-                  <p className="truncate text-sm font-medium text-[#1D2129]">
-                    {projectMap[log.project_id] || '未知项目'}{log.location ? ` · ${log.location}` : ''}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-[#4E5969]">{log.risk_summary || log.content}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* Tabs */}
         <div className="flex gap-1 bg-[#F2F3F5] rounded-xl p-1 mb-5">
