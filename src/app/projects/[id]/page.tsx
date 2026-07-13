@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  ArrowLeft, Users, BarChart3, FileText, DollarSign,
+  ArrowLeft, Users, BarChart3, FileText, DollarSign, Wallet,
   ListTree, Target, CheckCircle2, Plus, Upload, Download,
   Pencil, Trash2, Search, X, RefreshCw, FileSpreadsheet,
   AlertTriangle, TrendingUp, Calendar, Building2, CreditCard,
@@ -63,6 +63,19 @@ interface ProjectStats {
   workerCount: number;
   inServiceCount: number;
   leftCount: number;
+  totalCost?: string;
+  totalProfit?: string;
+  profitRate?: string;
+  receivableAmount?: string;
+  supplierPayableAmount?: string;
+  workerPayableAmount?: string;
+  totalPayableAmount?: string;
+  cashOutAmount?: string;
+  netCashFlow?: string;
+  fundingGapAmount?: string;
+  paymentRate?: string;
+  payablePaymentRate?: string;
+  costIncomeRate?: string;
 }
 
 interface WorkItemSubitem {
@@ -619,6 +632,11 @@ export default function ProjectDetailPage() {
     }).format(value);
   };
 
+  const parseStatAmount = (value?: string) => {
+    if (!value) return 0;
+    return parseFloat(value.replace(/,/g, '')) || 0;
+  };
+
   const getProgressBadge = (percent: number) => {
     if (percent >= 100) return <Badge className="bg-green-100 text-green-700">已完成</Badge>;
     if (percent >= 80) return <Badge variant="destructive">进度预警</Badge>;
@@ -650,6 +668,69 @@ export default function ProjectDetailPage() {
     pendingAmount: clientPayments.filter(p => p.status === 'pending').reduce((sum, p) => sum + parseFloat(p.payment_amount || '0'), 0),
     count: clientPayments.length,
   };
+
+  const financialStats = [
+    {
+      label: '已回款',
+      value: parseStatAmount(stats?.totalPayment),
+      sub: `回款率 ${stats?.paymentRate || '0.00'}%`,
+      color: 'text-green-700',
+      border: 'border-green-200',
+      bg: 'bg-green-50',
+      icon: CreditCard,
+      iconColor: 'text-green-600',
+    },
+    {
+      label: '应收未回',
+      value: parseStatAmount(stats?.receivableAmount),
+      sub: '客户侧待回款',
+      color: parseStatAmount(stats?.receivableAmount) > 0 ? 'text-orange-700' : 'text-green-700',
+      border: parseStatAmount(stats?.receivableAmount) > 0 ? 'border-orange-200' : 'border-green-200',
+      bg: parseStatAmount(stats?.receivableAmount) > 0 ? 'bg-orange-50' : 'bg-green-50',
+      icon: DollarSign,
+      iconColor: parseStatAmount(stats?.receivableAmount) > 0 ? 'text-orange-600' : 'text-green-600',
+    },
+    {
+      label: '已支付',
+      value: parseStatAmount(stats?.cashOutAmount),
+      sub: `付款率 ${stats?.payablePaymentRate || '0.00'}%`,
+      color: 'text-blue-700',
+      border: 'border-blue-200',
+      bg: 'bg-blue-50',
+      icon: Wallet,
+      iconColor: 'text-blue-600',
+    },
+    {
+      label: '应付未付',
+      value: parseStatAmount(stats?.totalPayableAmount),
+      sub: `供应商 ${formatCurrency(parseStatAmount(stats?.supplierPayableAmount))} / 工资 ${formatCurrency(parseStatAmount(stats?.workerPayableAmount))}`,
+      color: parseStatAmount(stats?.totalPayableAmount) > 0 ? 'text-red-700' : 'text-green-700',
+      border: parseStatAmount(stats?.totalPayableAmount) > 0 ? 'border-red-200' : 'border-green-200',
+      bg: parseStatAmount(stats?.totalPayableAmount) > 0 ? 'bg-red-50' : 'bg-green-50',
+      icon: AlertTriangle,
+      iconColor: parseStatAmount(stats?.totalPayableAmount) > 0 ? 'text-red-600' : 'text-green-600',
+    },
+    {
+      label: '现金净流',
+      value: parseStatAmount(stats?.netCashFlow),
+      sub: '已回款 - 已支付',
+      color: parseStatAmount(stats?.netCashFlow) >= 0 ? 'text-green-700' : 'text-red-700',
+      border: parseStatAmount(stats?.netCashFlow) >= 0 ? 'border-green-200' : 'border-red-200',
+      bg: parseStatAmount(stats?.netCashFlow) >= 0 ? 'bg-green-50' : 'bg-red-50',
+      icon: TrendingUp,
+      iconColor: parseStatAmount(stats?.netCashFlow) >= 0 ? 'text-green-600' : 'text-red-600',
+    },
+    {
+      label: '资金缺口',
+      value: parseStatAmount(stats?.fundingGapAmount),
+      sub: parseStatAmount(stats?.fundingGapAmount) > 0 ? '需重点跟进' : '暂无缺口',
+      color: parseStatAmount(stats?.fundingGapAmount) > 0 ? 'text-red-700' : 'text-green-700',
+      border: parseStatAmount(stats?.fundingGapAmount) > 0 ? 'border-red-200' : 'border-green-200',
+      bg: parseStatAmount(stats?.fundingGapAmount) > 0 ? 'bg-red-50' : 'bg-green-50',
+      icon: AlertTriangle,
+      iconColor: parseStatAmount(stats?.fundingGapAmount) > 0 ? 'text-red-600' : 'text-green-600',
+    },
+  ];
 
   // 产值结算编辑和删除处理函数
   const handleEditClientReport = (report: ClientReport) => {
@@ -821,6 +902,36 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* 详细数据标签页 */}
+      {/* 资金闭环 */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">资金闭环</h2>
+              <p className="text-xs text-gray-500 mt-1">按当前项目汇总回款、支付、应收应付与资金缺口</p>
+            </div>
+            <Badge variant={parseStatAmount(stats?.fundingGapAmount) > 0 ? 'destructive' : 'secondary'}>
+              {parseStatAmount(stats?.fundingGapAmount) > 0 ? '存在资金缺口' : '资金正常'}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            {financialStats.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className={`rounded-lg border ${item.border} ${item.bg} p-4`}>
+                  <div className="flex items-center gap-2">
+                    <Icon className={`w-4 h-4 ${item.iconColor}`} />
+                    <p className="text-sm font-medium text-gray-600">{item.label}</p>
+                  </div>
+                  <p className={`text-xl font-bold mt-2 ${item.color}`}>{formatCurrency(item.value)}</p>
+                  <p className="text-xs text-gray-500 mt-1 truncate" title={item.sub}>{item.sub}</p>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="budget" className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="budget">预算工程量</TabsTrigger>

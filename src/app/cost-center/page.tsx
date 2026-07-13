@@ -60,6 +60,19 @@ interface ProjectCostData {
   expenseRate: number;    // 综合费用占比
   taxRate: number;        // 税费占比
   miscMaterialRate: number; // 零星材料占比
+  clientPaidAmount: number;
+  supplierPaidAmount: number;
+  workerPaidAmount: number;
+  receivableAmount: number;
+  supplierPayableAmount: number;
+  workerPayableAmount: number;
+  totalPayableAmount: number;
+  cashOutAmount: number;
+  netCashFlow: number;
+  fundingGapAmount: number;
+  paymentRate: number;
+  payablePaymentRate: number;
+  costIncomeRate: number;
 }
 
 interface Summary {
@@ -78,6 +91,19 @@ interface Summary {
   avgExpenseRate: number; // 综合费用占比
   avgTaxRate: number;     // 税费占比
   avgMiscMaterialRate: number; // 零星材料占比
+  totalClientPaid: number;
+  totalSupplierPaid: number;
+  totalWorkerPaid: number;
+  totalReceivable: number;
+  totalSupplierPayable: number;
+  totalWorkerPayable: number;
+  totalPayable: number;
+  totalCashOut: number;
+  totalNetCashFlow: number;
+  totalFundingGap: number;
+  avgPaymentRate: number;
+  avgPayablePaymentRate: number;
+  avgCostIncomeRate: number;
 }
 
 interface Warning {
@@ -93,6 +119,39 @@ interface CostCenterData {
   summary: Summary;
   projects: ProjectCostData[];
   warnings: Warning[];
+}
+
+function createEmptySummary(): Summary {
+  return {
+    totalIncome: 0,
+    invoiceAmount: 0,
+    visaAmount: 0,
+    totalCost: 0,
+    totalSalary: 0,
+    totalSettlement: 0,
+    totalExpense: 0,
+    totalTax: 0,
+    totalMiscMaterial: 0,
+    totalProfit: 0,
+    avgProfitRate: 0,
+    avgLaborCostRate: 0,
+    avgExpenseRate: 0,
+    avgTaxRate: 0,
+    avgMiscMaterialRate: 0,
+    totalClientPaid: 0,
+    totalSupplierPaid: 0,
+    totalWorkerPaid: 0,
+    totalReceivable: 0,
+    totalSupplierPayable: 0,
+    totalWorkerPayable: 0,
+    totalPayable: 0,
+    totalCashOut: 0,
+    totalNetCashFlow: 0,
+    totalFundingGap: 0,
+    avgPaymentRate: 0,
+    avgPayablePaymentRate: 0,
+    avgCostIncomeRate: 0,
+  };
 }
 
 // 格式化金额为万元（千分位 + 两位小数，不带符号）
@@ -156,8 +215,6 @@ function CostCenterContent() {
   // 处理 URL 参数
   useEffect(() => {
     const projectIdParam = searchParams.get('projectId');
-    const warningParam = searchParams.get('warning');
-    
     if (projectIdParam) {
       setSelectedProjectId(projectIdParam);
     }
@@ -183,30 +240,14 @@ function CostCenterContent() {
       // 确保数据结构正确
       if (result && !result.error) {
         setData({
-          summary: result.summary || {
-            totalIncome: 0,
-            totalCost: 0,
-            totalSalary: 0,
-            totalSettlement: 0,
-            totalExpense: 0,
-            totalTax: 0,
-            totalMiscMaterial: 0,
-            totalProfit: 0,
-            avgProfitRate: 0,
-            avgLaborCostRate: 0,
-            avgExpenseRate: 0,
-            avgTaxRate: 0,
-            avgMiscMaterialRate: 0,
-            invoiceAmount: 0,
-            visaAmount: 0,
-          },
+          summary: result.summary || createEmptySummary(),
           projects: result.projects || [],
           warnings: result.warnings || [],
         });
       } else {
         console.error('API返回错误:', result.error);
         setData({
-          summary: { totalIncome: 0, totalCost: 0, totalSalary: 0, totalSettlement: 0, totalExpense: 0, totalTax: 0, totalMiscMaterial: 0, totalProfit: 0, avgProfitRate: 0, avgLaborCostRate: 0, avgExpenseRate: 0, avgTaxRate: 0, avgMiscMaterialRate: 0, invoiceAmount: 0, visaAmount: 0 },
+          summary: createEmptySummary(),
           projects: [],
           warnings: [],
         });
@@ -214,7 +255,7 @@ function CostCenterContent() {
     } catch (error) {
       console.error('获取数据失败:', error);
       setData({
-        summary: { totalIncome: 0, totalCost: 0, totalSalary: 0, totalSettlement: 0, totalExpense: 0, totalTax: 0, totalMiscMaterial: 0, totalProfit: 0, avgProfitRate: 0, avgLaborCostRate: 0, avgExpenseRate: 0, avgTaxRate: 0, avgMiscMaterialRate: 0, invoiceAmount: 0, visaAmount: 0 },
+        summary: createEmptySummary(),
         projects: [],
         warnings: [],
       });
@@ -270,6 +311,19 @@ function CostCenterContent() {
         avgExpenseRate: project.expenseRate,
         avgTaxRate: project.taxRate,
         avgMiscMaterialRate: project.miscMaterialRate || 0,
+        totalClientPaid: project.clientPaidAmount || 0,
+        totalSupplierPaid: project.supplierPaidAmount || 0,
+        totalWorkerPaid: project.workerPaidAmount || 0,
+        totalReceivable: project.receivableAmount || 0,
+        totalSupplierPayable: project.supplierPayableAmount || 0,
+        totalWorkerPayable: project.workerPayableAmount || 0,
+        totalPayable: project.totalPayableAmount || 0,
+        totalCashOut: project.cashOutAmount || 0,
+        totalNetCashFlow: project.netCashFlow || 0,
+        totalFundingGap: project.fundingGapAmount || 0,
+        avgPaymentRate: project.paymentRate || 0,
+        avgPayablePaymentRate: project.payablePaymentRate || 0,
+        avgCostIncomeRate: project.costIncomeRate || 0,
       },
       projects: [project],
       warnings: projectWarnings,
@@ -731,6 +785,38 @@ function CostCenterContent() {
       </div>
 
       {/* 收入/成本构成分析 */}
+      {/* 资金闭环概览 */}
+      {filteredData && (
+        <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+            <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#1D2129' }}>
+                <Wallet className="w-4 h-4" style={{ color: '#165DFF' }} />
+                资金闭环概览
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                {[
+                  { label: '已回款', value: filteredData.summary.totalClientPaid, desc: `回款率 ${formatPercent(filteredData.summary.avgPaymentRate)}%`, color: '#00B42A', bg: '#E8FFEA' },
+                  { label: '应收未回', value: filteredData.summary.totalReceivable, desc: '客户侧待回款', color: filteredData.summary.totalReceivable > 0 ? '#FF7D00' : '#00B42A', bg: filteredData.summary.totalReceivable > 0 ? '#FFF7E8' : '#E8FFEA' },
+                  { label: '已支付', value: filteredData.summary.totalCashOut, desc: `供应商 ${formatAmountSmart(filteredData.summary.totalSupplierPaid)} / 工资 ${formatAmountSmart(filteredData.summary.totalWorkerPaid)}`, color: '#165DFF', bg: '#E8F3FF' },
+                  { label: '应付未付', value: filteredData.summary.totalPayable, desc: `付款率 ${formatPercent(filteredData.summary.avgPayablePaymentRate)}%`, color: filteredData.summary.totalPayable > 0 ? '#F53F3F' : '#00B42A', bg: filteredData.summary.totalPayable > 0 ? '#FFECE8' : '#E8FFEA' },
+                  { label: '现金净流', value: filteredData.summary.totalNetCashFlow, desc: '已回款 - 已支付', color: filteredData.summary.totalNetCashFlow >= 0 ? '#00B42A' : '#F53F3F', bg: filteredData.summary.totalNetCashFlow >= 0 ? '#E8FFEA' : '#FFECE8' },
+                  { label: '资金缺口', value: filteredData.summary.totalFundingGap, desc: filteredData.summary.totalFundingGap > 0 ? '需重点跟进' : '暂无缺口', color: filteredData.summary.totalFundingGap > 0 ? '#F53F3F' : '#00B42A', bg: filteredData.summary.totalFundingGap > 0 ? '#FFECE8' : '#E8FFEA' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg border px-3 py-3" style={{ borderColor: '#E5E6EB', background: item.bg }}>
+                    <p className="text-xs font-medium" style={{ color: '#4E5969' }}>{item.label}</p>
+                    <p className="text-xl font-bold tabular-nums mt-1" style={{ color: item.color }}>{formatAmountSmart(item.value)}</p>
+                    <p className="text-xs mt-1 truncate" style={{ color: '#86909C' }} title={item.desc}>{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className={`grid grid-cols-1 lg:grid-cols-2 gap-5 transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <IncomeCompositionChart projectId={selectedProjectId} />
         <CostCompositionChart projectId={selectedProjectId} />

@@ -50,6 +50,36 @@ interface Project {
   name: string;
 }
 
+interface CostCenterProject {
+  id: number;
+  totalIncome: number;
+  clientPaidAmount: number;
+  receivableAmount: number;
+  totalPayableAmount: number;
+  cashOutAmount: number;
+  netCashFlow: number;
+  fundingGapAmount: number;
+  paymentRate: number;
+  payablePaymentRate: number;
+}
+
+interface CostCenterSummary {
+  totalIncome: number;
+  totalClientPaid: number;
+  totalReceivable: number;
+  totalPayable: number;
+  totalCashOut: number;
+  totalNetCashFlow: number;
+  totalFundingGap: number;
+  avgPaymentRate: number;
+  avgPayablePaymentRate: number;
+}
+
+interface CostCenterData {
+  summary?: CostCenterSummary;
+  projects?: CostCenterProject[];
+}
+
 interface DashboardStats {
   totalSettlement: number;
   totalPayment: number;
@@ -58,6 +88,11 @@ interface DashboardStats {
   settlementCount: number;
   paymentCount: number;
   avgPaymentRate: number;
+  totalPayable: number;
+  totalCashOut: number;
+  netCashFlow: number;
+  fundingGap: number;
+  avgPayablePaymentRate: number;
 }
 
 const formatCurrency = (value: number) => {
@@ -69,22 +104,25 @@ export default function FundManagementDashboard() {
   const [clientReports, setClientReports] = useState<ClientReport[]>([]);
   const [clientPayments, setClientPayments] = useState<ClientPayment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [costCenterData, setCostCenterData] = useState<CostCenterData | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [reportsRes, paymentsRes, projectsRes] = await Promise.all([
+      const [reportsRes, paymentsRes, projectsRes, costCenterRes] = await Promise.all([
         fetch('/api/client-reports', { credentials: 'include' }),
         fetch('/api/client-payments', { credentials: 'include' }),
         fetch('/api/projects', { credentials: 'include' }),
+        fetch('/api/cost-center', { credentials: 'include' }),
       ]);
 
-      const [reportsData, paymentsData, projectsData] = await Promise.all([
+      const [reportsData, paymentsData, projectsData, costCenterResult] = await Promise.all([
         reportsRes.json().catch(() => []),
         paymentsRes.json().catch(() => []),
         projectsRes.json().catch(() => []),
+        costCenterRes.json().catch(() => null),
       ]);
 
       const reportsArray = Array.isArray(reportsData.reports) ? reportsData.reports
@@ -100,6 +138,7 @@ export default function FundManagementDashboard() {
       setClientReports(reportsArray);
       setClientPayments(paymentsArray);
       setProjects(projectsArray);
+      setCostCenterData(costCenterResult && !costCenterResult.error ? costCenterResult : null);
     } catch (error) {
       console.error('加载数据失败:', error);
     } finally {
@@ -128,8 +167,51 @@ export default function FundManagementDashboard() {
     const paymentCount = filteredPayments.length;
     const avgPaymentRate = totalReceivable > 0 ? (totalReceived / totalReceivable) * 100 : 0;
 
-    return { totalSettlement: totalReceivable, totalPayment: totalReceived, totalUnpaid: totalUnreceived, overPayment: totalOverReceived, settlementCount, paymentCount, avgPaymentRate };
-  }, [clientReports, clientPayments, selectedProject]);
+    const financial = selectedProject === 'all'
+      ? costCenterData?.summary
+      : costCenterData?.projects?.find(p => p.id === Number(selectedProject));
+
+    const alignedReceivableBase = financial ? financial.totalIncome : totalReceivable;
+    const alignedReceived = financial
+      ? ('totalClientPaid' in financial ? financial.totalClientPaid : financial.clientPaidAmount)
+      : totalReceived;
+    const alignedUnreceived = financial
+      ? ('totalReceivable' in financial ? financial.totalReceivable : financial.receivableAmount)
+      : totalUnreceived;
+    const alignedPaymentRate = financial
+      ? ('avgPaymentRate' in financial ? financial.avgPaymentRate : financial.paymentRate)
+      : avgPaymentRate;
+    const totalPayable = financial
+      ? ('totalPayable' in financial ? financial.totalPayable : financial.totalPayableAmount)
+      : 0;
+    const totalCashOut = financial
+      ? ('totalCashOut' in financial ? financial.totalCashOut : financial.cashOutAmount)
+      : 0;
+    const netCashFlow = financial
+      ? ('totalNetCashFlow' in financial ? financial.totalNetCashFlow : financial.netCashFlow)
+      : alignedReceived - totalCashOut;
+    const fundingGap = financial
+      ? ('totalFundingGap' in financial ? financial.totalFundingGap : financial.fundingGapAmount)
+      : Math.max(totalPayable - alignedUnreceived, 0);
+    const avgPayablePaymentRate = financial
+      ? ('avgPayablePaymentRate' in financial ? financial.avgPayablePaymentRate : financial.payablePaymentRate)
+      : 0;
+
+    return {
+      totalSettlement: alignedReceivableBase,
+      totalPayment: alignedReceived,
+      totalUnpaid: alignedUnreceived,
+      overPayment: alignedReceived > alignedReceivableBase ? alignedReceived - alignedReceivableBase : totalOverReceived,
+      settlementCount,
+      paymentCount,
+      avgPaymentRate: alignedPaymentRate,
+      totalPayable,
+      totalCashOut,
+      netCashFlow,
+      fundingGap,
+      avgPayablePaymentRate,
+    };
+  }, [clientReports, clientPayments, selectedProject, costCenterData]);
 
   const pieChartData = useMemo(() => {
     const items = [
@@ -280,12 +362,15 @@ export default function FundManagementDashboard() {
   );
 
   const kpiSection = (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
       <KpiCard label="开票金额(应收)" value={stats.totalSettlement} amountMode scope={`${stats.settlementCount}笔报量`} />
       <KpiCard label="已收金额" value={stats.totalPayment} amountMode scope={`${stats.paymentCount}笔回款`} />
       <KpiCard label="未收金额" value={stats.totalUnpaid} amountMode risk={stats.totalUnpaid > 0 ? 'warning' : 'normal'} scope={stats.totalUnpaid > 0 ? '待回款' : '已全部回款'} />
       <KpiCard label="超收/预收" value={stats.overPayment} amountMode risk={stats.overPayment > 0 ? 'danger' : 'normal'} scope={stats.overPayment > 0 ? '回款超结算' : '暂无超收'} />
       <KpiCard label="回款率" value={stats.avgPaymentRate} percentMode risk={stats.avgPaymentRate > 100 ? 'danger' : stats.avgPaymentRate >= 80 ? 'normal' : 'warning'} />
+      <KpiCard label="已支付" value={stats.totalCashOut} amountMode scope={`付款率 ${stats.avgPayablePaymentRate.toFixed(1)}%`} />
+      <KpiCard label="应付未付" value={stats.totalPayable} amountMode risk={stats.totalPayable > 0 ? 'warning' : 'normal'} scope={stats.totalPayable > 0 ? '待付款' : '暂无应付'} />
+      <KpiCard label="资金缺口" value={stats.fundingGap} amountMode risk={stats.fundingGap > 0 ? 'danger' : 'normal'} scope={stats.netCashFlow < 0 ? `净流出 ${formatCurrency(Math.abs(stats.netCashFlow))}` : `净流入 ${formatCurrency(stats.netCashFlow)}`} />
     </div>
   );
 
