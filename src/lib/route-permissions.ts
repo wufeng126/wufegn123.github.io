@@ -210,6 +210,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
 
   // 供应商与费用
   '/api/suppliers': 'suppliers:edit',
+  '/api/supplier-contracts/payments': 'supplier_payments:edit',
   '/api/supplier-contracts': 'settlements:edit',
   '/api/supplier-settlements': 'settlements:edit',
   '/api/supplier-payments': 'supplier_payments:edit',

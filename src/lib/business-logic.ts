@@ -281,6 +281,54 @@ export async function validateSupplierPayment(params: {
 /**
  * 获取项目的报量总额（已审核）
  */
+/**
+ * 校验供应商付款是否超过单张结算单的应付余额
+ */
+export async function validateSupplierSettlementPayment(params: {
+  settlement_id: number;
+  payment_amount: number;
+  exclude_payment_id?: number;
+}): Promise<{ valid: boolean; unpaidBalance: number; message: string }> {
+  const client = getSupabaseClient();
+
+  const { data: settlement } = await client
+    .from('supplier_settlements')
+    .select('id, payable_amount')
+    .eq('id', params.settlement_id)
+    .single();
+
+  if (!settlement) {
+    return { valid: false, unpaidBalance: 0, message: '结算单不存在' };
+  }
+
+  let paymentQuery = client
+    .from('supplier_payments')
+    .select('id, payment_amount')
+    .eq('settlement_id', params.settlement_id);
+
+  if (params.exclude_payment_id) {
+    paymentQuery = paymentQuery.neq('id', params.exclude_payment_id);
+  }
+
+  const { data: payments } = await paymentQuery;
+  const totalPaid = (payments || []).reduce(
+    (sum: number, p: any) => sum + parseNumeric(p.payment_amount),
+    0
+  );
+  const payableAmount = parseNumeric(settlement.payable_amount);
+  const unpaidBalance = payableAmount - totalPaid;
+
+  if (params.payment_amount > unpaidBalance) {
+    return {
+      valid: false,
+      unpaidBalance,
+      message: `付款金额超过结算单未付余额。应付: ¥${payableAmount.toLocaleString()}, 已付: ¥${totalPaid.toLocaleString()}, 未付: ¥${unpaidBalance.toLocaleString()}`,
+    };
+  }
+
+  return { valid: true, unpaidBalance, message: '' };
+}
+
 export async function getProjectReportedAmount(projectId: number): Promise<{
   totalSettlement: number;  // 结算金额
   totalInvoice: number;     // 开票金额
@@ -301,13 +349,23 @@ export async function getProjectReportedAmount(projectId: number): Promise<{
 /**
  * 获取项目的已回款总额
  */
-export async function getProjectPaidAmount(projectId: number): Promise<number> {
+export async function getProjectPaidAmount(
+  projectId: number,
+  excludePaymentId?: number
+): Promise<number> {
   const client = getSupabaseClient();
-  const { data: payments } = await client
+
+  let query = client
     .from('client_payments')
-    .select('payment_amount')
+    .select('id, payment_amount')
     .eq('project_id', projectId)
     .eq('status', 'completed');
+
+  if (excludePaymentId) {
+    query = query.neq('id', excludePaymentId);
+  }
+
+  const { data: payments } = await query;
 
   return (payments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
 }
@@ -319,9 +377,10 @@ export async function getProjectPaidAmount(projectId: number): Promise<number> {
 export async function validateClientPayment(params: {
   project_id: number;
   payment_amount: number;
+  exclude_payment_id?: number;
 }): Promise<{ valid: boolean; unpaidBalance: number; message: string }> {
   const { totalSettlement } = await getProjectReportedAmount(params.project_id);
-  const totalPaid = await getProjectPaidAmount(params.project_id);
+  const totalPaid = await getProjectPaidAmount(params.project_id, params.exclude_payment_id);
   const unpaidBalance = totalSettlement - totalPaid;
 
   if (params.payment_amount > unpaidBalance && totalSettlement > 0) {
