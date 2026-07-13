@@ -446,6 +446,14 @@ export function isInactiveClientPaymentStatus(status?: string | null): boolean {
   return status === 'cancelled' || isVoidedStatus(status);
 }
 
+export function isEffectiveSupplierPaymentStatus(status?: string | null): boolean {
+  return !status || status === 'completed' || isReviewedStatus(status);
+}
+
+export function isInactiveSupplierPaymentStatus(status?: string | null): boolean {
+  return status === 'cancelled' || isVoidedStatus(status);
+}
+
 /**
  * 校验状态流转是否合法
  * draft → reviewed ✓（审核）

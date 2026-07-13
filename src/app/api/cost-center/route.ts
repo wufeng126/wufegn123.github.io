@@ -61,6 +61,19 @@ export async function GET(request: NextRequest) {
         expenseRate: s.expenseRate,
         taxRate: s.taxRate,
         miscMaterialRate: s.miscMaterialRate,
+        clientPaidAmount: s.clientPaidAmount,
+        supplierPaidAmount: s.supplierPaidAmount,
+        workerPaidAmount: s.workerPaidAmount,
+        receivableAmount: s.receivableAmount,
+        supplierPayableAmount: s.supplierPayableAmount,
+        workerPayableAmount: s.workerPayableAmount,
+        totalPayableAmount: s.totalPayableAmount,
+        cashOutAmount: s.cashOutAmount,
+        netCashFlow: s.netCashFlow,
+        fundingGapAmount: s.fundingGapAmount,
+        paymentRate: s.paymentRate,
+        payablePaymentRate: s.payablePaymentRate,
+        costIncomeRate: s.costIncomeRate,
       };
     }).filter(Boolean);
 
@@ -77,11 +90,24 @@ export async function GET(request: NextRequest) {
       acc.totalTaxAmount += p.taxAmount;
       acc.totalMiscMaterial += p.miscMaterialAmount;
       acc.totalProfit += p.profit;
+      acc.totalClientPaid += p.clientPaidAmount;
+      acc.totalSupplierPaid += p.supplierPaidAmount;
+      acc.totalWorkerPaid += p.workerPaidAmount;
+      acc.totalReceivable += p.receivableAmount;
+      acc.totalSupplierPayable += p.supplierPayableAmount;
+      acc.totalWorkerPayable += p.workerPayableAmount;
+      acc.totalPayable += p.totalPayableAmount;
+      acc.totalCashOut += p.cashOutAmount;
+      acc.totalFundingGap += p.fundingGapAmount;
+      acc.totalNetCashFlow += p.netCashFlow;
       return acc;
     }, {
       totalIncome: 0, totalInvoiceAmount: 0, totalUntaxedIncome: 0, totalVisaAmount: 0,
       totalCost: 0, totalSalary: 0, totalSettlement: 0, totalExpense: 0,
       totalTaxAmount: 0, totalMiscMaterial: 0, totalProfit: 0,
+      totalClientPaid: 0, totalSupplierPaid: 0, totalWorkerPaid: 0,
+      totalReceivable: 0, totalSupplierPayable: 0, totalWorkerPayable: 0,
+      totalPayable: 0, totalCashOut: 0, totalFundingGap: 0, totalNetCashFlow: 0,
     });
 
     // ========== 4. 成本异常预警 ==========
@@ -151,6 +177,17 @@ export async function GET(request: NextRequest) {
           severity: 'medium',
         });
       }
+
+      if (project.fundingGapAmount > 0) {
+        warnings.push({
+          projectId: project.id,
+          projectName: project.name,
+          type: 'funding_gap',
+          message: `璧勯噾缂哄彛 ${formatAmountSmart(toWanYuan(project.fundingGapAmount))}`,
+          value: project.fundingGapAmount,
+          severity: 'medium',
+        });
+      }
     });
 
     const severityOrder = { high: 0, medium: 1, low: 2 };
@@ -170,11 +207,26 @@ export async function GET(request: NextRequest) {
         totalTax: totals.totalTaxAmount,
         totalMiscMaterial: totals.totalMiscMaterial,
         totalProfit: totals.totalProfit,
+        totalClientPaid: totals.totalClientPaid,
+        totalSupplierPaid: totals.totalSupplierPaid,
+        totalWorkerPaid: totals.totalWorkerPaid,
+        totalReceivable: totals.totalReceivable,
+        totalSupplierPayable: totals.totalSupplierPayable,
+        totalWorkerPayable: totals.totalWorkerPayable,
+        totalPayable: totals.totalPayable,
+        totalCashOut: totals.totalCashOut,
+        totalNetCashFlow: totals.totalNetCashFlow,
+        totalFundingGap: totals.totalFundingGap,
         avgProfitRate: totals.totalIncome > 0 ? (totals.totalProfit / totals.totalIncome) * 100 : 0,
         avgLaborCostRate: totals.totalCost > 0 ? (totals.totalSalary / totals.totalCost) * 100 : 0,
         avgExpenseRate: totals.totalCost > 0 ? (totals.totalExpense / totals.totalCost) * 100 : 0,
         avgTaxRate: totals.totalCost > 0 ? (totals.totalTaxAmount / totals.totalCost) * 100 : 0,
         avgMiscMaterialRate: totals.totalCost > 0 ? (totals.totalMiscMaterial / totals.totalCost) * 100 : 0,
+        avgPaymentRate: totals.totalIncome > 0 ? (totals.totalClientPaid / totals.totalIncome) * 100 : 0,
+        avgPayablePaymentRate: (totals.totalSettlement + totals.totalSalary) > 0
+          ? ((totals.totalSupplierPaid + totals.totalWorkerPaid) / (totals.totalSettlement + totals.totalSalary)) * 100
+          : 0,
+        avgCostIncomeRate: totals.totalIncome > 0 ? (totals.totalCost / totals.totalIncome) * 100 : 0,
       },
       projects: projectCostList,
       warnings,

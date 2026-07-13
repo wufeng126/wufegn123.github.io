@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { auditLog } from '@/lib/audit-log';
+import { getProjectFinancialSummary } from '@/lib/data-aggregation';
+import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
 
 export async function GET(
   request: NextRequest,
@@ -23,6 +25,7 @@ export async function GET(
 
     // 获取项目统计数据
     const projectId = parseInt(id);
+    const financialSummary = await getProjectFinancialSummary(projectId);
 
     // 工人工资总额（含发放状态统计）
     const { data: salaryData } = await client
@@ -52,10 +55,11 @@ export async function GET(
     const { data: paymentData } = await client
       .from('client_payments')
       .select('payment_amount, status')
-      .eq('project_id', projectId)
-      .eq('status', 'completed');
+      .eq('project_id', projectId);
     
-    const totalPayment = paymentData?.reduce((sum, r) => sum + parseFloat(r.payment_amount || '0'), 0) || 0;
+    const totalPayment = paymentData
+      ?.filter((r) => isEffectiveClientPaymentStatus(r.status))
+      .reduce((sum, r) => sum + parseFloat(r.payment_amount || '0'), 0) || 0;
 
     // 工程量统计
     const { data: workItemsData } = await client
@@ -142,6 +146,19 @@ export async function GET(
         leftCount,
         totalVisa: totalVisa.toFixed(2),
         totalSettlement: totalSettlement.toFixed(2),
+        totalCost: (financialSummary?.totalCost || 0).toFixed(2),
+        totalProfit: (financialSummary?.profit || 0).toFixed(2),
+        profitRate: (financialSummary?.profitRate || 0).toFixed(2),
+        receivableAmount: (financialSummary?.receivableAmount || 0).toFixed(2),
+        supplierPayableAmount: (financialSummary?.supplierPayableAmount || 0).toFixed(2),
+        workerPayableAmount: (financialSummary?.workerPayableAmount || 0).toFixed(2),
+        totalPayableAmount: (financialSummary?.totalPayableAmount || 0).toFixed(2),
+        cashOutAmount: (financialSummary?.cashOutAmount || 0).toFixed(2),
+        netCashFlow: (financialSummary?.netCashFlow || 0).toFixed(2),
+        fundingGapAmount: (financialSummary?.fundingGapAmount || 0).toFixed(2),
+        paymentRate: (financialSummary?.paymentRate || 0).toFixed(2),
+        payablePaymentRate: (financialSummary?.payablePaymentRate || 0).toFixed(2),
+        costIncomeRate: (financialSummary?.costIncomeRate || 0).toFixed(2),
       }
     });
   } catch (error: any) {

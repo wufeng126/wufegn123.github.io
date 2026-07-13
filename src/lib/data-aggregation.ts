@@ -12,7 +12,11 @@
  */
 
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveClientPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+import {
+  isEffectiveClientPaymentStatus,
+  isEffectiveSupplierPaymentStatus,
+  isVoidedStatus,
+} from '@/lib/business-logic';
 import { parseNumeric, round2, yearMonthToRange } from './format';
 
 // ========== 类型定义 ==========
@@ -52,6 +56,15 @@ export interface ProjectFinancialSummary {
   workerPaidAmount: number;   // 工人已发工资
   // 回款率
   paymentRate: number;
+  receivableAmount: number;
+  supplierPayableAmount: number;
+  workerPayableAmount: number;
+  totalPayableAmount: number;
+  cashOutAmount: number;
+  netCashFlow: number;
+  fundingGapAmount: number;
+  costIncomeRate: number;
+  payablePaymentRate: number;
 }
 
 export interface GlobalSummary {
@@ -84,7 +97,12 @@ export interface GlobalSummary {
   totalSupplierPayable: number; // 供应商应付 = 结算 - 已付
   totalWorkerPayable: number;   // 工人应付 = 应发 - 已发
   // 回款率
+  totalPayable: number;
+  netCashFlow: number;
+  fundingGapAmount: number;
   overallPaymentRate: number;
+  payablePaymentRate: number;
+  costIncomeRate: number;
 }
 
 export interface ProjectListItem {
@@ -200,10 +218,16 @@ export async function getProjectFinancialSummary(
 
   let settlementAmount = 0;
   if (contractIds.length > 0) {
-    const { data: settlements } = await client
+    let settlementsQuery = client
       .from('supplier_settlements')
       .select('settlement_amount, settlement_date, status')
       .in('contract_id', contractIds);
+
+    if (dateRange) {
+      settlementsQuery = buildDateFilter(settlementsQuery, 'settlement_date', dateRange);
+    }
+
+    const { data: settlements } = await settlementsQuery;
 
     settlementAmount = (settlements || [])
       .filter((s: any) => !isVoidedStatus(s.status))
@@ -229,12 +253,12 @@ export async function getProjectFinancialSummary(
   // 5. 综合费用（仅已审核）
   let expensesQuery = client
     .from('comprehensive_expenses')
-    .select('amount, occurrence_date')
+    .select('amount, expense_date')
     .eq('project_id', projectId)
     .neq('status', 'voided');
 
   if (dateRange) {
-    expensesQuery = buildDateFilter(expensesQuery, 'occurrence_date', dateRange);
+    expensesQuery = buildDateFilter(expensesQuery, 'expense_date', dateRange);
   }
 
   const { data: expenses } = await expensesQuery;
@@ -272,19 +296,33 @@ export async function getProjectFinancialSummary(
   // 8. 供应商已付款
   let supplierPaidAmount = 0;
   if (contractIds.length > 0) {
-    const { data: supplierPayments } = await client
+    let supplierPaymentsQuery = client
       .from('supplier_payments')
-      .select('payment_amount, payment_date')
+      .select('payment_amount, payment_date, status')
       .in('contract_id', contractIds);
 
-    supplierPaidAmount = (supplierPayments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+    if (dateRange) {
+      supplierPaymentsQuery = buildDateFilter(supplierPaymentsQuery, 'payment_date', dateRange);
+    }
+
+    const { data: supplierPayments } = await supplierPaymentsQuery;
+
+    supplierPaidAmount = (supplierPayments || [])
+      .filter((p: any) => isEffectiveSupplierPaymentStatus(p.status))
+      .reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
   }
 
   // 9. 工人已发工资
-  const { data: salaryPayments } = await client
+  let salaryPaymentsQuery = client
     .from('salary_payments')
-    .select('payment_amount')
+    .select('payment_amount, payment_date')
     .eq('project_id', projectId);
+
+  if (dateRange) {
+    salaryPaymentsQuery = buildDateFilter(salaryPaymentsQuery, 'payment_date', dateRange);
+  }
+
+  const { data: salaryPayments } = await salaryPaymentsQuery;
   const workerPaidAmount = (salaryPayments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
 
   // ========== 汇总计算 ==========
@@ -293,6 +331,16 @@ export async function getProjectFinancialSummary(
   const profit = taxableIncome - totalCost;
   const profitRate = taxableIncome > 0 ? (profit / taxableIncome) * 100 : 0;
   const paymentRate = taxableIncome > 0 ? (clientPaidAmount / taxableIncome) * 100 : 0;
+  const receivableAmount = Math.max(taxableIncome - clientPaidAmount, 0);
+  const supplierPayableAmount = Math.max(settlementAmount - supplierPaidAmount, 0);
+  const workerPayableAmount = Math.max(salaryAmount - workerPaidAmount, 0);
+  const totalPayableAmount = supplierPayableAmount + workerPayableAmount;
+  const cashOutAmount = supplierPaidAmount + workerPaidAmount;
+  const netCashFlow = clientPaidAmount - cashOutAmount;
+  const fundingGapAmount = Math.max(totalPayableAmount - receivableAmount, 0);
+  const costIncomeRate = taxableIncome > 0 ? (totalCost / taxableIncome) * 100 : 0;
+  const payableBaseAmount = settlementAmount + salaryAmount;
+  const payablePaymentRate = payableBaseAmount > 0 ? (cashOutAmount / payableBaseAmount) * 100 : 0;
 
   return {
     projectId,
@@ -318,6 +366,15 @@ export async function getProjectFinancialSummary(
     supplierPaidAmount: round2(supplierPaidAmount),
     workerPaidAmount: round2(workerPaidAmount),
     paymentRate: round2(paymentRate),
+    receivableAmount: round2(receivableAmount),
+    supplierPayableAmount: round2(supplierPayableAmount),
+    workerPayableAmount: round2(workerPayableAmount),
+    totalPayableAmount: round2(totalPayableAmount),
+    cashOutAmount: round2(cashOutAmount),
+    netCashFlow: round2(netCashFlow),
+    fundingGapAmount: round2(fundingGapAmount),
+    costIncomeRate: round2(costIncomeRate),
+    payablePaymentRate: round2(payablePaymentRate),
   };
 }
 
@@ -389,6 +446,16 @@ export async function getGlobalSummary(
   const overallPaymentRate = totals.totalTaxableIncome > 0
     ? (totals.totalClientPaid / totals.totalTaxableIncome) * 100
     : 0;
+  const totalReceivable = Math.max(totals.totalTaxableIncome - totals.totalClientPaid, 0);
+  const totalSupplierPayable = Math.max(totals.totalSettlement - totals.totalSupplierPaid, 0);
+  const totalWorkerPayable = Math.max(totals.totalSalary - totals.totalWorkerPaid, 0);
+  const totalPayable = totalSupplierPayable + totalWorkerPayable;
+  const totalCashOut = totals.totalSupplierPaid + totals.totalWorkerPaid;
+  const payableBaseAmount = totals.totalSettlement + totals.totalSalary;
+  const payablePaymentRate = payableBaseAmount > 0 ? (totalCashOut / payableBaseAmount) * 100 : 0;
+  const costIncomeRate = totals.totalTaxableIncome > 0
+    ? (totals.totalCost / totals.totalTaxableIncome) * 100
+    : 0;
 
   return {
     totalProjects,
@@ -399,11 +466,16 @@ export async function getGlobalSummary(
     ...Object.fromEntries(
       Object.entries(totals).map(([k, v]) => [k, round2(v as number)])
     ),
-    totalReceivable: round2(totals.totalTaxableIncome - totals.totalClientPaid),
-    totalSupplierPayable: round2(totals.totalSettlement - totals.totalSupplierPaid),
-    totalWorkerPayable: round2(totals.totalSalary - totals.totalWorkerPaid),
+    totalReceivable: round2(totalReceivable),
+    totalSupplierPayable: round2(totalSupplierPayable),
+    totalWorkerPayable: round2(totalWorkerPayable),
+    totalPayable: round2(totalPayable),
+    netCashFlow: round2(totals.totalClientPaid - totalCashOut),
+    fundingGapAmount: round2(Math.max(totalPayable - totalReceivable, 0)),
     profitRate: round2(profitRate),
     overallPaymentRate: round2(overallPaymentRate),
+    payablePaymentRate: round2(payablePaymentRate),
+    costIncomeRate: round2(costIncomeRate),
   } as GlobalSummary;
 }
 
