@@ -11,7 +11,6 @@ type LogStatRow = {
   user_id: number;
   user_name: string | null;
   log_date: string;
-  daily_group_id?: string | null;
   content?: string | null;
   issues?: string | null;
 };
@@ -47,6 +46,27 @@ type UserRow = {
   name?: string | null;
   dingtalk_name?: string | null;
 };
+
+async function fetchUserNameMap(supabase: ReturnType<typeof getSupabaseClient>, userIds: number[]) {
+  if (userIds.length === 0) return new Map<number, string>();
+
+  const primary = await supabase
+    .from('users')
+    .select('id,username,name,dingtalk_name')
+    .in('id', userIds);
+
+  if (!primary.error) {
+    return new Map(((primary.data || []) as UserRow[]).map(user => [Number(user.id), getUserDisplayName(user)]));
+  }
+
+  const fallback = await supabase
+    .from('users')
+    .select('id,username,name')
+    .in('id', userIds);
+
+  if (fallback.error) return new Map<number, string>();
+  return new Map(((fallback.data || []) as UserRow[]).map(user => [Number(user.id), getUserDisplayName(user)]));
+}
 
 function getMonthRange(month?: string | null) {
   const now = new Date();
@@ -122,7 +142,7 @@ export async function GET(request: NextRequest) {
     const { data: projectRows, error: projectError } = await projectsQuery;
     if (projectError) throw new Error(projectError.message);
 
-    let query = supabase.from('construction_logs').select('project_id, user_id, user_name, log_date, daily_group_id, content, issues');
+    let query = supabase.from('construction_logs').select('project_id, user_id, user_name, log_date, content, issues');
     if (parsedProjectId) query = query.eq('project_id', parsedProjectId);
     else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
     if (dateFrom) query = query.gte('log_date', dateFrom);
@@ -137,14 +157,7 @@ export async function GET(request: NextRequest) {
 
     const rows = (data || []) as LogStatRow[];
     const userIds = Array.from(new Set(rows.map(row => Number(row.user_id)).filter(Boolean)));
-    let userNameMap = new Map<number, string>();
-    if (userIds.length > 0) {
-      const { data: userRows } = await supabase
-        .from('users')
-        .select('id,username,name,dingtalk_name')
-        .in('id', userIds);
-      userNameMap = new Map(((userRows || []) as UserRow[]).map(user => [Number(user.id), getUserDisplayName(user)]));
-    }
+    const userNameMap = await fetchUserNameMap(supabase, userIds);
     const stats: Record<string, UserLogStats> = {};
     const projectStats: Record<string, ProjectLogStats> = {};
     const expectedDays = getExpectedDays(month, dateFrom, dateTo);

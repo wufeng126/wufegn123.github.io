@@ -34,7 +34,10 @@ type KnowledgeDocRow = {
 };
 
 type NotificationRow = {
+  id?: number;
   related_id?: number | null;
+  project_id?: number | null;
+  is_read?: boolean | string | null;
   metadata?: { knowledgeId?: number | string } | null;
 };
 
@@ -97,6 +100,19 @@ function isMissingRecipientColumn(error: unknown) {
   return message.includes('recipient_user_id') || message.includes('recipient_role');
 }
 
+function isUnread(value: unknown) {
+  return value === false || value === 'false' || value === 0 || value === '0' || value === null || value === undefined;
+}
+
+async function countWithFallback(label: string, countFn: () => Promise<number>) {
+  try {
+    return await countFn();
+  } catch (error) {
+    console.error(`[workspace-todos] ${label} failed`, error);
+    return 0;
+  }
+}
+
 async function countPendingConstructionLogRiskDocs(client: SupabaseClient, accessibleProjectIds: number[] | null) {
   if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
 
@@ -148,9 +164,8 @@ async function countPendingConstructionLogRisks(
 ) {
   let query = client
     .from('notifications')
-    .select('id', { count: 'exact', head: true })
+    .select('id,project_id,is_read')
     .eq('type', 'construction_log_alert')
-    .eq('is_read', false)
     .eq('recipient_user_id', userId);
 
   if (Array.isArray(accessibleProjectIds)) {
@@ -158,12 +173,12 @@ async function countPendingConstructionLogRisks(
     query = query.in('project_id', accessibleProjectIds);
   }
 
-  const { count, error } = await query;
+  const { data, error } = await query.limit(1000);
   if (error && isMissingRecipientColumn(error)) {
     return countPendingConstructionLogRiskDocs(client, accessibleProjectIds);
   }
   if (error) throw new Error(error.message);
-  return count || 0;
+  return ((data || []) as NotificationRow[]).filter((item) => isUnread(item.is_read)).length;
 }
 
 async function countPendingMonthlyReports(client: SupabaseClient, accessibleProjectIds: number[] | null, currentMonth: string) {
@@ -274,11 +289,10 @@ async function countPendingKnowledge(
 ) {
   const { data: notifications, error } = await client
     .from('notifications')
-    .select('related_id,metadata')
+    .select('related_id,metadata,is_read')
     .eq('type', 'monthly_analysis_workflow')
     .eq('related_type', 'ai_knowledge_docs')
     .eq('recipient_user_id', userId)
-    .eq('is_read', false)
     .limit(1000);
 
   if (error && isMissingRecipientColumn(error)) {
@@ -286,7 +300,7 @@ async function countPendingKnowledge(
   }
   if (error) throw new Error(error.message);
 
-  const notificationRows = (notifications || []) as NotificationRow[];
+  const notificationRows = ((notifications || []) as NotificationRow[]).filter((item) => isUnread(item.is_read));
   const knowledgeIds = Array.from(new Set(notificationRows
     .map((item) => Number(item.related_id || item.metadata?.knowledgeId))
     .filter(Boolean)));
@@ -332,10 +346,10 @@ export async function GET(request: NextRequest) {
       visasPending,
       knowledgePending,
     ] = await Promise.all([
-      countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id),
-      countPendingMonthlyReports(client, accessibleProjectIds, currentMonth),
-      countPendingVisas(client, accessibleProjectIds, auth.user.id),
-      countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin, auth.user.id),
+      countWithFallback('construction log risks', () => countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id)),
+      countWithFallback('monthly reports', () => countPendingMonthlyReports(client, accessibleProjectIds, currentMonth)),
+      countWithFallback('visas', () => countPendingVisas(client, accessibleProjectIds, auth.user.id)),
+      countWithFallback('knowledge', () => countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin, auth.user.id)),
     ]);
 
     const items: TodoItem[] = [

@@ -12,6 +12,7 @@ import {
   FileCheck2,
   FileText,
   Plus,
+  Trash2,
   Users,
 } from 'lucide-react';
 
@@ -137,6 +138,7 @@ export default function ConstructionLogsPage() {
       : 'all',
   );
   const [actionBusy, setActionBusy] = useState<number | null>(null);
+  const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
 
   const loadBase = useCallback(async function loadBase() {
@@ -158,6 +160,9 @@ export default function ConstructionLogsPage() {
       const logJson = await logRes.json();
       const statsJson = await statsRes.json();
       const projJson = await projRes.json();
+      if (!logRes.ok || logJson.success === false) throw new Error(logJson.error || '施工日志加载失败');
+      if (!statsRes.ok || statsJson.success === false) throw new Error(statsJson.error || '施工日志统计加载失败');
+      if (!projRes.ok || projJson.success === false) throw new Error(projJson.error || '项目列表加载失败');
       setLogs(Array.isArray(logJson.data) ? logJson.data : []);
       setStats(Array.isArray(statsJson.data) ? statsJson.data : []);
       setProjectStats(
@@ -168,8 +173,8 @@ export default function ConstructionLogsPage() {
             : [],
       );
       setProjects(Array.isArray(projJson.projects) ? projJson.projects : []);
-    } catch {
-      setMessage('施工日志数据加载失败，请稍后重试');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '施工日志数据加载失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -239,6 +244,23 @@ export default function ConstructionLogsPage() {
       setMessage(error instanceof Error ? error.message : '标记失败');
     } finally {
       setActionBusy(null);
+    }
+  }
+
+  async function handleDeleteLog(logId: number) {
+    if (!window.confirm('确认删除这条施工日志吗？删除后相关风险提醒也会同步清理。')) return;
+    setDeletingLogId(logId);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/construction-logs/${logId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '施工日志删除失败');
+      setMessage('施工日志已删除');
+      await Promise.all([loadBase(), loadRisks()]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '施工日志删除失败');
+    } finally {
+      setDeletingLogId(null);
     }
   }
 
@@ -513,7 +535,18 @@ export default function ConstructionLogsPage() {
                   {log.headcount != null && <span>{log.headcount}人</span>}
                   {highRisks > 0 && log.risk_level === 'high' && <span className="text-[#F53F3F]">高风险需优先确认</span>}
                   {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
-                  <Link href={`/construction-logs/${log.id}`} className="ml-auto font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                  <div className="ml-auto flex items-center gap-3">
+                    <Link href={`/construction-logs/${log.id}`} className="font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                    <button
+                      type="button"
+                      disabled={deletingLogId === log.id}
+                      onClick={() => handleDeleteLog(log.id)}
+                      className="inline-flex items-center gap-1 font-medium text-[#F53F3F] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {deletingLogId === log.id ? '删除中' : '删除'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

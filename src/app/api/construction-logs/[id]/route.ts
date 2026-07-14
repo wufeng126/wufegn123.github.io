@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireAuth } from '@/lib/api-auth';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { detectConstructionLogRisk, enrichConstructionLog } from '@/lib/construction-log-risk';
@@ -54,5 +54,55 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '施工日志详情查询失败'));
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
+    const { id } = await params;
+    const logId = Number(id);
+    if (!Number.isFinite(logId)) return apiNotFound('施工日志不存在');
+
+    const supabase = getSupabaseClient();
+    const { data: log, error } = await supabase
+      .from('construction_logs')
+      .select('id,project_id')
+      .eq('id', logId)
+      .single();
+
+    if (error || !log) return apiNotFound('施工日志不存在');
+
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(Number(log.project_id))) {
+      return apiForbidden('无权删除该项目施工日志');
+    }
+
+    const { error: deleteDocError } = await supabase
+      .from('ai_knowledge_docs')
+      .delete()
+      .eq('source_type', 'construction_log')
+      .eq('source_ref', `cl:${logId}`);
+    if (deleteDocError) console.warn('[construction-logs] cleanup knowledge docs failed', deleteDocError.message);
+
+    const { error: deleteNotificationError } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('related_type', 'construction_log')
+      .eq('related_id', logId);
+    if (deleteNotificationError) console.warn('[construction-logs] cleanup notifications failed', deleteNotificationError.message);
+
+    const { error: deleteLogError } = await supabase
+      .from('construction_logs')
+      .delete()
+      .eq('id', logId);
+
+    if (deleteLogError) throw new Error(deleteLogError.message);
+
+    return apiSuccess({ id: logId });
+  } catch (error: unknown) {
+    return apiServerError(getErrorMessage(error, '施工日志删除失败'));
   }
 }
