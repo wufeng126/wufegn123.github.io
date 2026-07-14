@@ -5,21 +5,18 @@ import { isSuperAdminUser } from '@/lib/route-permissions';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { 
-  Plus, Pencil, Trash2, Search, Upload, Download, Building2, 
-  Phone, FileText, Filter, X, RefreshCw, Hash, DollarSign,
-  Percent, Calendar, FileCheck, AlertCircle, ChevronRight,
-  TrendingUp, TrendingDown, Clock, CheckCircle, Users
+  Plus, Pencil, Trash2, Search, Download, Building2,
+  Phone, FileText, Filter, RefreshCw, DollarSign,
+  FileCheck, Clock, Users
 } from 'lucide-react';
 import { LinkableCell } from '@/components/linkable-cell';
 
@@ -27,6 +24,7 @@ import { LinkableCell } from '@/components/linkable-cell';
 interface Supplier {
   id: number;
   name: string;
+  type: string | null;
   contact_person: string | null;
   phone: string | null;
   remark: string | null;
@@ -36,6 +34,7 @@ interface Supplier {
 interface Contract {
   id: number;
   supplier_id: number;
+  project_id?: number | null;
   supplier_name?: string;
   contract_no: string;
   contract_name: string;
@@ -56,11 +55,18 @@ interface Contract {
   created_at: string;
 }
 
+interface Project {
+  id: number;
+  name: string;
+}
+
 interface SupplierWithStats extends Supplier {
   contract_count: number;
-  total_contract_amount: number;
-  total_payment_ratio: number;
-  total_should_pay: number;
+  signed_contract_count: number;
+  pending_contract_count: number;
+  contract_status_label: string;
+  project_names: string[];
+  total_settlement: number;
   total_paid: number;
   total_pending: number;
 }
@@ -81,6 +87,16 @@ const formatDate = (dateStr: string | null) => {
   return dateStr.split('T')[0];
 };
 
+const getSupplierTypeLabel = (type?: string | null) => {
+  const value = String(type || '').trim();
+  if (value === 'supplier') return '供应商';
+  if (value === 'team') return '班组';
+  if (value === 'material') return '材料';
+  if (value === 'equipment') return '设备';
+  if (value === 'labor') return '劳务';
+  return value || '未分类';
+};
+
 // ============ 主组件 ============
 export default function SuppliersPage() {
   const { toast } = useToast();
@@ -94,6 +110,7 @@ export default function SuppliersPage() {
   // 筛选
   const [searchKeyword, setSearchKeyword] = useState('');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
+  const [filterSupplierType, setFilterSupplierType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   
   // 供应商对话框
@@ -101,7 +118,7 @@ export default function SuppliersPage() {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [editingSupplierId, setEditingSupplierId] = useState<number | null>(null);
   const [supplierForm, setSupplierForm] = useState({
-    name: '', contact_person: '', phone: '', remark: '',
+    name: '', type: 'supplier', contact_person: '', phone: '', remark: '',
   });
   
   // 合同对话框
@@ -115,11 +132,6 @@ export default function SuppliersPage() {
     payment_ratio: '', warranty_ratio: '', payment_days: '', payment_remark: '', remark: '',
   });
   
-  // 删除对话框
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteType, setDeleteType] = useState<'supplier' | 'contract'>('supplier');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-
   // 权限判断
   const [user, setUser] = useState<{role: string} | null>(null);
   const canManage = isSuperAdminUser(user?.role) || user?.role === 'admin' || user?.role === '财务' || user?.role === '管理员';
@@ -132,7 +144,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setUser(data.user);
       }
-    } catch (e) {}
+    } catch {}
   }, []);
 
   // 获取供应商统计
@@ -156,7 +168,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setSuppliers(data.suppliers || []);
       }
-    } catch (e) {}
+    } catch {}
   }, []);
 
   // 获取合同列表
@@ -170,11 +182,11 @@ export default function SuppliersPage() {
         const data = await res.json();
         setContracts(data.contracts || []);
       }
-    } catch (e) {}
+    } catch {}
   }, [filterSupplier, filterStatus]);
 
   // 项目列表
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   // 获取项目列表
   const fetchProjects = useCallback(async () => {
@@ -184,7 +196,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setProjects(data.projects || []);
       }
-    } catch (e) {}
+    } catch {}
   }, []);
 
   // 初始化加载
@@ -198,15 +210,16 @@ export default function SuppliersPage() {
   }, [fetchUser, fetchSuppliers, fetchSupplierStats, fetchContracts, fetchProjects]);
 
   // 筛选后的数据
-  const filteredStats = (supplierStats || []).filter((s: any) => {
+  const filteredStats = (supplierStats || []).filter((s) => {
     if (!s) return false;
     const name = String(s.name || '');
     if (searchKeyword && !name.toLowerCase().includes(searchKeyword.toLowerCase())) return false;
-    if (filterSupplier !== 'all' && s.id != filterSupplier) return false;
+    if (filterSupplier !== 'all' && String(s.id) !== filterSupplier) return false;
+    if (filterSupplierType !== 'all' && String(s.type || '') !== filterSupplierType) return false;
     return true;
   });
 
-  const filteredContracts = (contracts || []).filter((c: any) => {
+  const filteredContracts = (contracts || []).filter((c) => {
     const contractName = String(c.contract_name || '');
     const supplierName = String(c.supplier_name || '');
     const contractNo = String(c.contract_no || '');
@@ -219,24 +232,37 @@ export default function SuppliersPage() {
   // 统计汇总
   const totalStats = {
     supplierCount: filteredStats.length,
-    contractCount: filteredStats.reduce((sum, s) => sum + s.contract_count, 0),
-    totalAmount: filteredStats.reduce((sum, s) => sum + s.total_contract_amount, 0),
-    totalShouldPay: filteredStats.reduce((sum, s) => sum + s.total_should_pay, 0),
+    signedContractCount: filteredStats.reduce((sum, s) => sum + s.signed_contract_count, 0),
+    pendingContractCount: filteredStats.reduce((sum, s) => sum + s.pending_contract_count, 0),
+    categoryCount: new Set(filteredStats.map((s) => getSupplierTypeLabel(s.type))).size,
+    totalSettlement: filteredStats.reduce((sum, s) => sum + s.total_settlement, 0),
     totalPaid: filteredStats.reduce((sum, s) => sum + s.total_paid, 0),
     totalPending: filteredStats.reduce((sum, s) => sum + s.total_pending, 0),
   };
 
-  // ============ 供应商操作 ============
-  const openAddSupplierDialog = () => {
-    setEditingSupplier(null);
-    setSupplierForm({ name: '', contact_person: '', phone: '', remark: '' });
-    setSupplierDialogOpen(true);
-  };
+  const supplierTypeOptions = Array.from(
+    new Map(
+      supplierStats.map((supplier) => [
+        String(supplier.type || '未分类'),
+        getSupplierTypeLabel(supplier.type),
+      ])
+    ).entries()
+  );
 
+  const filteredSupplierTypeOptions = Array.from(
+    new Map(
+      filteredStats.map((supplier) => [
+        String(supplier.type || '未分类'),
+        getSupplierTypeLabel(supplier.type),
+      ])
+    ).entries()
+  );
+
+  // ============ 供应商操作 ============
   const handleAddSupplier = () => {
     setEditingSupplier(null);
     setEditingSupplierId(null);
-    setSupplierForm({ name: '', contact_person: '', phone: '', remark: '' });
+    setSupplierForm({ name: '', type: 'supplier', contact_person: '', phone: '', remark: '' });
     setSupplierDialogOpen(true);
   };
 
@@ -244,7 +270,7 @@ export default function SuppliersPage() {
     setEditingSupplier(supplier);
     setEditingSupplierId(supplier.id);
     setSupplierForm({
-      name: supplier.name || '', contact_person: supplier.contact_person || '',
+      name: supplier.name || '', type: supplier.type || 'supplier', contact_person: supplier.contact_person || '',
       phone: supplier.phone || '', remark: supplier.remark || '',
     });
     setSupplierDialogOpen(true);
@@ -260,9 +286,9 @@ export default function SuppliersPage() {
     try {
       const url = '/api/suppliers';
       const method = editingSupplierId ? 'PUT' : 'POST';
-      const submitData = editingSupplierId 
-        ? { ...supplierForm, id: editingSupplierId, type: 'supplier' } 
-        : { ...supplierForm, type: 'supplier' };
+      const submitData = editingSupplierId
+        ? { ...supplierForm, id: editingSupplierId }
+        : supplierForm;
       
       console.log('提交数据:', JSON.stringify(submitData));
       console.log('请求方法:', method);
@@ -284,7 +310,7 @@ export default function SuppliersPage() {
         setSupplierDialogOpen(false);
         setEditingSupplier(null);
         setEditingSupplierId(null);
-        setSupplierForm({ name: '', contact_person: '', phone: '', remark: '' });
+        setSupplierForm({ name: '', type: 'supplier', contact_person: '', phone: '', remark: '' });
         
         // 强制刷新整个列表和数据 - 解决状态更新问题
         await Promise.all([fetchSuppliers(), fetchSupplierStats()]);
@@ -308,7 +334,7 @@ export default function SuppliersPage() {
       if (res.ok) {
         await Promise.all([fetchSuppliers(), fetchSupplierStats(), fetchContracts()]);
       }
-    } catch (e) { toast({ title: '删除失败', variant: 'error' }); }
+    } catch { toast({ title: '删除失败', variant: 'error' }); }
   };
 
   // ============ 合同操作 ============
@@ -329,7 +355,7 @@ export default function SuppliersPage() {
     setEditingContract(contract);
     setSelectedSupplierId(contract.supplier_id);
     setContractForm({
-      project_id: (contract as any).project_id || null,
+      project_id: contract.project_id || null,
       contract_no: contract.contract_no || '',
       contract_name: contract.contract_name,
       sign_date: contract.sign_date?.split('T')[0] || '',
@@ -386,7 +412,7 @@ export default function SuppliersPage() {
         const error = await res.json();
         toast({ title: error.error || '操作失败', variant: 'error' });
       }
-    } catch (e) { toast({ title: '保存失败', variant: 'error' }); }
+    } catch { toast({ title: '保存失败', variant: 'error' }); }
   };
 
   const handleDeleteContract = async (id: number) => {
@@ -399,16 +425,21 @@ export default function SuppliersPage() {
       } else {
         toast({ title: data.error || '删除失败', variant: 'error' });
       }
-    } catch (e) { toast({ title: '删除失败，请重试', variant: 'error' }); }
+    } catch { toast({ title: '删除失败，请重试', variant: 'error' }); }
   };
 
   // 导出
   const handleExport = () => {
-    const headers = ['供应商名称', '合同数', '合同总金额', '约定付款比例', '应付金额', '已付金额', '待应付余额'];
+    const headers = ['供应商名称', '分类', '联系人', '电话', '合作项目', '合同状态', '累计结算额', '累计付款'];
     const rows = filteredStats.map(s => [
-      s.name, s.contract_count, formatCurrency(s.total_contract_amount),
-      formatPercent(s.total_payment_ratio / Math.max(s.contract_count, 1)),
-      formatCurrency(s.total_should_pay), formatCurrency(s.total_paid), formatCurrency(s.total_pending)
+      s.name,
+      getSupplierTypeLabel(s.type),
+      s.contact_person || '-',
+      s.phone || '-',
+      (s.project_names || []).join('、') || '-',
+      s.contract_status_label || '-',
+      formatCurrency(s.total_settlement),
+      formatCurrency(s.total_paid)
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
@@ -453,85 +484,78 @@ export default function SuppliersPage() {
           </Button>
         </div>
 
-        {/* 统计卡片 - 优化版 */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          {/* 供应商数 */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all duration-200 group cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 group-hover:from-blue-100 group-hover:to-blue-200 transition-all">
-                <Building2 className="h-5 w-5 text-blue-600" />
+        {/* 统计卡片 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <Card className="border-gray-200 bg-white shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">供应商数量</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{totalStats.supplierCount}</p>
+                  <p className="mt-1 text-xs text-gray-400">当前筛选范围内供应商总数</p>
+                </div>
+                <div className="rounded-lg bg-blue-50 p-2">
+                  <Building2 className="h-5 w-5 text-blue-600" />
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">供应商数</p>
-                <p className="text-xl font-bold text-gray-900">{totalStats.supplierCount}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200 bg-white shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">已签合同</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{totalStats.signedContractCount}</p>
+                  <p className="mt-1 text-xs text-gray-400">履约中、生效或已完结合同</p>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-2">
+                  <FileCheck className="h-5 w-5 text-emerald-600" />
+                </div>
               </div>
-            </div>
-          </div>
-          
-          {/* 合同数 */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all duration-200 group cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 group-hover:from-purple-100 group-hover:to-purple-200 transition-all">
-                <FileCheck className="h-5 w-5 text-purple-600" />
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200 bg-white shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">待签合同</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{totalStats.pendingContractCount}</p>
+                  <p className="mt-1 text-xs text-gray-400">草稿、待签或未进入履约的合同</p>
+                </div>
+                <div className="rounded-lg bg-amber-50 p-2">
+                  <Clock className="h-5 w-5 text-amber-600" />
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">合同数</p>
-                <p className="text-xl font-bold text-gray-900">{totalStats.contractCount}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200 bg-white shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-500">供应商分类</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{totalStats.categoryCount}</p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {filteredSupplierTypeOptions.slice(0, 3).map(([type, label]) => (
+                      <Badge key={type} variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
+                        {label}
+                      </Badge>
+                    ))}
+                    {filteredSupplierTypeOptions.length > 3 && (
+                      <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
+                        +{filteredSupplierTypeOptions.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-indigo-50 p-2">
+                  <Users className="h-5 w-5 text-indigo-600" />
+                </div>
               </div>
-            </div>
-          </div>
-          
-          {/* 合同总金额 */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-gray-200 transition-all duration-200 group cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 group-hover:from-gray-100 group-hover:to-gray-200 transition-all">
-                <DollarSign className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">合同总金额</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalStats.totalAmount)}</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* 应付金额 */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-200 hover:shadow-md transition-all duration-200 group cursor-pointer bg-gradient-to-br from-blue-50/50 to-white">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 group-hover:from-blue-200 group-hover:to-blue-300 transition-all">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs text-blue-600 mb-0.5">应付金额</p>
-                <p className="text-xl font-bold text-blue-600">{formatCurrency(totalStats.totalShouldPay)}</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* 已付金额 */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-green-200 hover:shadow-md transition-all duration-200 group cursor-pointer bg-gradient-to-br from-green-50/50 to-white">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-100 to-green-200 group-hover:from-green-200 group-hover:to-green-300 transition-all">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs text-green-600 mb-0.5">已付金额</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(totalStats.totalPaid)}</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* 待应付余额 */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-orange-200 hover:shadow-md transition-all duration-200 group cursor-pointer bg-gradient-to-br from-orange-50/50 to-white">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 group-hover:from-orange-200 group-hover:to-orange-300 transition-all">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-xs text-orange-600 mb-0.5">待应付余额</p>
-                <p className="text-xl font-bold text-orange-600">{formatCurrency(totalStats.totalPending)}</p>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* 标签页 - 与数据看板风格统一 */}
@@ -582,6 +606,15 @@ export default function SuppliersPage() {
                       {supplierStats.map(s => <SelectItem key={s.id} value={String(s.id)}>{String(s.name || '')}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  <Select value={filterSupplierType} onValueChange={setFilterSupplierType}>
+                    <SelectTrigger className="w-32 h-9"><SelectValue placeholder="供应商分类" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部分类</SelectItem>
+                      {supplierTypeOptions.map(([type, label]) => (
+                        <SelectItem key={type} value={type}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <div className="relative flex-1 min-w-52 max-w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
@@ -600,39 +633,58 @@ export default function SuppliersPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                    <TableHead className="w-8"></TableHead>
                     <TableHead className="font-semibold text-gray-700">供应商名称</TableHead>
-                    <TableHead className="text-center font-semibold text-gray-700">合同数</TableHead>
-                    <TableHead className="text-right font-semibold text-gray-700">合同总金额</TableHead>
-                    <TableHead className="text-right font-semibold text-gray-700">应付金额</TableHead>
-                    <TableHead className="text-right font-semibold text-gray-700">已付金额</TableHead>
-                    <TableHead className="text-right font-semibold text-gray-700">待应付余额</TableHead>
+                    <TableHead className="font-semibold text-gray-700">分类</TableHead>
+                    <TableHead className="font-semibold text-gray-700">联系人</TableHead>
+                    <TableHead className="font-semibold text-gray-700">电话</TableHead>
+                    <TableHead className="font-semibold text-gray-700">合作项目</TableHead>
+                    <TableHead className="text-center font-semibold text-gray-700">合同状态</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">累计结算额</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">累计付款</TableHead>
                     <TableHead className="text-center font-semibold text-gray-700">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredStats.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-gray-400">
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <Building2 className="w-10 h-10 text-gray-300" />
                         <span>暂无供应商数据</span>
                       </div>
                     </TableCell></TableRow>
-                  ) : filteredStats.map((supplier: any, index: number) => (
+                  ) : filteredStats.map((supplier, index: number) => (
                     <TableRow key={supplier.id} className="hover:bg-blue-50/30 transition-colors" style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
-                      <TableCell><Checkbox onCheckedChange={() => {
-                        const newSet = new Set(selectedIds);
-                        newSet.has(supplier.id) ? newSet.delete(supplier.id) : newSet.add(supplier.id);
-                        setSelectedIds(newSet);
-                      }} checked={selectedIds.has(supplier.id)} /></TableCell>
-                      <TableCell className="font-medium text-gray-900"><LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`}>{String(supplier.name || '')}</LinkableCell></TableCell>
-                      <TableCell className="text-center"><Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{Number(supplier.contract_count || 0)}</Badge></TableCell>
-                      <TableCell className="text-right text-gray-700">{formatCurrency(supplier.total_contract_amount)}</TableCell>
-                      <TableCell className="text-right font-medium text-blue-600">{formatCurrency(supplier.total_should_pay)}</TableCell>
-                      <TableCell className="text-right text-green-600">{formatCurrency(supplier.total_paid)}</TableCell>
-                      <TableCell className={`text-right font-bold ${Number(supplier.total_pending || 0) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
-                        {formatCurrency(supplier.total_pending)}
+                      <TableCell className="font-medium text-gray-900">
+                        <LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`}>
+                          {String(supplier.name || '')}
+                        </LinkableCell>
                       </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
+                          {getSupplierTypeLabel(supplier.type)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-700">{supplier.contact_person || '-'}</TableCell>
+                      <TableCell className="text-gray-700">{supplier.phone || '-'}</TableCell>
+                      <TableCell className="max-w-[220px] truncate text-gray-700" title={(supplier.project_names || []).join('、')}>
+                        {(supplier.project_names || []).join('、') || '-'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant="outline"
+                          className={
+                            Number(supplier.pending_contract_count || 0) > 0
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : Number(supplier.signed_contract_count || 0) > 0
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-gray-200 bg-gray-50 text-gray-500'
+                          }
+                        >
+                          {supplier.contract_status_label || '暂无合同'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-gray-900">{formatCurrency(supplier.total_settlement)}</TableCell>
+                      <TableCell className="text-right text-green-600">{formatCurrency(supplier.total_paid)}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center gap-1">
                           {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)}><FileCheck className="w-4 h-4 text-gray-500" /></Button>}
@@ -706,7 +758,7 @@ export default function SuppliersPage() {
                 <TableBody>
                   {filteredContracts.length === 0 ? (
                     <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-500">暂无合同数据</TableCell></TableRow>
-                  ) : filteredContracts.map((contract: any, index: number) => (
+                  ) : filteredContracts.map((contract, index: number) => (
                     <TableRow key={contract.id} style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
                       <TableCell className="font-medium">{String(contract.supplier_name || '')}</TableCell>
                       <TableCell className="text-gray-500">{String(contract.contract_no || '-')}</TableCell>
@@ -919,6 +971,21 @@ export default function SuppliersPage() {
                 <div>
                   <Label className="text-gray-600 text-sm">供应商名称 <span className="text-red-500">*</span></Label>
                   <Input value={supplierForm.name} onChange={e => setSupplierForm({...supplierForm, name: e.target.value})} className="mt-1 h-10" placeholder="请输入供应商名称" />
+                </div>
+                <div>
+                  <Label className="text-gray-600 text-sm">供应商分类</Label>
+                  <Select value={supplierForm.type} onValueChange={value => setSupplierForm({...supplierForm, type: value})}>
+                    <SelectTrigger className="mt-1 h-10">
+                      <SelectValue placeholder="请选择分类" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="supplier">供应商</SelectItem>
+                      <SelectItem value="team">班组</SelectItem>
+                      <SelectItem value="material">材料</SelectItem>
+                      <SelectItem value="equipment">设备</SelectItem>
+                      <SelectItem value="labor">劳务</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
