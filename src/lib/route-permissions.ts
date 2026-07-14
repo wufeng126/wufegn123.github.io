@@ -76,6 +76,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/ai/knowledge': {},
   '/api/integrations/wps/workers/logs': { permission: 'workers:import' },
   '/api/integrations/wps/workers/bindings': { permission: 'system:manage', superAdminOnly: true },
+  '/api/miscellaneous-materials/recognize': { permission: 'miscellaneous_materials:view' },
 
   // === 新导航容器页 ===
   '/workspace': { permission: 'projects:view' },

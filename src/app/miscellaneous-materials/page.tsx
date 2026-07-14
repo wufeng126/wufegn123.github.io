@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plus, Pencil, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight,
-  Package, Building2, Calendar, FileSpreadsheet, Loader2
+  Package, Building2, Calendar, FileSpreadsheet, Loader2, Camera, Mic, Sparkles
 } from 'lucide-react';
 
 // 类型定义
@@ -55,6 +54,49 @@ interface Stats {
   projectStats: Record<string, number>;
 }
 
+type AssistMode = 'image' | 'voice' | 'text';
+
+interface RecognitionDraft {
+  project_id?: string;
+  material_name?: string;
+  unit?: string;
+  quantity?: string;
+  unit_price?: string;
+  purchase_date?: string;
+  supplier?: string;
+  remark?: string;
+  warnings?: string[];
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  [index: number]: SpeechRecognitionAlternative | undefined;
+}
+
+interface SpeechRecognitionEventLike {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  start: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+function getClientErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function MiscMaterialsPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-center" style={{ color: '#86909C' }}>加载中...</div></div>}>
@@ -84,13 +126,23 @@ function MiscMaterialsContent() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [assistDialogOpen, setAssistDialogOpen] = useState(false);
   const [currentMaterial, setCurrentMaterial] = useState<MiscMaterial | null>(null);
   const [saving, setSaving] = useState(false);
+  const [recognizing, setRecognizing] = useState(false);
+  const [listening, setListening] = useState(false);
   
   // 导入相关
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{success: number; failed: number; errors: string[]} | null>(null);
+
+  // 智能录入
+  const [assistMode, setAssistMode] = useState<AssistMode>('image');
+  const [assistFile, setAssistFile] = useState<File | null>(null);
+  const [assistText, setAssistText] = useState('');
+  const [assistRawText, setAssistRawText] = useState('');
+  const [assistWarnings, setAssistWarnings] = useState<string[]>([]);
   
   // 表单
   const [form, setForm] = useState({
@@ -180,6 +232,9 @@ function MiscMaterialsContent() {
       if (selectedProjectId !== 'all') {
         params.append('projectId', selectedProjectId);
       }
+      if (materialName) {
+        params.append('materialName', materialName);
+      }
       if (startDate) {
         params.append('startDate', startDate);
       }
@@ -209,6 +264,126 @@ function MiscMaterialsContent() {
       supplier: '',
       remark: '',
     });
+  };
+
+  const resetAssist = (mode: AssistMode) => {
+    setAssistMode(mode);
+    setAssistFile(null);
+    setAssistText('');
+    setAssistRawText('');
+    setAssistWarnings([]);
+  };
+
+  const openAssistDialog = (mode: AssistMode) => {
+    resetAssist(mode);
+    setAssistDialogOpen(true);
+  };
+
+  const applyRecognitionDraft = (draft: RecognitionDraft) => {
+    setForm({
+      project_id: draft.project_id || (selectedProjectId !== 'all' ? selectedProjectId : ''),
+      material_name: draft.material_name || '',
+      unit: draft.unit || '',
+      quantity: draft.quantity || '',
+      unit_price: draft.unit_price || '',
+      purchase_date: draft.purchase_date || new Date().toISOString().split('T')[0],
+      supplier: draft.supplier || '',
+      remark: draft.remark || assistRawText || '',
+    });
+    setAssistDialogOpen(false);
+    setAddDialogOpen(true);
+  };
+
+  const handleRecognizeMaterial = async () => {
+    if (assistMode === 'image' && !assistFile) {
+      toast({ title: '请选择照片', description: '请先拍照或上传材料票据照片', variant: 'error' });
+      return;
+    }
+    if (assistMode === 'voice' && !assistFile && !assistText.trim()) {
+      toast({ title: '请先录入语音', description: '可点击开始语音输入，或直接输入文字', variant: 'error' });
+      return;
+    }
+    if (assistMode === 'text' && !assistText.trim()) {
+      toast({ title: '请输入内容', description: '请先输入需要提炼的材料信息', variant: 'error' });
+      return;
+    }
+
+    try {
+      setRecognizing(true);
+      setAssistWarnings([]);
+
+      const formData = new FormData();
+      formData.append('mode', assistMode);
+      if (assistText.trim()) formData.append('text', assistText.trim());
+      if (assistFile) formData.append('file', assistFile);
+
+      const response = await fetch('/api/miscellaneous-materials/recognize', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await response.json();
+      if (!response.ok || json.success === false) {
+        throw new Error(json.error || '识别失败');
+      }
+
+      const data = json.data || {};
+      const drafts: RecognitionDraft[] = Array.isArray(data.drafts) ? data.drafts : [];
+      setAssistRawText(data.rawText || '');
+      setAssistWarnings(Array.isArray(data.warnings) ? data.warnings : []);
+
+      if (drafts.length === 0) {
+        toast({ title: '未提炼出材料记录', description: '请调整文字后重试，或手动新增材料', variant: 'error' });
+        return;
+      }
+
+      applyRecognitionDraft(drafts[0]);
+      toast({
+        title: '已生成材料草稿',
+        description: drafts.length > 1 ? `识别到 ${drafts.length} 条，已填入第 1 条，请核对后保存` : '请核对项目、数量、单价后保存',
+      });
+    } catch (error: unknown) {
+      toast({
+        title: '识别失败',
+        description: getClientErrorMessage(error, '请稍后重试，或手动录入'),
+        variant: 'error',
+      });
+    } finally {
+      setRecognizing(false);
+    }
+  };
+
+  const startVoiceInput = () => {
+    const recognitionWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const SpeechRecognitionImpl = recognitionWindow.SpeechRecognition || recognitionWindow.webkitSpeechRecognition;
+    if (!SpeechRecognitionImpl) {
+      toast({
+        title: '当前浏览器不支持语音输入',
+        description: '可以手动输入语音内容，系统仍会自动提炼材料信息',
+        variant: 'error',
+      });
+      return;
+    }
+
+    const recognition = new SpeechRecognitionImpl();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => {
+      setListening(false);
+      toast({ title: '语音识别失败', description: '请重新录入或手动输入文字', variant: 'error' });
+    };
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      const transcript = Array.from(event.results || [])
+        .map(result => result?.[0]?.transcript || '')
+        .join('');
+      setAssistText(prev => [prev, transcript].filter(Boolean).join('\n'));
+    };
+    recognition.start();
   };
 
   // 新增材料
@@ -518,6 +693,22 @@ function MiscMaterialsContent() {
           <p className="text-sm mt-1" style={{ color: '#86909C' }}>管理项目零星材料采购记录，自动计入项目成本</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => openAssistDialog('image')}
+            className="gap-2"
+          >
+            <Camera className="h-4 w-4" />
+            拍照录入
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => openAssistDialog('voice')}
+            className="gap-2"
+          >
+            <Mic className="h-4 w-4" />
+            语音录入
+          </Button>
           <Button
             variant="outline"
             onClick={() => setImportDialogOpen(true)}
@@ -863,6 +1054,102 @@ function MiscMaterialsContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* 智能录入对话框 */}
+      <Dialog open={assistDialogOpen} onOpenChange={setAssistDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" style={{ color: '#165DFF' }} />
+              零星材料智能录入
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex gap-2">
+              <Button variant={assistMode === 'image' ? 'default' : 'outline'} onClick={() => resetAssist('image')} className="gap-2">
+                <Camera className="h-4 w-4" />拍照
+              </Button>
+              <Button variant={assistMode === 'voice' ? 'default' : 'outline'} onClick={() => resetAssist('voice')} className="gap-2">
+                <Mic className="h-4 w-4" />语音
+              </Button>
+              <Button variant={assistMode === 'text' ? 'default' : 'outline'} onClick={() => resetAssist('text')} className="gap-2">
+                <Sparkles className="h-4 w-4" />文字
+              </Button>
+            </div>
+
+            {assistMode === 'image' && (
+              <div className="space-y-2">
+                <Label style={{ color: '#1D2129' }}>拍照或上传材料票据</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => setAssistFile(e.target.files?.[0] || null)}
+                />
+                <p className="text-xs" style={{ color: '#86909C' }}>
+                  照片只用于文字识别，识别完成后不保存原始图片；保存前请人工核对项目、数量和单价。
+                </p>
+              </div>
+            )}
+
+            {assistMode === 'voice' && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={startVoiceInput} disabled={listening} className="gap-2">
+                    {listening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                    {listening ? '正在听写...' : '开始语音输入'}
+                  </Button>
+                  <Input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => setAssistFile(e.target.files?.[0] || null)}
+                    className="max-w-xs"
+                  />
+                </div>
+                <p className="text-xs" style={{ color: '#86909C' }}>
+                  可直接说“某项目买水泥10袋，单价25元，供应商某某”。也可上传音频文件，音频只用于识别不保存。
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label style={{ color: '#1D2129' }}>
+                {assistMode === 'text' ? '材料描述' : '识别文字/补充说明'}
+              </Label>
+              <Textarea
+                placeholder="例如：A项目采购水泥10袋，单价25元，供应商张三，7月14日"
+                value={assistText}
+                onChange={(e) => setAssistText(e.target.value)}
+                rows={4}
+              />
+            </div>
+
+            {(assistWarnings.length > 0 || assistRawText) && (
+              <div className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', backgroundColor: '#FAFBFF' }}>
+                {assistWarnings.length > 0 && (
+                  <div className="space-y-1">
+                    {assistWarnings.map((item, index) => (
+                      <p key={index} className="text-xs" style={{ color: '#D46B08' }}>{item}</p>
+                    ))}
+                  </div>
+                )}
+                {assistRawText && (
+                  <div className="mt-3 max-h-28 overflow-auto whitespace-pre-wrap text-xs" style={{ color: '#4E5969' }}>
+                    {assistRawText}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssistDialogOpen(false)}>取消</Button>
+            <Button onClick={handleRecognizeMaterial} disabled={recognizing} className="gap-2" style={{ backgroundColor: '#165DFF' }}>
+              {recognizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {recognizing ? '正在提炼...' : 'AI提炼为草稿'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 新增对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

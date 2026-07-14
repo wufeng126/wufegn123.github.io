@@ -5,6 +5,12 @@ import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 
+interface MiscMaterialStatsRow {
+  amount: string | number | null;
+  status: string | null;
+  projects?: { name?: string | null } | null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -33,7 +39,11 @@ export async function GET(request: NextRequest) {
     if (projectId && projectId !== 'all') {
       const pid = parseInt(projectId);
       if (accessibleProjects && !accessibleProjects.includes(pid)) {
-        return NextResponse.json({ data: [], total: 0, page, pageSize });
+        return NextResponse.json({
+          materials: [],
+          pagination: { page, pageSize, total: 0, totalPages: 0 },
+          stats: { totalCount: 0, totalAmount: 0, projectStats: {} },
+        });
       }
       countQuery = countQuery.eq('project_id', pid);
     } else if (accessibleProjects !== null) {
@@ -87,14 +97,44 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询零星材料失败: ${error.message}`);
     }
 
-    // 计算汇总统计（基于当前筛选条件）
-    const activeData = (data || []).filter((item: any) => !isVoidedStatus(item.status));
+    // 统计基于全部筛选结果，不能只按当前分页计算。
+    let statsQuery = client
+      .from('miscellaneous_materials')
+      .select(`
+        id,
+        project_id,
+        amount,
+        status,
+        projects(id, name)
+      `);
+
+    if (projectId && projectId !== 'all') {
+      statsQuery = statsQuery.eq('project_id', parseInt(projectId));
+    } else if (accessibleProjects !== null) {
+      statsQuery = statsQuery.in('project_id', accessibleProjects);
+    }
+    if (materialName) {
+      statsQuery = statsQuery.ilike('material_name', `%${materialName}%`);
+    }
+    if (startDate) {
+      statsQuery = statsQuery.gte('purchase_date', startDate);
+    }
+    if (endDate) {
+      statsQuery = statsQuery.lte('purchase_date', endDate);
+    }
+
+    const { data: statsData, error: statsError } = await statsQuery;
+    if (statsError) {
+      throw new Error(`查询零星材料统计失败: ${statsError.message}`);
+    }
+
+    const activeData = ((statsData || []) as MiscMaterialStatsRow[]).filter(item => !isVoidedStatus(item.status || undefined));
 
     let totalAmount = 0;
     const projectStats: Record<string, number> = {};
 
-    activeData.forEach((item: any) => {
-      const amount = parseFloat(item.amount || '0');
+    activeData.forEach(item => {
+      const amount = parseFloat(String(item.amount || '0'));
       totalAmount += amount;
 
       const projectName = item.projects?.name || '未知项目';
