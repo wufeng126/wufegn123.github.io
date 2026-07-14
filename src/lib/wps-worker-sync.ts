@@ -5,6 +5,9 @@ type SyncAction = 'created' | 'updated' | 'transferred' | 'skipped' | 'error';
 type SyncStatus = 'success' | 'warning' | 'error';
 
 export interface WpsWorkerInput {
+  wpsFormId?: string | null;
+  wpsSheetId?: string | null;
+  wpsTableId?: string | null;
   projectName?: string | null;
   worksheetName?: string | null;
   name?: string | null;
@@ -29,6 +32,9 @@ export interface WpsWorkerSyncResult {
 }
 
 const FIELD_ALIASES: Record<keyof WpsWorkerInput, string[]> = {
+  wpsFormId: ['wpsFormId', 'wps_form_id', 'formId', 'form_id', 'formID', '表单ID', '表单id'],
+  wpsSheetId: ['wpsSheetId', 'wps_sheet_id', 'sheetId', 'sheet_id', 'worksheetId', 'worksheet_id', '工作表ID', '工作表id'],
+  wpsTableId: ['wpsTableId', 'wps_table_id', 'tableId', 'table_id', 'bitableId', 'bitable_id', '多维表格ID', '多维表格id'],
   projectName: ['projectName', 'project_name', 'project', '项目名称', '所属项目'],
   worksheetName: ['worksheetName', 'worksheet_name', 'sheetName', 'sheet_name', 'tableName', 'table_name', '工作表', '工作表名称'],
   name: ['name', 'workerName', 'worker_name', '姓名', '工人姓名'],
@@ -111,6 +117,9 @@ export function extractWpsWorkerRecords(payload: unknown): WpsWorkerInput[] {
       globalProjectName;
 
     return {
+      wpsFormId: pickField(flat, FIELD_ALIASES.wpsFormId) || pickField(body, FIELD_ALIASES.wpsFormId),
+      wpsSheetId: pickField(flat, FIELD_ALIASES.wpsSheetId) || pickField(body, FIELD_ALIASES.wpsSheetId),
+      wpsTableId: pickField(flat, FIELD_ALIASES.wpsTableId) || pickField(body, FIELD_ALIASES.wpsTableId),
       projectName: recordProjectName,
       worksheetName: pickField(flat, FIELD_ALIASES.worksheetName) || pickField(body, FIELD_ALIASES.worksheetName),
       name: pickField(flat, FIELD_ALIASES.name),
@@ -244,6 +253,27 @@ async function writeSyncLog(
   }
 }
 
+async function updateBindingSyncStatus(
+  client: SupabaseClient,
+  bindingId: number | null | undefined,
+  result: WpsWorkerSyncResult
+) {
+  if (!bindingId) return;
+  try {
+    await client
+      .from('wps_project_bindings')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: result.status,
+        last_sync_message: result.message,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', bindingId);
+  } catch (error) {
+    console.warn('[WPS Worker Sync] Failed to update binding status:', error);
+  }
+}
+
 async function findProject(client: SupabaseClient, projectName?: string | null) {
   const name = projectName?.trim();
   if (!name) return null;
@@ -253,6 +283,63 @@ async function findProject(client: SupabaseClient, projectName?: string | null) 
   const { data: projects } = await client.from('projects').select('id, name');
   const normalizedName = name.replace(/\s+/g, '').toLowerCase();
   return (projects || []).find((p: { id: number; name: string }) => p.name?.replace(/\s+/g, '').toLowerCase() === normalizedName) || null;
+}
+
+type WpsProjectBindingRow = {
+  id: number;
+  project_id: number;
+  wps_project_name: string | null;
+  worksheet_name: string | null;
+  wps_form_id: string | null;
+  wps_sheet_id: string | null;
+  wps_table_id: string | null;
+  projects?: { id: number; name: string } | { id: number; name: string }[] | null;
+};
+
+function getBindingProject(binding: WpsProjectBindingRow | null) {
+  if (!binding?.projects) return null;
+  return Array.isArray(binding.projects) ? binding.projects[0] : binding.projects;
+}
+
+async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInput): Promise<WpsProjectBindingRow | null> {
+  const clean = (value?: string | null) => value?.trim() || null;
+  const selectFields = 'id, project_id, wps_project_name, worksheet_name, wps_form_id, wps_sheet_id, wps_table_id, projects(id, name)';
+
+  for (const [column, value] of [
+    ['wps_form_id', clean(input.wpsFormId)],
+    ['wps_sheet_id', clean(input.wpsSheetId)],
+    ['wps_table_id', clean(input.wpsTableId)],
+  ] as const) {
+    if (!value) continue;
+    const { data } = await client
+      .from('wps_project_bindings')
+      .select(selectFields)
+      .eq('is_active', true)
+      .eq(column, value)
+      .limit(1)
+      .maybeSingle();
+    if (getBindingProject(data as WpsProjectBindingRow | null)) return data as WpsProjectBindingRow;
+  }
+
+  const names = [clean(input.projectName), clean(input.worksheetName)].filter(Boolean) as string[];
+  if (names.length === 0) return null;
+
+  const { data: bindings } = await client
+    .from('wps_project_bindings')
+    .select(selectFields)
+    .eq('is_active', true);
+
+  for (const name of names) {
+    const normalizedName = name.replace(/\s+/g, '').toLowerCase();
+    const matched = ((bindings || []) as WpsProjectBindingRow[]).find((binding) => {
+      const wpsName = binding.wps_project_name?.replace(/\s+/g, '').toLowerCase();
+      const sheetName = binding.worksheet_name?.replace(/\s+/g, '').toLowerCase();
+      return wpsName === normalizedName || sheetName === normalizedName;
+    });
+    if (getBindingProject(matched || null)) return matched || null;
+  }
+
+  return null;
 }
 
 async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput) {
@@ -332,6 +419,7 @@ export async function syncWpsWorkerRecord(
   input: WpsWorkerInput
 ): Promise<WpsWorkerSyncResult> {
   let result: WpsWorkerSyncResult | null = null;
+  let bindingId: number | null = null;
 
   try {
     if (!input.name?.trim()) {
@@ -339,7 +427,9 @@ export async function syncWpsWorkerRecord(
       return result;
     }
 
-    const project = await findProject(client, input.projectName || input.worksheetName);
+    const binding = await findProjectByBinding(client, input);
+    bindingId = binding?.id || null;
+    const project = getBindingProject(binding) || await findProject(client, input.projectName || input.worksheetName);
     if (!project) {
       result = {
         success: false,
@@ -411,6 +501,9 @@ export async function syncWpsWorkerRecord(
     };
     return result;
   } finally {
-    if (result) await writeSyncLog(client, input, result);
+    if (result) {
+      await writeSyncLog(client, input, result);
+      await updateBindingSyncStatus(client, bindingId, result);
+    }
   }
 }

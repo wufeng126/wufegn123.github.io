@@ -142,7 +142,30 @@ CREATE TABLE IF NOT EXISTS wps_worker_sync_logs (
 );
 CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_created_at_idx ON wps_worker_sync_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_project_id_idx ON wps_worker_sync_logs(project_id);
-CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_status_idx ON wps_worker_sync_logs(status);`;
+CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_status_idx ON wps_worker_sync_logs(status);
+
+-- WPS 椤圭洰/宸ヤ綔琛ㄤ笌绯荤粺椤圭洰缁戝畾
+CREATE TABLE IF NOT EXISTS wps_project_bindings (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  wps_project_name VARCHAR(200),
+  worksheet_name VARCHAR(200),
+  wps_form_id VARCHAR(120),
+  wps_sheet_id VARCHAR(120),
+  wps_table_id VARCHAR(120),
+  is_active BOOLEAN DEFAULT TRUE,
+  remark TEXT,
+  last_sync_at TIMESTAMPTZ,
+  last_sync_status VARCHAR(20),
+  last_sync_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wps_project_bindings_project_id_idx ON wps_project_bindings(project_id);
+CREATE INDEX IF NOT EXISTS wps_project_bindings_active_idx ON wps_project_bindings(is_active);
+CREATE INDEX IF NOT EXISTS wps_project_bindings_form_id_idx ON wps_project_bindings(wps_form_id);
+CREATE INDEX IF NOT EXISTS wps_project_bindings_sheet_id_idx ON wps_project_bindings(wps_sheet_id);
+CREATE INDEX IF NOT EXISTS wps_project_bindings_table_id_idx ON wps_project_bindings(wps_table_id);`;
 
 export async function GET() {
   const supabaseUrl = process.env.COZE_SUPABASE_URL || '';
@@ -156,7 +179,8 @@ export async function GET() {
       const { createClient } = await import('@supabase/supabase-js');
       const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
       try {
-        await admin.rpc('exec_sql' as any, { query: SQL });
+        const runSql = admin.rpc.bind(admin) as unknown as (fn: string, args: { query: string }) => PromiseLike<unknown>;
+        await runSql('exec_sql', { query: SQL });
         autoResult = '✅ 自动迁移成功！';
       } catch {
         autoResult = '⚠️ 自动迁移不可用（exec_sql RPC 未创建）';

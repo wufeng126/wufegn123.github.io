@@ -75,6 +75,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/admins': { permission: 'system:permission_manage' },
   '/api/ai/knowledge': {},
   '/api/integrations/wps/workers/logs': { permission: 'workers:import' },
+  '/api/integrations/wps/workers/bindings': { permission: 'system:manage', superAdminOnly: true },
 
   // === 新导航容器页 ===
   '/workspace': { permission: 'projects:view' },
@@ -147,6 +148,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/system/permission': { permission: 'system:permission_manage', superAdminOnly: true },
   '/system/ai-config': { permission: 'system:ai_manage' },
   '/system/dingtalk-binding': { permission: 'system:dingtalk_manage' },
+  '/system/wps-config': { permission: 'system:manage', superAdminOnly: true },
   '/admin': { permission: 'system:manage', superAdminOnly: true },
   '/settings': { permission: 'system:manage' },
   '/settings/backup': { permission: 'system:manage' },
@@ -254,6 +256,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   // 钉钉管理
   '/api/dingtalk/contacts': 'system:dingtalk_manage',
   '/api/dingtalk/bindings': 'system:dingtalk_manage',
+  '/api/integrations/wps/workers/bindings': 'system:manage',
 };
 
 /**

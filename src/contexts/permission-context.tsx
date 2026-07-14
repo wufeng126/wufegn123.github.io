@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { authFetch } from '@/lib/auth-client';
 
@@ -58,6 +58,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   '/system/permission': ['system:permission_manage'],
   '/system/ai-config': ['system:ai_manage'],
   '/system/dingtalk-binding': ['system:dingtalk_manage'],
+  '/system/wps-config': ['system:manage'],
   '/system/audit-logs': ['audit:view'],
   '/admin': ['system:manage'],
   '/settings': ['system:manage'],
@@ -150,9 +151,9 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       // 获取权限列表
       let userPermissions: string[] = [];
       let userManagedProjects: number[] = [];
-      let userRole = meData.user.role || 'user';
-      let userRoleId = meData.user.role_id || meData.user.roleId || 0;
-      let isAdmin = isSuperAdminUser(userRole, userRoleId);
+      const userRole = meData.user.role || 'user';
+      const userRoleId = meData.user.role_id || meData.user.roleId || 0;
+      const isAdmin = isSuperAdminUser(userRole, userRoleId);
 
       // 尝试获取权限（失败时不清空已有权限，仅在明确未授权时才清空）
       try {
@@ -178,7 +179,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
         if (projRes.ok) {
           const projData = await safeJson(projRes);
           if (projData?.projects) {
-            userManagedProjects = projData.projects.map((p: any) => p.id);
+            userManagedProjects = (projData.projects as Array<{ id: number }>).map((p) => p.id);
           }
         }
       } catch {
@@ -213,7 +214,10 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
 
   // 初始化加载
   useEffect(() => {
-    loadUserPermissions();
+    const timer = window.setTimeout(() => {
+      void loadUserPermissions();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadUserPermissions]);
 
   // 检查是否有某个权限

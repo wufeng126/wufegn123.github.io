@@ -500,6 +500,34 @@ export const wpsWorkerSyncLogs = pgTable("wps_worker_sync_logs", {
 ]);
 
 // 消息通知表
+export const wpsProjectBindings = pgTable("wps_project_bindings", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id").notNull(),
+	wpsProjectName: varchar("wps_project_name", { length: 200 }),
+	worksheetName: varchar("worksheet_name", { length: 200 }),
+	wpsFormId: varchar("wps_form_id", { length: 120 }),
+	wpsSheetId: varchar("wps_sheet_id", { length: 120 }),
+	wpsTableId: varchar("wps_table_id", { length: 120 }),
+	isActive: boolean("is_active").default(true),
+	remark: text(),
+	lastSyncAt: timestamp("last_sync_at", { withTimezone: true, mode: 'string' }),
+	lastSyncStatus: varchar("last_sync_status", { length: 20 }),
+	lastSyncMessage: text("last_sync_message"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("wps_project_bindings_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("wps_project_bindings_active_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
+	index("wps_project_bindings_form_id_idx").using("btree", table.wpsFormId.asc().nullsLast().op("text_ops")),
+	index("wps_project_bindings_sheet_id_idx").using("btree", table.wpsSheetId.asc().nullsLast().op("text_ops")),
+	index("wps_project_bindings_table_id_idx").using("btree", table.wpsTableId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "wps_project_bindings_project_id_fkey"
+	}).onDelete("cascade"),
+]);
+
 export const notifications = pgTable("notifications", {
 	id: serial().primaryKey().notNull(),
 	type: varchar({ length: 50 }).notNull(), // 通知类型
