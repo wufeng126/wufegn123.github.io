@@ -447,6 +447,8 @@ export const notifications = pgTable("notifications", {
 	projectId: integer("project_id"), // 关联项目ID
 	relatedId: integer("related_id"), // 关联记录ID
 	relatedType: varchar("related_type", { length: 50 }), // 关联记录类型
+	recipientUserId: integer("recipient_user_id"), // 接收人ID
+	recipientRole: varchar("recipient_role", { length: 50 }), // 接收角色
 	metadata: text(), // 元数据（JSON）
 	isSent: varchar("is_sent", { length: 5 }).default('false'), // 是否已发送钉钉
 	sentAt: timestamp("sent_at", { withTimezone: true, mode: 'string' }), // 发送时间
@@ -454,6 +456,8 @@ export const notifications = pgTable("notifications", {
 }, (table) => [
 	index("notifications_type_idx").using("btree", table.type.asc().nullsLast().op("text_ops")),
 	index("notifications_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("notifications_recipient_user_id_idx").using("btree", table.recipientUserId.asc().nullsLast().op("int4_ops")),
+	index("notifications_recipient_role_idx").using("btree", table.recipientRole.asc().nullsLast().op("text_ops")),
 	index("notifications_is_read_idx").using("btree", table.isRead.asc().nullsLast().op("text_ops")),
 	index("notifications_priority_idx").using("btree", table.priority.desc().nullsLast().op("int4_ops")),
 	index("notifications_created_at_idx").using("btree", table.createdAt.desc().nullsLast().op("timestamptz_ops")),

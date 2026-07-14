@@ -28,7 +28,7 @@ import {
 import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
-  Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save
+  Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 
@@ -53,6 +53,26 @@ interface WorkItemSubitem {
   contract_price: string | null;
   limit_price: string | null;
   remark: string | null;
+}
+
+interface InternalAddonTemplate {
+  id: number;
+  name: string;
+  unit: string;
+  default_price: string | null;
+  remark: string | null;
+}
+
+interface ProjectInternalAddon {
+  id: number;
+  project_id: number;
+  template_id: number | null;
+  name: string;
+  unit: string;
+  unit_price: string | null;
+  remark: string | null;
+  total_quantity?: string;
+  total_amount?: string;
 }
 
 export default function WorkItemsPage() {
@@ -139,7 +159,20 @@ function WorkItemsContent() {
   const [monthlySettlementDialogOpen, setMonthlySettlementDialogOpen] = useState(false);
   const [settlementYearMonth, setSettlementYearMonth] = useState<string>('');
   const [monthlySettlementRecords, setMonthlySettlementRecords] = useState<any[]>([]);
+  const [monthlyAddonSettlementRecords, setMonthlyAddonSettlementRecords] = useState<any[]>([]);
   const [monthlySettlementLoading, setMonthlySettlementLoading] = useState(false);
+
+  // 内部附加清单
+  const [addonTemplates, setAddonTemplates] = useState<InternalAddonTemplate[]>([]);
+  const [projectAddons, setProjectAddons] = useState<ProjectInternalAddon[]>([]);
+  const [addonLoading, setAddonLoading] = useState(false);
+  const [addonSaving, setAddonSaving] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [projectAddonDialogOpen, setProjectAddonDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<InternalAddonTemplate | null>(null);
+  const [editingProjectAddon, setEditingProjectAddon] = useState<ProjectInternalAddon | null>(null);
+  const [templateForm, setTemplateForm] = useState({ name: '', unit: '', default_price: '', remark: '' });
+  const [projectAddonForm, setProjectAddonForm] = useState({ name: '', unit: '', unit_price: '', remark: '' });
   
   // 对下结算量编辑功能
   const [settlementEditDialogOpen, setSettlementEditDialogOpen] = useState(false);
@@ -186,10 +219,12 @@ function WorkItemsContent() {
   const [analysisYearMonth, setAnalysisYearMonth] = useState<string>('');
   const [analysisReports, setAnalysisReports] = useState<any[]>([]);
   const [analysisSettlements, setAnalysisSettlements] = useState<any[]>([]);
+  const [analysisAddonSettlements, setAnalysisAddonSettlements] = useState<any[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
+    fetchAddonTemplates();
   }, []);
 
   // 处理 URL 参数
@@ -224,8 +259,18 @@ function WorkItemsContent() {
     } else {
       setAnalysisReports([]);
       setAnalysisSettlements([]);
+      setAnalysisAddonSettlements([]);
     }
-  }, [selectedProjectId, analysisYearMonth, allSubitems]);
+  }, [selectedProjectId, analysisYearMonth, allSubitems, projectAddons]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchProjectAddons(selectedProjectId);
+    } else {
+      setProjectAddons([]);
+      setMonthlyAddonSettlementRecords([]);
+    }
+  }, [selectedProjectId]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -243,6 +288,220 @@ function WorkItemsContent() {
       console.error('获取数据失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAddonTemplates = async () => {
+    try {
+      const res = await fetch('/api/internal-addon-templates', { credentials: 'include' });
+      const data = await res.json();
+      setAddonTemplates(data.templates || []);
+    } catch (error) {
+      console.error('获取内部附加清单模板失败:', error);
+      setAddonTemplates([]);
+    }
+  };
+
+  const fetchProjectAddons = async (projectId = selectedProjectId) => {
+    if (!projectId) return;
+    setAddonLoading(true);
+    try {
+      const res = await fetch(`/api/project-internal-addons?project_id=${projectId}`, { credentials: 'include' });
+      const data = await res.json();
+      setProjectAddons(data.addons || []);
+    } catch (error) {
+      console.error('获取项目内部附加清单失败:', error);
+      setProjectAddons([]);
+    } finally {
+      setAddonLoading(false);
+    }
+  };
+
+  const resetTemplateForm = () => {
+    setEditingTemplate(null);
+    setTemplateForm({ name: '', unit: '', default_price: '', remark: '' });
+  };
+
+  const resetProjectAddonForm = () => {
+    setEditingProjectAddon(null);
+    setProjectAddonForm({ name: '', unit: '', unit_price: '', remark: '' });
+  };
+
+  const openTemplateDialog = (template?: InternalAddonTemplate) => {
+    if (template) {
+      setEditingTemplate(template);
+      setTemplateForm({
+        name: template.name || '',
+        unit: template.unit || '',
+        default_price: template.default_price || '',
+        remark: template.remark || '',
+      });
+    } else {
+      resetTemplateForm();
+    }
+    setTemplateDialogOpen(true);
+  };
+
+  const openProjectAddonDialog = (addon?: ProjectInternalAddon) => {
+    if (addon) {
+      setEditingProjectAddon(addon);
+      setProjectAddonForm({
+        name: addon.name || '',
+        unit: addon.unit || '',
+        unit_price: addon.unit_price || '',
+        remark: addon.remark || '',
+      });
+    } else {
+      resetProjectAddonForm();
+    }
+    setProjectAddonDialogOpen(true);
+  };
+
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateForm.name.trim() || !templateForm.unit.trim()) {
+      toast({ title: '验证失败', description: '请输入清单名称和单位', variant: 'warning' });
+      return;
+    }
+
+    setAddonSaving(true);
+    try {
+      const res = await fetch('/api/internal-addon-templates', {
+        method: editingTemplate ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          id: editingTemplate?.id,
+          ...templateForm,
+        }),
+      });
+
+      if (res.ok) {
+        toast({ title: '保存成功', description: '公司通用模板已更新', variant: 'success' });
+        setTemplateDialogOpen(false);
+        resetTemplateForm();
+        fetchAddonTemplates();
+      } else {
+        const error = await res.json();
+        toast({ title: '保存失败', description: error.error || '操作失败', variant: 'error' });
+      }
+    } catch (error) {
+      toast({ title: '保存失败', description: '网络错误，请重试', variant: 'error' });
+    } finally {
+      setAddonSaving(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!confirm('确定删除该公司通用模板吗？已导入项目的清单不会受影响。')) return;
+
+    try {
+      const res = await fetch(`/api/internal-addon-templates?ids=${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        toast({ title: '删除成功', description: '公司通用模板已删除', variant: 'success' });
+        fetchAddonTemplates();
+      } else {
+        const error = await res.json();
+        toast({ title: '删除失败', description: error.error || '操作失败', variant: 'error' });
+      }
+    } catch (error) {
+      toast({ title: '删除失败', description: '网络错误，请重试', variant: 'error' });
+    }
+  };
+
+  const handleImportAddonTemplates = async () => {
+    if (!selectedProjectId) {
+      toast({ title: '提示', description: '请先选择项目', variant: 'warning' });
+      return;
+    }
+
+    setAddonSaving(true);
+    try {
+      const res = await fetch('/api/project-internal-addons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'import_templates', project_id: selectedProjectId }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        toast({
+          title: '导入完成',
+          description: data.importedCount > 0 ? `已导入 ${data.importedCount} 条内部附加清单` : '当前项目已包含全部模板',
+          variant: 'success',
+        });
+        fetchProjectAddons();
+      } else {
+        toast({ title: '导入失败', description: data.error || '操作失败', variant: 'error' });
+      }
+    } catch (error) {
+      toast({ title: '导入失败', description: '网络错误，请重试', variant: 'error' });
+    } finally {
+      setAddonSaving(false);
+    }
+  };
+
+  const handleSaveProjectAddon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId) {
+      toast({ title: '提示', description: '请先选择项目', variant: 'warning' });
+      return;
+    }
+    if (!projectAddonForm.name.trim() || !projectAddonForm.unit.trim()) {
+      toast({ title: '验证失败', description: '请输入清单名称和单位', variant: 'warning' });
+      return;
+    }
+
+    setAddonSaving(true);
+    try {
+      const res = await fetch('/api/project-internal-addons', {
+        method: editingProjectAddon ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          id: editingProjectAddon?.id,
+          project_id: selectedProjectId,
+          ...projectAddonForm,
+        }),
+      });
+
+      if (res.ok) {
+        toast({ title: '保存成功', description: '项目内部附加清单已更新', variant: 'success' });
+        setProjectAddonDialogOpen(false);
+        resetProjectAddonForm();
+        fetchProjectAddons();
+      } else {
+        const error = await res.json();
+        toast({ title: '保存失败', description: error.error || '操作失败', variant: 'error' });
+      }
+    } catch (error) {
+      toast({ title: '保存失败', description: '网络错误，请重试', variant: 'error' });
+    } finally {
+      setAddonSaving(false);
+    }
+  };
+
+  const handleDeleteProjectAddon = async (id: number) => {
+    if (!confirm('确定删除该项目内部附加清单吗？历史结算记录会保留，但该清单不再显示。')) return;
+
+    try {
+      const res = await fetch(`/api/project-internal-addons?ids=${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        toast({ title: '删除成功', description: '项目内部附加清单已删除', variant: 'success' });
+        fetchProjectAddons();
+      } else {
+        const error = await res.json();
+        toast({ title: '删除失败', description: error.error || '操作失败', variant: 'error' });
+      }
+    } catch (error) {
+      toast({ title: '删除失败', description: '网络错误，请重试', variant: 'error' });
     }
   };
 
@@ -288,6 +547,16 @@ function WorkItemsContent() {
     activeProjects: projects.filter(p => p.status === '进行中').length,
   }), [projects, allSubitems]);
 
+  const addonStats = useMemo(() => {
+    const totalQuantity = projectAddons.reduce((sum, item) => sum + (parseFloat(item.total_quantity || '0') || 0), 0);
+    const totalAmount = projectAddons.reduce((sum, item) => sum + (parseFloat(item.total_amount || '0') || 0), 0);
+    return {
+      totalItems: projectAddons.length,
+      totalQuantity,
+      totalAmount,
+    };
+  }, [projectAddons]);
+
   // 当前项目统计
   const projectStats = useMemo(() => ({
     totalItems: subitems.length,
@@ -305,13 +574,13 @@ function WorkItemsContent() {
       const qty = parseFloat(item.settlement_quantity || '0') || 0;
       const price = parseFloat(item.contract_price || '0') || 0;
       return sum + qty * price;
-    }, 0),
+    }, 0) + addonStats.totalAmount,
     warningItems: subitems.filter(item => {
       const budget = parseFloat(item.budget_quantity) || 0;
       const completed = parseFloat(item.completed_quantity) || 0;
       return budget > 0 && (completed / budget) > 0.8;
     }).length,
-  }), [subitems]);
+  }), [subitems, addonStats.totalAmount]);
 
   const analysisStats = useMemo(() => {
     const monthlyReportMap = new Map<number, number>();
@@ -322,6 +591,11 @@ function WorkItemsContent() {
     const monthlySettlementMap = new Map<number, number>();
     analysisSettlements.forEach(record => {
       monthlySettlementMap.set(Number(record.subitem_id), parseFloat(record.completed_quantity || '0') || 0);
+    });
+
+    const monthlyAddonSettlementMap = new Map<number, any>();
+    analysisAddonSettlements.forEach(record => {
+      monthlyAddonSettlementMap.set(Number(record.addon_id), record);
     });
 
     const rows = subitems.map(item => {
@@ -350,6 +624,7 @@ function WorkItemsContent() {
 
       return {
         ...item,
+        isAddon: false,
         budgetQty,
         totalReportedQty,
         totalSettledQty,
@@ -369,7 +644,40 @@ function WorkItemsContent() {
       };
     });
 
-    const summary = rows.reduce((acc, row) => {
+    const addonRows = projectAddons.map(addon => {
+      const monthlyRecord = monthlyAddonSettlementMap.get(addon.id);
+      const monthlyQty = parseFloat(monthlyRecord?.quantity || '0') || 0;
+      const unitPrice = parseFloat(monthlyRecord?.unit_price || addon.unit_price || '0') || 0;
+      const totalAmount = parseFloat(addon.total_amount || '0') || 0;
+      const monthlyAmount = monthlyQty * unitPrice;
+      const risks = totalAmount > 0 ? ['内部附加成本'] : [];
+
+      return {
+        id: `addon-${addon.id}`,
+        isAddon: true,
+        subitem_name: addon.name,
+        unit: addon.unit,
+        budgetQty: 0,
+        totalReportedQty: 0,
+        totalSettledQty: parseFloat(addon.total_quantity || '0') || 0,
+        monthlyReportedQty: 0,
+        monthlySettledQty: monthlyQty,
+        contractPrice: 0,
+        limitPrice: unitPrice,
+        reportAmount: 0,
+        settlementAmount: totalAmount,
+        monthlyReportAmount: 0,
+        monthlySettlementAmount: monthlyAmount,
+        reportRemainingQty: 0,
+        settleRemainingQty: 0,
+        quantityGap: 0,
+        amountGap: -totalAmount,
+        risks,
+      };
+    });
+
+    const allRows = [...rows, ...addonRows];
+    const summary = allRows.reduce((acc, row) => {
       acc.monthlyReportAmount += row.monthlyReportAmount;
       acc.monthlySettlementAmount += row.monthlySettlementAmount;
       acc.totalReportAmount += row.reportAmount;
@@ -385,12 +693,12 @@ function WorkItemsContent() {
     });
 
     return {
-      rows,
+      rows: allRows,
       ...summary,
       monthlyAmountGap: summary.monthlyReportAmount - summary.monthlySettlementAmount,
       totalAmountGap: summary.totalReportAmount - summary.totalSettlementAmount,
     };
-  }, [subitems, analysisReports, analysisSettlements]);
+  }, [subitems, projectAddons, analysisReports, analysisSettlements, analysisAddonSettlements]);
 
   // 刷新数据
   const refreshSubitems = async () => {
@@ -907,20 +1215,24 @@ function WorkItemsContent() {
 
     setAnalysisLoading(true);
     try {
-      const [reportsRes, settlementsRes] = await Promise.all([
+      const [reportsRes, settlementsRes, addonSettlementsRes] = await Promise.all([
         fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
         fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
+        fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
       ]);
-      const [reportsData, settlementsData] = await Promise.all([
+      const [reportsData, settlementsData, addonSettlementsData] = await Promise.all([
         reportsRes.json(),
         settlementsRes.json(),
+        addonSettlementsRes.json(),
       ]);
       setAnalysisReports(reportsData.records || []);
       setAnalysisSettlements(settlementsData.records || []);
+      setAnalysisAddonSettlements(addonSettlementsData.records || []);
     } catch (error) {
       console.error('获取差异分析数据失败:', error);
       setAnalysisReports([]);
       setAnalysisSettlements([]);
+      setAnalysisAddonSettlements([]);
     } finally {
       setAnalysisLoading(false);
     }
@@ -1097,8 +1409,16 @@ function WorkItemsContent() {
   const fetchMonthlySettlementRecords = async (yearMonth: string) => {
     setMonthlySettlementLoading(true);
     try {
-      const res = await fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${yearMonth}`);
-      const data = await res.json();
+      const [res, addonsRes, addonRecordsRes] = await Promise.all([
+        fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }),
+        fetch(`/api/project-internal-addons?project_id=${selectedProjectId}`, { credentials: 'include' }),
+        fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }),
+      ]);
+      const [data, addonsData, addonRecordsData] = await Promise.all([
+        res.json(),
+        addonsRes.json(),
+        addonRecordsRes.json(),
+      ]);
       
       // 合并当前项目的所有子项与月度记录
       const projectSubitems = allSubitems.filter(s => s.project_id === parseInt(selectedProjectId));
@@ -1119,8 +1439,26 @@ function WorkItemsContent() {
       });
       
       setMonthlySettlementRecords(mergedRecords);
+
+      const addons = addonsData.addons || [];
+      setProjectAddons(addons);
+      const addonRecordsMap = new Map(addonRecordsData.records?.map((r: any) => [r.addon_id, r]) || []);
+      setMonthlyAddonSettlementRecords(addons.map((addon: ProjectInternalAddon) => {
+        const record = addonRecordsMap.get(addon.id) as any;
+        return {
+          addon_id: addon.id,
+          name: addon.name,
+          unit: addon.unit,
+          unit_price: record?.unit_price || addon.unit_price || '0',
+          quantity: record?.quantity || '0',
+          total_quantity: addon.total_quantity || '0',
+          total_amount: addon.total_amount || '0',
+          record_id: record?.id || null,
+        };
+      }));
     } catch (error) {
       console.error('获取月度对下结算量失败:', error);
+      setMonthlyAddonSettlementRecords([]);
     } finally {
       setMonthlySettlementLoading(false);
     }
@@ -1133,34 +1471,67 @@ function WorkItemsContent() {
     ));
   };
 
+  const handleMonthlyAddonSettlementChange = (addonId: number, value: string) => {
+    setMonthlyAddonSettlementRecords(prev => prev.map(r =>
+      r.addon_id === addonId ? { ...r, quantity: value } : r
+    ));
+  };
+
   // 保存月度对下结算量
   const handleSaveMonthlySettlement = async () => {
     const recordsToSave = monthlySettlementRecords
-      .filter(r => r.settlement_quantity && parseFloat(r.settlement_quantity) > 0)
+      .filter(r => r.record_id || (r.settlement_quantity && parseFloat(r.settlement_quantity) > 0))
       .map(r => ({
         subitem_id: r.subitem_id,
         year_month: settlementYearMonth,
-        completed_quantity: r.settlement_quantity,
+        completed_quantity: r.settlement_quantity || '0',
       }));
 
-    if (recordsToSave.length === 0) {
+    const addonRecordsToSave = monthlyAddonSettlementRecords
+      .filter(r => r.record_id || (r.quantity && parseFloat(r.quantity) > 0))
+      .map(r => ({
+        project_id: selectedProjectId,
+        addon_id: r.addon_id,
+        year_month: settlementYearMonth,
+        quantity: r.quantity || '0',
+        unit_price: r.unit_price || '0',
+      }));
+
+    if (recordsToSave.length === 0 && addonRecordsToSave.length === 0) {
       toast({ title: '提示', description: '请输入结算量', variant: 'warning' });
       return;
     }
 
     try {
-      const res = await fetch('/api/subitem-monthly-progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records: recordsToSave }),
-      });
+      const requests = [];
+      if (recordsToSave.length > 0) {
+        requests.push(fetch('/api/subitem-monthly-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ records: recordsToSave }),
+        }));
+      }
+      if (addonRecordsToSave.length > 0) {
+        requests.push(fetch('/api/internal-addon-settlements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ records: addonRecordsToSave }),
+        }));
+      }
+      const responses = await Promise.all(requests);
+      const failedResponse = responses.find(response => !response.ok);
       
-      if (res.ok) {
-        toast({ title: '保存成功', description: `已保存 ${recordsToSave.length} 条月度对下结算量`, variant: 'success' });
-        refreshSubitems();
-        fetchMonthlySettlementRecords(settlementYearMonth);
+      if (!failedResponse) {
+        const totalSaved = recordsToSave.length + addonRecordsToSave.length;
+        toast({ title: '保存成功', description: `已保存 ${totalSaved} 条月度对下结算记录`, variant: 'success' });
+        await refreshSubitems();
+        await fetchProjectAddons();
+        await fetchMonthlySettlementRecords(settlementYearMonth);
+        fetchAnalysisRecords();
       } else {
-        const error = await res.json();
+        const error = await failedResponse.json();
         toast({ title: '保存失败', description: error.error || '操作失败', variant: 'error' });
       }
     } catch (error) {
@@ -1668,6 +2039,10 @@ function WorkItemsContent() {
                 <CheckCircle2 className="w-4 h-4" />
                 对下结算量
               </TabsTrigger>
+              <TabsTrigger value="addons" className="gap-2">
+                <Layers className="w-4 h-4" />
+                内部附加清单
+              </TabsTrigger>
               <TabsTrigger value="difference" className="gap-2">
                 <AlertTriangle className="w-4 h-4" />
                 差异分析
@@ -2072,12 +2447,154 @@ function WorkItemsContent() {
               </Card>
             </TabsContent>
 
+            {/* 内部附加清单标签页 */}
+            <TabsContent value="addons" className="space-y-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="text-lg font-semibold">内部附加清单</h3>
+                  <p className="text-sm text-gray-500 mt-1">维护对下结算中的内部附加成本，只参与金额分析，不参与工程量差异对比</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => openTemplateDialog()}>
+                    <Plus className="w-4 h-4 mr-2" />新增公司模板
+                  </Button>
+                  <Button variant="outline" onClick={handleImportAddonTemplates} disabled={addonSaving || addonTemplates.length === 0}>
+                    <Copy className="w-4 h-4 mr-2" />从模板导入
+                  </Button>
+                  <Button onClick={() => openProjectAddonDialog()} className="bg-[#1A58B3] hover:bg-[#144a96]">
+                    <Plus className="w-4 h-4 mr-2" />新增项目清单
+                  </Button>
+                  <Button variant="outline" onClick={() => { fetchAddonTemplates(); fetchProjectAddons(); }} disabled={addonLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${addonLoading ? 'animate-spin' : ''}`} />刷新
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardContent className="py-3">
+                    <p className="text-sm text-blue-600">项目附加清单</p>
+                    <p className="text-xl font-bold text-blue-700 mt-1">{addonStats.totalItems}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-emerald-200 bg-emerald-50">
+                  <CardContent className="py-3">
+                    <p className="text-sm text-emerald-600">累计附加数量</p>
+                    <p className="text-xl font-bold text-emerald-700 mt-1">{addonStats.totalQuantity.toFixed(2)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardContent className="py-3">
+                    <p className="text-sm text-orange-600">累计附加成本</p>
+                    <p className="text-xl font-bold text-orange-700 mt-1">{formatCurrency(addonStats.totalAmount)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="pt-6 space-y-4">
+                    <div>
+                      <h4 className="font-semibold">公司通用模板</h4>
+                      <p className="text-sm text-gray-500 mt-1">常用内部附加项，可导入到每个项目后单独调整项目单价</p>
+                    </div>
+                    <Table className="zebra-table">
+                      <TableHeader>
+                        <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
+                          <TableHead>清单名称</TableHead>
+                          <TableHead>单位</TableHead>
+                          <TableHead className="text-right">默认单价</TableHead>
+                          <TableHead>备注</TableHead>
+                          <TableHead className="text-center">操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {addonTemplates.length > 0 ? addonTemplates.map(template => (
+                          <TableRow key={template.id}>
+                            <TableCell className="font-medium">{template.name}</TableCell>
+                            <TableCell>{template.unit}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(parseFloat(template.default_price || '0') || 0)}</TableCell>
+                            <TableCell className="text-sm text-gray-500 max-w-40 truncate">{template.remark || '-'}</TableCell>
+                            <TableCell>
+                              <div className="flex justify-center gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => openTemplateDialog(template)}>
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteTemplate(template.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">暂无公司通用模板</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="pt-6 space-y-4">
+                    <div>
+                      <h4 className="font-semibold">当前项目清单</h4>
+                      <p className="text-sm text-gray-500 mt-1">这里的项目单价用于月度对下结算和差异金额分析</p>
+                    </div>
+                    <Table className="zebra-table">
+                      <TableHeader>
+                        <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
+                          <TableHead>清单名称</TableHead>
+                          <TableHead>单位</TableHead>
+                          <TableHead className="text-right">项目单价</TableHead>
+                          <TableHead className="text-right">累计数量</TableHead>
+                          <TableHead className="text-right">累计金额</TableHead>
+                          <TableHead className="text-center">操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {projectAddons.length > 0 ? projectAddons.map(addon => (
+                          <TableRow key={addon.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{addon.name}</p>
+                                {addon.remark && <p className="text-xs text-gray-500 truncate max-w-44">{addon.remark}</p>}
+                              </div>
+                            </TableCell>
+                            <TableCell>{addon.unit}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(parseFloat(addon.unit_price || '0') || 0)}</TableCell>
+                            <TableCell className="text-right">{(parseFloat(addon.total_quantity || '0') || 0).toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold text-orange-600">{formatCurrency(parseFloat(addon.total_amount || '0') || 0)}</TableCell>
+                            <TableCell>
+                              <div className="flex justify-center gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => openProjectAddonDialog(addon)}>
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProjectAddon(addon.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-8 text-gray-500">暂无项目内部附加清单，可从公司模板导入或手动新增</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
             {/* 差异分析标签页 */}
             <TabsContent value="difference" className="space-y-4">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="text-lg font-semibold">差异分析</h3>
-                  <p className="text-sm text-gray-500 mt-1">按预算工程量统一维度，对比对上报量与对下结算，提醒少报、多结和金额倒挂</p>
+                  <p className="text-sm text-gray-500 mt-1">按预算工程量统一维度，对比对上报量与对下结算；内部附加清单只参与金额差异，不参与工程量差异</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Select value={analysisYearMonth} onValueChange={setAnalysisYearMonth}>
@@ -2137,7 +2654,7 @@ function WorkItemsContent() {
 
               <Card>
                 <CardContent className="pt-6">
-                  {subitems.length > 0 ? (
+                  {analysisStats.rows.length > 0 ? (
                     <Table className="zebra-table">
                       <TableHeader>
                         <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
@@ -2156,15 +2673,20 @@ function WorkItemsContent() {
                       <TableBody>
                         {analysisStats.rows.map((row, index) => (
                           <TableRow key={row.id} className={`${row.risks.length > 0 ? 'bg-orange-50/70' : index % 2 === 1 ? 'bg-[#F8FAFC]' : ''} hover:bg-[#F0F7FF]`}>
-                            <TableCell className="font-medium">{row.subitem_name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {row.isAddon && <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">附加</Badge>}
+                                <span>{row.subitem_name}</span>
+                              </div>
+                            </TableCell>
                             <TableCell>{row.unit}</TableCell>
-                            <TableCell className="text-right">{row.budgetQty.toFixed(2)}</TableCell>
-                            <TableCell className="text-right text-blue-600">{row.monthlyReportedQty.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{row.isAddon ? '-' : row.budgetQty.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-blue-600">{row.isAddon ? '-' : row.monthlyReportedQty.toFixed(2)}</TableCell>
                             <TableCell className="text-right text-emerald-600">{row.monthlySettledQty.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">{row.totalReportedQty.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-medium">{row.isAddon ? '-' : row.totalReportedQty.toFixed(2)}</TableCell>
                             <TableCell className="text-right font-medium">{row.totalSettledQty.toFixed(2)}</TableCell>
                             <TableCell className={row.quantityGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right text-gray-700'}>
-                              {row.quantityGap.toFixed(2)}
+                              {row.isAddon ? '-' : row.quantityGap.toFixed(2)}
                             </TableCell>
                             <TableCell className={row.amountGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right font-semibold text-[#1A58B3]'}>
                               {formatCurrency(row.amountGap)}
@@ -2324,6 +2846,74 @@ function WorkItemsContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 内部附加清单公司模板对话框 */}
+      <Dialog open={templateDialogOpen} onOpenChange={(open) => { setTemplateDialogOpen(open); if (!open) resetTemplateForm(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingTemplate ? '编辑公司通用模板' : '新增公司通用模板'}</DialogTitle>
+            <DialogDescription>维护公司常用内部附加清单，可导入到具体项目中使用</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveTemplate} className="space-y-4">
+            <div>
+              <Label>清单名称 *</Label>
+              <Input value={templateForm.name} onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })} required placeholder="如：修补打磨" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>单位 *</Label>
+                <Input value={templateForm.unit} onChange={(e) => setTemplateForm({ ...templateForm, unit: e.target.value })} required placeholder="如：㎡、工日、项" />
+              </div>
+              <div>
+                <Label>默认单价</Label>
+                <Input type="number" step="0.01" value={templateForm.default_price} onChange={(e) => setTemplateForm({ ...templateForm, default_price: e.target.value })} placeholder="元" />
+              </div>
+            </div>
+            <div>
+              <Label>备注</Label>
+              <Input value={templateForm.remark} onChange={(e) => setTemplateForm({ ...templateForm, remark: e.target.value })} placeholder="适用说明" />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setTemplateDialogOpen(false)}>取消</Button>
+              <Button type="submit" disabled={addonSaving}>{addonSaving ? '保存中...' : '保存'}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 项目内部附加清单对话框 */}
+      <Dialog open={projectAddonDialogOpen} onOpenChange={(open) => { setProjectAddonDialogOpen(open); if (!open) resetProjectAddonForm(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingProjectAddon ? '编辑项目内部附加清单' : '新增项目内部附加清单'}</DialogTitle>
+            <DialogDescription>项目单价会用于月度对下结算和差异金额分析</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveProjectAddon} className="space-y-4">
+            <div>
+              <Label>清单名称 *</Label>
+              <Input value={projectAddonForm.name} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, name: e.target.value })} required placeholder="请输入清单名称" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>单位 *</Label>
+                <Input value={projectAddonForm.unit} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, unit: e.target.value })} required placeholder="如：㎡、工日、项" />
+              </div>
+              <div>
+                <Label>项目单价</Label>
+                <Input type="number" step="0.01" value={projectAddonForm.unit_price} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, unit_price: e.target.value })} placeholder="元" />
+              </div>
+            </div>
+            <div>
+              <Label>备注</Label>
+              <Input value={projectAddonForm.remark} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, remark: e.target.value })} placeholder="项目适用说明" />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setProjectAddonDialogOpen(false)}>取消</Button>
+              <Button type="submit" disabled={addonSaving}>{addonSaving ? '保存中...' : '保存'}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* 编辑对上报量对话框 */}
       <Dialog open={budgetEditDialogOpen} onOpenChange={setBudgetEditDialogOpen}>
@@ -2659,7 +3249,7 @@ function WorkItemsContent() {
               <div className="loading-spinner" />
             </div>
           ) : (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto space-y-6">
               <Table className="zebra-table">
               <TableHeader>
                   <TableRow>
@@ -2715,6 +3305,59 @@ function WorkItemsContent() {
                   })}
                 </TableBody>
               </Table>
+              {monthlyAddonSettlementRecords.length > 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-orange-500" />
+                      内部附加清单
+                    </h4>
+                    <p className="text-sm text-gray-500 mt-1">附加项只计入对下成本金额，不参与预算工程量、剩余工程量和结算率对比</p>
+                  </div>
+                  <Table className="zebra-table">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">序号</TableHead>
+                        <TableHead>清单名称</TableHead>
+                        <TableHead>单位</TableHead>
+                        <TableHead className="text-right">项目单价</TableHead>
+                        <TableHead className="text-right">当月结算数量</TableHead>
+                        <TableHead className="text-right">当月金额</TableHead>
+                        <TableHead className="text-right">累计数量</TableHead>
+                        <TableHead className="text-right">累计金额</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monthlyAddonSettlementRecords.map((record, index) => {
+                        const monthlyQty = parseFloat(record.quantity || '0') || 0;
+                        const unitPrice = parseFloat(record.unit_price || '0') || 0;
+                        const monthlyAmount = monthlyQty * unitPrice;
+                        return (
+                          <TableRow key={record.addon_id}>
+                            <TableCell className="text-gray-400">{index + 1}</TableCell>
+                            <TableCell className="font-medium">{record.name}</TableCell>
+                            <TableCell>{record.unit}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(unitPrice)}</TableCell>
+                            <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="w-24 text-right"
+                                value={record.quantity}
+                                onChange={(e) => handleMonthlyAddonSettlementChange(record.addon_id, e.target.value)}
+                                placeholder="0"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-orange-600">{formatCurrency(monthlyAmount)}</TableCell>
+                            <TableCell className="text-right">{(parseFloat(record.total_quantity || '0') || 0).toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold text-orange-600">{formatCurrency(parseFloat(record.total_amount || '0') || 0)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
           )}
 
@@ -2728,7 +3371,7 @@ function WorkItemsContent() {
                 查看历史记录
               </Button>
               <p className="text-sm text-gray-500 flex items-center">
-                提示：输入当月结算量后点击保存，系统会自动累计到总结算量
+                提示：分项工程累计到总结算量；内部附加清单只累计到对下成本金额
               </p>
             </div>
             <div className="flex gap-2">

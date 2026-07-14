@@ -18,6 +18,7 @@ import {
   BookOpen,
   Calculator,
   ClipboardList,
+  ReceiptText,
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ const TOP_LEVEL_MENUS = [
   { name: '项目管理', href: '/project-center', icon: Building2 },
   { name: '施工管理', href: '/construction-logs', icon: ClipboardList },
   { name: '人力资源', href: '/hr-salary', icon: Users },
+  { name: '供应商与费用', href: '/supplier-expense', icon: ReceiptText },
   { name: '经营分析', href: '/business-analysis', icon: BarChart3 },
   { name: '投标测算', href: '/cost-estimation', icon: Calculator },
   { name: '知识库', href: '/knowledge', icon: BookOpen },
@@ -166,8 +168,11 @@ export default function SidebarLayout({
     // 施工管理
     if (pathname.startsWith('/construction-logs') || pathname.startsWith('/reports/monthly')) return '/construction-logs';
 
+    // 供应商与费用
+    if (['/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/supplier-expense';
+
     // 经营分析
-    if (['/business-analysis', '/cost-center', '/data-board', '/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/business-analysis';
+    if (['/business-analysis', '/cost-center', '/data-board'].some(p => pathname.startsWith(p))) return '/business-analysis';
 
     // 投标测算
     if (pathname.startsWith('/cost-estimation')) return '/cost-estimation';

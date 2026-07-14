@@ -24,6 +24,21 @@ export async function runMigrations() {
       console.log('[Migration] ⚠️ workflow_configs 表不存在，使用项目内 SQL 手动创建');
       console.log('[Migration] 📄 文件: migrations/create_workflow_config.sql');
     }
+
+    // 检查内部附加清单表是否存在
+    const { error: addonErr } = await supabase.from('internal_addon_templates').select('id').limit(1);
+    if (addonErr?.message?.includes('does not exist')) {
+      console.log('[Migration] ⚠️ internal_addon_templates 表不存在，使用项目内 SQL 手动创建');
+      console.log('[Migration] 📄 文件: migrations/create_internal_addon_items.sql');
+    }
+
+    const { error: recipientErr } = await supabase
+      .from('notifications')
+      .select('recipient_user_id')
+      .limit(1);
+    if (recipientErr?.message?.includes('recipient_user_id')) {
+      console.log('[Migration] notifications 缺少 recipient_user_id 字段，请执行 migrations/add_notification_recipients.sql');
+    }
   } catch (e) {
     console.log('[Migration] 检查跳过，不影响运行');
   }

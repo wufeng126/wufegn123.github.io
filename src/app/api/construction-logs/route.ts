@@ -11,6 +11,7 @@ import {
   getRiskLevelLabel,
   getRiskTypeLabel,
 } from '@/lib/construction-log-risk';
+import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
 
 export async function GET(request: NextRequest) {
   try {
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
         .select('name')
         .eq('id', parsedProjectId)
         .single();
-      const projName = (proj as any)?.name || `项目${project_id}`;
+      const projName = (proj as { name?: string } | null)?.name || `项目${project_id}`;
       const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
       const levelLabel = getRiskLevelLabel(risk.level);
       const knowledgeContent = buildRiskKnowledgeContent({
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
         risk,
       });
 
-      const insertDoc: Record<string, any> = {
+      const insertDoc: Record<string, unknown> = {
         title: `${projName} ${log_date || ''} 施工日志 - ${typeLabel}${levelLabel ? `(${levelLabel})` : ''}`,
         category: risk.types.includes('cost') ? '成本分析' : risk.types.includes('visa') ? '签证' : '经验总结',
         source_type: 'construction_log',
@@ -136,6 +137,9 @@ export async function POST(request: NextRequest) {
 
       await supabase.from('ai_knowledge_docs').insert(insertDoc);
 
+      const recipients = await getProjectBudgetRecipients(supabase, parsedProjectId);
+      const targetNames = formatRecipientNames(recipients);
+
       const { pushBusinessNotification } = await import('@/lib/business-notification');
       await pushBusinessNotification({
         type: 'construction_log_alert',
@@ -145,8 +149,13 @@ export async function POST(request: NextRequest) {
         projectId: parsedProjectId,
         relatedId: data.id,
         relatedType: 'construction_log',
+        recipientUserIds: recipients.map((recipient) => recipient.id),
+        recipientRole: 'budget',
         metadata: {
           targetRole: 'budget',
+          targetUserIds: recipients.map((recipient) => recipient.id),
+          targetNames,
+          fallbackToAdmin: recipients.length === 0,
           targetLabel: '项目预算员',
           riskTypes: risk.types,
           riskLevel: risk.level,

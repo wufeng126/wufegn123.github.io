@@ -71,7 +71,13 @@ function isRoleActionableKnowledge(tags: string[], role: string, isSuperAdmin: b
   return false;
 }
 
-async function countPendingConstructionLogRisks(client: SupabaseClient, accessibleProjectIds: number[] | null) {
+function isMissingRecipientColumn(error: unknown) {
+  const err = error as { message?: string; details?: string } | null;
+  const message = String(err?.message || err?.details || '');
+  return message.includes('recipient_user_id') || message.includes('recipient_role');
+}
+
+async function countPendingConstructionLogRiskDocs(client: SupabaseClient, accessibleProjectIds: number[] | null) {
   if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
 
   let logsQuery = client
@@ -113,6 +119,35 @@ async function countPendingConstructionLogRisks(client: SupabaseClient, accessib
     const workflowStatus = getRiskWorkflowStatusFromTags(normalizeKnowledgeTags(doc?.tags));
     return workflowStatus === 'pending';
   }).length;
+}
+
+async function countPendingConstructionLogRisks(
+  client: SupabaseClient,
+  accessibleProjectIds: number[] | null,
+  userId: number,
+  isSuperAdmin: boolean
+) {
+  let query = client
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('type', 'construction_log_alert')
+    .eq('is_read', false);
+
+  if (!isSuperAdmin) {
+    query = query.eq('recipient_user_id', userId);
+  }
+
+  if (Array.isArray(accessibleProjectIds)) {
+    if (accessibleProjectIds.length === 0) return 0;
+    query = query.in('project_id', accessibleProjectIds);
+  }
+
+  const { count, error } = await query;
+  if (error && isMissingRecipientColumn(error)) {
+    return countPendingConstructionLogRiskDocs(client, accessibleProjectIds);
+  }
+  if (error) throw new Error(error.message);
+  return count || 0;
 }
 
 async function countPendingMonthlyReports(client: SupabaseClient, accessibleProjectIds: number[] | null, currentMonth: string) {
@@ -197,7 +232,7 @@ export async function GET(request: NextRequest) {
       visasPending,
       knowledgePending,
     ] = await Promise.all([
-      countPendingConstructionLogRisks(client, accessibleProjectIds),
+      countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
       countPendingMonthlyReports(client, accessibleProjectIds, currentMonth),
       countPendingVisas(client, accessibleProjectIds),
       countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin),
