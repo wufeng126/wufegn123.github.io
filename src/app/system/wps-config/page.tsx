@@ -94,6 +94,7 @@ export default function WpsConfigPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<BindingForm>(emptyForm);
 
@@ -155,6 +156,28 @@ export default function WpsConfigPage() {
       remark: binding.remark || '',
     });
     setDialogOpen(true);
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/integrations/wps/workers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || '同步失败');
+      toast({
+        title: '同步完成',
+        description: `成功 ${data.summary?.created || 0} 条，更新 ${data.summary?.updated || 0} 条，失败 ${data.summary?.failed || 0} 条`,
+      });
+      await fetchData();
+    } catch (error) {
+      toast({ title: '同步失败', description: error instanceof Error ? error.message : '同步 WPS 数据失败', variant: 'error' });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const saveBinding = async () => {
@@ -238,6 +261,10 @@ export default function WpsConfigPage() {
           <Button variant="outline" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
+          </Button>
+          <Button variant="outline" onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            立即同步
           </Button>
           <Button onClick={openCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />
