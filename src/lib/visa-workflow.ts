@@ -1,4 +1,5 @@
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { getUserDisplayName as formatUserDisplayName } from '@/lib/user-display-name';
 
 export const VISA_WORKFLOW_STATUSES = ['已提交', '已签字', '待预算员确认', '已完成'] as const;
 export const VISA_DONE_STATUSES = ['已完成', '已结算', '已完结'] as const;
@@ -25,12 +26,15 @@ export type UserLike = {
   id: number;
   username?: string | null;
   name?: string | null;
+  dingtalk_name?: string | null;
   role?: string | null;
   managed_projects?: unknown;
   is_disabled?: boolean | null;
 };
 
-export function getUserDisplayName(user?: { id?: number | null; name?: string | null; username?: string | null } | null) {
+export function getUserDisplayName(user?: { id?: number | null; dingtalk_name?: string | null; name?: string | null; username?: string | null } | null) {
+  const displayName = formatUserDisplayName(user);
+  if (displayName) return displayName;
   return user?.name || user?.username || (user?.id ? `用户${user.id}` : '');
 }
 
@@ -55,7 +59,7 @@ export function isVisaActive(status?: string | null) {
 export async function getUserById(client: SupabaseLike, userId: number) {
   const usersQuery = client.from('users') as SupabaseUserQuery;
   const { data, error } = await usersQuery
-    .select('id,username,name,role,managed_projects,is_disabled')
+    .select('id,username,name,dingtalk_name,role,managed_projects,is_disabled')
     .eq('id', userId)
     .maybeSingle();
 

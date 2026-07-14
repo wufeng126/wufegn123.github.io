@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserPayload = RequestAuthUser;
 
@@ -110,6 +111,8 @@ export async function PUT(
     return NextResponse.json({ error: '已审核的限价只有管理员可修改' }, { status: 403 });
   }
   
+  const operatorName = getUserDisplayName(user);
+
   const updateData = {
     subitem_name: body.subitem_name,
     work_type: body.work_type,
@@ -134,7 +137,7 @@ export async function PUT(
   }
   
   // 记录操作日志
-  await logAction(supabase, data.id, '修改', user.id, user.username, {
+  await logAction(supabase, data.id, '修改', user.id, operatorName, {
     before: current,
     after: body
   });
@@ -177,6 +180,8 @@ export async function DELETE(
     return NextResponse.json({ error: '已审核的限价不能删除，请先作废' }, { status: 403 });
   }
   
+  const operatorName = getUserDisplayName(user);
+
   const { error } = await supabase
     .from('project_limit_prices')
     .delete()
@@ -187,7 +192,7 @@ export async function DELETE(
   }
   
   // 记录操作日志
-  await logAction(supabase, parseInt(id), '删除', user.id, user.username, current);
+  await logAction(supabase, parseInt(id), '删除', user.id, operatorName, current);
   
   return NextResponse.json({ success: true });
 }

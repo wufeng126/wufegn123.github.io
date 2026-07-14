@@ -25,6 +25,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { apiError } from '@/lib/api-utils';
 import { logDingTalkSecurityEvent } from '@/lib/dingtalk-security-log';
 import { fetchUserPermissions, hashPassword } from '@/lib/auth-db';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type DingTalkUserInfoResult = {
   userid?: string;
@@ -244,7 +245,8 @@ async function findAndBindSystemUser(
     user: {
       id: matchedUser.id,
       username: matchedUser.username,
-      name: matchedUser.name || matchedUser.username,
+      name: getUserDisplayName({ ...matchedUser, dingtalk_name: dingtalk_name || matchedUser.dingtalk_name }),
+      dingtalk_name: dingtalk_name || matchedUser.dingtalk_name || undefined,
       role: userRole,
       role_id: matchedUser.role_id,
     },
@@ -377,7 +379,7 @@ export async function POST(request: Request) {
             systemUser: {
               id: newUser.id,
               username: newUser.username,
-              name: newUser.name || newUser.username,
+              name: getUserDisplayName(newUser),
             },
           },
           error: `已为钉钉用户"${dingtalkUser.name}"创建系统账号，请联系管理员分配权限后再登录`,

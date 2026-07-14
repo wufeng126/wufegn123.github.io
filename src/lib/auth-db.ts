@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { generateToken, UserPayload, UserRole } from './auth';
 import { isSuperAdminUser } from './route-permissions';
+import { getUserDisplayName } from './user-display-name';
 
 // 密码哈希盐值 - 使用固定值确保所有环境一致
 const PASSWORD_SALT = 'construction-labor-management-password-salt-2024-v1';
@@ -41,7 +42,7 @@ export async function verifyCredentials(username: string, password: string): Pro
       return null;
     }
 
-    const user = data as { id: number; username: string; password_hash: string; role: string; is_disabled: boolean };
+    const user = data as { id: number; username: string; name?: string | null; dingtalk_name?: string | null; password_hash: string; role: string; is_disabled: boolean };
     console.log('[Auth] User found, role:', user.role);
     
     // 检查用户是否被禁用或尚未分配权限
@@ -72,7 +73,8 @@ export async function verifyCredentials(username: string, password: string): Pro
     return {
       id: user.id,
       username: user.username,
-      name: user.username,
+      name: getUserDisplayName(user),
+      dingtalk_name: user.dingtalk_name || undefined,
       role: userRole,
     };
   } catch (error) {

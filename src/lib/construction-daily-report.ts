@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getReadableDate } from '@/lib/construction-log-deadline';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserRow = {
   id: number;
@@ -93,7 +94,9 @@ function parseManagedProjects(value: unknown): number[] {
 }
 
 function getUserName(user: UserRow) {
-  return user.name || user.dingtalk_name || user.username || `用户${user.id}`;
+  const displayName = getUserDisplayName(user);
+  if (displayName) return displayName;
+  return `用户${user.id}`;
 }
 
 function uniqById<T extends { id: number }>(items: T[]) {
@@ -190,16 +193,24 @@ export async function buildConstructionDailyReportSummary(
     const expectedUsers = uniqById(expectedByProject.get(projectId) || []);
     const submittedUsers = uniqById(projectLogs.map(log => ({
       id: Number(log.user_id),
-      name: log.user_name || userNameMap.get(Number(log.user_id)) || `用户${log.user_id}`,
+      name: userNameMap.get(Number(log.user_id)) || log.user_name || `用户${log.user_id}`,
       status: log.submission_status === 'late' ? 'late' : 'normal',
     })));
+    submittedUsers.forEach(user => {
+      const liveName = userNameMap.get(user.id);
+      if (liveName) user.name = liveName;
+    });
     const submittedUserIds = new Set(submittedUsers.map(user => user.id));
     const lateUsers = uniqById(projectLogs
       .filter(log => log.submission_status === 'late')
       .map(log => ({
         id: Number(log.user_id),
-        name: log.user_name || userNameMap.get(Number(log.user_id)) || `用户${log.user_id}`,
+        name: userNameMap.get(Number(log.user_id)) || log.user_name || `用户${log.user_id}`,
       })));
+    lateUsers.forEach(user => {
+      const liveName = userNameMap.get(user.id);
+      if (liveName) user.name = liveName;
+    });
     const missingUsers = expectedUsers.filter(user => !submittedUserIds.has(user.id));
     const issueTexts = projectLogs.map(log => shortText(log.issues, 100)).filter(Boolean);
 

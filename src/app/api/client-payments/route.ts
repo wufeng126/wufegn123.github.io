@@ -282,7 +282,7 @@ export async function PUT(request: NextRequest) {
 
     if (nextStatus === REVIEW_STATUS.REVIEWED) {
       updateData.reviewed_at = new Date().toISOString();
-      updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
+      updateData.reviewed_by = auth.user.name || auth.user.username || 'system';
     } else if (nextStatus === REVIEW_STATUS.DRAFT) {
       updateData.reviewed_at = null;
       updateData.reviewed_by = null;

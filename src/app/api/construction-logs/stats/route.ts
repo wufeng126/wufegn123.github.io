@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { detectConstructionLogRisk, getRiskTypeLabel, type ConstructionRiskLevel, type ConstructionRiskType } from '@/lib/construction-log-risk';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type LogStatRow = {
   project_id: number;
@@ -39,6 +40,13 @@ type ProjectLogStats = {
 type ProjectRow = {
   id: number;
   name: string;
+};
+
+type UserRow = {
+  id: number;
+  username?: string | null;
+  name?: string | null;
+  dingtalk_name?: string | null;
 };
 
 function getMonthRange(month?: string | null) {
@@ -129,6 +137,15 @@ export async function GET(request: NextRequest) {
     if (error) throw new Error(error.message);
 
     const rows = (data || []) as LogStatRow[];
+    const userIds = Array.from(new Set(rows.map(row => Number(row.user_id)).filter(Boolean)));
+    let userNameMap = new Map<number, string>();
+    if (userIds.length > 0) {
+      const { data: userRows } = await supabase
+        .from('users')
+        .select('id,username,name,dingtalk_name')
+        .in('id', userIds);
+      userNameMap = new Map(((userRows || []) as UserRow[]).map(user => [Number(user.id), getUserDisplayName(user)]));
+    }
     const stats: Record<string, UserLogStats> = {};
     const projectStats: Record<string, ProjectLogStats> = {};
     const expectedDays = getExpectedDays(month, dateFrom, dateTo);
@@ -161,7 +178,7 @@ export async function GET(request: NextRequest) {
       const key = String(row.user_id);
       if (!stats[key]) {
         stats[key] = {
-          name: row.user_name || `用户${row.user_id}`,
+          name: userNameMap.get(Number(row.user_id)) || row.user_name || `用户${row.user_id}`,
           count: 0,
           submissionKeys: new Set<string>(),
           submittedDays: new Set<string>(),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserPayload = RequestAuthUser;
 
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest) {
   // }
   
   try {
+    const operatorName = getUserDisplayName(user);
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
         remark: remark || null,
         status: '草稿',
         created_by: user.id,
-        created_by_name: user.username
+        created_by_name: operatorName
       });
     }
     

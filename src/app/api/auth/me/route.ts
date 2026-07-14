@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError } from '@/lib/api-utils';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isSuperAdminUser } from '@/lib/route-permissions';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 // 获取用户权限码列表
 async function fetchUserPermissions(userId: number, userRole: string): Promise<string[]> {
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
     const client = getSupabaseClient();
     const { data: userRecord } = await client
       .from('users')
-      .select('is_disabled')
+      .select('is_disabled,dingtalk_name,name,username')
       .eq('id', user.id)
       .single();
 
@@ -120,6 +121,13 @@ export async function GET(request: Request) {
       permissions = await fetchUserPermissions(user.id, user.role);
     }
 
+    const displayName = getUserDisplayName({
+      id: user.id,
+      username: userRecord?.username || user.username,
+      name: userRecord?.name || user.name,
+      dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
+    }, user.name || user.username);
+
     return NextResponse.json({
       success: true,
       authenticated: true,
@@ -127,7 +135,8 @@ export async function GET(request: Request) {
         id: user.id,
         username: user.username,
         role: user.role,
-        name: user.name,
+        name: displayName,
+        dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
         roleId: user.role_id || (isSuperAdminUser(user.role) ? 1 : 0),
         permissions,
       },
@@ -135,7 +144,8 @@ export async function GET(request: Request) {
         id: user.id,
         username: user.username,
         role: user.role,
-        name: user.name,
+        name: displayName,
+        dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
         role_id: user.role_id || (isSuperAdminUser(user.role) ? 1 : 0),
         permissions,
       },

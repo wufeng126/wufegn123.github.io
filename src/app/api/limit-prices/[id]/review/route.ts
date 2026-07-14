@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserPayload = RequestAuthUser;
 
@@ -62,12 +63,14 @@ export async function POST(
   }
   
   // 更新为审核生效
+  const operatorName = getUserDisplayName(user);
+
   const { data, error } = await supabase
     .from('project_limit_prices')
     .update({
       status: '审核生效',
       reviewed_by: user.id,
-      reviewed_by_name: user.username,
+      reviewed_by_name: operatorName,
       reviewed_at: new Date().toISOString(),
       remark: body.remark || current.remark
     })
@@ -80,7 +83,7 @@ export async function POST(
   }
   
   // 记录操作日志
-  await logAction(supabase, data.id, '审核生效', user.id, user.username, {
+  await logAction(supabase, data.id, '审核生效', user.id, operatorName, {
     before: current,
     after: data,
     comment: body.remark

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Trash2, Save, Check } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 interface WorkflowStep {
   state: string;
@@ -64,6 +65,7 @@ interface SystemUser {
   id: number;
   username: string;
   name?: string;
+  dingtalk_name?: string | null;
   role: string;
 }
 
@@ -147,7 +149,7 @@ export default function ApprovalConfigPage() {
           role: user.role === 'super_admin' ? 'admin,super_admin' : user.role,
           label: steps[i].label || '',
           state: steps[i].state || '',
-          actor: user.name || user.username,
+          actor: getUserDisplayName(user),
         };
       }
       setEditing({ ...editing, steps });
@@ -279,7 +281,7 @@ export default function ApprovalConfigPage() {
                                 .filter(u => u.username !== 'admin')
                                 .map(u => (
                                 <option key={u.id} value={`user:${u.id}`}>
-                                  {u.name || u.username} · {u.role}
+                                  {getUserDisplayName(u)} · {u.role}
                                 </option>
                               ))}
                             </select>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { parseProjectIds } from '@/lib/visa-workflow';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type RoleRow = {
   id?: number;
@@ -18,6 +19,7 @@ type UserRow = {
   id: number;
   username?: string | null;
   name?: string | null;
+  dingtalk_name?: string | null;
   role?: string | null;
   managed_projects?: unknown;
   is_disabled?: boolean | null;
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
 
     const [{ data: users, error: usersError }, { data: userRoles }, { data: roles }] = await Promise.all([
-      client.from('users').select('id,username,name,role,managed_projects,is_disabled').order('id', { ascending: true }),
+      client.from('users').select('id,username,name,dingtalk_name,role,managed_projects,is_disabled').order('id', { ascending: true }),
       client.from('user_roles').select('user_id,role_id'),
       client.from('roles').select('id,name,code'),
     ]);
@@ -73,10 +75,9 @@ export async function GET(request: NextRequest) {
       .map((user) => ({
         id: user.id,
         username: user.username,
-        name: user.name || user.username || `用户${user.id}`,
+        name: getUserDisplayName(user),
         managed_project_ids: user.managed_project_ids,
       }));
-
     return NextResponse.json({ managers });
   } catch (error) {
     return NextResponse.json(

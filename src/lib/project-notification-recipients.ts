@@ -1,3 +1,5 @@
+import { getUserDisplayName } from '@/lib/user-display-name';
+
 type SupabaseLike = {
   from: (table: string) => {
     select: (columns: string) => PromiseLike<{ data: unknown[] | null; error?: { message?: string } | null }>;
@@ -133,6 +135,6 @@ export async function getProjectBudgetRecipients(
 
 export function formatRecipientNames(recipients: NotificationRecipient[]) {
   return recipients
-    .map((recipient) => recipient.name || recipient.dingtalk_name || recipient.username || `用户${recipient.id}`)
+    .map((recipient) => getUserDisplayName(recipient))
     .filter(Boolean);
 }

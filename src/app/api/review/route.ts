@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     // 审核时记录审核人和时间
     if (action === 'review') {
       updateData.reviewed_at = new Date().toISOString();
-      updateData.reviewed_by = auth.user.username || auth.user.name || 'system';
+      updateData.reviewed_by = auth.user.name || auth.user.username || 'system';
     }
 
     // 反审核时清除审核信息

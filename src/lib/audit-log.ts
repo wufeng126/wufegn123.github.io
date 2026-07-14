@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 export type OperationType = 'create' | 'update' | 'delete' | 'import' | 'export' | 'transfer' | 'assign' | 'review' | 'unreview' | 'void' | 'payment' | 'salary_pay' | 'bind_auto' | 'bind_manual' | 'unbind' | 'user_disable' | 'user_enable';
 
@@ -59,7 +60,7 @@ export async function auditLog(params: AuditLogParams): Promise<void> {
         const user = await verifyToken(token);
         if (user) {
           logUserId = user.id;
-          logUsername = user.name || user.username;
+          logUsername = getUserDisplayName(user);
         }
       }
       // 提取 IP 和 User-Agent

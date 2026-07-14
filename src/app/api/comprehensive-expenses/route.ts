@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         handler: handler || null,
         remark: remark || null,
         attachments: attachments || null,
-        created_by: created_by || auth.user.username || auth.user.name || 'admin',
+        created_by: created_by || auth.user.name || auth.user.username || 'admin',
         status: REVIEW_STATUS.DRAFT,
       },
       client

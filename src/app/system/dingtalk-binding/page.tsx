@@ -18,6 +18,7 @@ import {
   Link2, Unlink, UserSearch, RefreshCw, Users, Phone, Clock,
   AlertTriangle, CheckCircle2, XCircle, Search, UserCheck, UserX,
 } from 'lucide-react';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 interface BoundUser {
   id: number;
@@ -406,7 +407,7 @@ export default function DingtalkBindingPage() {
                       const lastSync = u.last_dingtalk_sync_at || u.lastSyncAt;
                       return (
                       <TableRow key={uid}>
-                        <TableCell className="font-medium">{u.name || u.username}</TableCell>
+                        <TableCell className="font-medium">{getUserDisplayName(u)}</TableCell>
                         <TableCell>{mobile}</TableCell>
                         <TableCell>
                           <Badge variant="secondary">{roleName}</Badge>
@@ -497,7 +498,7 @@ export default function DingtalkBindingPage() {
                   <TableBody>
                     {filteredUnboundUsers.map(u => (
                       <TableRow key={u.id}>
-                        <TableCell className="font-medium">{u.name || u.username}</TableCell>
+                        <TableCell className="font-medium">{getUserDisplayName(u)}</TableCell>
                         <TableCell>{u.username || '-'}</TableCell>
                         <TableCell>
                           <Badge variant="secondary">{u.role_names || u.role || '未分配'}</Badge>
@@ -732,7 +733,7 @@ export default function DingtalkBindingPage() {
                 <SelectContent>
                   {unboundUsers.map(u => (
                     <SelectItem key={u.id} value={String(u.id)}>
-                      {u.name || u.username} - {u.role_names || u.role}
+                      {getUserDisplayName(u)} - {u.role_names || u.role}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -769,7 +770,7 @@ export default function DingtalkBindingPage() {
               <div className="p-3 bg-muted rounded-lg space-y-1">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">系统用户</span>
-                  <span className="font-medium">{unbindingUser.name || unbindingUser.username}</span>
+                  <span className="font-medium">{getUserDisplayName(unbindingUser)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">钉钉账号</span>

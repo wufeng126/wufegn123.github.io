@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies, headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { isSuperAdminUser } from './route-permissions';
+import { getUserDisplayName } from './user-display-name';
 
 // JWT 密钥 - 生产环境应使用环境变量
 const SECRET_KEY = process.env.JWT_SECRET || 'construction-labor-management-secret-key-2024';
@@ -17,6 +18,7 @@ export interface UserPayload {
   id: number;
   username: string;
   name: string;
+  dingtalk_name?: string;
   role: UserRole;
   role_id?: number;
   permissions?: string[]; // 权限码列表
@@ -26,6 +28,7 @@ export interface RequestAuthUser {
   id: number;
   username: string;
   name?: string;
+  dingtalk_name?: string;
   role: string;
   roleId: number;
   permissions?: string[];
@@ -80,7 +83,8 @@ export function normalizeAuthUser(payload: UserPayload | null): RequestAuthUser 
   return {
     id,
     username: legacyPayload.username,
-    name: legacyPayload.name,
+    name: getUserDisplayName(legacyPayload, legacyPayload.name || legacyPayload.username),
+    dingtalk_name: legacyPayload.dingtalk_name,
     role,
     roleId,
     permissions: legacyPayload.permissions,

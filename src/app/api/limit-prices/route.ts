@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserPayload = RequestAuthUser;
 
@@ -126,6 +127,8 @@ export async function POST(request: NextRequest) {
   //   return NextResponse.json({ error: '无权限创建限价' }, { status: 403 });
   // }
   
+  const operatorName = getUserDisplayName(user);
+
   const { data: lpData, error: lpError } = await insertWithSequenceFix('project_limit_prices', {
       project_id,
       subitem_name,
@@ -137,13 +140,13 @@ export async function POST(request: NextRequest) {
       remark,
       status: '草稿',
       created_by: user.id,
-      created_by_name: user.username
+      created_by_name: operatorName
     }, supabase);
   if (lpError) throw lpError;
   const data = Array.isArray(lpData) ? lpData[0] : lpData;
   
   // 记录操作日志
-  await logAction(supabase, data?.id, '创建', user.id, user.username, body);
+  await logAction(supabase, data?.id, '创建', user.id, operatorName, body);
   
   return NextResponse.json({ data });
 }

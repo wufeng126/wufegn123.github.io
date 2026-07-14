@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserPayload = RequestAuthUser;
 
@@ -61,12 +62,14 @@ export async function POST(
   }
   
   // 更新为作废
+  const operatorName = getUserDisplayName(user);
+
   const { data, error } = await supabase
     .from('project_limit_prices')
     .update({
       status: '作废',
       invalidated_by: user.id,
-      invalidated_by_name: user.username,
+      invalidated_by_name: operatorName,
       invalidated_at: new Date().toISOString(),
       invalidate_reason: body.reason
     })
@@ -79,7 +82,7 @@ export async function POST(
   }
   
   // 记录操作日志
-  await logAction(supabase, data.id, '作废', user.id, user.username, {
+  await logAction(supabase, data.id, '作废', user.id, operatorName, {
     before: current,
     after: data,
     reason: body.reason

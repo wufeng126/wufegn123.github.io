@@ -15,6 +15,7 @@ import {
   getRiskTypeLabel,
 } from '@/lib/construction-log-risk';
 import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
+import { getUserDisplayName } from '@/lib/user-display-name';
 
 type ConstructionLogDraft = {
   project_id: number;
@@ -213,6 +214,17 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    const { data: currentUserRecord } = await supabase
+      .from('users')
+      .select('id,username,name,dingtalk_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    user.name = getUserDisplayName({
+      id: user.id,
+      username: currentUserRecord?.username || user.username,
+      name: currentUserRecord?.name || user.name,
+      dingtalk_name: currentUserRecord?.dingtalk_name || user.dingtalk_name,
+    }, user.name || user.username);
     const accessibleProjectIds = await getAccessibleProjectIds(supabase, user);
     if (Array.isArray(accessibleProjectIds)) {
       const forbiddenProject = uniqueProjectIds.find((projectId) => !accessibleProjectIds.includes(projectId));
