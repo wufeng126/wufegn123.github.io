@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Database, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Database, Plus, Save, TrendingUp } from 'lucide-react';
 
 interface StandardItem {
   id: number;
@@ -25,6 +25,13 @@ interface PriceRow {
   material_included?: boolean;
   remark?: string;
   bid_standard_items?: { code?: string; name?: string };
+}
+
+interface StandardInsight {
+  bidCount: number;
+  costCount: number;
+  latestBidPrice: number;
+  latestBidYear?: number;
 }
 
 type Tab = 'standard' | 'bidPrice' | 'costPrice';
@@ -66,11 +73,35 @@ export default function BidLibraryPage() {
   const activeRows = tab === 'bidPrice' ? bidPrices : costPrices;
   const priceTypeLabel = tab === 'bidPrice' ? '历史中标单价' : '内部结算单价';
 
+  const standardInsights = useMemo(() => {
+    const map: Record<number, StandardInsight> = {};
+    standards.forEach(item => {
+      map[item.id] = { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+    });
+    bidPrices.forEach(row => {
+      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+      current.bidCount += 1;
+      const rowYear = Number(row.bid_year || 0);
+      if (!current.latestBidYear || rowYear >= current.latestBidYear) {
+        current.latestBidPrice = Number(row.price || 0);
+        current.latestBidYear = row.bid_year;
+      }
+      map[row.standard_item_id] = current;
+    });
+    costPrices.forEach(row => {
+      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+      current.costCount += 1;
+      map[row.standard_item_id] = current;
+    });
+    return map;
+  }, [standards, bidPrices, costPrices]);
+
   const stats = useMemo(() => [
-    { label: '标准清单', value: standards.length },
-    { label: '历史中标价', value: bidPrices.length },
-    { label: '内部成本价', value: costPrices.length },
-  ], [standards.length, bidPrices.length, costPrices.length]);
+    { label: '标准清单', value: standards.length, unit: '项' },
+    { label: '历史中标价', value: bidPrices.length, unit: '条' },
+    { label: '内部成本价', value: costPrices.length, unit: '条' },
+    { label: '已有关联报价', value: standards.filter(item => (standardInsights[item.id]?.bidCount || 0) > 0).length, unit: '项' },
+  ], [standards, bidPrices.length, costPrices.length, standardInsights]);
 
   async function saveStandard() {
     if (!standardForm.code || !standardForm.name) return alert('请填写编码和清单名称');
@@ -140,14 +171,26 @@ export default function BidLibraryPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           {stats.map(item => (
             <div key={item.label} className="rounded-xl border border-[#E5E6EB] bg-white p-4">
               <p className="text-xs text-[#86909C]">{item.label}</p>
-              <p className="mt-2 text-2xl font-bold text-[#1D2129]">{item.value}<span className="ml-1 text-xs font-normal text-[#86909C]">条</span></p>
+              <p className="mt-2 text-2xl font-bold text-[#1D2129]">{item.value}<span className="ml-1 text-xs font-normal text-[#86909C]">{item.unit}</span></p>
             </div>
           ))}
         </div>
+
+        <section className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-[#165DFF]" />
+            <span className="font-medium text-[#1D2129]">资料库维护重点</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <LibraryHint title="先建标准清单" desc="标准编码和名称是导入匹配、趋势分析和后续报价复用的统一口径。" />
+            <LibraryHint title="再沉淀中标价" desc="每次已中标项目清单导入后，都会成为首页报价趋势的数据来源。" />
+            <LibraryHint title="同步维护成本价" desc="内部结算单价用于新项目建议报价和利润空间判断。" />
+          </div>
+        </section>
 
         <div className="rounded-xl border border-[#E5E6EB] bg-white">
           <div className="flex border-b border-[#E5E6EB] px-4">
@@ -181,7 +224,7 @@ export default function BidLibraryPage() {
                 </div>
               </section>
 
-              <StandardTable standards={standards} />
+              <StandardTable standards={standards} insights={standardInsights} />
             </div>
           ) : (
             <div className="grid gap-5 p-4 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -215,11 +258,28 @@ export default function BidLibraryPage() {
                 </div>
               </section>
 
-              <PriceTable rows={activeRows} type={tab} />
+              <section className="space-y-3">
+                <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-4">
+                  <p className="text-sm font-medium text-[#1D2129]">{priceTypeLabel}台账</p>
+                  <p className="mt-1 text-xs text-[#86909C]">
+                    这里维护的是后续自动匹配和报价趋势的数据源。历史中标价默认代表已中标项目，不需要再单独标记状态。
+                  </p>
+                </div>
+                <PriceTable rows={activeRows} type={tab} />
+              </section>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function LibraryHint({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-3">
+      <p className="text-sm font-medium text-[#1D2129]">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-[#86909C]">{desc}</p>
     </div>
   );
 }
@@ -233,10 +293,10 @@ function Input({ label, value, onChange, placeholder, type = 'text' }: { label: 
   );
 }
 
-function StandardTable({ standards }: { standards: StandardItem[] }) {
+function StandardTable({ standards, insights }: { standards: StandardItem[]; insights: Record<number, StandardInsight> }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[#E5E6EB]">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[860px] text-sm">
         <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
           <tr>
             <th className="px-3 py-3 text-left font-medium">编码</th>
@@ -244,18 +304,29 @@ function StandardTable({ standards }: { standards: StandardItem[] }) {
             <th className="px-3 py-3 text-left font-medium">单位</th>
             <th className="px-3 py-3 text-left font-medium">分类</th>
             <th className="px-3 py-3 text-left font-medium">材料</th>
+            <th className="px-3 py-3 text-right font-medium">中标价记录</th>
+            <th className="px-3 py-3 text-right font-medium">成本价记录</th>
+            <th className="px-3 py-3 text-right font-medium">最近中标价</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E5E6EB]">
-          {standards.map(item => (
-            <tr key={item.id}>
-              <td className="px-3 py-3 font-medium text-[#165DFF]">{item.code}</td>
-              <td className="px-3 py-3 text-[#1D2129]">{item.name}</td>
-              <td className="px-3 py-3 text-[#4E5969]">{item.unit || '-'}</td>
-              <td className="px-3 py-3 text-[#4E5969]">{item.category || '-'}</td>
-              <td className="px-3 py-3 text-[#4E5969]">{item.material_included ? '含材料' : '不含材料'}</td>
-            </tr>
-          ))}
+          {standards.map(item => {
+            const insight = insights[item.id] || { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+            return (
+              <tr key={item.id}>
+                <td className="px-3 py-3 font-medium text-[#165DFF]">{item.code}</td>
+                <td className="px-3 py-3 text-[#1D2129]">{item.name}</td>
+                <td className="px-3 py-3 text-[#4E5969]">{item.unit || '-'}</td>
+                <td className="px-3 py-3 text-[#4E5969]">{item.category || '-'}</td>
+                <td className="px-3 py-3 text-[#4E5969]">{item.material_included ? '含材料' : '不含材料'}</td>
+                <td className="px-3 py-3 text-right text-[#4E5969]">{insight.bidCount}</td>
+                <td className="px-3 py-3 text-right text-[#4E5969]">{insight.costCount}</td>
+                <td className="px-3 py-3 text-right font-medium text-[#1D2129]">
+                  {insight.latestBidPrice ? `${Number(insight.latestBidPrice).toLocaleString()} 元/${item.unit || '-'}` : '-'}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>
