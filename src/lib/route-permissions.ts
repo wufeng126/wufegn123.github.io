@@ -60,6 +60,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/': { permission: 'projects:view' },
 
   // === API 路由（生产环境必需注册，否则 403） ===
+  '/api/workspace/todos': {},
   '/api/construction-logs': { permission: 'projects:view' },
   '/api/construction-logs/stats': { permission: 'projects:view' },
   '/api/construction-logs/risks': { permission: 'projects:view' },

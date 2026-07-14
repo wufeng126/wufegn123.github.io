@@ -149,18 +149,6 @@ export default function WorkbenchContent() {
   return (
     <div className="min-h-full bg-[#f5f7fb] p-4 text-slate-950 md:p-6">
       <div className="mx-auto max-w-[1320px] space-y-6">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-semibold">工作台</h1>
-              <p className="mt-2 text-sm text-slate-500">面向所有员工，只保留每天高频使用的办事入口和需要马上处理的事项。</p>
-            </div>
-            <div className="rounded-md bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
-              {quickEntries.length} 个高频入口
-            </div>
-          </div>
-        </section>
-
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-3">

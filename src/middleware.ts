@@ -32,6 +32,7 @@ function addCorsHeaders(response: NextResponse, request: NextRequest): NextRespo
 const INTERNAL_APIS = [
   '/api/auth/me',
   '/api/dashboard',
+  '/api/workspace',
   '/api/projects',
   '/api/workers',
   '/api/worker-salaries',
