@@ -155,11 +155,19 @@ export const workers = pgTable("workers", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	idCard: varchar("id_card", { length: 18 }),
 	bankCard: varchar("bank_card", { length: 30 }),
+	gender: varchar({ length: 10 }),
+	age: integer(),
+	entryDate: varchar("entry_date", { length: 20 }),
+	teamName: varchar("team_name", { length: 100 }),
+	isBlacklist: boolean("is_blacklist").default(false),
+	remark: text(),
 	projectId: integer("project_id"),
 	status: varchar({ length: 20 }).default('in_service'), // in_service: 在场, left: 退场
 	leftAt: timestamp("left_at", { withTimezone: true, mode: 'string' }), // 退场时间
 }, (table) => [
+	index("workers_id_card_idx").using("btree", table.idCard.asc().nullsLast().op("text_ops")),
 	index("workers_name_idx").using("btree", table.name.asc().nullsLast().op("text_ops")),
+	index("workers_phone_idx").using("btree", table.phone.asc().nullsLast().op("text_ops")),
 	index("workers_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 	index("workers_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -193,6 +201,31 @@ export const projects = pgTable("projects", {
 	pgPolicy("projects_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
 	pgPolicy("projects_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
 	pgPolicy("projects_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);
+
+export const workerAssignments = pgTable("worker_assignments", {
+	id: serial().primaryKey().notNull(),
+	workerId: integer("worker_id").notNull(),
+	projectId: integer("project_id").notNull(),
+	startDate: varchar("start_date", { length: 20 }),
+	endDate: varchar("end_date", { length: 20 }),
+	status: varchar({ length: 20 }).default('active'),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("worker_assignments_worker_project_key").on(table.workerId, table.projectId),
+	index("worker_assignments_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
+	index("worker_assignments_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("worker_assignments_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "worker_assignments_worker_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "worker_assignments_project_id_fkey"
+		}).onDelete("cascade"),
 ]);
 
 export const salaryPayments = pgTable("salary_payments", {
@@ -432,6 +465,38 @@ export const workerImportHistory = pgTable("worker_import_history", {
 	pgPolicy("worker_import_history_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
 	pgPolicy("worker_import_history_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
 	pgPolicy("worker_import_history_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
+]);
+
+// WPS 花名册同步日志
+export const wpsWorkerSyncLogs = pgTable("wps_worker_sync_logs", {
+	id: serial().primaryKey().notNull(),
+	source: varchar({ length: 30 }).default('wps'),
+	projectId: integer("project_id"),
+	projectName: varchar("project_name", { length: 200 }),
+	worksheetName: varchar("worksheet_name", { length: 200 }),
+	workerId: integer("worker_id"),
+	workerName: varchar("worker_name", { length: 100 }),
+	idCard: varchar("id_card", { length: 18 }),
+	phone: varchar({ length: 30 }),
+	action: varchar({ length: 30 }).notNull(),
+	status: varchar({ length: 20 }).notNull(),
+	message: text(),
+	sanitizedFields: jsonb("sanitized_fields"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("wps_worker_sync_logs_created_at_idx").using("btree", table.createdAt.desc().nullsLast().op("timestamptz_ops")),
+	index("wps_worker_sync_logs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("wps_worker_sync_logs_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "wps_worker_sync_logs_project_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "wps_worker_sync_logs_worker_id_fkey"
+	}).onDelete("set null"),
 ]);
 
 // 消息通知表

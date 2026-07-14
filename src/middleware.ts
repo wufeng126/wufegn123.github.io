@@ -23,7 +23,7 @@ function addCorsHeaders(response: NextResponse, request: NextRequest): NextRespo
     response.headers.set('Access-Control-Allow-Origin', origin || '*');
     response.headers.set('Access-Control-Allow-Credentials', 'true');
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-session');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-session, x-wps-sync-token');
   }
   return response;
 }
@@ -133,6 +133,11 @@ export async function middleware(request: NextRequest) {
   // 5.2 /api/dingtalk/public-config GET 放行（前端获取 corpId）
   if (pathname === '/api/dingtalk/public-config' && request.method === 'GET') {
     return NextResponse.next();
+  }
+
+  // 5.3 WPS 花名册实时同步入口，接口内部使用 WPS_WORKER_SYNC_TOKEN 鉴权
+  if (pathname === '/api/integrations/wps/workers/webhook') {
+    return addCorsHeaders(NextResponse.next(), request);
   }
 
   // 6. 公开页面直接放行

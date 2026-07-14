@@ -74,6 +74,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/system/workflow-config': { permission: 'system:manage' },
   '/api/admins': { permission: 'system:permission_manage' },
   '/api/ai/knowledge': {},
+  '/api/integrations/wps/workers/logs': { permission: 'workers:import' },
 
   // === 新导航容器页 ===
   '/workspace': { permission: 'projects:view' },

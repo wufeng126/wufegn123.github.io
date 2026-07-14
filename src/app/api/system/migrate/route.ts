@@ -96,7 +96,53 @@ CREATE INDEX IF NOT EXISTS internal_addon_settlements_addon_id_idx ON internal_a
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_user_id INTEGER;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50);
 CREATE INDEX IF NOT EXISTS notifications_recipient_user_id_idx ON notifications(recipient_user_id);
-CREATE INDEX IF NOT EXISTS notifications_recipient_role_idx ON notifications(recipient_role);`;
+CREATE INDEX IF NOT EXISTS notifications_recipient_role_idx ON notifications(recipient_role);
+
+-- WPS 花名册同步所需字段
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS age INTEGER;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS entry_date VARCHAR(20);
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS team_name VARCHAR(100);
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS is_blacklist BOOLEAN DEFAULT FALSE;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS remark TEXT;
+CREATE INDEX IF NOT EXISTS workers_id_card_idx ON workers(id_card);
+CREATE INDEX IF NOT EXISTS workers_phone_idx ON workers(phone);
+
+-- 工人项目调动记录
+CREATE TABLE IF NOT EXISTS worker_assignments (
+  id SERIAL PRIMARY KEY,
+  worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  start_date VARCHAR(20),
+  end_date VARCHAR(20),
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS worker_assignments_worker_project_key ON worker_assignments(worker_id, project_id);
+CREATE INDEX IF NOT EXISTS worker_assignments_worker_id_idx ON worker_assignments(worker_id);
+CREATE INDEX IF NOT EXISTS worker_assignments_project_id_idx ON worker_assignments(project_id);
+CREATE INDEX IF NOT EXISTS worker_assignments_status_idx ON worker_assignments(status);
+
+-- WPS 花名册同步日志，只保存业务字段，不保存身份证/银行卡照片等附件内容
+CREATE TABLE IF NOT EXISTS wps_worker_sync_logs (
+  id SERIAL PRIMARY KEY,
+  source VARCHAR(30) DEFAULT 'wps',
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  project_name VARCHAR(200),
+  worksheet_name VARCHAR(200),
+  worker_id INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+  worker_name VARCHAR(100),
+  id_card VARCHAR(18),
+  phone VARCHAR(30),
+  action VARCHAR(30) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  message TEXT,
+  sanitized_fields JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_created_at_idx ON wps_worker_sync_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_project_id_idx ON wps_worker_sync_logs(project_id);
+CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_status_idx ON wps_worker_sync_logs(status);`;
 
 export async function GET() {
   const supabaseUrl = process.env.COZE_SUPABASE_URL || '';
