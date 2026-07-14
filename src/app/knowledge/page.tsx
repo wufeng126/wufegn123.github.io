@@ -131,6 +131,10 @@ function stripMarkdown(content?: string | null) {
     .trim();
 }
 
+function hasWikiLinks(content?: string | null) {
+  return /\[\[([^\]]+)\]\]/.test(content || '');
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
@@ -207,9 +211,8 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
     lastX: 0,
     lastY: 0,
   });
+  const clickRef = useRef<{ x: number; y: number; node: GraphNode | null } | null>(null);
   const [stats, setStats] = useState({ nodes: 0, links: 0, categories: 0 });
-  const [filterCat, setFilterCat] = useState('');
-  const [hoverNode, setHoverNode] = useState<{label:string;category:string} | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -221,12 +224,12 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
 
     let animationId = 0;
     let width = 0;
-    let height = 400;
+    let height = 320;
     const dpr = window.devicePixelRatio || 1;
 
     const resize = () => {
       width = wrap.clientWidth;
-      height = 400;
+      height = 320;
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
@@ -355,17 +358,15 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
         return Math.sqrt(dx * dx + dy * dy) <= size + 6;
       }) || null;
       interactionRef.current = { node: hit, panning: !hit, lastX: event.clientX, lastY: event.clientY };
-      // 记录点击位置检测是否拖拽
-      (canvas as any)._clickPos = { x: event.clientX, y: event.clientY, node: hit };
+      clickRef.current = { x: event.clientX, y: event.clientY, node: hit };
     };
 
     const handleMove = (event: MouseEvent) => {
       const interaction = interactionRef.current;
       if (!interaction.node && !interaction.panning) return;
-      // 如果移动了超过5px，清除点击标记
-      const clickPos = (canvas as any)._clickPos;
+      const clickPos = clickRef.current;
       if (clickPos && (Math.abs(event.clientX - clickPos.x) > 5 || Math.abs(event.clientY - clickPos.y) > 5)) {
-        (canvas as any)._clickPos = null;
+        clickRef.current = null;
       }
       if (interaction.node) {
         const point = toGraphPoint(event);
@@ -382,9 +383,8 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
     };
 
     const handleUp = () => {
-      const clickPos = (canvas as any)._clickPos;
+      const clickPos = clickRef.current;
       if (clickPos && clickPos.node && !clickPos.node.virtual) {
-        // 点击节点跳转到知识详情
         const nodeId = clickPos.node.id;
         if (nodeId && !nodeId.startsWith('virtual:')) {
           window.location.href = `/knowledge/${nodeId}`;
@@ -392,7 +392,7 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
       }
       interactionRef.current.node = null;
       interactionRef.current.panning = false;
-      (canvas as any)._clickPos = null;
+      clickRef.current = null;
     };
 
     const handleWheel = (event: WheelEvent) => {
@@ -421,7 +421,7 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
     <section className="kb-card" style={{ position: 'relative' }}>
       <div className="kb-section-title">
         <Network className="h-5 w-5" />
-        <h2>知识图谱</h2>
+        <h2>关系概览</h2>
       </div>
       <div ref={wrapRef} className="mt-4 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.06)]">
         <canvas ref={canvasRef} className="block cursor-grab" />
@@ -445,12 +445,117 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#0EA5E9] mr-1" />成本经验</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#F59E0B] mr-1" />施工管理</span>
       </div>
-      {hoverNode && (
-        <div className="absolute left-3 bottom-14 bg-white/90 backdrop-blur rounded-lg border border-[rgba(0,0,0,0.06)] shadow-sm px-2.5 py-1.5 text-xs z-10">
-          <p className="font-medium text-[#171717]">{hoverNode.label}</p>
-          <p className="text-[#8A8F98]">{hoverNode.category}</p>
+    </section>
+  );
+}
+
+function KnowledgeReusePanel({ docs }: { docs: KnowledgeDoc[] }) {
+  const highReuseDocs = useMemo(() => {
+    return docs
+      .filter(doc => {
+        const tags = normalizeKnowledgeTags(doc.tags);
+        const quality = getKnowledgeQuality(tags, doc.source_type, doc.category);
+        return quality === '推荐复用' || quality === '标准经验';
+      })
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+      .slice(0, 4);
+  }, [docs]);
+
+  const recentDocs = useMemo(() => {
+    return [...docs]
+      .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())
+      .slice(0, 3);
+  }, [docs]);
+
+  const weakRelationDocs = useMemo(() => {
+    return docs
+      .filter(doc => {
+        const tags = visibleTags(doc.tags);
+        return tags.length <= 1 && !hasWikiLinks(doc.content);
+      })
+      .slice(0, 3);
+  }, [docs]);
+
+  return (
+    <section className="kb-card">
+      <div className="kb-section-title">
+        <Sparkles className="h-5 w-5" />
+        <h2>复用推荐</h2>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="kb-stat">
+          <span>{highReuseDocs.length}</span>
+          <p>可复用</p>
         </div>
-      )}
+        <div className="kb-stat">
+          <span>{recentDocs.length}</span>
+          <p>新沉淀</p>
+        </div>
+        <div className="kb-stat">
+          <span>{weakRelationDocs.length}</span>
+          <p>待补关联</p>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-medium text-[#171717]">高复用知识</p>
+            <Link href="/knowledge?query=推荐复用" className="text-xs text-[#165DFF] hover:underline">查看更多</Link>
+          </div>
+          <div className="space-y-2">
+            {highReuseDocs.length > 0 ? highReuseDocs.map(doc => {
+              const tags = normalizeKnowledgeTags(doc.tags);
+              const quality = getKnowledgeQuality(tags, doc.source_type, doc.category);
+              return (
+                <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg border border-[#E5E6EB] p-3 transition hover:border-[#165DFF]/40 hover:bg-[#F8FAFF]">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] ${qualityColors[quality]}`}>{quality}</span>
+                    <span className="text-[10px] text-[#8A8F98]">{getCategoryLabel(doc)}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-1 text-sm font-medium text-[#171717]">{doc.title}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#8A8F98]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
+                </Link>
+              );
+            }) : (
+              <p className="rounded-lg border border-dashed border-[#DADDE5] p-3 text-xs leading-5 text-[#8A8F98]">
+                暂无推荐复用知识，可在详情中补充复用建议并提升知识等级。
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-[#171717]">最近沉淀</p>
+          <div className="space-y-2">
+            {recentDocs.map(doc => (
+              <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-[#F8FAFF]">
+                <div className="min-w-0">
+                  <p className="line-clamp-1 text-sm text-[#171717]">{doc.title}</p>
+                  <p className="mt-0.5 text-xs text-[#8A8F98]">{getCategoryLabel(doc)} · {formatDate(doc.updated_at || doc.created_at)}</p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[#C9CDD4]" />
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-[#171717]">待补关联</p>
+          {weakRelationDocs.length > 0 ? (
+            <div className="space-y-2">
+              {weakRelationDocs.map(doc => (
+                <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg bg-[#FBFCFF] px-3 py-2 text-sm text-[#4E5969] transition hover:bg-[#F0F5FF] hover:text-[#165DFF]">
+                  {doc.title}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg bg-[#F6FFED] p-3 text-xs text-[#00A870]">当前知识关联情况较好。</p>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -773,7 +878,7 @@ export default function KnowledgePage() {
         </div>
 
         <aside className="space-y-5">
-          <KnowledgeGraph docs={docs} />
+          <KnowledgeReusePanel docs={docs} />
 
           <section className="kb-card">
             <div className="kb-section-title">
@@ -797,6 +902,8 @@ export default function KnowledgePage() {
               ))}
             </div>
           </section>
+
+          <KnowledgeGraph docs={docs} />
         </aside>
       </div>
     </div>

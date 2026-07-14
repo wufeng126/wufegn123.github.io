@@ -39,6 +39,16 @@ type CurrentUser = {
   name?: string;
 };
 
+type RelatedKnowledge = {
+  doc: KnowledgeDoc;
+  score: number;
+  reasons: string[];
+  summary: string;
+  category: string;
+  quality: string;
+  sourceLabel: string;
+};
+
 function formatDate(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
@@ -187,6 +197,97 @@ function getReuseSuggestion(content?: string | null) {
   return explicit || '暂未形成明确复用建议，后续可补充适用条件、操作要点和注意事项。';
 }
 
+function tokenizeKnowledgeText(value?: string | null) {
+  return Array.from(new Set(
+    stripMarkdown(value)
+      .toLowerCase()
+      .split(/[\s,，。；;、.!?？:：()（）[\]【】"'“”/\\|]+/)
+      .map(item => item.trim())
+      .filter(item => item.length >= 2 && item.length <= 24)
+  )).slice(0, 120);
+}
+
+function getComparableTags(tags: string[]) {
+  return tags.filter(tag => (
+    !tag.startsWith('知识等级:') &&
+    !tag.startsWith('状态:') &&
+    !tag.startsWith('月份:')
+  ));
+}
+
+function buildRelatedKnowledge(current: KnowledgeDoc, docs: KnowledgeDoc[]): RelatedKnowledge[] {
+  const currentTags = normalizeKnowledgeTags(current.tags);
+  const currentComparableTags = getComparableTags(currentTags);
+  const currentTagSet = new Set(currentComparableTags);
+  const currentCategory = getKnowledgeCategoryLabel(current.category, currentTags);
+  const currentProject = getKnowledgeProjectName(current.source_ref, currentTags);
+  const currentSource = getKnowledgeSourceLabel(current.source_type, current.source_ref, currentTags);
+  const currentWords = new Set(tokenizeKnowledgeText(`${current.title} ${current.content || ''}`));
+  const currentWikiLinks = new Set(extractWikiLinks(current.content));
+
+  return docs
+    .filter(item => String(item.id) !== String(current.id))
+    .map(item => {
+      const itemTags = normalizeKnowledgeTags(item.tags);
+      const itemComparableTags = getComparableTags(itemTags);
+      const itemCategory = getKnowledgeCategoryLabel(item.category, itemTags);
+      const itemQuality = getKnowledgeQuality(itemTags, item.source_type, item.category);
+      const itemSource = getKnowledgeSourceLabel(item.source_type, item.source_ref, itemTags);
+      const itemProject = getKnowledgeProjectName(item.source_ref, itemTags);
+      const itemWords = tokenizeKnowledgeText(`${item.title} ${item.content || ''}`);
+      const itemWikiLinks = extractWikiLinks(item.content);
+      const tagMatches = itemComparableTags.filter(tag => currentTagSet.has(tag));
+      const keywordMatches = itemWords.filter(word => currentWords.has(word)).slice(0, 4);
+      const reasons: string[] = [];
+      let score = 0;
+
+      if (itemCategory === currentCategory) {
+        score += 4;
+        reasons.push('同业务分类');
+      }
+
+      if (tagMatches.length > 0) {
+        score += Math.min(tagMatches.length * 2, 6);
+        reasons.push(`相同标签：${tagMatches.slice(0, 2).join('、')}`);
+      }
+
+      if (currentProject && itemProject && currentProject === itemProject) {
+        score += 4;
+        reasons.push('同项目经验');
+      }
+
+      if (itemSource === currentSource) {
+        score += 1;
+      }
+
+      if (keywordMatches.length > 0) {
+        score += Math.min(keywordMatches.length, 4);
+        reasons.push(`相似关键词：${keywordMatches.slice(0, 2).join('、')}`);
+      }
+
+      if (currentWikiLinks.has(item.title) || itemWikiLinks.includes(current.title)) {
+        score += 8;
+        reasons.unshift('正文双链关联');
+      }
+
+      if (itemQuality === '标准经验') score += 3;
+      if (itemQuality === '推荐复用') score += 2;
+
+      return {
+        doc: item,
+        score,
+        reasons: Array.from(new Set(reasons)).slice(0, 3),
+        summary: stripMarkdown(item.content).slice(0, 120) || '暂无摘要',
+        category: itemCategory,
+        quality: itemQuality,
+        sourceLabel: itemSource,
+      };
+    })
+    .filter(item => item.score >= 4 && item.reasons.length > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+
 export default function KnowledgeDetailPage() {
   const params = useParams<{ id: string }>();
   const [doc, setDoc] = useState<KnowledgeDoc | null>(null);
@@ -260,6 +361,7 @@ export default function KnowledgeDetailPage() {
   ), [currentUser, doc?.created_by, isMonthly, workflowState]);
   const workflowComments = useMemo(() => extractWorkflowComments(doc?.content), [doc?.content]);
   const relatedLinks = useMemo(() => extractWikiLinks(doc?.content), [doc?.content]);
+  const relatedDocs = useMemo(() => (doc ? buildRelatedKnowledge(doc, docs) : []), [doc, docs]);
   const titleToId = useMemo(() => {
     const map = new Map<string, string | number>();
     docs.forEach(item => map.set(item.title, item.id));
@@ -525,9 +627,14 @@ export default function KnowledgeDetailPage() {
             <section className="knowledge-card p-5 md:p-6">
               <div className="flex items-center gap-2 text-[#165DFF]">
                 <Link2 className="h-5 w-5" />
-                <h2 className="text-lg font-semibold text-[#171717]">关联知识</h2>
+                <h2 className="text-lg font-semibold text-[#171717]">关联经验与复用建议</h2>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-[#171717]">手动关联</p>
+                  <p className="text-xs text-[#8A8F98]">来自正文中的 [[双链]]</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
                 {relatedLinks.length > 0 ? (
                   relatedLinks.map(title => {
                     const targetId = titleToId.get(title);
@@ -544,7 +651,43 @@ export default function KnowledgeDetailPage() {
                     );
                   })
                 ) : (
-                  <p className="text-sm text-[#8A8F98]">正文中暂无 [[双链]] 关联。</p>
+                  <p className="text-sm text-[#8A8F98]">正文中暂无 [[双链]] 关联，可在后续沉淀时补充重点关联。</p>
+                )}
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-[#E5E6EB] pt-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-[#171717]">系统推荐相似经验</p>
+                  <p className="text-xs text-[#8A8F98]">按分类、标签、项目、关键词自动匹配</p>
+                </div>
+                {relatedDocs.length > 0 ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {relatedDocs.map(item => (
+                      <Link
+                        key={item.doc.id}
+                        href={`/knowledge/${item.doc.id}`}
+                        className="group rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-4 transition hover:border-[#165DFF]/40 hover:bg-white hover:shadow-sm"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[11px] font-medium text-[#165DFF]">{item.category}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${qualityBadgeClasses[item.quality] || 'bg-[#F2F3F5] text-[#4E5969]'}`}>{item.quality}</span>
+                          <span className="text-[11px] text-[#8A8F98]">{item.sourceLabel}</span>
+                        </div>
+                        <h3 className="mt-2 line-clamp-1 text-sm font-semibold text-[#171717] group-hover:text-[#165DFF]">{item.doc.title}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#4E5969]">{item.summary}</p>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {item.reasons.map(reason => (
+                            <span key={reason} className="rounded-md bg-white px-2 py-1 text-[11px] text-[#4E5969] ring-1 ring-[#E5E6EB]">{reason}</span>
+                          ))}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-[#DADDE5] bg-[#FBFCFF] p-4 text-sm text-[#8A8F98]">
+                    暂无相似经验。后续可以通过补充标签、项目关联、关键结论和复用建议，让系统更容易推荐可借鉴内容。
+                  </p>
                 )}
               </div>
             </section>
