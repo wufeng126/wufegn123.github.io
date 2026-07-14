@@ -48,7 +48,7 @@ const TOP_LEVEL_MENUS = [
   { name: '人力资源', href: '/hr-salary', icon: Users },
   { name: '供应商与费用', href: '/supplier-expense', icon: ReceiptText },
   { name: '经营分析', href: '/business-analysis', icon: BarChart3 },
-  { name: '投标测算', href: '/cost-estimation', icon: Calculator },
+  { name: '投标测算', href: '/cost-estimation/bid', icon: Calculator },
   { name: '知识库', href: '/knowledge', icon: BookOpen },
   { name: '系统管理', href: '/system-management', icon: Settings },
 ];
@@ -175,7 +175,7 @@ export default function SidebarLayout({
     if (['/business-analysis', '/cost-center', '/data-board'].some(p => pathname.startsWith(p))) return '/business-analysis';
 
     // 投标测算
-    if (pathname.startsWith('/cost-estimation')) return '/cost-estimation';
+    if (pathname.startsWith('/cost-estimation')) return '/cost-estimation/bid';
 
     // 知识库
     if (pathname.startsWith('/knowledge')) return '/knowledge';
