@@ -3,148 +3,245 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Calculator, Users, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calculator, Download, History, Users } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
-interface Bid { id: number; name: string; project_type: string; duration_months: number; profit_rate: number; management_fee: string; total_labor_cost: string; total_amount: string; status: string; remark: string; created_at: string; }
-interface BidItem { id: number; work_type: string; unit: string; quantity: number; unit_price: number; amount: number; }
-interface MgmtFee { id: number; position: string; monthly_salary: number; headcount: number; months: number; amount: number; }
+interface Bid {
+  id: number;
+  name: string;
+  region?: string;
+  project_type?: string;
+  duration_months?: number;
+  profit_rate?: number;
+  management_fee_rate?: number;
+  material_included?: boolean;
+  material_scope_note?: string;
+  management_fee?: string | number;
+  total_labor_cost?: string | number;
+  total_amount?: string | number;
+  status?: string;
+  created_at?: string;
+}
+
+interface BidItem {
+  id: number;
+  boq_item_name?: string;
+  work_type?: string;
+  standard_code?: string;
+  unit?: string;
+  quantity?: number;
+  historical_bid_price?: number;
+  cost_price?: number;
+  management_fee_rate?: number;
+  profit_rate?: number;
+  suggested_price?: number;
+  final_price?: number;
+  final_amount?: number;
+  bid_price?: number;
+  bid_amount?: number;
+  pricing_warning?: string;
+  is_manual_price?: boolean;
+}
+
+interface MgmtFee {
+  id: number;
+  position: string;
+  monthly_salary: number;
+  headcount: number;
+  months: number;
+  amount: number;
+}
+
+interface VersionRow {
+  id: number;
+  name: string;
+  summary?: string;
+  total_amount?: number;
+  created_at?: string;
+}
+
+function money(value: string | number | undefined) {
+  return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+}
 
 export default function BidDetailPage() {
   const params = useParams();
+  const id = Number(params.id);
   const [bid, setBid] = useState<Bid | null>(null);
-  const [archiving, setArchiving] = useState(false);
   const [items, setItems] = useState<BidItem[]>([]);
   const [fees, setFees] = useState<MgmtFee[]>([]);
+  const [versions, setVersions] = useState<VersionRow[]>([]);
 
   useEffect(() => {
-    const id = params.id;
+    if (!id) return;
     Promise.all([
-      fetch(`/api/bid-estimations`).then(r => r.json()),
+      fetch('/api/bid-estimations').then(r => r.json()),
       fetch(`/api/bid-estimations/items?bidId=${id}&type=items`).then(r => r.json()),
       fetch(`/api/bid-estimations/items?bidId=${id}&type=fees`).then(r => r.json()),
-    ]).then(([bJ, iJ, fJ]) => {
-      if (bJ.success) setBid((bJ.data || []).find((b: any) => b.id === parseInt(id as string)));
-      if (iJ.success) setItems(iJ.data);
-      if (fJ.success) setFees(fJ.data);
+      fetch(`/api/bid-estimations/versions?bidId=${id}`).then(r => r.json()),
+    ]).then(([bidJson, itemJson, feeJson, versionJson]) => {
+      if (bidJson.success) setBid((bidJson.data || []).find((row: Bid) => row.id === id) || null);
+      if (itemJson.success) setItems(itemJson.data || []);
+      if (feeJson.success) setFees(feeJson.data || []);
+      if (versionJson.success) setVersions(versionJson.data || []);
     });
-  }, [params.id]);
+  }, [id]);
 
-  async function archiveToKnowledge() {
+  const totals = useMemo(() => {
+    const history = items.reduce((sum, item) => sum + Number(item.historical_bid_price || 0) * Number(item.quantity || 0), 0);
+    const cost = items.reduce((sum, item) => sum + Number(item.cost_price || 0) * Number(item.quantity || 0), 0);
+    const suggested = items.reduce((sum, item) => sum + Number(item.suggested_price || 0) * Number(item.quantity || 0), 0);
+    const finalAmount = items.reduce((sum, item) => sum + Number(item.final_amount || item.bid_amount || 0), 0);
+    const risk = items.filter(item => item.pricing_warning).length;
+    return { history, cost, suggested, finalAmount, risk };
+  }, [items]);
+
+  function exportExcel() {
     if (!bid) return;
-    setArchiving(true);
-    try {
-      const content = `# ${bid.name} 投标报价单\n\n**项目类型**：${bid.project_type || '-'}\n**工期**：${bid.duration_months}个月\n**利润率**：${bid.profit_rate}%\n\n## 报价汇总\n- 人工费合计：¥${parseFloat(bid.total_labor_cost || '0').toLocaleString()}\n- 管理费合计：¥${parseFloat(bid.management_fee || '0').toLocaleString()}\n- 投标总价：¥${parseFloat(bid.total_amount || '0').toLocaleString()}\n- 利润率：${bid.profit_rate}%\n\n## 状态\n${bid.status}`;
-      const res = await fetch('/api/ai/knowledge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `${bid.name} 投标报价`,
-          category: '投标策略',
-          source_type: 'bid_archive',
-          source_ref: `bid:${bid.id}`,
-          tags: ['投标策略', bid.status, bid.project_type || ''].filter(Boolean),
-          content,
-          created_by: '投标测算归档',
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        alert('已归档到知识库 → 投标策略分类');
-      } else {
-        alert('归档失败: ' + (json.error || '未知错误'));
-      }
-    } catch (e: any) {
-      alert('归档失败: ' + e.message);
-    } finally {
-      setArchiving(false);
-    }
+    const rows = items.map(item => ({
+      甲方清单名称: item.boq_item_name,
+      标准编码: item.standard_code,
+      标准清单: item.work_type,
+      单位: item.unit,
+      工程量: item.quantity,
+      历史中标单价: item.historical_bid_price,
+      内部成本单价: item.cost_price,
+      管理费率: item.management_fee_rate,
+      利润率: item.profit_rate,
+      建议报价单价: item.suggested_price,
+      最终报价单价: item.final_price || item.bid_price,
+      最终报价合价: item.final_amount || item.bid_amount,
+      风险提示: item.pricing_warning,
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, '投标测算');
+    XLSX.writeFile(workbook, `${bid.name}_测算表.xlsx`);
   }
 
-  const totalLabor = useMemo(() => items.reduce((s, i) => s + i.amount, 0), [items]);
-  const totalMgmt = useMemo(() => fees.reduce((s, f) => s + f.amount, 0), [fees]);
-  const subtotal = totalLabor + totalMgmt;
-  const profit = subtotal * ((parseFloat(bid?.profit_rate?.toString() || '5')) / 100);
-  const totalAmount = subtotal + profit;
-
-  if (!bid) return <div className="min-h-full bg-[#F5F6FA] p-6 flex items-center justify-center text-sm text-[#86909C]">加载中...</div>;
+  if (!bid) {
+    return <div className="min-h-full bg-[#F5F6FA] p-6 text-center text-sm text-[#86909C]">正在读取测算详情...</div>;
+  }
 
   return (
     <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/cost-estimation/bid" className="inline-flex h-9 items-center gap-1.5 text-sm text-[#4E5969] hover:text-[#1D2129] mb-4">
-          <ArrowLeft className="h-4 w-4" /> 返回投标列表
-        </Link>
-
-        {/* Header */}
-        <div className="bg-white rounded-xl border border-[#E5E6EB] p-6 mb-4">
-          <div className="flex items-start justify-between">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Link href="/cost-estimation/bid" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E6EB] bg-white hover:bg-[#F7F8FA]">
+              <ArrowLeft className="h-4 w-4 text-[#4E5969]" />
+            </Link>
             <div>
               <h1 className="text-2xl font-bold text-[#1D2129]">{bid.name}</h1>
-              <p className="text-sm text-[#86909C] mt-1">{bid.project_type || '未分类'} · {bid.duration_months}个月工期 · {bid.created_at?.slice(0, 10)}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-3xl font-bold text-[#165DFF]">{parseFloat(bid.total_amount || totalAmount.toString()).toLocaleString()} 元</p>
-              <p className="text-sm text-[#86909C]">利润率 {bid.profit_rate}%</p>
+              <p className="mt-1 text-sm text-[#86909C]">
+                {bid.region || '-'} · {bid.project_type || '-'} · {bid.duration_months || 0} 个月 · {bid.material_included ? '含材料' : '不含材料'}
+              </p>
             </div>
           </div>
+          <button onClick={exportExcel} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129]">
+            <Download className="h-4 w-4" />导出 Excel
+          </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Work items */}
-          <div className="bg-white rounded-xl border border-[#E5E6EB] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#E5E6EB] bg-[#FAFBFC] flex items-center gap-2">
-              <Calculator className="h-4 w-4 text-[#165DFF]" />
-              <span className="text-sm font-medium text-[#1D2129]">工程量清单</span>
-              <span className="text-xs text-[#86909C]">{items.length} 项 · {totalLabor.toLocaleString()} 元</span>
-            </div>
-            <div className="divide-y divide-[#E5E6EB]">
-              {items.map(i => (
-                <div key={i.id} className="px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[#1D2129]">{i.work_type}</p>
-                    <p className="text-xs text-[#86909C]">{i.quantity} {i.unit} × {i.unit_price} 元</p>
-                  </div>
-                  <span className="text-sm font-medium">{i.amount.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="grid gap-3 md:grid-cols-5">
+          <Kpi title="历史中标参考" value={money(totals.history)} unit="元" />
+          <Kpi title="内部成本" value={money(totals.cost)} unit="元" />
+          <Kpi title="管理费" value={money(bid.management_fee)} unit="元" />
+          <Kpi title="最终报价" value={money(bid.total_amount || totals.finalAmount)} unit="元" />
+          <Kpi title="风险提示" value={totals.risk} unit="项" danger={totals.risk > 0} />
+        </div>
 
-          {/* Management fees */}
-          <div className="bg-white rounded-xl border border-[#E5E6EB] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#E5E6EB] bg-[#FAFBFC] flex items-center gap-2">
+        <section className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
+          <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
+            <Calculator className="h-4 w-4 text-[#165DFF]" />
+            <span className="font-medium text-[#1D2129]">测算清单</span>
+            <span className="text-xs text-[#86909C]">{items.length} 项</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1200px] text-sm">
+              <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
+                <tr>
+                  <th className="px-3 py-3 text-left font-medium">甲方清单</th>
+                  <th className="px-3 py-3 text-left font-medium">标准清单</th>
+                  <th className="px-3 py-3 text-right font-medium">工程量</th>
+                  <th className="px-3 py-3 text-right font-medium">历史中标价</th>
+                  <th className="px-3 py-3 text-right font-medium">内部成本价</th>
+                  <th className="px-3 py-3 text-right font-medium">建议报价</th>
+                  <th className="px-3 py-3 text-right font-medium">最终报价</th>
+                  <th className="px-3 py-3 text-right font-medium">合价</th>
+                  <th className="px-3 py-3 text-left font-medium">风险</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5E6EB]">
+                {items.map(item => (
+                  <tr key={item.id} className={item.pricing_warning ? 'bg-[#FFFBF0]' : ''}>
+                    <td className="px-3 py-3 text-[#1D2129]">{item.boq_item_name || '-'}</td>
+                    <td className="px-3 py-3 text-[#4E5969]">{item.standard_code || '-'} · {item.work_type || '-'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{money(item.quantity)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{money(item.historical_bid_price)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{money(item.cost_price)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{money(item.suggested_price)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{money(item.final_price || item.bid_price)}</td>
+                    <td className="px-3 py-3 text-right font-medium tabular-nums">{money(item.final_amount || item.bid_amount)}</td>
+                    <td className="px-3 py-3 text-xs text-[#F59E0B]">{item.pricing_warning || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-xl border border-[#E5E6EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
               <Users className="h-4 w-4 text-[#722ED1]" />
-              <span className="text-sm font-medium text-[#1D2129]">管理费用</span>
-              <span className="text-xs text-[#86909C]">{fees.length} 个岗位 · {totalMgmt.toLocaleString()} 元</span>
+              <span className="font-medium text-[#1D2129]">管理费明细</span>
             </div>
             <div className="divide-y divide-[#E5E6EB]">
-              {fees.map(f => (
-                <div key={f.id} className="px-4 py-3 flex items-center justify-between">
+              {fees.map(fee => (
+                <div key={fee.id} className="flex items-center justify-between px-4 py-3 text-sm">
                   <div>
-                    <p className="text-sm text-[#1D2129]">{f.position}</p>
-                    <p className="text-xs text-[#86909C]">{f.monthly_salary}元/月 × {f.headcount}人 × {f.months}月</p>
+                    <p className="font-medium text-[#1D2129]">{fee.position}</p>
+                    <p className="mt-1 text-xs text-[#86909C]">{money(fee.monthly_salary)} 元/月 × {fee.headcount} 人 × {fee.months} 月</p>
                   </div>
-                  <span className="text-sm font-medium">{f.amount.toLocaleString()}</span>
+                  <span className="font-medium tabular-nums">{money(fee.amount)} 元</span>
                 </div>
               ))}
+              {fees.length === 0 && <div className="px-4 py-10 text-center text-sm text-[#86909C]">暂无管理费明细</div>}
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* Summary */}
-        <div className="bg-white rounded-xl border border-[#E5E6EB] p-6 mt-4">
-          <h3 className="font-semibold text-[#1D2129] mb-4">报价汇总</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm"><span className="text-[#4E5969]">人工费</span><span>{totalLabor.toLocaleString()} 元</span></div>
-            <div className="flex justify-between text-sm"><span className="text-[#4E5969]">管理费</span><span>{totalMgmt.toLocaleString()} 元</span></div>
-            <div className="flex justify-between text-sm border-t border-[#E5E6EB] pt-3"><span className="text-[#4E5969]">小计</span><span className="font-medium">{subtotal.toLocaleString()} 元</span></div>
-            <div className="flex justify-between text-sm"><span className="text-[#4E5969]">利润 ({bid.profit_rate}%)</span><span className="text-[#00A870]">+{profit.toLocaleString()} 元</span></div>
-            <div className="flex justify-between text-lg font-bold border-t border-[#E5E6EB] pt-3">
-              <span>投标总价</span><span className="text-[#165DFF]">{totalAmount.toLocaleString()} 元</span>
+          <section className="rounded-xl border border-[#E5E6EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
+              <History className="h-4 w-4 text-[#165DFF]" />
+              <span className="font-medium text-[#1D2129]">测算版本</span>
             </div>
-          </div>
+            <div className="divide-y divide-[#E5E6EB]">
+              {versions.map(version => (
+                <div key={version.id} className="px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-[#1D2129]">{version.name}</p>
+                    <span className="text-xs text-[#86909C]">{version.created_at?.slice(0, 16).replace('T', ' ')}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[#86909C]">{version.summary || '-'} · {money(version.total_amount)} 元</p>
+                </div>
+              ))}
+              {versions.length === 0 && <div className="px-4 py-10 text-center text-sm text-[#86909C]">暂无保存版本</div>}
+            </div>
+          </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Kpi({ title, value, unit, danger = false }: { title: string; value: string | number; unit: string; danger?: boolean }) {
+  return (
+    <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+      <p className="text-xs text-[#86909C]">{title}</p>
+      <p className={`mt-2 text-2xl font-bold ${danger ? 'text-[#F59E0B]' : 'text-[#1D2129]'}`}>
+        {value}<span className="ml-1 text-xs font-normal text-[#86909C]">{unit}</span>
+      </p>
     </div>
   );
 }

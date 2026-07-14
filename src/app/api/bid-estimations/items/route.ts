@@ -4,12 +4,19 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const bidId = searchParams.get('bidId');
-    const type = searchParams.get('type'); // 'items' | 'fees'
+    const bidId = Number(searchParams.get('bidId'));
+    const type = searchParams.get('type');
     if (!bidId || !type) return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
-    const supabase = getSupabaseClient();
+
     const table = type === 'items' ? 'bid_items' : 'bid_management_fees';
-    const { data } = await supabase.from(table).select('*').eq('bid_id', parseInt(bidId)).order('sort_order');
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('bid_id', bidId)
+      .order('sort_order');
+
+    if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, data: data || [] });
   } catch (e: unknown) {
     return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '查询失败' }, { status: 500 });
@@ -19,16 +26,23 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bidId, type, items } = body; // type: 'items' | 'fees'
-    if (!bidId || !type || !Array.isArray(items)) return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+    const bidId = Number(body.bidId);
+    const type = body.type;
+    const items = body.items;
+    if (!bidId || !type || !Array.isArray(items)) {
+      return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+    }
 
-    const supabase = getSupabaseClient();
     const table = type === 'items' ? 'bid_items' : 'bid_management_fees';
-    const idField = type === 'items' ? 'bid_id' : 'bid_id';
+    const supabase = getSupabaseClient();
 
-    // 删旧插新
-    await supabase.from(table).delete().eq(idField, parseInt(bidId));
-    const inserts = items.map((item: any, i: number) => ({ ...item, bid_id: parseInt(bidId), sort_order: i }));
+    await supabase.from(table).delete().eq('bid_id', bidId);
+    const inserts = items.map((item: Record<string, unknown>, i: number) => ({
+      ...item,
+      bid_id: bidId,
+      sort_order: i,
+    }));
+
     if (inserts.length > 0) {
       const { error } = await supabase.from(table).insert(inserts);
       if (error) throw new Error(error.message);
