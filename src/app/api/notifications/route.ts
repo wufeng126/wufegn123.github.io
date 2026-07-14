@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
+import { getAssignedProjectIds } from '@/lib/api-project-access';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 type SupabaseErrorLike = { message?: string; details?: string } | null;
@@ -14,6 +15,27 @@ function isUnread(value: unknown) {
   return value === false || value === 'false' || value === 0 || value === null;
 }
 
+function buildRecipientScopeFilter(userId: number, assignedProjectIds?: number[] | null) {
+  if (!Array.isArray(assignedProjectIds)) {
+    return `recipient_user_id.eq.${userId},recipient_user_id.is.null`;
+  }
+
+  const filterParts = [`recipient_user_id.eq.${userId}`];
+  if (assignedProjectIds.length > 0) {
+    filterParts.push(`and(recipient_user_id.is.null,project_id.in.(${assignedProjectIds.join(',')}))`);
+  }
+
+  return filterParts.join(',');
+}
+
+async function getNotificationProjectScope(
+  client: ReturnType<typeof getSupabaseClient>,
+  user: { id: number; is_super_admin: boolean }
+) {
+  if (!user.is_super_admin) return null;
+  return getAssignedProjectIds(client, user.id);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -25,14 +47,15 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || searchParams.get('limit') || '20', 10);
     const client = getSupabaseClient();
+    const notificationProjectScope = await getNotificationProjectScope(client, auth.user);
 
     const fetchNotifications = async (useRecipientScope: boolean) => {
       let query = client.from('notifications').select('*', { count: 'exact' });
 
       if (type && type !== 'all') query = query.eq('type', type);
       if (isRead !== null && isRead !== 'all') query = query.eq('is_read', isRead === 'true');
-      if (useRecipientScope && !auth.user.is_super_admin) {
-        query = query.or(`recipient_user_id.eq.${auth.user.id},recipient_user_id.is.null`);
+      if (useRecipientScope) {
+        query = query.or(buildRecipientScopeFilter(auth.user.id, notificationProjectScope));
       }
 
       const from = (page - 1) * pageSize;
@@ -59,8 +82,8 @@ export async function GET(request: NextRequest) {
       let statsQuery = client
         .from('notifications')
         .select('type, is_read, severity, created_at');
-      if (useRecipientScope && !auth.user.is_super_admin) {
-        statsQuery = statsQuery.or(`recipient_user_id.eq.${auth.user.id},recipient_user_id.is.null`);
+      if (useRecipientScope) {
+        statsQuery = statsQuery.or(buildRecipientScopeFilter(auth.user.id, notificationProjectScope));
       }
       return statsQuery;
     };
@@ -149,7 +172,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error && isMissingRecipientColumn(error)) {
-      const { recipient_user_id: _recipientUserId, recipient_role: _recipientRole, ...fallbackPayload } = insertPayload;
+      const fallbackPayload = {
+        type,
+        title,
+        content,
+        severity,
+        project_id: project_id || null,
+        related_id: related_id || null,
+        related_type: related_type || null,
+        metadata: metadata || null,
+      };
       const fallback = await client
         .from('notifications')
         .insert(fallbackPayload)
@@ -176,7 +208,8 @@ async function updateReadStatus(
   client: ReturnType<typeof getSupabaseClient>,
   user: { id: number; is_super_admin: boolean },
   readValue: boolean,
-  id?: number
+  id?: number,
+  assignedProjectIds?: number[] | null
 ) {
   const run = async (useRecipientScope: boolean) => {
     let query = client
@@ -188,8 +221,8 @@ async function updateReadStatus(
 
     if (id) query = query.eq('id', id);
     else query = query.eq('is_read', !readValue);
-    if (useRecipientScope && !user.is_super_admin) {
-      query = query.or(`recipient_user_id.eq.${user.id},recipient_user_id.is.null`);
+    if (useRecipientScope) {
+      query = query.or(buildRecipientScopeFilter(user.id, assignedProjectIds));
     }
     return query;
   };
@@ -209,15 +242,16 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, markAllRead } = body;
     const client = getSupabaseClient();
+    const notificationProjectScope = await getNotificationProjectScope(client, auth.user);
 
     if (markAllRead) {
-      const { error } = await updateReadStatus(client, auth.user, true);
+      const { error } = await updateReadStatus(client, auth.user, true, undefined, notificationProjectScope);
       if (error) throw new Error(`标记已读失败: ${error.message}`);
       return NextResponse.json({ success: true, message: '已全部标记为已读' });
     }
 
     if (id) {
-      const { error } = await updateReadStatus(client, auth.user, true, Number(id));
+      const { error } = await updateReadStatus(client, auth.user, true, Number(id), notificationProjectScope);
       if (error) throw new Error(`标记已读失败: ${error.message}`);
       return NextResponse.json({ success: true });
     }
@@ -242,15 +276,16 @@ export async function PATCH(request: NextRequest) {
     const { id, all, markAllRead, isRead } = body;
     const client = getSupabaseClient();
     const readValue = isRead !== undefined ? Boolean(isRead) : true;
+    const notificationProjectScope = await getNotificationProjectScope(client, auth.user);
 
     if (all || markAllRead) {
-      const { error } = await updateReadStatus(client, auth.user, readValue);
+      const { error } = await updateReadStatus(client, auth.user, readValue, undefined, notificationProjectScope);
       if (error) throw new Error(`标记已读失败: ${error.message}`);
       return NextResponse.json({ success: true });
     }
 
     if (id) {
-      const { error } = await updateReadStatus(client, auth.user, readValue, Number(id));
+      const { error } = await updateReadStatus(client, auth.user, readValue, Number(id), notificationProjectScope);
       if (error) throw new Error(`标记已读失败: ${error.message}`);
       return NextResponse.json({ success: true });
     }
@@ -276,10 +311,11 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: '请提供通知ID' }, { status: 400 });
 
     const client = getSupabaseClient();
+    const notificationProjectScope = await getNotificationProjectScope(client, auth.user);
     const run = async (useRecipientScope: boolean) => {
       let query = client.from('notifications').delete().eq('id', parseInt(id, 10));
-      if (useRecipientScope && !auth.user.is_super_admin) {
-        query = query.or(`recipient_user_id.eq.${auth.user.id},recipient_user_id.is.null`);
+      if (useRecipientScope) {
+        query = query.or(buildRecipientScopeFilter(auth.user.id, notificationProjectScope));
       }
       return query;
     };

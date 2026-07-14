@@ -154,7 +154,8 @@ function isRoleActionableMonthly(tags: string[], role?: string) {
 function isPendingForCurrentUser(tags: string[], currentUser: { id?: string | number; role?: string } | null) {
   if (!tags.includes('月度分析')) return false;
   const ownerId = getWorkflowTagValue(tags, '当前负责人ID:');
-  if (ownerId) return String(currentUser?.id || '') === ownerId || currentUser?.role === 'super_admin';
+  if (ownerId) return String(currentUser?.id || '') === ownerId;
+  if (currentUser?.role === 'super_admin') return false;
   return isRoleActionableMonthly(tags, currentUser?.role);
 }
 

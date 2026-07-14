@@ -1,23 +1,20 @@
 import type { RequestAuthUser } from '@/lib/auth';
 
-export async function getAccessibleProjectIds(
-  client: any,
-  user: RequestAuthUser
-): Promise<number[] | null> {
-  if (user.is_super_admin) return null;
+type ProjectAccessClient = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: unknown) => {
+        single: () => PromiseLike<{ data: { managed_projects?: unknown } | null }>;
+      };
+    };
+  };
+};
 
-  const { data } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', user.id)
-    .single();
-
-  if (!data?.managed_projects) return [];
-
+export function parseProjectIds(value: unknown): number[] {
   try {
-    const parsed = typeof data.managed_projects === 'string'
-      ? JSON.parse(data.managed_projects)
-      : data.managed_projects;
+    const parsed = typeof value === 'string'
+      ? JSON.parse(value)
+      : value;
 
     if (!Array.isArray(parsed)) return [];
     return parsed
@@ -26,4 +23,47 @@ export async function getAccessibleProjectIds(
   } catch {
     return [];
   }
+}
+
+export async function getAssignedProjectIds(
+  client: unknown,
+  userId: number
+): Promise<number[]> {
+  const db = client as ProjectAccessClient;
+  const { data } = await db
+    .from('users')
+    .select('managed_projects')
+    .eq('id', userId)
+    .single();
+
+  return parseProjectIds(data?.managed_projects);
+}
+
+export async function getAccessibleProjectIds(
+  client: unknown,
+  user: RequestAuthUser
+): Promise<number[] | null> {
+  if (user.is_super_admin) return null;
+
+  const db = client as ProjectAccessClient;
+  const { data } = await db
+    .from('users')
+    .select('managed_projects')
+    .eq('id', user.id)
+    .single();
+
+  if (!data?.managed_projects) return [];
+
+  return parseProjectIds(data.managed_projects);
+}
+
+export async function getTodoProjectIds(
+  client: unknown,
+  user: RequestAuthUser
+): Promise<number[] | null> {
+  if (user.is_super_admin) {
+    return getAssignedProjectIds(client, user.id);
+  }
+
+  return getAccessibleProjectIds(client, user);
 }

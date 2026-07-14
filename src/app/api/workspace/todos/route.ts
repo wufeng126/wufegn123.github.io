@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getTodoProjectIds } from '@/lib/api-project-access';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { detectConstructionLogRisk, getRiskWorkflowStatusFromTags } from '@/lib/construction-log-risk';
 import { normalizeKnowledgeTags } from '@/lib/knowledge-taxonomy';
@@ -86,7 +86,7 @@ function isUserActionableKnowledge(tags: string[], role: string, isSuperAdmin: b
   if (!tags.includes('月度分析')) return false;
 
   const ownerId = getWorkflowTagValue(tags, '当前负责人ID:');
-  if (ownerId) return String(userId) === ownerId || isSuperAdmin;
+  if (ownerId) return String(userId) === ownerId;
 
   return isRoleActionableKnowledge(tags, role, isSuperAdmin);
 }
@@ -144,18 +144,14 @@ async function countPendingConstructionLogRiskDocs(client: SupabaseClient, acces
 async function countPendingConstructionLogRisks(
   client: SupabaseClient,
   accessibleProjectIds: number[] | null,
-  userId: number,
-  isSuperAdmin: boolean
+  userId: number
 ) {
   let query = client
     .from('notifications')
     .select('id', { count: 'exact', head: true })
     .eq('type', 'construction_log_alert')
-    .eq('is_read', false);
-
-  if (!isSuperAdmin) {
-    query = query.eq('recipient_user_id', userId);
-  }
+    .eq('is_read', false)
+    .eq('recipient_user_id', userId);
 
   if (Array.isArray(accessibleProjectIds)) {
     if (accessibleProjectIds.length === 0) return 0;
@@ -209,8 +205,7 @@ function isMissingVisaWorkflowColumn(error: unknown) {
 async function countPendingVisas(
   client: SupabaseClient,
   accessibleProjectIds: number[] | null,
-  userId: number,
-  isSuperAdmin: boolean
+  userId: number
 ) {
   if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
 
@@ -219,9 +214,7 @@ async function countPendingVisas(
     .select('id', { count: 'exact', head: true })
     .in('status', ['已提交', '已签字', '待预算员确认']);
 
-  if (!isSuperAdmin) {
-    query = query.eq('current_responsible_user_id', userId);
-  }
+  query = query.eq('current_responsible_user_id', userId);
 
   if (Array.isArray(accessibleProjectIds)) {
     query = query.in('project_id', accessibleProjectIds);
@@ -330,7 +323,7 @@ export async function GET(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const client = getSupabaseClient();
-    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjectIds = await getTodoProjectIds(client, auth.user);
     const currentMonth = getCurrentYearMonth();
 
     const [
@@ -339,9 +332,9 @@ export async function GET(request: NextRequest) {
       visasPending,
       knowledgePending,
     ] = await Promise.all([
-      countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
+      countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id),
       countPendingMonthlyReports(client, accessibleProjectIds, currentMonth),
-      countPendingVisas(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
+      countPendingVisas(client, accessibleProjectIds, auth.user.id),
       countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin, auth.user.id),
     ]);
 
