@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Database, Plus, Save, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Database, Download, Plus, Save, TrendingUp, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface StandardItem {
   id: number;
@@ -39,7 +40,39 @@ type Tab = 'standard' | 'bidPrice' | 'costPrice';
 const initialStandard = { code: '', name: '', unit: '', category: '', material_included: false, material_scope_note: '' };
 const initialPrice = { standard_item_id: '', project_name: '', region: '', project_type: '', price: '', year: String(new Date().getFullYear()), material_included: false, remark: '' };
 
+function normalize(value: string) {
+  return value.replace(/[（(].*?[）)]/g, '').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').toLowerCase();
+}
+
+function fuzzyScore(a: string, b: string) {
+  const left = normalize(a);
+  const right = normalize(b);
+  if (!left || !right) return 0;
+  if (left === right) return 100;
+  if (left.includes(right) || right.includes(left)) return 86;
+  let common = 0;
+  const used = new Set<number>();
+  for (const char of left) {
+    const index = [...right].findIndex((r, i) => r === char && !used.has(i));
+    if (index >= 0) {
+      used.add(index);
+      common += 1;
+    }
+  }
+  return Math.round((common / Math.max(left.length, right.length)) * 72);
+}
+
+function toNumber(value: unknown) {
+  return Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
+}
+
+function boolFromCell(value: unknown) {
+  const text = String(value ?? '').trim().toLowerCase();
+  return ['是', '含', '含材料', 'true', 'yes', '1'].includes(text);
+}
+
 export default function BidLibraryPage() {
+  const importRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>('standard');
   const [standards, setStandards] = useState<StandardItem[]>([]);
   const [bidPrices, setBidPrices] = useState<PriceRow[]>([]);
@@ -156,6 +189,104 @@ export default function BidLibraryPage() {
     }
   }
 
+  function downloadTemplate() {
+    const rows = [
+      {
+        标准编码: 'MB-001',
+        标准清单名称: '模板安装拆除',
+        原始清单名称: '模板工程',
+        来源项目: '示例项目',
+        地区: '沈阳',
+        工程类型: '住宅',
+        单位: 'm2',
+        单价: 0,
+        年份: new Date().getFullYear(),
+        是否含材料: '否',
+        备注: '',
+      },
+    ];
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, '导入模板');
+    XLSX.writeFile(workbook, `${priceTypeLabel}_导入模板.xlsx`);
+  }
+
+  function findStandard(row: Record<string, unknown>) {
+    const code = String(row['标准编码'] || row['编码'] || '').trim();
+    if (code) {
+      const exactCode = standards.find(item => normalize(item.code) === normalize(code));
+      if (exactCode) return exactCode;
+    }
+
+    const name = String(row['标准清单名称'] || row['标准清单'] || row['清单名称'] || row['原始清单名称'] || '').trim();
+    if (!name) return null;
+    const scored = standards
+      .map(item => ({ item, score: Math.max(fuzzyScore(name, item.name), fuzzyScore(name, item.code)) }))
+      .sort((a, b) => b.score - a.score)[0];
+    return scored && scored.score >= 72 ? scored.item : null;
+  }
+
+  function importPriceFile(file: File) {
+    if (tab === 'standard') return;
+    const reader = new FileReader();
+    reader.onload = async event => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+      const type = tab === 'bidPrice' ? 'bidPrice' : 'costPrice';
+      const unmatched: string[] = [];
+      const payloads = rows.map(row => {
+        const standard = findStandard(row);
+        const price = toNumber(row['单价'] || row['中标单价'] || row['结算单价'] || row['人工成本价'] || row['成本价']);
+        if (!standard || !price) {
+          unmatched.push(String(row['标准清单名称'] || row['清单名称'] || row['原始清单名称'] || row['标准编码'] || '空白行'));
+          return null;
+        }
+        const year = toNumber(row['年份'] || row['中标年份'] || row['结算年份'] || new Date().getFullYear());
+        return {
+          type,
+          standard_item_id: standard.id,
+          project_name: String(row['来源项目'] || row['项目名称'] || '').trim(),
+          region: String(row['地区'] || '').trim(),
+          project_type: String(row['工程类型'] || '').trim(),
+          item_original_name: String(row['原始清单名称'] || row['清单名称'] || '').trim(),
+          unit: String(row['单位'] || standard.unit || '').trim(),
+          price,
+          material_included: boolFromCell(row['是否含材料'] || row['含材料']),
+          remark: String(row['备注'] || '').trim(),
+          bid_year: year,
+          cost_year: year,
+        };
+      }).filter(Boolean);
+
+      if (!payloads.length) {
+        alert('未识别到可导入的数据，请检查标准编码、标准清单名称和单价列');
+        return;
+      }
+
+      setSaving(true);
+      try {
+        const results = await Promise.all(payloads.map(payload => fetch('/api/bid-estimations/library', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(res => res.json())));
+        const failed = results.filter(result => !result.success);
+        if (failed.length) throw new Error(failed[0].error || '部分数据导入失败');
+        await load();
+        const skipped = unmatched.length ? `，跳过 ${unmatched.length} 行未匹配数据：${unmatched.slice(0, 5).join('、')}` : '';
+        alert(`已导入 ${payloads.length} 条${priceTypeLabel}${skipped}`);
+      } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : '批量导入失败');
+      } finally {
+        setSaving(false);
+        if (importRef.current) importRef.current.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   return (
     <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
@@ -260,10 +391,23 @@ export default function BidLibraryPage() {
 
               <section className="space-y-3">
                 <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-4">
-                  <p className="text-sm font-medium text-[#1D2129]">{priceTypeLabel}台账</p>
-                  <p className="mt-1 text-xs text-[#86909C]">
-                    这里维护的是后续自动匹配和报价趋势的数据源。历史中标价默认代表已中标项目，不需要再单独标记状态。
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[#1D2129]">{priceTypeLabel}台账</p>
+                      <p className="mt-1 text-xs text-[#86909C]">
+                        这里维护的是后续自动匹配和报价趋势的数据源。历史中标价默认代表已中标项目，不需要再单独标记状态。
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={downloadTemplate} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#1D2129] hover:bg-[#F7F8FA]">
+                        <Download className="h-4 w-4" />模板
+                      </button>
+                      <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) importPriceFile(e.target.files[0]); }} />
+                      <button disabled={saving} onClick={() => importRef.current?.click()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">
+                        <Upload className="h-4 w-4" />批量导入
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <PriceTable rows={activeRows} type={tab} />
               </section>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Download, FileSpreadsheet, Save, Search, Upload } from 'lucide-react';
+import { ArrowLeft, Download, FileSpreadsheet, Plus, Save, Search, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface StandardItem {
@@ -105,6 +105,7 @@ export default function NewBidPage() {
   const [bidId, setBidId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [itemFilter, setItemFilter] = useState<'all' | 'risk' | 'unmatched'>('all');
 
   const [name, setName] = useState('');
   const [region, setRegion] = useState('');
@@ -120,8 +121,8 @@ export default function NewBidPage() {
   const [items, setItems] = useState<BoqItem[]>([]);
   const [fees, setFees] = useState<MgmtFee[]>(defaultFees);
 
-  useEffect(() => {
-    fetch('/api/bid-estimations/library')
+  async function loadLibrary() {
+    await fetch('/api/bid-estimations/library')
       .then(r => r.json())
       .then(json => {
         if (json.success) {
@@ -130,6 +131,10 @@ export default function NewBidPage() {
           setCostPrices(json.data.costPrices || []);
         }
       });
+  }
+
+  useEffect(() => {
+    loadLibrary();
   }, []);
 
   const costBaseAmount = useMemo(() => items.reduce((sum, item) => {
@@ -163,6 +168,8 @@ export default function NewBidPage() {
   const riskCount = calculatedItems.filter(item => item.pricing_warning).length;
 
   const visibleItems = calculatedItems.filter(item => {
+    if (itemFilter === 'risk' && !item.pricing_warning) return false;
+    if (itemFilter === 'unmatched' && item.standard_item_id) return false;
     if (!keyword.trim()) return true;
     const text = `${item.boq_item_name} ${item.standard_code} ${item.standard_name}`.toLowerCase();
     return text.includes(keyword.toLowerCase());
@@ -257,6 +264,53 @@ export default function NewBidPage() {
       cost_price: Number(priceMatch.cost?.price || 0),
       is_manual_price: false,
     } : item));
+  }
+
+  async function createStandardFromItem(rowId: string) {
+    const item = items.find(row => row.rowId === rowId);
+    if (!item) return;
+    const defaultCode = `TMP-${Date.now().toString().slice(-6)}`;
+    const code = window.prompt('请输入标准清单编码', defaultCode)?.trim();
+    if (!code) return;
+    const standardName = window.prompt('请输入标准清单名称', item.boq_item_name)?.trim();
+    if (!standardName) return;
+    const unit = window.prompt('请输入单位', item.unit || '')?.trim() || item.unit;
+    const category = window.prompt('请输入分类', '')?.trim() || '';
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/bid-estimations/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'standard',
+          code,
+          name: standardName,
+          unit,
+          category,
+          material_included: materialIncluded,
+          material_scope_note: materialScopeNote,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      const standard = json.data as StandardItem;
+      setStandards(prev => [...prev, standard]);
+      setItems(prev => prev.map(row => row.rowId === rowId ? {
+        ...row,
+        standard_item_id: standard.id,
+        standard_code: standard.code,
+        standard_name: standard.name,
+        unit: row.unit || standard.unit || '',
+        match_score: 100,
+        match_status: 'matched',
+        is_manual_price: false,
+      } : row));
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : '新增标准清单失败');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function updateItem(rowId: string, updates: Partial<BoqItem>) {
@@ -476,6 +530,17 @@ export default function NewBidPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
               <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="搜索清单 / 标准编码" className="h-10 w-full rounded-lg border border-[#D9DCE3] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
             </div>
+            <div className="flex rounded-lg border border-[#D9DCE3] bg-white p-1">
+              {[
+                ['all', '全部'],
+                ['risk', `风险 ${riskCount}`],
+                ['unmatched', `未匹配 ${items.length - matchedCount}`],
+              ].map(([key, label]) => (
+                <button key={key} onClick={() => setItemFilter(key as 'all' | 'risk' | 'unmatched')} className={`h-8 rounded-md px-3 text-xs ${itemFilter === key ? 'bg-[#165DFF] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) parseBoq(e.target.files[0]); }} />
             <button onClick={() => fileRef.current?.click()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129]">
               <Upload className="h-4 w-4" />上传清单
@@ -512,6 +577,11 @@ export default function NewBidPage() {
                       </select>
                       {item.candidates.length > 0 && (
                         <div className="mt-1 text-xs text-[#86909C]">建议：{item.candidates[0].code} · {item.candidates[0].name}</div>
+                      )}
+                      {!item.standard_item_id && (
+                        <button onClick={() => createStandardFromItem(item.rowId)} className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF] hover:bg-[#F2F7FF]">
+                          <Plus className="h-3.5 w-3.5" />新增为标准清单
+                        </button>
                       )}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">{money(item.quantity)}</td>
