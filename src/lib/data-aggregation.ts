@@ -5,7 +5,7 @@
  * 1. 看板、月报、台账全部从此模块取数，禁止各自独立查询计算
  * 2. 所有金额使用 parseNumeric 处理，确保类型一致
  * 3. 日期统一使用 YYYY-MM-DD 完整日期，年月查询用 yearMonthToRange 转换
- * 4. 状态过滤统一：已作废记录排除（neq 'voided'），已签回签证才计入收入
+ * 4. 状态过滤统一：已作废记录排除（neq 'voided'），已完成签证才计入收入
  *
  * 使用方式：
  *   import { getProjectFinancialSummary, getGlobalSummary } from '@/lib/data-aggregation';
@@ -16,6 +16,7 @@ import {
   isEffectiveClientPaymentStatus,
   isEffectiveSupplierPaymentStatus,
   isVoidedStatus,
+  VISA_DONE_STATUSES,
 } from '@/lib/business-logic';
 import { parseNumeric, round2, yearMonthToRange } from './format';
 
@@ -194,12 +195,12 @@ export async function getProjectFinancialSummary(
     untaxedIncome += untaxed;
   });
 
-  // 2. 签证（仅已签回）
+  // 2. 签证（仅已完成）
   let visasQuery = client
     .from('visas')
     .select('visa_amount, created_at')
     .eq('project_id', projectId)
-    .eq('status', '已签回');
+    .in('status', [...VISA_DONE_STATUSES]);
 
   if (dateRange) {
     visasQuery = buildDateFilter(visasQuery, 'created_at', dateRange);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
+import { notifyVisaWorkflow } from '@/lib/visa-workflow';
 
 // 计算天数差
 function getDaysDiff(dateStr: string): number {
@@ -216,11 +217,12 @@ async function checkCertificateExpiry(client: any) {
   return results;
 }
 
-// 检测签证到期
+// 检测签证流转超期
 async function checkVisaExpiry(client: any) {
-  const results = { expiring30: 0, expiring15: 0, expiring7: 0, expired: 0 };
+  const results = { expiring30: 0, expiring15: 0, expiring7: 0, expired: 0, workflowOverdue: 0 };
 
-  // 获取签证数据 - 检查是否有到期日期字段
+  const overdueBefore = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const remindedBefore = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data: visas, error } = await client
     .from('visas')
     .select(`
@@ -229,14 +231,47 @@ async function checkVisaExpiry(client: any) {
       visa_name,
       project_id,
       status,
+      current_responsible_user_id,
+      current_responsible_name,
+      workflow_step_updated_at,
+      workflow_last_reminded_at,
       projects(name)
     `)
-    .neq('status', '已完结');
+    .in('status', ['已提交', '已签字'])
+    .lte('workflow_step_updated_at', overdueBefore)
+    .not('current_responsible_user_id', 'is', null);
 
   if (error || !visas) return results;
 
-  // 注意：签证表可能没有到期日期字段，这里需要根据实际情况调整
-  // 暂时跳过签证到期检测，因为表结构中没有明确的到期日期字段
+  for (const visa of visas) {
+    if (visa.workflow_last_reminded_at && visa.workflow_last_reminded_at > remindedBefore) {
+      continue;
+    }
+
+    const projectName = (visa.projects as any)?.name || '未知项目';
+    const stageText = visa.status === '已提交' ? '甲方工程部签字' : '甲方商务确认';
+    await notifyVisaWorkflow({
+      type: 'visa_workflow_overdue',
+      title: '签证办理超期提醒',
+      content: `项目：${projectName}\n签证：${visa.visa_number} ${visa.visa_name || ''}\n当前环节：${stageText}\n已超过 7 天未推进，请及时处理。`,
+      severity: 'warning',
+      projectId: visa.project_id,
+      visaId: visa.id,
+      recipientUserId: visa.current_responsible_user_id,
+      metadata: {
+        visaNumber: visa.visa_number,
+        status: visa.status,
+        targetNames: [visa.current_responsible_name],
+      },
+    });
+
+    await client
+      .from('visas')
+      .update({ workflow_last_reminded_at: new Date().toISOString() })
+      .eq('id', visa.id);
+
+    results.workflowOverdue++;
+  }
 
   return results;
 }
@@ -547,7 +582,7 @@ export async function GET(request: NextRequest) {
         costs: costResults,
       },
       totalNotifications: (certificateResults.expired + certificateResults.expiring7 + certificateResults.expiring15 + certificateResults.expiring30) +
-        visaResults.expired + visaResults.expiring7 + visaResults.expiring15 + visaResults.expiring30 +
+        visaResults.expired + visaResults.expiring7 + visaResults.expiring15 + visaResults.expiring30 + visaResults.workflowOverdue +
         newRecordResults.reports + newRecordResults.payments + newRecordResults.workers +
         newRecordResults.settlements + newRecordResults.salaries + newRecordResults.supplierPayments +
         costResults.warnings,

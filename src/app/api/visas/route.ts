@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getUserById, getUserDisplayName, isVisaActive, isVisaDone, notifyVisaWorkflow } from '@/lib/visa-workflow';
 
 // 获取近6个月的年月列表
 function getLast6Months(): string[] {
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
     // 获取查询参数
     const projectId = searchParams.get('projectId');
     const status = searchParams.get('status');
+    const todo = searchParams.get('todo');
     const keyword = searchParams.get('keyword');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
     // 构建统计查询（应用相同筛选条件，但不分页）
     let statsQuery = client
       .from('visas')
-      .select('id, status, visa_amount, project_id, occurrence_date, submitted_at');
+      .select('id, status, visa_amount, project_id, occurrence_date, submitted_at, workflow_step_updated_at');
 
     // 项目过滤
     if (projectId && projectId !== 'all') {
@@ -62,12 +64,24 @@ export async function GET(request: NextRequest) {
     
     // 应用筛选条件
     if (status && status !== 'all') {
-      query = query.eq('status', status);
-      statsQuery = statsQuery.eq('status', status);
+      if (status === 'active') {
+        query = query.in('status', ['已提交', '已签字', '待预算员确认']);
+        statsQuery = statsQuery.in('status', ['已提交', '已签字', '待预算员确认']);
+      } else if (status === 'done') {
+        query = query.in('status', ['已完成', '已结算', '已完结']);
+        statsQuery = statsQuery.in('status', ['已完成', '已结算', '已完结']);
+      } else {
+        query = query.eq('status', status);
+        statsQuery = statsQuery.eq('status', status);
+      }
     }
     if (keyword) {
       query = query.or(`visa_number.ilike.%${keyword}%,visa_name.ilike.%${keyword}%`);
       statsQuery = statsQuery.or(`visa_number.ilike.%${keyword}%,visa_name.ilike.%${keyword}%`);
+    }
+    if (todo === 'mine') {
+      query = query.eq('current_responsible_user_id', auth.user.id);
+      statsQuery = statsQuery.eq('current_responsible_user_id', auth.user.id);
     }
     if (startDate) {
       query = query.gte('occurrence_date', startDate);
@@ -123,9 +137,9 @@ export async function GET(request: NextRequest) {
     
     // 基础统计（基于筛选后的数据）
     const totalCount = filteredVisas?.length || 0;
-    const completedCount = filteredVisas?.filter(v => v.status === '已结算').length || 0;
-    const approvedCount = filteredVisas?.filter(v => v.status === '审核通过').length || 0;
-    const pendingCount = filteredVisas?.filter(v => v.status === '草稿').length || 0; // 草稿数量
+    const completedCount = filteredVisas?.filter(v => isVisaDone(v.status)).length || 0;
+    const approvedCount = filteredVisas?.filter(v => v.status === '待预算员确认').length || 0;
+    const pendingCount = filteredVisas?.filter(v => isVisaActive(v.status) || v.status === '草稿').length || 0;
     const submittedCount = filteredVisas?.filter(v => v.status === '已提交').length || 0; // 待审核数量
     const totalAmount = filteredVisas?.reduce((sum, v) => sum + (parseFloat(v.visa_amount) || 0), 0) || 0;
     const completedRate = totalCount > 0 ? (completedCount / totalCount * 100) : 0;
@@ -133,17 +147,19 @@ export async function GET(request: NextRequest) {
     // 风险预警统计（基于筛选后的数据，待处理 = 已提交超过3天）
     const today = new Date();
     const overdueCount = filteredVisas?.filter(v => {
-      if (v.status !== '已提交') return false;
-      if (!v.submitted_at) return false;
-      const submitDate = new Date(v.submitted_at);
+      if (!['已提交', '已签字'].includes(v.status)) return false;
+      const stepDateValue = v.workflow_step_updated_at || v.submitted_at;
+      if (!stepDateValue) return false;
+      const submitDate = new Date(stepDateValue);
       const diffDays = Math.floor((today.getTime() - submitDate.getTime()) / (1000 * 60 * 60 * 24));
       return diffDays > 7;
     }).length || 0;
     
     const warningCount = filteredVisas?.filter(v => {
-      if (v.status !== '已提交') return false;
-      if (!v.submitted_at) return false;
-      const submitDate = new Date(v.submitted_at);
+      if (!['已提交', '已签字'].includes(v.status)) return false;
+      const stepDateValue = v.workflow_step_updated_at || v.submitted_at;
+      if (!stepDateValue) return false;
+      const submitDate = new Date(stepDateValue);
       const diffDays = Math.floor((today.getTime() - submitDate.getTime()) / (1000 * 60 * 60 * 24));
       return diffDays > 3 && diffDays <= 7;
     }).length || 0;
@@ -178,7 +194,7 @@ export async function GET(request: NextRequest) {
 
       const newCount = monthVisas.length;
       // 已结算是完成状态
-      const completedInMonth = monthVisas.filter(v => v.status === '已结算').length;
+      const completedInMonth = monthVisas.filter(v => isVisaDone(v.status)).length;
       const monthAmount = monthVisas.reduce((sum, v) => sum + (parseFloat(v.visa_amount) || 0), 0);
 
       return {
@@ -235,10 +251,10 @@ export async function GET(request: NextRequest) {
       monthlyData,
       activeProjectsWithVisa,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: error instanceof Error && error.message ? error.message : '查询失败' },
       { status: 500 }
     );
   }
@@ -263,6 +279,7 @@ export async function POST(request: NextRequest) {
       handler,
       remark,
       attachments,
+      project_manager_user_id,
     } = body;
 
     // 验证必填字段
@@ -274,6 +291,24 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const finalStatus = status === '草稿' ? '草稿' : '已提交';
+    const projectManagerUserId = Number(project_manager_user_id || 0);
+
+    if (finalStatus === '已提交' && !projectManagerUserId) {
+      return NextResponse.json(
+        { error: '提交签证时必须选择项目经理负责人' },
+        { status: 400 }
+      );
+    }
+
+    const manager = projectManagerUserId ? await getUserById(client, projectManagerUserId) : null;
+    if (projectManagerUserId && !manager) {
+      return NextResponse.json({ error: '选择的项目经理不存在' }, { status: 400 });
+    }
+
+    const now = new Date().toISOString();
+    const managerName = getUserDisplayName(manager);
+    const budgetName = getUserDisplayName(auth.user);
 
     // 检查签证编号是否重复
     const { data: existingVisa } = await client
@@ -297,10 +332,18 @@ export async function POST(request: NextRequest) {
         visa_quantity: visa_quantity || null,
         visa_unit: visa_unit || null,
         visa_amount,
-        status: status || '待办理',
+        status: finalStatus,
         handler: handler || null,
         remark: remark || null,
         attachments: attachments || null,
+        budget_user_id: auth.user.id,
+        budget_user_name: budgetName || null,
+        project_manager_user_id: projectManagerUserId || null,
+        project_manager_name: managerName || null,
+        current_responsible_user_id: finalStatus === '已提交' ? projectManagerUserId : null,
+        current_responsible_name: finalStatus === '已提交' ? managerName : null,
+        submitted_at: finalStatus === '已提交' ? now : null,
+        workflow_step_updated_at: finalStatus === '已提交' ? now : null,
       }, client);
     if (visaError) throw visaError;
     const visa = Array.isArray(visaData) ? visaData[0] : visaData;
@@ -313,11 +356,23 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    if (finalStatus === '已提交' && projectManagerUserId) {
+      await notifyVisaWorkflow({
+        type: 'visa_workflow',
+        title: '签证待办理',
+        content: `${budgetName || '预算员'}提交了签证 ${visa_number}，请推进甲方工程部签字。`,
+        projectId: Number(project_id),
+        visaId: visa?.id,
+        recipientUserId: projectManagerUserId,
+        metadata: { visaNumber: visa_number, status: finalStatus, targetNames: [managerName] },
+      });
+    }
+
     return NextResponse.json({ visa });
-  } catch (error: any) {
+  } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '创建失败' },
+      { error: error instanceof Error && error.message ? error.message : '创建失败' },
       { status: 500 }
     );
   }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
+import { requireApiWritePermission } from '@/lib/api-auth';
+import { getUserById, getUserDisplayName } from '@/lib/visa-workflow';
 
 // 获取单个签证详情
 export async function GET(
@@ -26,10 +28,10 @@ export async function GET(
     }
 
     return NextResponse.json({ visa: data });
-  } catch (error: any) {
+  } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: error instanceof Error && error.message ? error.message : '查询失败' },
       { status: 500 }
     );
   }
@@ -41,6 +43,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const body = await request.json();
     const client = getSupabaseClient();
@@ -57,6 +62,7 @@ export async function PUT(
       handler,
       remark,
       attachments,
+      project_manager_user_id,
     } = body;
 
     // 检查签证编号是否重复（排除自身）
@@ -76,6 +82,18 @@ export async function PUT(
       }
     }
 
+    const managerUserId = Number(project_manager_user_id || 0);
+    const manager = managerUserId ? await getUserById(client, managerUserId) : null;
+    const managerName = getUserDisplayName(manager);
+    const currentResponsibleUpdate = managerUserId && status === '已提交'
+      ? {
+          current_responsible_user_id: managerUserId,
+          current_responsible_name: managerName || null,
+          project_manager_user_id: managerUserId,
+          project_manager_name: managerName || null,
+        }
+      : {};
+
     const { data, error } = await client
       .from('visas')
       .update({
@@ -90,6 +108,7 @@ export async function PUT(
         handler: handler || null,
         remark: remark || null,
         attachments: attachments || null,
+        ...currentResponsibleUpdate,
         updated_at: new Date().toISOString(),
       })
       .eq('id', parseInt(id))
@@ -109,10 +128,10 @@ export async function PUT(
     });
 
     return NextResponse.json({ visa: data });
-  } catch (error: any) {
+  } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '更新失败' },
+      { error: error instanceof Error && error.message ? error.message : '更新失败' },
       { status: 500 }
     );
   }
@@ -124,6 +143,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const client = getSupabaseClient();
 
@@ -152,10 +174,10 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '删除失败' },
+      { error: error instanceof Error && error.message ? error.message : '删除失败' },
       { status: 500 }
     );
   }

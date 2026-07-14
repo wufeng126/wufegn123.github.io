@@ -180,19 +180,48 @@ async function countPendingMonthlyReports(client: SupabaseClient, accessibleProj
   return projectRows.filter((project) => !existingRefs.has(`monthly:${project.id}:${currentMonth}`)).length;
 }
 
-async function countPendingVisas(client: SupabaseClient, accessibleProjectIds: number[] | null) {
+function isMissingVisaWorkflowColumn(error: unknown) {
+  const err = error as { message?: string; details?: string } | null;
+  const message = String(err?.message || err?.details || '');
+  return message.includes('current_responsible_user_id') || message.includes('workflow_step_updated_at');
+}
+
+async function countPendingVisas(
+  client: SupabaseClient,
+  accessibleProjectIds: number[] | null,
+  userId: number,
+  isSuperAdmin: boolean
+) {
   if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
 
   let query = client
     .from('visas')
     .select('id', { count: 'exact', head: true })
-    .eq('status', '待办理');
+    .in('status', ['已提交', '已签字', '待预算员确认']);
+
+  if (!isSuperAdmin) {
+    query = query.eq('current_responsible_user_id', userId);
+  }
 
   if (Array.isArray(accessibleProjectIds)) {
     query = query.in('project_id', accessibleProjectIds);
   }
 
   const { count, error } = await query;
+  if (error && isMissingVisaWorkflowColumn(error)) {
+    let legacyQuery = client
+      .from('visas')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', '待办理');
+
+    if (Array.isArray(accessibleProjectIds)) {
+      legacyQuery = legacyQuery.in('project_id', accessibleProjectIds);
+    }
+
+    const legacyResult = await legacyQuery;
+    if (legacyResult.error) throw new Error(legacyResult.error.message);
+    return legacyResult.count || 0;
+  }
   if (error) throw new Error(error.message);
   return count || 0;
 }
@@ -234,7 +263,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
       countPendingMonthlyReports(client, accessibleProjectIds, currentMonth),
-      countPendingVisas(client, accessibleProjectIds),
+      countPendingVisas(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
       countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin),
     ]);
 
@@ -260,11 +289,11 @@ export async function GET(request: NextRequest) {
       {
         key: 'visasPending',
         label: '签证待办理',
-        desc: '当前权限项目中仍处于待办理状态的签证',
+        desc: '当前需要你推进或确认的签证流程',
         action: '去办理',
         count: visasPending,
         unit: '个',
-        href: '/visas?status=待办理',
+        href: '/visas?todo=mine',
       },
       {
         key: 'knowledgePending',

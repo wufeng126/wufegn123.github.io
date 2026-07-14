@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const visaId = formData.get("visaId") as string;
+    const shouldReplace = formData.get("replace") === "true";
 
     if (!file || !visaId) {
       return NextResponse.json(
@@ -155,6 +156,29 @@ export async function POST(request: NextRequest) {
         { error: "保存附件记录失败" },
         { status: 500 }
       );
+    }
+
+    if (shouldReplace) {
+      const { data: oldAttachments } = await supabase
+        .from("visa_attachments")
+        .select("id,file_key")
+        .eq("visa_id", visaId)
+        .neq("id", attachment.id);
+
+      if (oldAttachments && oldAttachments.length > 0) {
+        for (const oldAttachment of oldAttachments) {
+          if (oldAttachment.file_key) {
+            await storage.deleteFile({ fileKey: oldAttachment.file_key }).catch((err) => {
+              console.error("删除旧签证附件文件失败:", err);
+            });
+          }
+        }
+
+        await supabase
+          .from("visa_attachments")
+          .delete()
+          .in("id", oldAttachments.map((item: { id: string | number }) => item.id));
+      }
     }
 
     return NextResponse.json({

@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveClientPaymentStatus, isInactiveClientPaymentStatus } from '@/lib/business-logic';
+import {
+  isEffectiveClientPaymentStatus,
+  isInactiveClientPaymentStatus,
+  isVisaActiveStatus,
+  isVisaDoneStatus,
+} from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
 
 const supabase = getSupabaseClient();
+
+function getVisaAmount(visa: Record<string, unknown>) {
+  return Number(visa.visa_amount || visa.amount || 0);
+}
+
+function getVisaDate(visa: Record<string, unknown>) {
+  return (visa.occurrence_date || visa.visa_date || visa.created_at || '') as string;
+}
 
 interface ProjectData {
   id: number;
@@ -43,9 +56,9 @@ interface ProjectData {
   cumulativeProfitRate: number;
   // 经营利润与现金净流
   monthConfirmedOutput: number;      // 本月确认产值（已审批报量）
-  monthApprovedVisa: number;         // 本月已审批签证金额
+  monthApprovedVisa: number;         // 本月已完成签证金额
   monthConfirmedCost: number;        // 本月确认成本（结算+工资+费用+材料+税金）
-  operatingProfit: number;           // 经营利润 = 本月确认产值 + 本月已审批签证 - 本月确认成本
+  operatingProfit: number;           // 经营利润 = 本月确认产值 + 本月已完成签证 - 本月确认成本
   operatingProfitRate: number;       // 经营利润率
   monthActualPayment: number;        // 本月实际支付（工资发放+供应商付款）
   cashNetFlow: number;               // 现金净流 = 本月实际回款 - 本月实际支付
@@ -372,7 +385,7 @@ export async function GET(request: NextRequest) {
       const projContracts = supplierContracts.filter((c: Record<string, unknown>) => c.project_id === pid);
 
       const totalSettlement = safeSum(projReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
-      const totalVisa = safeSum(projVisas.filter((v: Record<string, unknown>) => v.status === 'approved').map((v: Record<string, unknown>) => Number(v.amount || 0)));
+      const totalVisa = safeSum(projVisas.filter((v: Record<string, unknown>) => isVisaDoneStatus(v.status as string | null)).map(getVisaAmount));
       const totalIncome = totalSettlement + totalVisa;
 
       const monthReports = projReports.filter((r: Record<string, unknown>) => {
@@ -453,11 +466,11 @@ export async function GET(request: NextRequest) {
       );
 
       // === 利润与现金流（区分经营利润和现金净流）===
-      // 经营利润 = 本月确认产值 + 本月已审批签证 - 本月确认成本（权责发生制）
+      // 经营利润 = 本月确认产值 + 本月已完成签证 - 本月确认成本（权责发生制）
       const monthVisaIncome = safeSum(projVisas.filter((v: Record<string, unknown>) => {
-        const d = v.visa_date as string;
-        return d && d.startsWith(reportMonth) && v.status === 'approved';
-      }).map((v: Record<string, unknown>) => Number(v.amount || 0)));
+        const d = getVisaDate(v);
+        return d && d.startsWith(reportMonth) && isVisaDoneStatus(v.status as string | null);
+      }).map(getVisaAmount));
       const operatingProfit = monthIncome + monthVisaIncome - monthCost;
       const operatingProfitRate = (monthIncome + monthVisaIncome) > 0 ? (operatingProfit / (monthIncome + monthVisaIncome)) * 100 : 0;
 
@@ -510,7 +523,7 @@ export async function GET(request: NextRequest) {
         cumulativeIncome, cumulativeCost, cumulativeProfit, cumulativeProfitRate,
         inServiceCount,
         visaCount: projVisas.length,
-        pendingVisaCount: projVisas.filter((v: Record<string, unknown>) => v.status !== 'approved').length,
+        pendingVisaCount: projVisas.filter((v: Record<string, unknown>) => isVisaActiveStatus(v.status as string | null)).length,
         supplierPayable, supplierPaid, supplierUnpaid,
         salaryPayable: salaryCost,
         salaryUnpaid: unpaidSalary,
@@ -563,7 +576,7 @@ export async function GET(request: NextRequest) {
       supplierPaymentRate: 0,
       // 新口径：经营利润与现金净流
       monthConfirmedOutput: safeSum(projectDataList.map(p => p.monthIncome)), // 本月确认产值
-      monthVisaIncome: safeSum(projectDataList.map(p => p.monthApprovedVisa)), // 本月已审批签证
+      monthVisaIncome: safeSum(projectDataList.map(p => p.monthApprovedVisa)), // 本月已完成签证
       monthConfirmedCost: safeSum(projectDataList.map(p => p.monthCost)), // 本月确认成本
       monthActualReceived: safeSum(projectDataList.map(p => p.monthReceived)), // 本月实际回款
       monthActualPayment: safeSum(projectDataList.map(p => p.monthActualPayment)), // 本月实际支付
@@ -765,10 +778,10 @@ export async function GET(request: NextRequest) {
       const pid = project.id;
       const projReports = clientReports.filter((r: Record<string, unknown>) => toNumber(r.project_id) === pid && r.status !== 'voided');
       const projPayments = clientPayments.filter((p: Record<string, unknown>) => toNumber(p.project_id) === pid && !isInactiveClientPaymentStatus(p.status as string | null));
-      const projVisas = visas.filter((v: Record<string, unknown>) => toNumber(v.project_id) === pid && v.status === 'approved');
+      const projVisas = visas.filter((v: Record<string, unknown>) => toNumber(v.project_id) === pid && isVisaDoneStatus(v.status as string | null));
 
       const cumulativeConfirmed = safeSum(projReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
-      const cumulativeVisa = safeSum(projVisas.map((v: Record<string, unknown>) => Number(v.amount || 0)));
+      const cumulativeVisa = safeSum(projVisas.map(getVisaAmount));
       const cumulativeReceivable = cumulativeConfirmed + cumulativeVisa;
       const cumulativeReceived = safeSum(projPayments.filter((p: Record<string, unknown>) => isEffectiveClientPaymentStatus(p.status as string | null)).map((p: Record<string, unknown>) => Number(p.payment_amount || 0)));
 
@@ -1106,9 +1119,9 @@ export async function GET(request: NextRequest) {
     // Pending visas
     for (const p of projectDataList.filter(p => p.pendingVisaCount > 0)) {
       riskList.push({
-        project: p.name, riskType: '签证待审批', riskLevel: 'info',
-        impactAmount: 0, reason: `${p.pendingVisaCount}个签证待审批`,
-        suggestion: '建议尽快完成签证审批流程', responsible: '项目负责人',
+        project: p.name, riskType: '签证待推进', riskLevel: 'info',
+        impactAmount: 0, reason: `${p.pendingVisaCount}个签证待推进`,
+        suggestion: '建议尽快推进签证流转', responsible: '项目负责人',
         deadline: getNextMonthEnd(), status: '待处理',
       });
     }
@@ -1120,7 +1133,7 @@ export async function GET(request: NextRequest) {
       lowPaymentRateProjects: projectDataList.filter(p => p.paymentRate < 50 && p.totalIncome > 0).map(p => ({ id: p.id, name: p.name, paymentRate: p.paymentRate, unreceived: p.unreceived, suggestion: '建议及时跟进甲方回款' })),
       highLaborProjects: projectDataList.filter(p => p.totalCost > 0 && (p.salaryCost / p.totalCost) > 0.7).map(p => ({ id: p.id, name: p.name, laborRate: p.salaryCost / p.totalCost * 100, salaryCost: p.salaryCost, suggestion: '建议优化工时管理' })),
       unpaidSalaryProjects: projectDataList.filter(p => p.unpaidSalary > 0).map(p => ({ id: p.id, name: p.name, unpaidSalary: p.unpaidSalary, suggestion: '建议尽快安排工资发放' })),
-      pendingVisaProjects: projectDataList.filter(p => p.pendingVisaCount > 0).map(p => ({ id: p.id, name: p.name, pendingCount: p.pendingVisaCount, suggestion: '建议尽快完成签证审批流程' })),
+      pendingVisaProjects: projectDataList.filter(p => p.pendingVisaCount > 0).map(p => ({ id: p.id, name: p.name, pendingCount: p.pendingVisaCount, suggestion: '建议尽快推进签证流转' })),
       overdueSupplierPayments: largeUnpaidSupplier.length,
       expiringCertificates: certificates.length,
     };

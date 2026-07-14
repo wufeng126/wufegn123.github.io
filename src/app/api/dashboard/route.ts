@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
+import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
 
 // 获取当前月份
@@ -325,8 +325,8 @@ export async function GET(request: Request) {
       .select('id, visa_amount, status, project_id');
 
     const totalVisaCount = visasData?.length || 0;
-    const completedVisaCount = visasData?.filter(v => v.status === '已完结').length || 0;
-    const pendingVisaCount = visasData?.filter(v => v.status === '待办理').length || 0;
+    const completedVisaCount = visasData?.filter(v => isVisaDoneStatus(v.status)).length || 0;
+    const pendingVisaCount = visasData?.filter(v => isVisaActiveStatus(v.status)).length || 0;
     const totalVisaAmount = visasData?.reduce((sum, v) => {
       return sum + (parseFloat(v.visa_amount) || 0);
     }, 0) || 0;
@@ -562,11 +562,11 @@ export async function GET(request: Request) {
       return sum;
     }, 0) || 0;
     
-    // 获取已签回的签证金额
+    // 获取已完成的签证金额
     let visasQuery = client
       .from('visas')
       .select('visa_amount, created_at')
-      .eq('status', '已签回');
+      .in('status', [...VISA_DONE_STATUSES]);
     
     if (projectId) {
       visasQuery = visasQuery.eq('project_id', parseInt(projectId));

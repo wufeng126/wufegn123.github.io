@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { VISA_DONE_STATUSES } from '@/lib/business-logic';
 
 // 获取年月的起止日期
 function getMonthDateRange(year: number, month: number): { startDate: string; endDate: string } {
@@ -87,16 +88,16 @@ export async function GET(request: NextRequest) {
     const { data: currentInvoiceData } = await invoiceQuery;
     const { data: prevInvoiceData } = await prevInvoiceQuery;
 
-    // 2. 签证数据（已签回的）
+    // 2. 签证数据（已完成的）
     let visaQuery = client
       .from('visas')
       .select('project_id, visa_amount, occurrence_date')
-      .eq('status', '已签回');
+      .in('status', [...VISA_DONE_STATUSES]);
     
     let prevVisaQuery = client
       .from('visas')
       .select('project_id, visa_amount, occurrence_date')
-      .eq('status', '已签回');
+      .in('status', [...VISA_DONE_STATUSES]);
 
     if (projectId) {
       visaQuery = visaQuery.eq('project_id', parseInt(projectId));

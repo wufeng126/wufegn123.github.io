@@ -48,6 +48,13 @@ interface Project {
   status: string;
 }
 
+interface ProjectManager {
+  id: number;
+  name: string;
+  username?: string | null;
+  managed_project_ids?: number[];
+}
+
 interface Visa {
   id: number;
   visa_number: string;
@@ -72,23 +79,35 @@ interface Visa {
   submitter_id?: number | null;
   submitter_name?: string | null;
   submitted_at?: string | null;
+  current_responsible_user_id?: number | null;
+  current_responsible_name?: string | null;
+  budget_user_id?: number | null;
+  budget_user_name?: string | null;
+  project_manager_user_id?: number | null;
+  project_manager_name?: string | null;
+  workflow_step_updated_at?: string | null;
+  signed_at?: string | null;
+  business_confirmed_at?: string | null;
+  completed_at?: string | null;
+  workflow_comment?: string | null;
 }
 
-// 流程状态常量
-const VISA_STATUSES = ['已提交', '审核通过', '已结算', '已驳回'] as const;
 const VISA_STATUS_LABELS: Record<string, string> = {
   '已提交': '已提交',
-  '审核通过': '审核通过',
-  '已结算': '已结算',
+  '已签字': '已签字',
+  '待预算员确认': '待预算员确认',
+  '已完成': '已完成',
+  '已结算': '已完成',
+  '已完结': '已完成',
   '已驳回': '已驳回',
 };
 
-// 状态分类
-const STATUS_CATEGORIES = {
-  submitted: ['已提交'],
-  approved: ['审核通过', '已结算'],
-  rejected: ['已驳回'],
-};
+const VISA_DONE_STATUSES = ['已完成', '已结算', '已完结'] as const;
+const getVisaStatusLabel = (status: string) => VISA_STATUS_LABELS[status] || status;
+const isDoneVisaStatus = (status?: string | null) => VISA_DONE_STATUSES.includes(status as (typeof VISA_DONE_STATUSES)[number]);
+const canEditVisa = (status?: string | null) => ['草稿', '待办理', '已提交', '已驳回'].includes(status || '');
+const canDeleteVisa = (status?: string | null) => !isDoneVisaStatus(status);
+const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
 
 interface Pagination {
   page: number;
@@ -143,9 +162,11 @@ interface Attachment {
 export default function VisasPage() {
   const searchParams = useSearchParams();
   const statusFromUrl = searchParams.get('status');
+  const todoFromUrl = searchParams.get('todo');
   const { toast } = useToast();
   const [visas, setVisas] = useState<Visa[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectManagers, setProjectManagers] = useState<ProjectManager[]>([]);
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [stats, setStats] = useState<Stats>({
@@ -178,7 +199,7 @@ export default function VisasPage() {
   // 筛选条件
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>(statusFromUrl || 'all');
+  const [selectedStatus, setSelectedStatus] = useState<string>(statusFromUrl || (todoFromUrl === 'mine' ? 'active' : 'all'));
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -191,12 +212,12 @@ export default function VisasPage() {
   const [saving, setSaving] = useState(false);
 
   // 附件相关状态
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   // 新增对话框附件状态
-  const [addDialogAttachments, setAddDialogAttachments] = useState<any[]>([]);
+  const [addDialogAttachments, setAddDialogAttachments] = useState<File[]>([]);
   const [addDialogUploading, setAddDialogUploading] = useState(false);
 
   // 审核对话框状态
@@ -217,19 +238,8 @@ export default function VisasPage() {
     status: '已提交',
     handler: '',
     remark: '',
+    project_manager_user_id: '',
   });
-
-  useEffect(() => {
-    fetchProjects();
-    fetchVisas();
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-      const timer = setTimeout(() => setShowContent(true), 50);
-      return () => clearTimeout(timer);
-    }
-  }, [loading]);
 
   // 点击统计卡片筛选状态
   const handleStatsCardClick = (status: string) => {
@@ -249,19 +259,6 @@ export default function VisasPage() {
     }, 100);
   };
 
-  // 监听状态筛选变化
-  useEffect(() => {
-    fetchVisas(1);
-  }, [selectedStatus]);
-
-  // 监听其他筛选条件变化（防抖）
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchVisas(1);
-    }, 300); // 300ms 防抖
-    return () => clearTimeout(timer);
-  }, [searchKeyword, selectedProjectId, startDate, endDate]);
-
   const fetchProjects = async () => {
     try {
       const res = await fetch('/api/projects');
@@ -272,12 +269,52 @@ export default function VisasPage() {
     }
   };
 
+  const fetchProjectManagers = async (projectId?: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (projectId) params.append('projectId', projectId);
+      const res = await fetch(`/api/visas/project-managers${params.toString() ? `?${params.toString()}` : ''}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '获取项目经理失败');
+      setProjectManagers(data.managers || []);
+    } catch (error) {
+      console.error('获取项目经理失败:', error);
+      setProjectManagers([]);
+    }
+  };
+
+  const getManagersForProject = (projectId: string) => {
+    const pid = Number(projectId);
+    if (!pid) return projectManagers;
+    return projectManagers.filter((manager) => {
+      const ids = manager.managed_project_ids || [];
+      return ids.length === 0 || ids.includes(pid);
+    });
+  };
+
+  const getStatusFilterLabel = (status: string) => {
+    if (status === 'active') return '流转中';
+    if (status === 'done') return '已完成';
+    return getVisaStatusLabel(status);
+  };
+
+  const handleProjectChange = (projectId: string) => {
+    const managers = getManagersForProject(projectId);
+    const currentManagerStillValid = managers.some((manager) => String(manager.id) === form.project_manager_user_id);
+    setForm({
+      ...form,
+      project_id: projectId,
+      project_manager_user_id: currentManagerStillValid ? form.project_manager_user_id : '',
+    });
+  };
+
   const fetchVisas = async (page = pagination.page) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (selectedProjectId !== 'all') params.append('projectId', selectedProjectId);
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
+      if (todoFromUrl) params.append('todo', todoFromUrl);
       if (searchKeyword) params.append('keyword', searchKeyword);
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
@@ -296,11 +333,11 @@ export default function VisasPage() {
       } else {
         throw new Error(data.error);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('获取签证失败:', error);
       toast({
         title: '获取失败',
-        description: error.message || '获取签证列表失败',
+        description: getErrorMessage(error, '获取签证列表失败'),
         variant: 'error',
       });
     } finally {
@@ -324,50 +361,6 @@ export default function VisasPage() {
     }
   };
 
-  // 上传附件
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !currentVisa) return;
-    
-    setUploading(true);
-    const files = Array.from(e.target.files);
-    
-    try {
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('visaId', String(currentVisa.id));
-        
-        const res = await fetch('/api/visas/attachments/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || '上传失败');
-        }
-      }
-      
-      toast({
-        title: '上传成功',
-        description: `成功上传 ${files.length} 个附件`,
-      });
-      
-      // 刷新附件列表
-      loadAttachments(String(currentVisa.id));
-    } catch (error: any) {
-      toast({
-        title: '上传失败',
-        description: error.message,
-        variant: 'error',
-      });
-    } finally {
-      setUploading(false);
-      // 清空 input
-      e.target.value = '';
-    }
-  };
-
   // 处理文件选择上传
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -384,6 +377,9 @@ export default function VisasPage() {
         const formData = new FormData();
         formData.append('visaId', String(visaId));
         formData.append('file', file);
+        if (currentVisa?.status === '已提交') {
+          formData.append('replace', 'true');
+        }
         
         const res = await fetch('/api/visas/attachments/upload', {
           method: 'POST',
@@ -399,6 +395,10 @@ export default function VisasPage() {
       
       // 重新加载附件
       loadAttachments(String(visaId));
+      toast({
+        title: currentVisa?.status === '已提交' ? '签字附件已替换' : '上传成功',
+        description: currentVisa?.status === '已提交' ? '已保留最新签字附件' : `成功上传 ${files.length} 个附件`,
+      });
     } catch (err) {
       console.error(err);
       toast({ title: err instanceof Error ? err.message : '上传失败', variant: 'error' });
@@ -464,20 +464,13 @@ export default function VisasPage() {
       if (currentVisa) {
         loadAttachments(String(currentVisa.id));
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: '删除失败',
-        description: error.message,
+        description: getErrorMessage(error, '删除失败'),
         variant: 'error',
       });
     }
-  };
-
-  // 获取文件图标
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) return '🖼️';
-    if (fileType === 'application/pdf') return '📄';
-    return '📎';
   };
 
   // 格式化文件大小
@@ -547,10 +540,12 @@ export default function VisasPage() {
 
   // 打开新增对话框
   const handleAdd = () => {
+    const defaultProjectId = projects[0]?.id.toString() || '';
+    const managers = getManagersForProject(defaultProjectId);
     setForm({
       visa_number: generateVisaNumber(),
       visa_name: '',
-      project_id: projects[0]?.id.toString() || '',
+      project_id: defaultProjectId,
       occurrence_date: new Date().toISOString().split('T')[0],
       visa_quantity: '',
       visa_unit: '',
@@ -558,9 +553,42 @@ export default function VisasPage() {
       status: '已提交',
       handler: '',
       remark: '',
+      project_manager_user_id: managers.length === 1 ? String(managers[0].id) : '',
     });
     setAddDialogOpen(true);
   };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchProjects();
+      fetchProjectManagers();
+      fetchVisas();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      const timer = setTimeout(() => setShowContent(true), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
+
+  // 监听状态筛选变化
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchVisas(1);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [selectedStatus]);
+
+  // 监听其他筛选条件变化（防抖）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchVisas(1);
+    }, 300); // 300ms 防抖
+    return () => clearTimeout(timer);
+  }, [searchKeyword, selectedProjectId, startDate, endDate]);
 
   // 生成签证编号
   const generateVisaNumber = () => {
@@ -585,6 +613,7 @@ export default function VisasPage() {
       status: visa.status,
       handler: visa.handler || '',
       remark: visa.remark || '',
+      project_manager_user_id: visa.project_manager_user_id ? String(visa.project_manager_user_id) : '',
     });
     setEditDialogOpen(true);
   };
@@ -615,10 +644,10 @@ export default function VisasPage() {
 
   // 保存新增
   const handleSaveAdd = async () => {
-    if (!form.visa_number || !form.visa_name || !form.project_id || !form.occurrence_date || !form.visa_amount) {
+    if (!form.visa_number || !form.visa_name || !form.project_id || !form.occurrence_date || !form.visa_amount || (form.status !== '草稿' && !form.project_manager_user_id)) {
       toast({
         title: '验证失败',
-        description: '请填写所有必填项',
+        description: '请填写所有必填项，并选择项目经理负责人',
         variant: 'error',
       });
       return;
@@ -636,10 +665,11 @@ export default function VisasPage() {
       if (!res.ok) throw new Error(data.error);
 
       // 如果有附件，先上传
-      if (addDialogAttachments.length > 0 && data.id) {
+      const visaId = data.visa?.id || data.id;
+      if (addDialogAttachments.length > 0 && visaId) {
         for (const file of addDialogAttachments) {
           const formData = new FormData();
-          formData.append('visaId', String(data.id));
+          formData.append('visaId', String(visaId));
           formData.append('file', file);
           
           const uploadRes = await fetch('/api/visas/attachments/upload', {
@@ -664,10 +694,10 @@ export default function VisasPage() {
       setAddDialogOpen(false);
       setAddDialogAttachments([]); // 清空附件列表
       fetchVisas(1);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: '创建失败',
-        description: error.message || '创建签证失败',
+        description: getErrorMessage(error, '创建签证失败'),
         variant: 'error',
       });
     } finally {
@@ -677,10 +707,10 @@ export default function VisasPage() {
 
   // 保存编辑
   const handleSaveEdit = async () => {
-    if (!currentVisa || !form.visa_number || !form.visa_name || !form.project_id || !form.occurrence_date || !form.visa_amount) {
+    if (!currentVisa || !form.visa_number || !form.visa_name || !form.project_id || !form.occurrence_date || !form.visa_amount || (form.status !== '草稿' && !form.project_manager_user_id)) {
       toast({
         title: '验证失败',
-        description: '请填写所有必填项',
+        description: '请填写所有必填项，并选择项目经理负责人',
         variant: 'error',
       });
       return;
@@ -703,10 +733,10 @@ export default function VisasPage() {
       });
       setEditDialogOpen(false);
       fetchVisas(pagination.page);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: '更新失败',
-        description: error.message || '更新签证失败',
+        description: getErrorMessage(error, '更新签证失败'),
         variant: 'error',
       });
     } finally {
@@ -733,10 +763,10 @@ export default function VisasPage() {
       });
       setDeleteDialogOpen(false);
       fetchVisas(pagination.page);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: '删除失败',
-        description: error.message || '删除签证失败',
+        description: getErrorMessage(error, '删除签证失败'),
         variant: 'error',
       });
     } finally {
@@ -746,7 +776,7 @@ export default function VisasPage() {
 
   // 提交签证
   const handleSubmit = async (visa: Visa) => {
-    if (!confirm(`确定要提交签证 "${visa.visa_number}" 吗？提交后将进入审核流程。`)) return;
+    if (!confirm(`确定要提交签证 "${visa.visa_number}" 吗？提交后将推送给项目经理办理签字。`)) return;
     
     setSaving(true);
     try {
@@ -760,13 +790,13 @@ export default function VisasPage() {
       
       toast({
         title: '提交成功',
-        description: '签证已成功提交，等待审核',
+        description: '签证已提交给项目经理办理签字',
       });
       fetchVisas(pagination.page);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: '提交失败',
-        description: error.message || '提交签证失败',
+        description: getErrorMessage(error, '提交签证失败'),
         variant: 'error',
       });
     } finally {
@@ -774,16 +804,31 @@ export default function VisasPage() {
     }
   };
 
-  // 打开审核对话框
-  const handleReview = (visa: Visa) => {
+  // 打开流转对话框
+  const handleReview = async (visa: Visa) => {
     setCurrentVisa(visa);
     setReviewComment('');
+    await loadAttachments(String(visa.id));
     setReviewDialogOpen(true);
   };
 
-  // 审核通过
+  // 推进签证流转
   const handleApprove = async () => {
     if (!currentVisa) return;
+    if (currentVisa.status === '已提交' && attachments.length === 0) {
+      toast({
+        title: '请先上传签字附件',
+        description: '甲方工程部签字后，需要上传最新签字附件再确认签字。',
+        variant: 'error',
+      });
+      return;
+    }
+
+    const action = currentVisa.status === '已签字' ? 'business_confirmed' : 'signed';
+    const successTitle = currentVisa.status === '已签字' ? '已提交预算员确认' : '已确认签字';
+    const successDescription = currentVisa.status === '已签字'
+      ? '签证已进入预算员确认计入结算环节'
+      : '签证已进入甲方商务确认环节';
     
     setSaving(true);
     try {
@@ -791,7 +836,7 @@ export default function VisasPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          action: 'approve',
+          action,
           review_comment: reviewComment 
         }),
         credentials: 'include',
@@ -801,15 +846,15 @@ export default function VisasPage() {
       if (!res.ok) throw new Error(data.error);
       
       toast({
-        title: '审核通过',
-        description: '签证已审核通过',
+        title: successTitle,
+        description: successDescription,
       });
       setReviewDialogOpen(false);
       fetchVisas(pagination.page);
-    } catch (error: any) {
+    } catch (error) {
       toast({
-        title: '审核失败',
-        description: error.message || '审核操作失败',
+        title: '流转失败',
+        description: getErrorMessage(error, '签证流转操作失败'),
         variant: 'error',
       });
     } finally {
@@ -856,10 +901,10 @@ export default function VisasPage() {
       });
       setRejectDialogOpen(false);
       fetchVisas(pagination.page);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: '驳回失败',
-        description: error.message || '驳回操作失败',
+        description: getErrorMessage(error, '驳回操作失败'),
         variant: 'error',
       });
     } finally {
@@ -867,9 +912,9 @@ export default function VisasPage() {
     }
   };
 
-  // 结算签证
+  // 预算员确认签证已计入结算
   const handleSettle = async (visa: Visa) => {
-    if (!confirm(`确定要将签证 "${visa.visa_number}" 标记为已结算吗？`)) return;
+    if (!confirm(`确定甲方商务已将签证 "${visa.visa_number}" 计入结算吗？确认后流程将完成。`)) return;
     
     setSaving(true);
     try {
@@ -882,14 +927,14 @@ export default function VisasPage() {
       if (!res.ok) throw new Error(data.error);
       
       toast({
-        title: '结算成功',
-        description: '签证已标记为已结算',
+        title: '确认完成',
+        description: '签证流程已完成',
       });
       fetchVisas(pagination.page);
-    } catch (error: any) {
+    } catch (error) {
       toast({
-        title: '结算失败',
-        description: error.message || '结算操作失败',
+        title: '确认失败',
+        description: getErrorMessage(error, '确认完成操作失败'),
         variant: 'error',
       });
     } finally {
@@ -902,8 +947,11 @@ export default function VisasPage() {
     switch (status) {
       case '已提交':
         return 'bg-amber-50 text-amber-600 border-amber-200';
-      case '审核通过':
+      case '已签字':
         return 'bg-blue-50 text-blue-600 border-blue-200';
+      case '待预算员确认':
+        return 'bg-purple-50 text-purple-600 border-purple-200';
+      case '已完成':
       case '已结算':
       case '已完结':
         return 'bg-green-50 text-green-600 border-green-200';
@@ -914,48 +962,29 @@ export default function VisasPage() {
     }
   };
 
-  // 获取状态图标
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case '已提交':
-        return <Clock className="w-3.5 h-3.5" />;
-      case '审核通过':
-        return <CheckCircle2 className="w-3.5 h-3.5" />;
-      case '已结算':
-        return <CheckCircle2 className="w-3.5 h-3.5" />;
-      case '已驳回':
-        return <AlertCircle className="w-3.5 h-3.5" />;
-      default:
-        return <Clock className="w-3.5 h-3.5" />;
-    }
-  };
-
   // 计算风险预警
   const getRiskWarning = (visa: Visa): { type: 'overdue' | 'warning' | 'normal'; text: string; days: number } => {
-    // 已驳回的签证不预警
     if (visa.status === '已驳回') {
       return { type: 'normal', text: '', days: 0 };
     }
-    // 已结算的签证不预警
-    if (visa.status === '已结算') {
+    if (isDoneVisaStatus(visa.status)) {
       return { type: 'normal', text: '', days: 0 };
     }
-    // 已审核通过但未结算的进行结算提醒
-    if (visa.status === '审核通过') {
-      return { type: 'warning', text: '待结算', days: 0 };
+    if (visa.status === '待预算员确认') {
+      return { type: 'warning', text: '待预算确认', days: 0 };
     }
     
-    // 计算提交日期到今天的天数（针对已提交状态）
-    if (visa.status === '已提交' && visa.submitted_at) {
-      const submitDate = new Date(visa.submitted_at);
+    if ((visa.status === '已提交' || visa.status === '已签字') && (visa.workflow_step_updated_at || visa.submitted_at)) {
+      const submitDate = new Date(visa.workflow_step_updated_at || visa.submitted_at || '');
       const today = new Date();
       const diffTime = today.getTime() - submitDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const prefix = visa.status === '已提交' ? '待签字' : '待商务确认';
       
       if (diffDays > 7) {
-        return { type: 'overdue', text: `待审核 ${diffDays}天`, days: diffDays };
+        return { type: 'overdue', text: `${prefix} ${diffDays}天`, days: diffDays };
       } else if (diffDays > 3) {
-        return { type: 'warning', text: `待审核 ${diffDays}天`, days: diffDays };
+        return { type: 'warning', text: `${prefix} ${diffDays}天`, days: diffDays };
       }
     }
     
@@ -966,7 +995,7 @@ export default function VisasPage() {
   const chartData = monthlyData.map(item => ({
     name: item.monthLabel,
     '新增签证': item.newCount,
-    '已完结签证': item.completedCount,
+    '已完成签证': item.completedCount,
     '涉及金额': item.amount / 10000,
   }));
 
@@ -1019,27 +1048,37 @@ export default function VisasPage() {
                 : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
             }`}
           >
-            待审核
+            待签字
           </button>
           <button
-            onClick={() => setSelectedStatus('审核通过')}
+            onClick={() => setSelectedStatus('已签字')}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-              selectedStatus === '审核通过' 
-                ? 'bg-blue-500 text-white shadow-md' 
+              selectedStatus === '已签字'
+                ? 'bg-blue-500 text-white shadow-md'
                 : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
             }`}
           >
-            待结算
+            待商务确认
           </button>
           <button
-            onClick={() => setSelectedStatus('已结算')}
+            onClick={() => setSelectedStatus('待预算员确认')}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-              selectedStatus === '已结算' 
-                ? 'bg-green-500 text-white shadow-md' 
+              selectedStatus === '待预算员确认'
+                ? 'bg-purple-500 text-white shadow-md'
+                : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+            }`}
+          >
+            待预算确认
+          </button>
+          <button
+            onClick={() => setSelectedStatus('done')}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              selectedStatus === 'done'
+                ? 'bg-green-500 text-white shadow-md'
                 : 'bg-green-50 text-green-600 hover:bg-green-100'
             }`}
           >
-            已结算
+            已完成
           </button>
           
           {/* 风险预警提示 */}
@@ -1113,7 +1152,7 @@ export default function VisasPage() {
               </div>
               <Progress value={stats.completedRate} className="h-3" style={{ background: '#E5E6EB' }} />
               <div className="flex items-center justify-between mt-2 text-xs" style={{ color: '#86909C' }}>
-                <span>已完结 {stats.completedCount} 份</span>
+                <span>已完成 {stats.completedCount} 份</span>
                 <span>共 {stats.totalCount} 份</span>
               </div>
             </div>
@@ -1156,11 +1195,11 @@ export default function VisasPage() {
             </CardContent>
           </Card>
 
-          {/* 待处理签证 */}
-          <Card 
-            className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedStatus === '待办理' ? 'ring-2 ring-amber-400' : ''}`} 
+          {/* 流转中签证 */}
+          <Card
+            className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedStatus === 'active' ? 'ring-2 ring-amber-400' : ''}`}
             style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}
-            onClick={() => handleStatsCardClick('待办理')}
+            onClick={() => handleStatsCardClick('active')}
           >
             <CardContent className="pt-5 pb-5">
               <div className="flex items-center justify-between mb-3">
@@ -1174,16 +1213,16 @@ export default function VisasPage() {
                 )}
               </div>
               <p className="text-3xl font-bold" style={{ color: '#FF7D00' }}>{stats.pendingCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>待处理签证</p>
+              <p className="text-sm mt-1" style={{ color: '#86909C' }}>流转中签证</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#FF7D00' }}>点击查看 →</p>
             </CardContent>
           </Card>
 
-          {/* 已完结签证 */}
-          <Card 
-            className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedStatus === '已完结' ? 'ring-2 ring-purple-400' : ''}`} 
+          {/* 已完成签证 */}
+          <Card
+            className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedStatus === 'done' ? 'ring-2 ring-purple-400' : ''}`}
             style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}
-            onClick={() => handleStatsCardClick('已完结')}
+            onClick={() => handleStatsCardClick('done')}
           >
             <CardContent className="pt-5 pb-5">
               <div className="flex items-center justify-between mb-3">
@@ -1192,7 +1231,7 @@ export default function VisasPage() {
                 </div>
               </div>
               <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{stats.completedCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>已完结签证</p>
+              <p className="text-sm mt-1" style={{ color: '#86909C' }}>已完成签证</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#722ED1' }}>点击查看 →</p>
             </CardContent>
           </Card>
@@ -1274,14 +1313,14 @@ export default function VisasPage() {
                       borderRadius: '8px',
                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                     }}
-                    formatter={(value: any, name: string) => {
-                      if (name === '涉及金额') return [`¥${value.toFixed(2)}万`, name];
+                    formatter={(value: number | string, name: string) => {
+                      if (name === '涉及金额') return [`¥${Number(value).toFixed(2)}万`, name];
                       return [value, name];
                     }}
                   />
                   <Legend />
                   <Line type="monotone" dataKey="新增签证" stroke="#165DFF" strokeWidth={2} dot={{ fill: '#165DFF', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
-                  <Line type="monotone" dataKey="已完结签证" stroke="#00B42A" strokeWidth={2} dot={{ fill: '#00B42A', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="已完成签证" stroke="#00B42A" strokeWidth={2} dot={{ fill: '#00B42A', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                   <Line type="monotone" dataKey="涉及金额" stroke="#FF7D00" strokeWidth={2} dot={{ fill: '#FF7D00', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -1304,7 +1343,7 @@ export default function VisasPage() {
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-xs mb-1" style={{ color: '#86909C' }}>本月已完结</p>
+                <p className="text-xs mb-1" style={{ color: '#86909C' }}>本月已完成</p>
                 <p className="text-2xl font-bold" style={{ color: '#00B42A' }}>{stats.currentMonthCompleted}</p>
                 <div className="flex items-center justify-center gap-1 mt-1">
                   {parseFloat(stats.completedGrowth) >= 0 ? (
@@ -1358,7 +1397,7 @@ export default function VisasPage() {
                   {selectedStatus !== 'all' && (
                     <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: '#FF7D00', color: '#FF7D00' }}>
                       <Clock className="w-3 h-3" />
-                      {selectedStatus}
+                      {getStatusFilterLabel(selectedStatus)}
                       <button onClick={() => setSelectedStatus('all')} className="ml-1 hover:bg-orange-100 rounded-full p-0.5">×</button>
                     </Badge>
                   )}
@@ -1441,6 +1480,7 @@ export default function VisasPage() {
                   <TableHead className="font-medium text-right" style={{ color: '#86909C' }}>工程量</TableHead>
                   <TableHead className="font-medium text-right" style={{ color: '#86909C' }}>金额</TableHead>
                   <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>状态</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>当前负责人</TableHead>
                   <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>风险预警</TableHead>
                   <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>操作</TableHead>
                 </TableRow>
@@ -1448,7 +1488,7 @@ export default function VisasPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
+                    <TableCell colSpan={10} className="text-center py-12">
                       <div className="flex items-center justify-center gap-2" style={{ color: '#86909C' }}>
                         <RefreshCw className="w-4 h-4 animate-spin" />
                         <span>加载中...</span>
@@ -1457,7 +1497,7 @@ export default function VisasPage() {
                   </TableRow>
                 ) : visas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
+                    <TableCell colSpan={10} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2" style={{ color: '#86909C' }}>
                         <FileCheck className="w-10 h-10 opacity-30" />
                         <span>暂无签证数据</span>
@@ -1492,15 +1532,18 @@ export default function VisasPage() {
                       </TableCell>
                       <TableCell className="text-center py-3">
                         <Badge variant="outline" className={`${getStatusStyle(visa.status)} font-medium`}>
-                          {visa.status}
+                          {getVisaStatusLabel(visa.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-center text-sm py-3" style={{ color: '#4E5969' }}>
+                        {visa.current_responsible_name || (isDoneVisaStatus(visa.status) ? '-' : visa.project_manager_name || visa.handler || '-')}
                       </TableCell>
                       <TableCell className="text-center py-3">
                         {riskWarning.type === 'overdue' && (
                           <div className="flex items-center justify-center gap-1">
                             <AlertCircle className="w-3.5 h-3.5" style={{ color: '#F53F3F' }} />
                             <span className="text-xs font-medium animate-pulse" style={{ color: '#F53F3F' }}>
-                              超期未签回
+                              {riskWarning.text || '超期未推进'}
                             </span>
                           </div>
                         )}
@@ -1508,7 +1551,7 @@ export default function VisasPage() {
                           <div className="flex items-center justify-center gap-1">
                             <Clock className="w-3.5 h-3.5" style={{ color: '#FF7D00' }} />
                             <span className="text-xs font-medium" style={{ color: '#FF7D00' }}>
-                              即将到期
+                              {riskWarning.text || '即将到期'}
                             </span>
                           </div>
                         )}
@@ -1532,8 +1575,7 @@ export default function VisasPage() {
                           >
                             <Eye className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />
                           </Button>
-                          {/* 待办理、已提交、已驳回、已完结、已结算状态：可以编辑 */}
-                          {(visa.status === '待办理' || visa.status === '已提交' || visa.status === '已驳回' || visa.status === '已完结' || visa.status === '已结算') && (
+                          {canEditVisa(visa.status) && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1544,8 +1586,7 @@ export default function VisasPage() {
                               <Pencil className="w-3.5 h-3.5" style={{ color: '#FF7D00' }} />
                             </Button>
                           )}
-                          {/* 待办理、已提交、已驳回、已完结、已结算状态：可以删除 */}
-                          {(visa.status === '待办理' || visa.status === '已提交' || visa.status === '已驳回' || visa.status === '已完结' || visa.status === '已结算' || visa.status === '审核通过') && (
+                          {canDeleteVisa(visa.status) && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1556,21 +1597,43 @@ export default function VisasPage() {
                               <Trash2 className="w-3.5 h-3.5" style={{ color: '#F53F3F' }} />
                             </Button>
                           )}
-                          {/* 审核通过状态：可以结算 */}
-                          {visa.status === '审核通过' && (
+                          {visa.status === '已提交' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReview(visa)}
+                              className="h-7 px-2"
+                              title="确认签字"
+                              style={{ color: '#165DFF' }}
+                            >
+                              签字
+                            </Button>
+                          )}
+                          {visa.status === '已签字' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReview(visa)}
+                              className="h-7 px-2"
+                              title="商务确认"
+                              style={{ color: '#722ED1' }}
+                            >
+                              商务确认
+                            </Button>
+                          )}
+                          {visa.status === '待预算员确认' && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleSettle(visa)}
                               className="h-7 px-2"
-                              title="结算"
+                              title="确认完成"
                               style={{ color: '#00B42A' }}
                             >
-                              结算
+                              完成
                             </Button>
                           )}
-                          {/* 已结算状态：无操作 */}
-                          {visa.status === '已结算' && (
+                          {isDoneVisaStatus(visa.status) && (
                             <span className="text-xs px-2 py-1 rounded" style={{ background: '#F6FFED', color: '#52C41A' }}>
                               已完成
                             </span>
@@ -1653,7 +1716,7 @@ export default function VisasPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="required">关联项目</Label>
-                <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
+                <Select value={form.project_id} onValueChange={handleProjectChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
@@ -1674,12 +1737,32 @@ export default function VisasPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="已提交">已提交</SelectItem>
-                    <SelectItem value="审核通过">审核通过</SelectItem>
-                    <SelectItem value="已结算">已结算</SelectItem>
-                    <SelectItem value="已驳回">已驳回</SelectItem>
+                    <SelectItem value="草稿">草稿</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="required">下一步负责人（项目经理）</Label>
+              <Select
+                value={form.project_manager_user_id}
+                onValueChange={(v) => setForm({ ...form, project_manager_user_id: v })}
+                disabled={!form.project_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={form.project_id ? '选择负责办理签字的项目经理' : '请先选择项目'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {getManagersForProject(form.project_id).map((manager) => (
+                    <SelectItem key={manager.id} value={String(manager.id)}>
+                      {manager.name}{manager.username && manager.username !== manager.name ? `（${manager.username}）` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.project_id && getManagersForProject(form.project_id).length === 0 && (
+                <p className="text-xs text-amber-600">当前项目暂无可选项目经理，请先在系统用户或角色中配置项目经理。</p>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -1813,7 +1896,7 @@ export default function VisasPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="required">关联项目</Label>
-                <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
+                <Select value={form.project_id} onValueChange={handleProjectChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
@@ -1833,10 +1916,31 @@ export default function VisasPage() {
                     <SelectValue placeholder="选择状态" />
                   </SelectTrigger>
                   <SelectContent>
-                <SelectItem value="草稿">草稿</SelectItem>
+                    <SelectItem value="已提交">已提交</SelectItem>
+                    <SelectItem value="草稿">草稿</SelectItem>
+                    <SelectItem value="已驳回">已驳回</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="required">下一步负责人（项目经理）</Label>
+              <Select
+                value={form.project_manager_user_id}
+                onValueChange={(v) => setForm({ ...form, project_manager_user_id: v })}
+                disabled={!form.project_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={form.project_id ? '选择负责办理签字的项目经理' : '请先选择项目'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {getManagersForProject(form.project_id).map((manager) => (
+                    <SelectItem key={manager.id} value={String(manager.id)}>
+                      {manager.name}{manager.username && manager.username !== manager.name ? `（${manager.username}）` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -1924,8 +2028,22 @@ export default function VisasPage() {
                 <div>
                   <p className="text-sm mb-1" style={{ color: '#86909C' }}>办理状态</p>
                   <Badge variant="outline" className={`${getStatusStyle(currentVisa.status)} font-medium`}>
-                    {currentVisa.status}
+                    {getVisaStatusLabel(currentVisa.status)}
                   </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>发起预算员</p>
+                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.budget_user_name || currentVisa.submitter_name || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>项目经理</p>
+                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.project_manager_name || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>当前负责人</p>
+                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.current_responsible_name || (isDoneVisaStatus(currentVisa.status) ? '-' : currentVisa.project_manager_name || '-')}</p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -1953,10 +2071,10 @@ export default function VisasPage() {
                 </div>
               )}
 
-              {/* 审核信息区域 */}
+              {/* 流转信息区域 */}
               {(currentVisa.submitted_at || currentVisa.reviewed_at || currentVisa.reject_reason || currentVisa.review_comment) && (
                 <div className="border-t pt-4 mt-4">
-                  <p className="text-sm font-medium mb-3" style={{ color: '#1D2129' }}>审核信息</p>
+                  <p className="text-sm font-medium mb-3" style={{ color: '#1D2129' }}>流转信息</p>
                   <div className="space-y-3 p-3 rounded-lg" style={{ background: '#F7F8FA' }}>
                     {currentVisa.submitter_name && (
                       <div className="flex items-center gap-4 text-sm">
@@ -1969,16 +2087,34 @@ export default function VisasPage() {
                     )}
                     {currentVisa.reviewer_name && (
                       <div className="flex items-center gap-4 text-sm">
-                        <span style={{ color: '#86909C' }}>审核人：</span>
+                        <span style={{ color: '#86909C' }}>最近办理人：</span>
                         <span style={{ color: '#1D2129' }}>{currentVisa.reviewer_name}</span>
                         {currentVisa.reviewed_at && (
                           <span style={{ color: '#86909C' }}>{new Date(currentVisa.reviewed_at).toLocaleString('zh-CN')}</span>
                         )}
                       </div>
                     )}
+                    {currentVisa.signed_at && (
+                      <div className="text-sm">
+                        <span style={{ color: '#86909C' }}>工程部签字：</span>
+                        <span style={{ color: '#1D2129' }}>{new Date(currentVisa.signed_at).toLocaleString('zh-CN')}</span>
+                      </div>
+                    )}
+                    {currentVisa.business_confirmed_at && (
+                      <div className="text-sm">
+                        <span style={{ color: '#86909C' }}>商务确认：</span>
+                        <span style={{ color: '#1D2129' }}>{new Date(currentVisa.business_confirmed_at).toLocaleString('zh-CN')}</span>
+                      </div>
+                    )}
+                    {currentVisa.completed_at && (
+                      <div className="text-sm">
+                        <span style={{ color: '#86909C' }}>预算员确认完成：</span>
+                        <span style={{ color: '#1D2129' }}>{new Date(currentVisa.completed_at).toLocaleString('zh-CN')}</span>
+                      </div>
+                    )}
                     {currentVisa.review_comment && (
                       <div className="text-sm">
-                        <span style={{ color: '#86909C' }}>审核备注：</span>
+                        <span style={{ color: '#86909C' }}>流转备注：</span>
                         <span style={{ color: '#1D2129' }}>{currentVisa.review_comment}</span>
                       </div>
                     )}
@@ -1998,8 +2134,7 @@ export default function VisasPage() {
                   <p className="text-sm font-medium" style={{ color: '#1D2129' }}>
                     附件列表 {attachments.length > 0 && `(${attachments.length})`}
                   </p>
-                  {/* 已提交和已驳回状态可以上传附件 */}
-                  {currentVisa?.status === '已提交' || currentVisa?.status === '已驳回' || currentVisa?.status === '已完结' ? (
+                  {(currentVisa?.status === '已提交' || currentVisa?.status === '已驳回') ? (
                     <div>
                       <input
                         type="file"
@@ -2015,7 +2150,7 @@ export default function VisasPage() {
                         onClick={() => document.getElementById('visa-attachment-input')?.click()}
                         disabled={uploading}
                       >
-                        {uploading ? '上传中...' : '+ 上传附件'}
+                        {uploading ? '上传中...' : (currentVisa?.status === '已提交' ? '+ 上传签字附件（替换）' : '+ 上传附件')}
                       </Button>
                     </div>
                   ) : null}
@@ -2039,8 +2174,7 @@ export default function VisasPage() {
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <Button variant="ghost" size="sm" onClick={() => handlePreview(att)}>预览</Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDownload(att)}>下载</Button>
-                          {/* 已提交、已驳回、已完结、已结算状态可以删除附件 */}
-                          {(currentVisa?.status === '已提交' || currentVisa?.status === '已驳回' || currentVisa?.status === '已完结' || currentVisa?.status === '已结算') && (
+                          {(currentVisa?.status === '已提交' || currentVisa?.status === '已驳回') && (
                             <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handleDeleteAttachment(att.id)}>删除</Button>
                           )}
                         </div>
@@ -2053,30 +2187,21 @@ export default function VisasPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewDialogOpen(false)}>关闭</Button>
-            {/* 待办理、已提交、已完结、已结算状态：可以编辑 */}
-            {(currentVisa?.status === '待办理' || currentVisa?.status === '已提交' || currentVisa?.status === '已完结' || currentVisa?.status === '已结算') && (
+            {currentVisa && canEditVisa(currentVisa.status) && (
               <>
                 <Button variant="outline" onClick={() => { setViewDialogOpen(false); handleEdit(currentVisa); }}>
                   编辑
                 </Button>
-                <Button variant="outline" onClick={() => { setViewDialogOpen(false); handleReview(currentVisa); }} style={{ color: '#F53F3F' }}>
-                  驳回
-                </Button>
-                <Button onClick={() => { setViewDialogOpen(false); handleReview(currentVisa); }} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
-                  审核通过
-                </Button>
               </>
             )}
-            {/* 已驳回、已完结状态：可以编辑 */}
-            {(currentVisa?.status === '已驳回' || currentVisa?.status === '已完结') && (
-              <Button variant="outline" onClick={() => { setViewDialogOpen(false); handleEdit(currentVisa); }}>
-                编辑
+            {(currentVisa?.status === '已提交' || currentVisa?.status === '已签字') && (
+              <Button onClick={() => { setViewDialogOpen(false); handleReview(currentVisa); }} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+                {currentVisa.status === '已提交' ? '确认签字' : '商务确认'}
               </Button>
             )}
-            {/* 审核通过状态：可以结算 */}
-            {currentVisa?.status === '审核通过' && (
+            {currentVisa?.status === '待预算员确认' && (
               <Button onClick={() => { setViewDialogOpen(false); handleSettle(currentVisa); }} style={{ background: 'linear-gradient(135deg, #00B42A 0%, #23AF41 100%)' }}>
-                确认结算
+                确认完成
               </Button>
             )}
           </DialogFooter>
@@ -2108,11 +2233,13 @@ export default function VisasPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 审核对话框 */}
+      {/* 流转确认对话框 */}
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>审核签证</DialogTitle>
+            <DialogTitle style={{ color: '#1D2129' }}>
+              {currentVisa?.status === '已签字' ? '确认甲方商务' : '确认工程部签字'}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 rounded-lg" style={{ background: '#F7F8FA' }}>
@@ -2123,12 +2250,17 @@ export default function VisasPage() {
                 ¥{currentVisa ? parseFloat(currentVisa.visa_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '0.00'}
               </p>
             </div>
+            {currentVisa?.status === '已提交' && (
+              <div className="text-sm rounded-lg p-3" style={{ background: '#FFF7E8', color: '#AD5A00' }}>
+                请确认已上传甲方工程部签字后的最新附件。该附件会替换原始附件，作为后续商务确认依据。
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>审核备注（可选）</Label>
+              <Label>流转备注（可选）</Label>
               <Textarea
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="输入审核备注"
+                placeholder="输入本次办理说明"
                 rows={3}
               />
             </div>
@@ -2138,7 +2270,7 @@ export default function VisasPage() {
               驳回
             </Button>
             <Button onClick={handleApprove} disabled={saving} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
-              {saving ? '处理中...' : '审核通过'}
+              {saving ? '处理中...' : (currentVisa?.status === '已签字' ? '提交预算员确认' : '确认已签字')}
             </Button>
           </DialogFooter>
         </DialogContent>

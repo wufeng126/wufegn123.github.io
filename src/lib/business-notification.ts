@@ -123,6 +123,7 @@ export async function pushBusinessNotification(params: {
         'client_payment_reminder_enabled',
         'supplier_payment_reminder_enabled',
         'cost_warning_enabled',
+        'visa_reminder_enabled',
       ]);
 
     const typeEnabledMap: Record<string, boolean> = {};
@@ -140,6 +141,7 @@ export async function pushBusinessNotification(params: {
     if (type === 'cost_warning' && typeEnabledMap['cost_warning_enabled']) shouldSend = true;
     if (type === 'monthly_analysis_workflow' && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
     if (type === 'construction_log_alert' && (typeEnabledMap['cost_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
+    if (['visa_workflow', 'visa_workflow_overdue'].includes(type) && (typeEnabledMap['visa_reminder_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
 
     const { data: dingtalkEnabled } = await supabase
       .from('notification_settings')

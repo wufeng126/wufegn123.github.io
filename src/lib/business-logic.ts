@@ -6,6 +6,17 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // ========== 通用工具 ==========
 
+export const VISA_DONE_STATUSES = ['已完成', '已结算', '已完结', '已签回', 'approved'] as const;
+export const VISA_ACTIVE_STATUSES = ['已提交', '已签字', '待预算员确认', '待办理'] as const;
+
+export function isVisaDoneStatus(status?: string | null) {
+  return VISA_DONE_STATUSES.includes(status as (typeof VISA_DONE_STATUSES)[number]);
+}
+
+export function isVisaActiveStatus(status?: string | null) {
+  return VISA_ACTIVE_STATUSES.includes(status as (typeof VISA_ACTIVE_STATUSES)[number]);
+}
+
 /** 安全解析 numeric 类型 */
 export function parseNumeric(value: any): number {
   if (value === null || value === undefined) return 0;
@@ -559,12 +570,12 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
     untaxedIncome += taxInfo.untaxedIncome;
   });
 
-  // 2. 签证（仅已签回的）
+  // 2. 签证（仅已完成的）
   const { data: visas } = await client
     .from('visas')
     .select('visa_amount')
     .eq('project_id', projectId)
-    .eq('status', '已签回');
+    .in('status', [...VISA_DONE_STATUSES]);
 
   const visaAmount = (visas || []).reduce((sum: number, v: any) => sum + parseNumeric(v.visa_amount), 0);
 
