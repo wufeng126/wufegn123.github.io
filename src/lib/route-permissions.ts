@@ -65,6 +65,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/construction-logs/stats': { permission: 'projects:view' },
   '/api/construction-logs/risks': { permission: 'projects:view' },
   '/api/construction-logs/ocr': { permission: 'projects:view' },
+  '/api/construction-daily-reports': { permission: 'projects:view' },
   '/api/cost-estimation': { permission: 'projects:view' },
   '/api/cost-estimation/stats': { permission: 'projects:view' },
   '/api/cost-estimation/work-types': { permission: 'projects:view' },
@@ -81,6 +82,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/supplier-expense': { permission: 'suppliers:view' },
   '/business-analysis': { permission: 'cost_center:view' },
   '/construction-logs': {},
+  '/construction-daily-reports': { permission: 'projects:view' },
   '/cost-estimation': {},
   '/knowledge': {},
   '/system-management': { permission: 'system:manage' },
@@ -202,6 +204,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
 
   // 施工日志
   '/api/construction-logs': 'construction_logs:edit',
+  '/api/construction-daily-reports/generate': 'construction_logs:edit',
   '/api/ai/knowledge/monthly/workflow': 'knowledge_base:approval',
 
   // 投标测算

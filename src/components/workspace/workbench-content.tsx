@@ -9,6 +9,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronRight,
+  ClipboardCheck,
   FileCheck2,
   FilePlus2,
   FileSearch,
@@ -50,8 +51,9 @@ type QuickEntry = {
 
 const quickEntries: QuickEntry[] = [
   { title: '拍照录施工日志', desc: '手写日志拍照识别', href: '/construction-logs/scan', icon: Camera, tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
-  { title: '新建施工日志', desc: '手动补录当天日志', href: '/construction-logs/new', icon: PenSquare, tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
+  { title: '新建施工日志', desc: '按时提交每日日志', href: '/construction-logs/new', icon: PenSquare, tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
   { title: '查看我的日志', desc: '查看已提交和待确认日志', href: '/construction-logs?tab=logs&mine=1', icon: FileSearch, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
+  { title: '项目日报汇总', desc: '查看每日公司总览和项目明细', href: '/construction-daily-reports', icon: ClipboardCheck, tone: 'bg-teal-50 text-teal-700 ring-teal-100' },
   { title: '月报填报', desc: '整理本月施工进展', href: '/reports/monthly', icon: FileText, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   { title: '签证办理', desc: '提交、跟进、查看签证资料', href: '/visas', icon: FileCheck2, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
   { title: '工资查询', desc: '查看工资记录和发放状态', href: '/workers/query', icon: WalletCards, tone: 'bg-violet-50 text-violet-700 ring-violet-100' },

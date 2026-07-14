@@ -10,6 +10,7 @@ type LogStatRow = {
   user_id: number;
   user_name: string | null;
   log_date: string;
+  daily_group_id?: string | null;
   content?: string | null;
   issues?: string | null;
 };
@@ -17,6 +18,7 @@ type LogStatRow = {
 type UserLogStats = {
   name: string;
   count: number;
+  submissionKeys: Set<string>;
   submittedDays: Set<string>;
   lastDate: string;
   riskCount: number;
@@ -113,7 +115,7 @@ export async function GET(request: NextRequest) {
     const { data: projectRows, error: projectError } = await projectsQuery;
     if (projectError) throw new Error(projectError.message);
 
-    let query = supabase.from('construction_logs').select('project_id, user_id, user_name, log_date, content, issues');
+    let query = supabase.from('construction_logs').select('project_id, user_id, user_name, log_date, daily_group_id, content, issues');
     if (parsedProjectId) query = query.eq('project_id', parsedProjectId);
     else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
     if (dateFrom) query = query.gte('log_date', dateFrom);
@@ -161,6 +163,7 @@ export async function GET(request: NextRequest) {
         stats[key] = {
           name: row.user_name || `用户${row.user_id}`,
           count: 0,
+          submissionKeys: new Set<string>(),
           submittedDays: new Set<string>(),
           lastDate: '',
           riskCount: 0,
@@ -180,7 +183,8 @@ export async function GET(request: NextRequest) {
           highRiskCount: 0,
         };
       }
-      stats[key].count++;
+      stats[key].submissionKeys.add(row.daily_group_id || row.log_date);
+      stats[key].count = stats[key].submissionKeys.size;
       stats[key].submittedDays.add(row.log_date);
       if (row.log_date > stats[key].lastDate) stats[key].lastDate = row.log_date;
       projectStats[projectKey].count++;

@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RotateCcw, Send } from 'lucide-react';
+import { getDefaultConstructionLogDate } from '@/lib/construction-log-deadline';
 
 type Project = { id: number | string; name: string };
 type RecognizedFile = { name: string; size: number; storageKey?: string; textLength?: number };
@@ -12,7 +13,7 @@ export default function ConstructionLogScanPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState('');
-  const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10));
+  const [logDate, setLogDate] = useState(getDefaultConstructionLogDate());
   const [location, setLocation] = useState('');
   const [content, setContent] = useState('');
   const [headcount, setHeadcount] = useState('');
@@ -105,6 +106,7 @@ export default function ConstructionLogScanPage() {
           content: content.trim(),
           headcount,
           issues,
+          source_type: 'ocr',
         }),
       });
       const json = await res.json();

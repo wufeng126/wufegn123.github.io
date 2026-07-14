@@ -29,6 +29,7 @@ type LogItem = {
   headcount: number;
   issues: string;
   created_at: string;
+  submission_status?: 'normal' | 'late' | null;
   risk_type?: RiskType | null;
   risk_types?: RiskType[];
   risk_level?: RiskLevel | null;
@@ -474,6 +475,13 @@ export default function ConstructionLogsPage() {
                   <span className="h-3 w-px bg-[#E5E6EB]" />
                   <span>{log.log_date}</span>
                   <span>{log.user_name}</span>
+                  <span className={`rounded-full px-2 py-0.5 ${
+                    log.submission_status === 'late'
+                      ? 'bg-[#FFF7E8] text-[#D46B08]'
+                      : 'bg-[#E8FFEA] text-[#047857]'
+                  }`}>
+                    {log.submission_status === 'late' ? '逾期补交' : '正常提交'}
+                  </span>
                   {log.location && <span>{log.location}</span>}
                 </div>
                 <p className="text-sm text-[#1D2129]">{log.content}</p>

@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
 import {
   buildRiskKnowledgeContent,
   buildRiskKnowledgeTags,
@@ -12,6 +15,126 @@ import {
   getRiskTypeLabel,
 } from '@/lib/construction-log-risk';
 import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
+
+type ConstructionLogDraft = {
+  project_id: number;
+  location?: string | null;
+  content: string;
+  headcount?: number | string | null;
+  issues?: string | null;
+};
+
+type ConstructionLogPayload = Record<string, unknown>;
+
+type InsertedConstructionLogRow = {
+  id: number;
+};
+
+function asPayload(value: unknown): ConstructionLogPayload {
+  return value && typeof value === 'object' ? value as ConstructionLogPayload : {};
+}
+
+function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[] {
+  if (Array.isArray(body.project_logs)) {
+    return body.project_logs
+      .map((item) => {
+        const payload = asPayload(item);
+        return {
+          project_id: Number(payload.project_id),
+          location: payload.location ? String(payload.location) : null,
+          content: String(payload.content || '').trim(),
+          headcount: typeof payload.headcount === 'number' || typeof payload.headcount === 'string'
+            ? payload.headcount
+            : null,
+          issues: payload.issues ? String(payload.issues) : null,
+        };
+      })
+      .filter((item: ConstructionLogDraft) => item.project_id && item.content);
+  }
+
+  return [{
+    project_id: Number(body.project_id),
+    location: body.location ? String(body.location) : null,
+    content: String(body.content || '').trim(),
+    headcount: typeof body.headcount === 'number' || typeof body.headcount === 'string' ? body.headcount : null,
+    issues: body.issues ? String(body.issues) : null,
+  }].filter((item) => item.project_id && item.content);
+}
+
+function toNullableHeadcount(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function createRiskSideEffects(
+  supabase: SupabaseClient,
+  data: InsertedConstructionLogRow | null,
+  draft: ConstructionLogDraft,
+  logDate: string,
+  userId?: number,
+) {
+  const risk = detectConstructionLogRisk({ content: draft.content, issues: draft.issues || '' });
+  if (!data || !risk.hasRisk) return;
+
+  const { data: proj } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', draft.project_id)
+    .single();
+  const projName = (proj as { name?: string } | null)?.name || `项目${draft.project_id}`;
+  const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
+  const levelLabel = getRiskLevelLabel(risk.level);
+  const knowledgeContent = buildRiskKnowledgeContent({
+    projectName: projName,
+    projectId: String(draft.project_id),
+    logId: data.id,
+    logDate,
+    location: draft.location || '',
+    content: draft.content,
+    issues: draft.issues || '',
+    risk,
+  });
+
+  const insertDoc: Record<string, unknown> = {
+    title: `${projName} ${logDate || ''} 施工日志 - ${typeLabel}${levelLabel ? `(${levelLabel})` : ''}`,
+    category: risk.types.includes('cost') ? '成本分析' : risk.types.includes('visa') ? '签证' : '经验总结',
+    source_type: 'construction_log',
+    source_ref: `cl:${data.id}`,
+    tags: buildRiskKnowledgeTags({ projectId: String(draft.project_id), projectName: projName, logDate, risk }),
+    content: knowledgeContent,
+    status: 'active',
+  };
+  if (userId) insertDoc.created_by = userId;
+
+  await supabase.from('ai_knowledge_docs').insert(insertDoc);
+
+  const recipients = await getProjectBudgetRecipients(supabase, draft.project_id);
+  const targetNames = formatRecipientNames(recipients);
+
+  const { pushBusinessNotification } = await import('@/lib/business-notification');
+  await pushBusinessNotification({
+    type: 'construction_log_alert',
+    title: `${projName} 施工日志识别到${typeLabel}风险`,
+    content: `${logDate || ''} ${risk.summary}。${risk.recommendation}`,
+    severity: risk.level === 'high' ? 'danger' : 'warning',
+    projectId: draft.project_id,
+    relatedId: data.id,
+    relatedType: 'construction_log',
+    recipientUserIds: recipients.map((recipient) => recipient.id),
+    recipientRole: 'budget',
+    metadata: {
+      targetRole: 'budget',
+      targetUserIds: recipients.map((recipient) => recipient.id),
+      targetNames,
+      fallbackToAdmin: recipients.length === 0,
+      targetLabel: '项目预算员',
+      riskTypes: risk.types,
+    riskLevel: risk.level,
+      matchedKeywords: risk.matchedKeywords,
+    },
+  });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,100 +194,76 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const user = auth.user;
-    const body = await request.json();
-    const { project_id, log_date, location, content, headcount, issues } = body;
+    const body = asPayload(await request.json());
+    const log_date = typeof body.log_date === 'string' ? body.log_date : '';
+    const drafts = normalizeLogDrafts(body);
 
-    if (!project_id || !log_date || !content) {
+    if (!log_date || drafts.length === 0) {
       return apiBadRequest('项目、日期和施工内容不能为空');
+    }
+
+    const uniqueProjectIds = Array.from(new Set(drafts.map((draft) => draft.project_id)));
+    if (uniqueProjectIds.length !== drafts.length) {
+      return apiBadRequest('同一份施工日志中不能重复选择同一个项目');
+    }
+
+    const submissionWindow = getConstructionLogSubmissionWindow(log_date);
+    if (!submissionWindow.allowed || !submissionWindow.submissionStatus) {
+      return apiBadRequest(submissionWindow.message);
     }
 
     const supabase = getSupabaseClient();
     const accessibleProjectIds = await getAccessibleProjectIds(supabase, user);
-    const parsedProjectId = parseInt(project_id, 10);
-    if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
-      return apiForbidden('无权提交该项目施工日志');
+    if (Array.isArray(accessibleProjectIds)) {
+      const forbiddenProject = uniqueProjectIds.find((projectId) => !accessibleProjectIds.includes(projectId));
+      if (forbiddenProject) return apiForbidden('无权提交该项目施工日志');
     }
+
+    const { data: existingLog, error: existingError } = await supabase
+      .from('construction_logs')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('log_date', log_date)
+      .limit(1);
+
+    if (existingError) throw new Error(existingError.message);
+    if (existingLog && existingLog.length > 0) {
+      return apiBadRequest('当天施工日志已提交。如需调整，请先在日志详情中修改原记录。');
+    }
+
+    const dailyGroupId = randomUUID();
+    const submittedAt = new Date().toISOString();
+    const sourceType = body.source_type === 'ocr' ? 'ocr' : 'manual';
+    const insertRows = drafts.map((draft) => ({
+      project_id: draft.project_id,
+      user_id: user?.id || 0,
+      user_name: user?.name || user?.username || '未知',
+      log_date,
+      location: draft.location || null,
+      content: draft.content,
+      headcount: toNullableHeadcount(draft.headcount),
+      issues: draft.issues || null,
+      daily_group_id: dailyGroupId,
+      submission_status: submissionWindow.submissionStatus,
+      submitted_at: submittedAt,
+      source_type: sourceType,
+    }));
 
     const { data, error } = await supabase
       .from('construction_logs')
-      .insert({
-        project_id: parsedProjectId,
-        user_id: user?.id || 0,
-        user_name: user?.name || user?.username || '未知',
-        log_date,
-        location: location || null,
-        content,
-        headcount: headcount ? parseInt(headcount) : null,
-        issues: issues || null,
-      })
-      .select()
-      .single();
+      .insert(insertRows)
+      .select();
 
     if (error) throw new Error(error.message);
 
-    const risk = detectConstructionLogRisk({ content, issues });
-
-    if (data && risk.hasRisk) {
-      const { data: proj } = await supabase
-        .from('projects')
-        .select('name')
-        .eq('id', parsedProjectId)
-        .single();
-      const projName = (proj as { name?: string } | null)?.name || `项目${project_id}`;
-      const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
-      const levelLabel = getRiskLevelLabel(risk.level);
-      const knowledgeContent = buildRiskKnowledgeContent({
-        projectName: projName,
-        projectId: project_id,
-        logId: data.id,
-        logDate: log_date,
-        location,
-        content,
-        issues,
-        risk,
-      });
-
-      const insertDoc: Record<string, unknown> = {
-        title: `${projName} ${log_date || ''} 施工日志 - ${typeLabel}${levelLabel ? `(${levelLabel})` : ''}`,
-        category: risk.types.includes('cost') ? '成本分析' : risk.types.includes('visa') ? '签证' : '经验总结',
-        source_type: 'construction_log',
-        source_ref: `cl:${data.id}`,
-        tags: buildRiskKnowledgeTags({ projectId: project_id, projectName: projName, logDate: log_date, risk }),
-        content: knowledgeContent,
-        status: 'active',
-      };
-      if (user?.id) insertDoc.created_by = user.id;
-
-      await supabase.from('ai_knowledge_docs').insert(insertDoc);
-
-      const recipients = await getProjectBudgetRecipients(supabase, parsedProjectId);
-      const targetNames = formatRecipientNames(recipients);
-
-      const { pushBusinessNotification } = await import('@/lib/business-notification');
-      await pushBusinessNotification({
-        type: 'construction_log_alert',
-        title: `${projName} 施工日志识别到${typeLabel}风险`,
-        content: `${log_date || ''} ${risk.summary}。${risk.recommendation}`,
-        severity: risk.level === 'high' ? 'danger' : 'warning',
-        projectId: parsedProjectId,
-        relatedId: data.id,
-        relatedType: 'construction_log',
-        recipientUserIds: recipients.map((recipient) => recipient.id),
-        recipientRole: 'budget',
-        metadata: {
-          targetRole: 'budget',
-          targetUserIds: recipients.map((recipient) => recipient.id),
-          targetNames,
-          fallbackToAdmin: recipients.length === 0,
-          targetLabel: '项目预算员',
-          riskTypes: risk.types,
-          riskLevel: risk.level,
-          matchedKeywords: risk.matchedKeywords,
-        },
-      });
+    const insertedRows = data || [];
+    for (let index = 0; index < insertedRows.length; index += 1) {
+      await createRiskSideEffects(supabase, insertedRows[index], drafts[index], log_date, user?.id);
     }
 
-    return apiSuccess(enrichConstructionLog(data));
+    const enrichedRows = insertedRows.map(enrichConstructionLog);
+    const isMultiProject = Array.isArray(body.project_logs);
+    return apiSuccess(isMultiProject ? enrichedRows : enrichedRows[0]);
   } catch (e: unknown) {
     return apiServerError(getErrorMessage(e, '提交失败'));
   }
