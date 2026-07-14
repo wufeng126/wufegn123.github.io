@@ -107,8 +107,8 @@ export default function ProjectDetailPage() {
         }
         setProject(data.project || null);
         setStats(data.stats || null);
-      } catch (err: any) {
-        setError(err.message || '获取项目详情失败');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : '获取项目详情失败');
       } finally {
         setLoading(false);
       }
@@ -145,16 +145,6 @@ export default function ProjectDetailPage() {
         color: 'text-blue-700',
         bg: 'bg-blue-50',
         border: 'border-blue-100',
-      },
-      {
-        title: '限价',
-        desc: '查看和维护项目分项限价标准',
-        href: `/project-center?tab=limit-prices&project_id=${encodedProjectId}`,
-        value: '进入维护',
-        icon: Target,
-        color: 'text-violet-700',
-        bg: 'bg-violet-50',
-        border: 'border-violet-100',
       },
       {
         title: '签证',
@@ -291,7 +281,7 @@ export default function ProjectDetailPage() {
           <h2 className="text-base font-semibold text-gray-900">业务办理入口</h2>
           <p className="text-xs text-gray-500 mt-1">详情页只做项目导航，不把工程量、签证、结算和回款明细混在档案页里。</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {businessEntries.map((entry) => {
             const Icon = entry.icon;
             return (

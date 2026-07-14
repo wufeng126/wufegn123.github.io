@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -139,7 +139,7 @@ export default function ConstructionLogsPage() {
   const [actionBusy, setActionBusy] = useState<number | null>(null);
   const [message, setMessage] = useState('');
 
-  async function loadBase() {
+  const loadBase = useCallback(async function loadBase() {
     setLoading(true);
     try {
       let userFilter = '';
@@ -160,16 +160,22 @@ export default function ConstructionLogsPage() {
       const projJson = await projRes.json();
       setLogs(Array.isArray(logJson.data) ? logJson.data : []);
       setStats(Array.isArray(statsJson.data) ? statsJson.data : []);
-      setProjectStats(Array.isArray(statsJson.project_stats) ? statsJson.project_stats : []);
+      setProjectStats(
+        Array.isArray(statsJson.project_stats)
+          ? statsJson.project_stats
+          : Array.isArray(statsJson.meta?.project_stats)
+            ? statsJson.meta.project_stats
+            : [],
+      );
       setProjects(Array.isArray(projJson.projects) ? projJson.projects : []);
     } catch {
       setMessage('施工日志数据加载失败，请稍后重试');
     } finally {
       setLoading(false);
     }
-  }
+  }, [mineOnly, month, statsProjectId]);
 
-  async function loadRisks() {
+  const loadRisks = useCallback(async function loadRisks() {
     setRiskLoading(true);
     try {
       const params = new URLSearchParams({ pageSize: '200' });
@@ -182,15 +188,21 @@ export default function ConstructionLogsPage() {
     } finally {
       setRiskLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadBase();
-  }, [month, mineOnly, statsProjectId]);
-
-  useEffect(() => {
-    loadRisks();
   }, [riskStatus]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadBase();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadBase]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadRisks();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadRisks]);
 
   const projectNameById = useMemo(() => {
     const map = new Map<number, string>();
