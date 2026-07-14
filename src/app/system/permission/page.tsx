@@ -2,7 +2,6 @@
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -50,11 +49,13 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
-  X,
   RefreshCw,
   UserCog,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  PROJECT_ROLE_OPTIONS,
+  type ProjectRoleCode,
+} from '@/lib/user-project-roles';
 
 // 权限菜单结构（按新导航6大模块分组）
 // 权限编码统一格式: {resource}:{action}
@@ -232,8 +233,27 @@ interface Project {
   name: string;
 }
 
+type ProjectRoleMap = Record<number, Record<number, ProjectRoleCode[]>>;
+
+interface ProjectRoleAssignment {
+  user_id: number;
+  project_id: number;
+  role_codes: ProjectRoleCode[];
+}
+
+function buildProjectRoleMap(assignments: ProjectRoleAssignment[]): ProjectRoleMap {
+  return assignments.reduce<ProjectRoleMap>((acc, assignment) => {
+    const userId = Number(assignment.user_id);
+    const projectId = Number(assignment.project_id);
+    if (!Number.isInteger(userId) || !Number.isInteger(projectId)) return acc;
+
+    acc[userId] = acc[userId] || {};
+    acc[userId][projectId] = assignment.role_codes || [];
+    return acc;
+  }, {});
+}
+
 export default function PermissionCenterPage() {
-  const router = useRouter();
   const { toast } = useToast();
   
   // 状态
@@ -242,6 +262,7 @@ export default function PermissionCenterPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [userProjectRoles, setUserProjectRoles] = useState<ProjectRoleMap>({});
   
   // 角色对话框
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
@@ -261,22 +282,25 @@ export default function PermissionCenterPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingUserRoles, setEditingUserRoles] = useState<number[]>([]);
   const [editingUserProjects, setEditingUserProjects] = useState<number[]>([]);
+  const [editingProjectRoles, setEditingProjectRoles] = useState<Record<number, ProjectRoleCode[]>>({});
 
   // 加载数据
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       // 并行加载角色和用户
-      const [rolesRes, usersRes, projectsRes] = await Promise.all([
+      const [rolesRes, usersRes, projectsRes, projectRolesRes] = await Promise.all([
         fetch('/api/system/permission/roles'),
         fetch('/api/system/permission/users'),
         fetch('/api/projects').catch(() => ({ ok: false, json: async () => ({ projects: [] }) })),
+        fetch('/api/system/permission/user-project-roles').catch(() => ({ ok: false, json: async () => ({ assignments: [] }) })),
       ]);
       
-      const [rolesData, usersData, projectsData] = await Promise.all([
+      const [rolesData, usersData, projectsData, projectRolesData] = await Promise.all([
         rolesRes.json(),
         usersRes.json(),
         projectsRes.json(),
+        projectRolesRes.json(),
       ]);
       
       if (rolesData.success) {
@@ -290,6 +314,10 @@ export default function PermissionCenterPage() {
       if (projectsData.projects) {
         setProjects(projectsData.projects);
       }
+
+      if (projectRolesData.success || projectRolesData.assignments) {
+        setUserProjectRoles(buildProjectRoleMap(projectRolesData.assignments || []));
+      }
     } catch {
       // 静默处理错误
       toast({ title: '加载失败', description: '数据加载失败，请刷新重试', variant: 'error' });
@@ -299,7 +327,11 @@ export default function PermissionCenterPage() {
   }, [toast]);
 
   useEffect(() => {
-    loadData();
+    const timer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadData]);
 
   // 初始化权限数据
@@ -313,7 +345,7 @@ export default function PermissionCenterPage() {
       } else {
         toast({ title: '初始化失败', description: data.error, variant: 'error' });
       }
-    } catch (error) {
+    } catch {
       toast({ title: '初始化失败', description: '网络错误', variant: 'error' });
     }
   };
@@ -370,7 +402,7 @@ export default function PermissionCenterPage() {
           setSelectedPermissions(data.role.permissions || []);
           setSelectedProjects(data.role.allowed_projects || []);
         }
-      } catch (error) {
+      } catch {
         toast({ title: '获取角色详情失败', variant: 'error' });
         return;
       }
@@ -393,7 +425,15 @@ export default function PermissionCenterPage() {
     try {
       let url = '/api/system/permission/roles';
       let method = 'POST';
-      let body: any = {
+      let body: {
+        id?: number;
+        name: string;
+        code: string;
+        description: string;
+        level: number;
+        permission_codes: string[];
+        allowed_projects: number[];
+      } = {
         name: roleForm.name,
         code: roleForm.code || `role_${Date.now()}`,
         description: roleForm.description,
@@ -427,7 +467,7 @@ export default function PermissionCenterPage() {
       toast({ title: '保存成功', description: `角色 "${roleForm.name}" 已保存` });
       setRoleDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch {
       toast({ title: '保存失败', description: '网络错误，请重试', variant: 'error' });
     }
   };
@@ -448,16 +488,73 @@ export default function PermissionCenterPage() {
       }
       toast({ title: '删除成功', description: `角色 "${role.name}" 已删除` });
       loadData();
-    } catch (error) {
+    } catch {
       toast({ title: '删除失败', description: '网络错误', variant: 'error' });
     }
   };
 
   // 用户角色分配
+  const getUserProjectRoleSummary = (userId: number) => {
+    const rolesByProject = userProjectRoles[userId] || {};
+    const counts = PROJECT_ROLE_OPTIONS.reduce((acc, option) => {
+      acc[option.code] = 0;
+      return acc;
+    }, {} as Record<ProjectRoleCode, number>);
+
+    Object.values(rolesByProject).forEach((roleCodes) => {
+      roleCodes.forEach((roleCode) => {
+        counts[roleCode] += 1;
+      });
+    });
+
+    const summary = PROJECT_ROLE_OPTIONS
+      .map((option) => (counts[option.code] > 0 ? `${option.label}${counts[option.code]}` : ''))
+      .filter(Boolean)
+      .join('、');
+
+    return summary || '未配置';
+  };
+
+  const setEditingUserProjectChecked = (projectId: number, checked: boolean) => {
+    if (checked) {
+      setEditingUserProjects((prev) => Array.from(new Set([...prev, projectId])));
+      return;
+    }
+
+    setEditingUserProjects((prev) => prev.filter((id) => id !== projectId));
+    setEditingProjectRoles((prev) => {
+      const next = { ...prev };
+      delete next[projectId];
+      return next;
+    });
+  };
+
+  const toggleEditingProjectRole = (projectId: number, roleCode: ProjectRoleCode, checked: boolean) => {
+    setEditingProjectRoles((prev) => {
+      const current = prev[projectId] || [];
+      const nextCodes = checked
+        ? Array.from(new Set([...current, roleCode]))
+        : current.filter((code) => code !== roleCode);
+
+      return {
+        ...prev,
+        [projectId]: nextCodes,
+      };
+    });
+  };
+
   const openUserRoleDialog = (user: User) => {
     setEditingUser(user);
     setEditingUserRoles(user.role_ids || []);
     setEditingUserProjects(user.allowed_projects || []);
+    setEditingProjectRoles(
+      Object.fromEntries(
+        Object.entries(userProjectRoles[user.id] || {}).map(([projectId, roleCodes]) => [
+          Number(projectId),
+          [...roleCodes],
+        ])
+      )
+    );
     setUserRoleDialogOpen(true);
   };
 
@@ -481,10 +578,30 @@ export default function PermissionCenterPage() {
         return;
       }
 
-      toast({ title: '保存成功', description: `用户 "${editingUser.name}" 的角色已更新` });
+      const projectRoleAssignments = editingUserProjects.map((projectId) => ({
+        project_id: projectId,
+        role_codes: editingProjectRoles[projectId] || [],
+      }));
+
+      const projectRolesRes = await fetch('/api/system/permission/user-project-roles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: editingUser.id,
+          assignments: projectRoleAssignments,
+        }),
+      });
+
+      const projectRolesData = await projectRolesRes.json();
+      if (!projectRolesData.success) {
+        toast({ title: '项目身份保存失败', description: projectRolesData.error, variant: 'error' });
+        return;
+      }
+
+      toast({ title: '保存成功', description: `用户 "${editingUser.name}" 的角色和项目身份已更新` });
       setUserRoleDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch {
       toast({ title: '保存失败', description: '网络错误', variant: 'error' });
     }
   };
@@ -836,7 +953,9 @@ export default function PermissionCenterPage() {
                       <Checkbox
                         checked={isModuleAllChecked(module)}
                         ref={(el) => {
-                          if (el) (el as any).indeterminate = isModuleIndeterminate(module);
+                          if (el) {
+                            (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = isModuleIndeterminate(module);
+                          }
                         }}
                         onCheckedChange={(checked) => toggleModulePermissions(module, !!checked)}
                       />
@@ -876,7 +995,7 @@ export default function PermissionCenterPage() {
 
       {/* 用户角色分配对话框 */}
       <Dialog open={userRoleDialogOpen} onOpenChange={setUserRoleDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>分配角色</DialogTitle>
             <DialogDescription>
@@ -929,19 +1048,60 @@ export default function PermissionCenterPage() {
                         <Checkbox
                           id={`up-${project.id}`}
                           checked={editingUserProjects.includes(project.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setEditingUserProjects([...editingUserProjects, project.id]);
-                            } else {
-                              setEditingUserProjects(editingUserProjects.filter((id) => id !== project.id));
-                            }
-                          }}
+                          onCheckedChange={(checked) => setEditingUserProjectChecked(project.id, !!checked)}
                         />
                         <Label htmlFor={`up-${project.id}`} className="cursor-pointer">
                           {project.name}
                         </Label>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <Label>项目内业务身份</Label>
+                {editingUser && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    当前配置：{getUserProjectRoleSummary(editingUser.id)}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  用于待办、提醒和后续钉钉推送；这里必须绑定到具体项目，不继承“全部项目可见”。
+                </p>
+              </div>
+              <div className="border rounded-lg p-3 max-h-64 overflow-y-auto">
+                {editingUserProjects.length === 0 ? (
+                  <p className="text-gray-400 text-sm">请先选择需要绑定身份的具体项目</p>
+                ) : (
+                  <div className="space-y-3">
+                    {projects
+                      .filter((project) => editingUserProjects.includes(project.id))
+                      .map((project) => (
+                        <div key={project.id} className="rounded-md border border-gray-100 p-3">
+                          <div className="text-sm font-medium text-gray-900 mb-2">{project.name}</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {PROJECT_ROLE_OPTIONS.map((option) => (
+                              <div key={option.code} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`project-role-${project.id}-${option.code}`}
+                                  checked={(editingProjectRoles[project.id] || []).includes(option.code)}
+                                  onCheckedChange={(checked) =>
+                                    toggleEditingProjectRole(project.id, option.code, !!checked)
+                                  }
+                                />
+                                <Label
+                                  htmlFor={`project-role-${project.id}-${option.code}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {option.label}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>

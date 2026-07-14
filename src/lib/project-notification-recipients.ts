@@ -1,4 +1,5 @@
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { getProjectRoleUserIds } from '@/lib/user-project-roles';
 
 type SupabaseLike = {
   from: (table: string) => {
@@ -117,6 +118,15 @@ export async function getProjectBudgetRecipients(
       managedProjectIds: parseManagedProjects(user.managed_projects),
     };
   });
+
+  const configuredBudgetUserIds = new Set(await getProjectRoleUserIds(client, projectId, 'budget'));
+  if (configuredBudgetUserIds.size > 0) {
+    const configuredBudgetUsers = activeUsers
+      .filter((user) => configuredBudgetUserIds.has(Number(user.id)))
+      .map((user) => user as NotificationRecipient);
+
+    if (configuredBudgetUsers.length > 0) return uniqRecipients(configuredBudgetUsers);
+  }
 
   const projectBudgetUsers = usersWithRoles
     .filter(({ user, roles, managedProjectIds }) =>

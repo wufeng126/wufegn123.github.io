@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { parseProjectIds } from '@/lib/visa-workflow';
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { getProjectRoleUserIds } from '@/lib/user-project-roles';
 
 type RoleRow = {
   id?: number;
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     const roleRows = (roles || []) as RoleRow[];
     const userRoleRows = (userRoles || []) as UserRoleRow[];
-    const managers = ((users || []) as UserRow[])
+    const activeUsersWithRoles = ((users || []) as UserRow[])
       .filter((user) => !user.is_disabled && user.role !== 'pending')
       .map((user) => {
         const relatedRoles = userRoleRows
@@ -69,9 +70,19 @@ export async function GET(request: NextRequest) {
           managed_project_ids: parseProjectIds(user.managed_projects),
           roles: relatedRoles,
         };
-      })
-      .filter((user) => isProjectManager(user, user.roles))
-      .filter((user) => !projectId || user.managed_project_ids.length === 0 || user.managed_project_ids.includes(projectId))
+      });
+
+    const configuredManagerIds = projectId
+      ? new Set(await getProjectRoleUserIds(client, projectId, 'project_manager'))
+      : new Set<number>();
+
+    const managerUsers = configuredManagerIds.size > 0
+      ? activeUsersWithRoles.filter((user) => configuredManagerIds.has(Number(user.id)))
+      : activeUsersWithRoles
+        .filter((user) => isProjectManager(user, user.roles))
+        .filter((user) => !projectId || user.managed_project_ids.length === 0 || user.managed_project_ids.includes(projectId));
+
+    const managers = managerUsers
       .map((user) => ({
         id: user.id,
         username: user.username,
