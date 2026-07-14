@@ -37,6 +37,19 @@ type CurrentUser = {
   role?: string;
   username?: string;
   name?: string;
+  dingtalk_name?: string;
+  is_super_admin?: boolean;
+};
+
+type AppUser = {
+  id: number;
+  username?: string | null;
+  name?: string | null;
+  dingtalk_name?: string | null;
+  dingtalkName?: string | null;
+  role?: string | null;
+  is_disabled?: boolean | null;
+  roles?: Array<{ name?: string | null; code?: string | null; level?: number | null }>;
 };
 
 type RelatedKnowledge = {
@@ -106,6 +119,17 @@ const qualityBadgeClasses: Record<string, string> = {
   标准经验: 'bg-[#E8FFEA] text-[#00A870]',
 };
 
+const workflowTagPrefixes = [
+  '发起预算员ID:',
+  '发起预算员:',
+  '项目经理ID:',
+  '项目经理:',
+  '老板ID:',
+  '老板:',
+  '当前负责人ID:',
+  '当前负责人:',
+];
+
 const actionByState: Partial<Record<WorkflowState, { action: WorkflowAction; label: string; placeholder: string }>> = {
   draft: {
     action: 'submit_to_manager',
@@ -143,6 +167,37 @@ function canUserHandleState(role: string | undefined, state: WorkflowState) {
   if (state === 'manager_review') return role === 'project_manager';
   if (state === 'boss_review') return role === 'boss';
   return false;
+}
+
+function getWorkflowTagValue(tags: string[], prefix: string) {
+  const tag = tags.find(item => item.startsWith(prefix));
+  return tag ? tag.slice(prefix.length).trim() : '';
+}
+
+function isWorkflowInternalTag(tag: string) {
+  return workflowTagPrefixes.some(prefix => tag.startsWith(prefix));
+}
+
+function getUserDisplayName(user: AppUser) {
+  return user.dingtalk_name || user.dingtalkName || user.name || user.username || `用户${user.id}`;
+}
+
+function userHasRole(user: AppUser, role: 'project_manager' | 'boss') {
+  if (user.role === role) return true;
+  return (user.roles || []).some(item => {
+    const code = String(item.code || '').toLowerCase();
+    const name = String(item.name || '');
+    if (role === 'project_manager') return code === 'project_manager' || name.includes('项目经理');
+    return code === 'boss' || name.includes('老板') || name.includes('总经理');
+  });
+}
+
+function canCurrentUserHandle(currentUser: CurrentUser | null, state: WorkflowState, currentOwnerId: string) {
+  if (!currentUser) return false;
+  if (currentUser.is_super_admin || currentUser.role === 'super_admin') return state !== 'completed';
+  if (!canUserHandleState(currentUser.role, state)) return false;
+  if (!currentOwnerId || state === 'draft') return true;
+  return String(currentUser.id || '') === currentOwnerId;
 }
 
 function canUserWithdraw(role: string | undefined, createdBy: string | number | null | undefined, currentUser?: CurrentUser | null) {
@@ -211,7 +266,8 @@ function getComparableTags(tags: string[]) {
   return tags.filter(tag => (
     !tag.startsWith('知识等级:') &&
     !tag.startsWith('状态:') &&
-    !tag.startsWith('月份:')
+    !tag.startsWith('月份:') &&
+    !isWorkflowInternalTag(tag)
   ));
 }
 
@@ -295,6 +351,8 @@ export default function KnowledgeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [selectedApprover, setSelectedApprover] = useState('');
   const [comment, setComment] = useState('');
   const [acting, setActing] = useState(false);
 
@@ -336,13 +394,22 @@ export default function KnowledgeDetailPage() {
       .then(u => { if (mounted) setCurrentUser(u?.data || u?.user || u); })
       .catch(() => {});
 
+    fetch('/api/auth/center/users')
+      .then(r => r.json())
+      .then(data => {
+        if (!mounted) return;
+        const list = Array.isArray(data.users) ? data.users : [];
+        setUsers(list.filter((item: AppUser) => item.username !== 'admin' && item.is_disabled !== true));
+      })
+      .catch(() => {});
+
     return () => {
       mounted = false;
     };
   }, [params.id]);
 
   const tags = useMemo(() => normalizeKnowledgeTags(doc?.tags), [doc?.tags]);
-  const visibleTags = useMemo(() => tags.filter(tag => !tag.startsWith('知识等级:')), [tags]);
+  const visibleTags = useMemo(() => tags.filter(tag => !tag.startsWith('知识等级:') && !isWorkflowInternalTag(tag)), [tags]);
   const categoryLabel = useMemo(() => getKnowledgeCategoryLabel(doc?.category, tags), [doc?.category, tags]);
   const quality = useMemo(() => getKnowledgeQuality(tags, doc?.source_type, doc?.category), [tags, doc?.source_type, doc?.category]);
   const sourceLabel = useMemo(() => getKnowledgeSourceLabel(doc?.source_type, doc?.source_ref, tags), [doc?.source_type, doc?.source_ref, tags]);
@@ -352,7 +419,14 @@ export default function KnowledgeDetailPage() {
   const reuseSuggestion = useMemo(() => getReuseSuggestion(doc?.content), [doc?.content]);
   const workflowState = useMemo(() => getWorkflowState(tags), [tags]);
   const isMonthly = useMemo(() => isMonthlyAnalysis(tags), [tags]);
-  const canAct = useMemo(() => canUserHandleState(currentUser?.role, workflowState), [currentUser?.role, workflowState]);
+  const workflowCurrentOwnerId = useMemo(() => getWorkflowTagValue(tags, '当前负责人ID:'), [tags]);
+  const workflowCurrentOwnerName = useMemo(() => getWorkflowTagValue(tags, '当前负责人:'), [tags]);
+  const projectManagerUsers = useMemo(() => users.filter(user => userHasRole(user, 'project_manager')), [users]);
+  const bossUsers = useMemo(() => users.filter(user => userHasRole(user, 'boss')), [users]);
+  const canAct = useMemo(
+    () => canCurrentUserHandle(currentUser, workflowState, workflowCurrentOwnerId),
+    [currentUser, workflowCurrentOwnerId, workflowState],
+  );
   const canWithdraw = useMemo(() => (
     isMonthly &&
     workflowState !== 'draft' &&
@@ -370,12 +444,19 @@ export default function KnowledgeDetailPage() {
 
   async function submitWorkflowAction(action: WorkflowAction | undefined) {
     if (!doc?.id || !action) return;
+    const needsApprover = action === 'submit_to_manager' || action === 'budget_confirm';
+    if (needsApprover && !selectedApprover) {
+      setError(action === 'submit_to_manager' ? '请选择项目经理后再提交' : '请选择老板后再提交');
+      return;
+    }
     setActing(true);
     try {
+      const payload: Record<string, string | number | undefined> = { knowledgeId: doc.id, action, comment };
+      if (needsApprover) payload.targetUserId = Number(selectedApprover);
       const res = await fetch('/api/ai/knowledge/monthly/workflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ knowledgeId: doc.id, action, comment }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '流程处理失败');
@@ -571,6 +652,49 @@ export default function KnowledgeDetailPage() {
             {isMonthly && canAct && (
               <div className="knowledge-card p-5">
                 <p className="text-sm font-medium text-[#171717]">{actionByState[workflowState]?.label}</p>
+                {workflowCurrentOwnerName ? (
+                  <p className="mt-1 text-xs text-[#8A8F98]">当前负责人：{workflowCurrentOwnerName}</p>
+                ) : null}
+                {workflowState === 'draft' ? (
+                  <label className="mt-3 block space-y-2">
+                    <span className="text-xs font-medium text-[#4E5969]">选择项目经理</span>
+                    <select
+                      value={selectedApprover}
+                      onChange={e => setSelectedApprover(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                    >
+                      <option value="">请选择项目经理</option>
+                      {projectManagerUsers.map(user => (
+                        <option key={user.id} value={user.id}>{getUserDisplayName(user)}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {workflowState === 'manager_review' ? (
+                  <p className="mt-3 rounded-lg bg-[#F0F5FF] px-3 py-2 text-xs leading-5 text-[#165DFF]">
+                    提交后会自动返回最初提交的预算员确认，无需手动选择下一步负责人。
+                  </p>
+                ) : null}
+                {workflowState === 'budget_confirm' ? (
+                  <label className="mt-3 block space-y-2">
+                    <span className="text-xs font-medium text-[#4E5969]">选择老板</span>
+                    <select
+                      value={selectedApprover}
+                      onChange={e => setSelectedApprover(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                    >
+                      <option value="">请选择老板</option>
+                      {bossUsers.map(user => (
+                        <option key={user.id} value={user.id}>{getUserDisplayName(user)}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {workflowState === 'boss_review' ? (
+                  <p className="mt-3 rounded-lg bg-[#FFF7E8] px-3 py-2 text-xs leading-5 text-[#D46B08]">
+                    批复完成后会提醒最初提交的预算员查看结果，流程进入已完成状态。
+                  </p>
+                ) : null}
                 <textarea
                   value={comment}
                   onChange={e => setComment(e.target.value)}
@@ -579,11 +703,17 @@ export default function KnowledgeDetailPage() {
                 />
                 <button
                   onClick={() => submitWorkflowAction(actionByState[workflowState]?.action)}
-                  disabled={acting}
+                  disabled={acting || ((workflowState === 'draft' || workflowState === 'budget_confirm') && !selectedApprover)}
                   className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
                 >
                   {acting ? '处理中...' : <><Send className="h-3.5 w-3.5" />{actionByState[workflowState]?.label}</>}
                 </button>
+                {workflowState === 'draft' && projectManagerUsers.length === 0 ? (
+                  <p className="mt-2 text-xs text-[#F53F3F]">当前没有可选项目经理，请先在权限中心分配项目经理角色。</p>
+                ) : null}
+                {workflowState === 'budget_confirm' && bossUsers.length === 0 ? (
+                  <p className="mt-2 text-xs text-[#F53F3F]">当前没有可选老板，请先在权限中心分配老板角色。</p>
+                ) : null}
               </div>
             )}
 

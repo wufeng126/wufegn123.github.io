@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, FileText, Loader2, RefreshCw, Save, ClipboardList, Plus } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, RefreshCw, Save, ClipboardList, Plus, Send } from 'lucide-react';
 
 type Project = {
   id: string | number;
@@ -45,6 +45,25 @@ type MonthlyRiskReminder = {
   workflow_status?: string;
 };
 
+type ConstructionLogBrief = {
+  log_date?: string;
+  user_name?: string;
+  location?: string;
+  content?: string;
+  issues?: string;
+};
+
+type AppUser = {
+  id: number;
+  username?: string | null;
+  name?: string | null;
+  dingtalk_name?: string | null;
+  dingtalkName?: string | null;
+  role?: string | null;
+  is_disabled?: boolean | null;
+  roles?: Array<{ name?: string | null; code?: string | null; level?: number | null }>;
+};
+
 const planOptions = ['报量', '结算', '签证', '单价谈判', '其他'];
 
 const riskLevelLabels: Record<string, string> = {
@@ -61,6 +80,20 @@ const riskTypeLabels: Record<string, string> = {
   safety: '安全',
   cost: '成本',
 };
+
+function getUserDisplayName(user: AppUser) {
+  return user.dingtalk_name || user.dingtalkName || user.name || user.username || `用户${user.id}`;
+}
+
+function userHasRole(user: AppUser, role: 'project_manager' | 'boss') {
+  if (user.role === role) return true;
+  return (user.roles || []).some(item => {
+    const code = String(item.code || '').toLowerCase();
+    const name = String(item.name || '');
+    if (role === 'project_manager') return code === 'project_manager' || name.includes('项目经理');
+    return code === 'boss' || name.includes('老板') || name.includes('总经理');
+  });
+}
 
 function getCurrentYearMonth() {
   const now = new Date();
@@ -155,9 +188,13 @@ ${experienceNote.trim() ? `## 经验随笔\n\n${experienceNote.trim()}\n` : ''}`
 
 export default function NewMonthlyKnowledgePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reportFromUrl = searchParams.get('from');
+  const reportMonth = searchParams.get('month');
+  const reportProject = searchParams.get('project');
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState('');
-  const [yearMonth, setYearMonth] = useState('');
+  const [projectId, setProjectId] = useState(reportProject && reportProject !== 'all' ? reportProject : '');
+  const [yearMonth, setYearMonth] = useState(reportFromUrl === 'report' && reportMonth ? reportMonth : getCurrentYearMonth());
   const [monthlyData, setMonthlyData] = useState<MonthlyData | null>(null);
   const [costException, setCostException] = useState('');
   const [upstreamDownstreamChange, setUpstreamDownstreamChange] = useState('');
@@ -169,7 +206,7 @@ export default function NewMonthlyKnowledgePage() {
   const [loadingData, setLoadingData] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedDocId, setSavedDocId] = useState<number | null>(null);
-  const [users, setUsers] = useState<{id:number;name:string;role:string}[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [selectedApprover, setSelectedApprover] = useState('');
   const [approveComment, setApproveComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -177,11 +214,13 @@ export default function NewMonthlyKnowledgePage() {
   // 加载用户列表（用于选择审批人）
   useEffect(() => {
     fetch('/api/auth/center/users').then(r => r.json()).then(d => {
-      if (d.users) setUsers(d.users.filter((u:any) => u.username !== 'admin'));
+      if (d.users) {
+        setUsers((d.users as AppUser[]).filter(user => user.username !== 'admin' && user.is_disabled !== true));
+      }
     }).catch(() => {});
   }, []);
   const [error, setError] = useState('');
-  const [constructionLogs, setConstructionLogs] = useState<any[]>([]);
+  const [constructionLogs, setConstructionLogs] = useState<ConstructionLogBrief[]>([]);
   const [tradeWages, setTradeWages] = useState<Record<string, number>>({});
   const [tradeWageTotal, setTradeWageTotal] = useState(0);
   const [reportItems, setReportItems] = useState<{name:string;qty:number;unit:string}[]>([]);
@@ -189,19 +228,7 @@ export default function NewMonthlyKnowledgePage() {
   const [monthlyRiskReminders, setMonthlyRiskReminders] = useState<MonthlyRiskReminder[]>([]);
   const [selectedMonthlyRiskIds, setSelectedMonthlyRiskIds] = useState<number[]>([]);
 
-  const searchParams = useSearchParams();
-  const reportFromUrl = searchParams.get('from');
-  const reportMonth = searchParams.get('month');
-  const reportProject = searchParams.get('project');
-
   useEffect(() => {
-    if (reportFromUrl === 'report' && reportMonth) {
-      setYearMonth(reportMonth);
-      if (reportProject && reportProject !== 'all') setProjectId(reportProject);
-    } else {
-      setYearMonth(getCurrentYearMonth());
-    }
-
     let mounted = true;
 
     async function loadProjects() {
@@ -213,8 +240,8 @@ export default function NewMonthlyKnowledgePage() {
         if (!mounted) return;
         setProjects(list);
         if (list.length > 0 && !(reportFromUrl === 'report' && reportProject)) setProjectId(String(list[0].id));
-      } catch (e: any) {
-        if (mounted) setError(e.message || '项目列表加载失败');
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : '项目列表加载失败');
       } finally {
         if (mounted) setLoadingProjects(false);
       }
@@ -229,11 +256,17 @@ export default function NewMonthlyKnowledgePage() {
     return () => {
       mounted = false;
     };
+  // 初始化页面时加载项目列表；URL 参数只用于首屏默认值。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectedProject = useMemo(
     () => projects.find(project => String(project.id) === projectId),
     [projects, projectId],
+  );
+  const projectManagerUsers = useMemo(
+    () => users.filter(user => userHasRole(user, 'project_manager')),
+    [users],
   );
 
   async function handleLoadData() {
@@ -281,10 +314,10 @@ export default function NewMonthlyKnowledgePage() {
       try {
         const logRes = await fetch(`/api/construction-logs?projectId=${projectId}`);
         const logJson = await logRes.json();
-        const allLogs = Array.isArray(logJson.data) ? logJson.data : [];
+        const allLogs = (Array.isArray(logJson.data) ? logJson.data : []) as ConstructionLogBrief[];
         const selectedProj = projects.find(p => String(p.id) === projectId);
         const projName = selectedProj?.name || '';
-        const filtered = allLogs.filter((l: any) => l.content?.includes(projName) || l.issues);
+        const filtered = allLogs.filter(log => log.content?.includes(projName) || log.issues);
         setConstructionLogs(filtered.slice(0, 8));
         setSelectedLogIndices([]);
       } catch { setConstructionLogs([]); }
@@ -298,9 +331,9 @@ export default function NewMonthlyKnowledgePage() {
         }
       } catch { /* ignore */ }
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       setMonthlyData(null);
-      setError(e.message || '月度数据加载失败');
+      setError(e instanceof Error ? e.message : '月度数据加载失败');
     } finally {
       setLoadingData(false);
     }
@@ -374,15 +407,19 @@ export default function NewMonthlyKnowledgePage() {
       }
       // 不再自动跳转，展示提交审批面板
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e: any) {
-      setError(e.message || '保存为知识失败');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '保存为知识失败');
     } finally {
       setSaving(false);
     }
   }
 
   async function handleSubmitWorkflow() {
-    if (!savedDocId || !selectedApprover) return;
+    if (!savedDocId) return;
+    if (!selectedApprover) {
+      setError('请选择项目经理后再提交');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch('/api/ai/knowledge/monthly/workflow', {
@@ -392,6 +429,7 @@ export default function NewMonthlyKnowledgePage() {
           knowledgeId: savedDocId,
           action: 'submit_to_manager',
           comment: approveComment,
+          targetUserId: Number(selectedApprover),
         }),
       });
       const json = await res.json();
@@ -401,8 +439,8 @@ export default function NewMonthlyKnowledgePage() {
       } else {
         setError(json.error || '提交审批失败');
       }
-    } catch (e: any) {
-      setError(e.message || '提交审批失败');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '提交审批失败');
     } finally {
       setSubmitting(false);
     }
@@ -775,6 +813,58 @@ export default function NewMonthlyKnowledgePage() {
               />
             </div>
           </section>
+
+          {savedDocId ? (
+            <section className="monthly-card border-[#DCE6FF] p-5">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#1D2129]">提交审批</p>
+                  <p className="mt-1 text-xs text-[#86909C]">请选择本项目经理，提交后会生成对方的站内提醒和待办。</p>
+                </div>
+                <span className="rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[#165DFF]">
+                  已保存为知识 #{savedDocId}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-[260px_minmax(0,1fr)_auto] md:items-end">
+                <label className="space-y-2">
+                  <span className="monthly-label">项目经理</span>
+                  <select
+                    value={selectedApprover}
+                    onChange={event => setSelectedApprover(event.target.value)}
+                    className="monthly-field h-11 px-3"
+                  >
+                    <option value="">请选择项目经理</option>
+                    {projectManagerUsers.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {getUserDisplayName(user)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="monthly-label">提交说明</span>
+                  <input
+                    value={approveComment}
+                    onChange={event => setApproveComment(event.target.value)}
+                    className="monthly-field h-11 px-3"
+                    placeholder="例如：请补充现场情况和下月风险点"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSubmitWorkflow}
+                  disabled={submitting || !selectedApprover}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  提交给项目经理
+                </button>
+              </div>
+              {projectManagerUsers.length === 0 ? (
+                <p className="mt-3 text-xs text-[#F53F3F]">当前没有可选项目经理，请先在权限中心给人员分配项目经理角色。</p>
+              ) : null}
+            </section>
+          ) : null}
 
           {error ? (
             <div className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">

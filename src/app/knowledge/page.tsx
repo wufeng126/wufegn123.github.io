@@ -81,6 +81,17 @@ const qualityColors: Record<string, string> = {
 
 type MonthlyWorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
 
+const workflowTagPrefixes = [
+  '发起预算员ID:',
+  '发起预算员:',
+  '项目经理ID:',
+  '项目经理:',
+  '老板ID:',
+  '老板:',
+  '当前负责人ID:',
+  '当前负责人:',
+];
+
 const monthlyStateLabels: Record<MonthlyWorkflowState, string> = {
   draft: '草稿',
   manager_review: '待项目经理补充',
@@ -110,7 +121,11 @@ function getCategoryLabel(doc: Pick<KnowledgeDoc, 'category' | 'tags'>) {
 }
 
 function visibleTags(tags?: string[] | string | null) {
-  return normalizeKnowledgeTags(tags).filter(tag => !tag.startsWith('知识等级:') && !tag.startsWith('状态:'));
+  return normalizeKnowledgeTags(tags).filter(tag => (
+    !tag.startsWith('知识等级:') &&
+    !tag.startsWith('状态:') &&
+    !workflowTagPrefixes.some(prefix => tag.startsWith(prefix))
+  ));
 }
 
 function isMonthlyAnalysisDoc(doc: Pick<KnowledgeDoc, 'tags' | 'source_ref'>, tags = normalizeKnowledgeTags(doc.tags)) {
@@ -120,6 +135,27 @@ function isMonthlyAnalysisDoc(doc: Pick<KnowledgeDoc, 'tags' | 'source_ref'>, ta
 function getMonthlyWorkflowState(tags: string[]): MonthlyWorkflowState {
   const stateTag = tags.find(tag => tag.startsWith('状态:'));
   return stateTag ? monthlyStateTagMap[stateTag] || 'draft' : 'draft';
+}
+
+function getWorkflowTagValue(tags: string[], prefix: string) {
+  const tag = tags.find(item => item.startsWith(prefix));
+  return tag ? tag.slice(prefix.length).trim() : '';
+}
+
+function isRoleActionableMonthly(tags: string[], role?: string) {
+  const state = tags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
+  if (state === '草稿' && (role === 'admin' || role === 'super_admin')) return true;
+  if (state === '待项目经理补充' && role === 'project_manager') return true;
+  if (state === '待预算确认' && (role === 'admin' || role === 'super_admin')) return true;
+  if (state === '待老板批复' && role === 'boss') return true;
+  return false;
+}
+
+function isPendingForCurrentUser(tags: string[], currentUser: { id?: string | number; role?: string } | null) {
+  if (!tags.includes('月度分析')) return false;
+  const ownerId = getWorkflowTagValue(tags, '当前负责人ID:');
+  if (ownerId) return String(currentUser?.id || '') === ownerId || currentUser?.role === 'super_admin';
+  return isRoleActionableMonthly(tags, currentUser?.role);
 }
 
 function stripMarkdown(content?: string | null) {
@@ -568,7 +604,7 @@ export default function KnowledgePage() {
   const [query, setQuery] = useState(queryFromUrl || '');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<{ role?: string; username?: string; name?: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id?: string | number; role?: string; username?: string; name?: string } | null>(null);
   const [pendingOnly, setPendingOnly] = useState(statusFromUrl === 'pending');
   const [showMoreCategories, setShowMoreCategories] = useState(false);
   const [activeQuality, setActiveQuality] = useState('全部等级');
@@ -611,28 +647,20 @@ export default function KnowledgePage() {
   }, [docs]);
 
   const pendingCount = useMemo(() => {
-    const role = currentUser?.role;
     return docs.filter(doc => {
       const tags = normalizeKnowledgeTags(doc.tags);
-      if (!tags.includes('月度分析')) return false;
-      const state = tags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
-      if (state === '草稿' && (role === 'admin' || role === 'super_admin')) return true;
-      if (state === '待项目经理补充' && role === 'project_manager') return true;
-      if (state === '待预算确认' && (role === 'admin' || role === 'super_admin')) return true;
-      if (state === '待老板批复' && role === 'boss') return true;
-      return false;
+      return isPendingForCurrentUser(tags, currentUser);
     }).length;
   }, [docs, currentUser]);
 
   const filteredDocs = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    const role = currentUser?.role;
     return docs.filter(doc => {
       const docTags = normalizeKnowledgeTags(doc.tags);
       const category = getCategoryLabel(doc);
       const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
       const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
-      const tags = docTags.join(' ');
+      const tags = visibleTags(doc.tags).join(' ');
       const searchable = `${doc.title} ${doc.content || ''} ${doc.created_by || ''} ${tags} ${category} ${quality} ${sourceLabel}`.toLowerCase();
       const matchesKeyword = !keyword || searchable.includes(keyword);
       const matchesCategory = activeCategory === '全部' || category === activeCategory;
@@ -640,14 +668,7 @@ export default function KnowledgePage() {
 
       // 待我处理筛选
       if (pendingOnly) {
-        if (!docTags.includes('月度分析')) return false;
-        const state = docTags.find(t => t.startsWith('状态:'))?.replace('状态:', '');
-        const isPending =
-          (state === '草稿' && (role === 'admin' || role === 'super_admin')) ||
-          (state === '待项目经理补充' && role === 'project_manager') ||
-          (state === '待预算确认' && (role === 'admin' || role === 'super_admin')) ||
-          (state === '待老板批复' && role === 'boss');
-        if (!isPending) return false;
+        if (!isPendingForCurrentUser(docTags, currentUser)) return false;
       }
 
       return matchesKeyword && matchesCategory && matchesQuality;

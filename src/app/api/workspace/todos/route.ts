@@ -28,8 +28,14 @@ type ConstructionLogRow = {
 };
 
 type KnowledgeDocRow = {
+  id?: number;
   source_ref?: string | null;
   tags?: string[] | string | null;
+};
+
+type NotificationRow = {
+  related_id?: number | null;
+  metadata?: { knowledgeId?: number | string } | null;
 };
 
 type ProjectRow = {
@@ -69,6 +75,20 @@ function isRoleActionableKnowledge(tags: string[], role: string, isSuperAdmin: b
   if (state === '待预算确认' && isAdmin) return true;
   if (state === '待老板批复' && role === 'boss') return true;
   return false;
+}
+
+function getWorkflowTagValue(tags: string[], prefix: string) {
+  const tag = tags.find(item => item.startsWith(prefix));
+  return tag ? tag.slice(prefix.length).trim() : '';
+}
+
+function isUserActionableKnowledge(tags: string[], role: string, isSuperAdmin: boolean, userId: number) {
+  if (!tags.includes('月度分析')) return false;
+
+  const ownerId = getWorkflowTagValue(tags, '当前负责人ID:');
+  if (ownerId) return String(userId) === ownerId || isSuperAdmin;
+
+  return isRoleActionableKnowledge(tags, role, isSuperAdmin);
 }
 
 function isMissingRecipientColumn(error: unknown) {
@@ -226,7 +246,13 @@ async function countPendingVisas(
   return count || 0;
 }
 
-async function countPendingKnowledge(client: SupabaseClient, accessibleProjectIds: number[] | null, role: string, isSuperAdmin: boolean) {
+async function countPendingKnowledgeByDocs(
+  client: SupabaseClient,
+  accessibleProjectIds: number[] | null,
+  role: string,
+  isSuperAdmin: boolean,
+  userId: number
+) {
   const { data, error } = await client
     .from('ai_knowledge_docs')
     .select('id,source_ref,tags')
@@ -238,12 +264,64 @@ async function countPendingKnowledge(client: SupabaseClient, accessibleProjectId
 
   return ((data || []) as KnowledgeDocRow[]).filter((doc) => {
     const tags = normalizeKnowledgeTags(doc.tags);
-    if (!isRoleActionableKnowledge(tags, role, isSuperAdmin)) return false;
+    if (!isUserActionableKnowledge(tags, role, isSuperAdmin, userId)) return false;
 
     const projectId = getProjectIdFromMonthlySourceRef(doc.source_ref);
     if (projectId && !hasProjectAccess(projectId, accessibleProjectIds)) return false;
     return true;
   }).length;
+}
+
+async function countPendingKnowledge(
+  client: SupabaseClient,
+  accessibleProjectIds: number[] | null,
+  role: string,
+  isSuperAdmin: boolean,
+  userId: number
+) {
+  const { data: notifications, error } = await client
+    .from('notifications')
+    .select('related_id,metadata')
+    .eq('type', 'monthly_analysis_workflow')
+    .eq('related_type', 'ai_knowledge_docs')
+    .eq('recipient_user_id', userId)
+    .eq('is_read', false)
+    .limit(1000);
+
+  if (error && isMissingRecipientColumn(error)) {
+    return countPendingKnowledgeByDocs(client, accessibleProjectIds, role, isSuperAdmin, userId);
+  }
+  if (error) throw new Error(error.message);
+
+  const notificationRows = (notifications || []) as NotificationRow[];
+  const knowledgeIds = Array.from(new Set(notificationRows
+    .map((item) => Number(item.related_id || item.metadata?.knowledgeId))
+    .filter(Boolean)));
+
+  if (knowledgeIds.length > 0) {
+    const { data: docs, error: docError } = await client
+      .from('ai_knowledge_docs')
+      .select('id,source_ref,tags')
+      .in('id', knowledgeIds);
+
+    if (docError) throw new Error(docError.message);
+
+    const accessibleIds = new Set(
+      ((docs || []) as KnowledgeDocRow[])
+        .filter((doc) => {
+          const tags = normalizeKnowledgeTags(doc.tags);
+          if (!isUserActionableKnowledge(tags, role, isSuperAdmin, userId)) return false;
+          const projectId = getProjectIdFromMonthlySourceRef(doc.source_ref);
+          return !projectId || hasProjectAccess(projectId, accessibleProjectIds);
+        })
+        .map((doc) => Number(doc.id))
+        .filter(Boolean)
+    );
+
+    return knowledgeIds.filter((id) => accessibleIds.has(id)).length;
+  }
+
+  return countPendingKnowledgeByDocs(client, accessibleProjectIds, role, isSuperAdmin, userId);
 }
 
 export async function GET(request: NextRequest) {
@@ -264,7 +342,7 @@ export async function GET(request: NextRequest) {
       countPendingConstructionLogRisks(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
       countPendingMonthlyReports(client, accessibleProjectIds, currentMonth),
       countPendingVisas(client, accessibleProjectIds, auth.user.id, auth.user.is_super_admin),
-      countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin),
+      countPendingKnowledge(client, accessibleProjectIds, auth.user.role, auth.user.is_super_admin, auth.user.id),
     ]);
 
     const items: TodoItem[] = [
