@@ -88,18 +88,14 @@ const emptyForm: BindingForm = {
 };
 
 const webhookSamplePayload = `{
-  "projectName": "A项目",
-  "worksheetName": "A项目",
-  "records": [
-    {
-      "姓名": "张三",
-      "性别": "男",
-      "身份证号": "110101199001011234",
-      "联系方式": "13800000000",
-      "银行卡号": "6222000000000000",
-      "入场日期": "2026-07-15"
-    }
-  ]
+  "姓名": "张三",
+  "性别": "男",
+  "身份证号": "110101199001011234",
+  "联系方式": "13800000000",
+  "银行卡号": "6222000000000000",
+  "入场日期": "2026-07-15",
+  "工种": "木工",
+  "班组": "张三班组"
 }`;
 
 function getProject(binding: WpsBinding): ProjectOption | null {
@@ -352,6 +348,8 @@ export default function WpsConfigPage() {
     }
   };
 
+  const getDedicatedWebhookUrl = (binding: WpsBinding) => `${webhookUrl}?bindingId=${binding.id}&token=YOUR_SYNC_TOKEN`;
+
   return (
     <div className="space-y-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -504,6 +502,15 @@ export default function WpsConfigPage() {
                             <Button variant="ghost" size="sm" onClick={() => testBinding(binding)} disabled={testingBindingId === binding.id}>
                               {testingBindingId === binding.id ? '测试中' : '测试'}
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyText(getDedicatedWebhookUrl(binding), '专属 Webhook 地址已复制')}
+                              title="复制专属 Webhook 地址"
+                            >
+                              <Copy className="mr-1 h-4 w-4" />
+                              地址
+                            </Button>
                             <Button variant="ghost" size="sm" onClick={() => openEditDialog(binding)} title="编辑">
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -556,7 +563,7 @@ export default function WpsConfigPage() {
                 {integration.pullCredentialConfigured ? <Badge className="bg-green-600">已配置</Badge> : <Badge variant="outline">未配置</Badge>}
               </div>
               <p className="text-xs leading-5 text-gray-500">
-                实时同步建议在 WPS 自动化中调用 webhook；文档链接仅在服务器能直接下载表格时支持手动拉取。
+                实时同步建议在绑定台账中复制项目专属地址；文档链接仅在服务器能直接下载表格时支持手动拉取。
               </p>
             </CardContent>
           </Card>
@@ -574,11 +581,18 @@ export default function WpsConfigPage() {
                   <span className="font-medium text-gray-900">HTTP 请求</span>
                   <Badge variant="outline">POST</Badge>
                 </div>
-                <p className="text-xs leading-5 text-gray-600">在 WPS 表单/多维表格自动化中设置“新增记录后发送 HTTP 请求”。</p>
+                <p className="text-xs leading-5 text-gray-600">在 WPS 表单/多维表格自动化中设置“新增记录后发送 HTTP 请求”，URL 使用绑定台账里的专属地址。</p>
+              </div>
+              <div className="rounded-lg border bg-gray-50 p-3">
+                <div className="text-xs text-gray-500">专属地址</div>
+                <div className="mt-1 text-xs leading-5 text-gray-600">
+                  点击绑定台账中的复制图标，粘贴到 WPS 请求 URL 后，把 <span className="font-mono text-gray-800">YOUR_SYNC_TOKEN</span> 替换为你的同步 Token。使用专属地址后，请求体不用再传项目名称。
+                </div>
               </div>
               <div className="rounded-lg border bg-gray-50 p-3">
                 <div className="text-xs text-gray-500">Header</div>
-                <div className="mt-1 font-mono text-xs text-gray-800">x-wps-sync-token: 你的同步Token</div>
+                <div className="mt-1 font-mono text-xs text-gray-800">Content-Type: application/json</div>
+                <div className="mt-1 text-xs leading-5 text-gray-500">如果不想把 Token 放在 URL，也可以在 Header 里加 x-wps-sync-token。</div>
               </div>
               <div className="rounded-lg border bg-gray-50 p-3">
                 <div className="flex items-center justify-between gap-2">
