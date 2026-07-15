@@ -1,7 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { getCurrentUser } from '@/lib/auth';
 import { isSuperAdminUser } from '@/lib/route-permissions';
+
+type PermissionRow = {
+  id: number;
+  code: string;
+};
+
+type RolePermissionRow = {
+  permission_id: number;
+};
+
+type RoleRow = {
+  id: number;
+  code?: string | null;
+  role_permissions?: RolePermissionRow[];
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizePermissionCodes(permissionCodes: unknown): string[] {
+  if (!Array.isArray(permissionCodes)) return [];
+
+  return Array.from(
+    new Set(
+      permissionCodes
+        .filter((code): code is string => typeof code === 'string')
+        .map((code) => code.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+async function ensurePermissionIds(supabase: SupabaseClient, permissionCodes: string[]) {
+  if (permissionCodes.length === 0) return [];
+
+  const { data: existingPermissions, error: existingError } = await supabase
+    .from('permissions')
+    .select('id, code')
+    .in('code', permissionCodes);
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const existingCodes = new Set(((existingPermissions || []) as PermissionRow[]).map((permission) => permission.code));
+  const missingCodes = permissionCodes.filter((code) => !existingCodes.has(code));
+
+  if (missingCodes.length > 0) {
+    const newPermissions = missingCodes.map((code) => {
+      const [resource = 'other', action = 'view'] = code.split(':');
+      return {
+        code,
+        name: code.replace(/_/g, ' ').replace(/:/g, ' '),
+        description: `Auto-synced permission: ${code}`,
+        resource,
+        action,
+      };
+    });
+
+    const { error: insertError } = await supabase
+      .from('permissions')
+      .upsert(newPermissions, { onConflict: 'code', ignoreDuplicates: true });
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+  }
+
+  const { data: allPermissions, error: allError } = await supabase
+    .from('permissions')
+    .select('id, code')
+    .in('code', permissionCodes);
+
+  if (allError) {
+    throw new Error(allError.message);
+  }
+
+  const permissionMap = new Map(((allPermissions || []) as PermissionRow[]).map((permission) => [permission.code, permission.id]));
+  const missingAfterSync = permissionCodes.filter((code) => !permissionMap.has(code));
+
+  if (missingAfterSync.length > 0) {
+    throw new Error(`权限码未写入权限表：${missingAfterSync.join(', ')}`);
+  }
+
+  return permissionCodes
+    .map((code) => permissionMap.get(code))
+    .filter((permissionId): permissionId is number => typeof permissionId === 'number');
+}
+
+async function replaceRolePermissions(
+  supabase: SupabaseClient,
+  roleId: number,
+  permissionCodes: string[]
+) {
+  const permissionIds = await ensurePermissionIds(supabase, permissionCodes);
+
+  const { data: existingRows, error: existingRowsError } = await supabase
+    .from('role_permissions')
+    .select('permission_id')
+    .eq('role_id', roleId);
+
+  if (existingRowsError) {
+    throw new Error(existingRowsError.message);
+  }
+
+  const nextPermissionIds = new Set(permissionIds);
+  const existingPermissionIds = new Set(((existingRows || []) as RolePermissionRow[]).map((row) => row.permission_id));
+
+  const permissionIdsToRemove = [...existingPermissionIds].filter((permissionId) => !nextPermissionIds.has(permissionId));
+  const permissionIdsToAdd = [...nextPermissionIds].filter((permissionId) => !existingPermissionIds.has(permissionId));
+
+  if (permissionIdsToRemove.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('role_permissions')
+      .delete()
+      .eq('role_id', roleId)
+      .in('permission_id', permissionIdsToRemove);
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+  }
+
+  if (permissionIdsToAdd.length > 0) {
+    const rolePermissions = permissionIdsToAdd.map((permissionId) => ({
+      role_id: roleId,
+      permission_id: permissionId,
+    }));
+
+    const { error: insertError } = await supabase
+      .from('role_permissions')
+      .insert(rolePermissions);
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+  }
+
+  return nextPermissionIds.size;
+}
 
 // 获取角色列表
 export async function GET() {
@@ -37,11 +179,11 @@ export async function GET() {
     }
     
     // 处理角色数据，计算权限数量
-    const processedRoles = (roles || []).map((role: any) => ({
+    const processedRoles = ((roles || []) as RoleRow[]).map((role) => ({
       ...role,
       permission_count: role.role_permissions?.length || 0,
       role_permissions: undefined, // 移除嵌套数据
-      is_super_admin: isSuperAdminUser(role.code),
+      is_super_admin: isSuperAdminUser(role.code || undefined),
     }));
     
     console.log('[Roles API] Found', processedRoles.length, 'roles');
@@ -50,9 +192,9 @@ export async function GET() {
       success: true,
       roles: processedRoles
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Roles API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -66,8 +208,9 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json();
     const { name, code, description, level, permission_codes = [], allowed_projects = [] } = body;
+    const normalizedPermissionCodes = normalizePermissionCodes(permission_codes);
     
-    console.log('[Roles API] Creating role:', name, 'permissions:', permission_codes.length);
+    console.log('[Roles API] Creating role:', name, 'permissions:', normalizedPermissionCodes.length);
     
     if (!name || name.trim() === '') {
       return NextResponse.json({ error: '角色名称不能为空' }, { status: 400 });
@@ -107,64 +250,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // 如果有权限，分配权限
-    if (permission_codes.length > 0) {
-      // 先确保所有权限码都存在于permissions表中
-      const { data: dbPerms } = await supabase
-        .from('permissions')
-        .select('id, code')
-        .in('code', permission_codes);
-      
-      // 找到缺失的权限码并插入
-      const dbCodes = new Set((dbPerms || []).map((p: any) => p.code));
-      const missingCodes = permission_codes.filter((c: string) => !dbCodes.has(c));
-      
-      if (missingCodes.length > 0) {
-        const newPerms = missingCodes.map((code: string) => {
-          const parts = code.split(':');
-          return {
-            code,
-            name: code.replace(/_/g, ' ').replace(/:/g, ' '),
-            description: `Auto-synced permission: ${code}`,
-            resource: parts[0] || 'other',
-            action: parts[1] || 'view',
-          };
-        });
-
-        const { error: insertPermError } = await supabase.from('permissions').insert(newPerms);
-        if (insertPermError) {
-          console.error('[Roles API] POST - Auto-insert permissions error:', insertPermError);
-        } else {
-          console.log('[Roles API] POST - Auto-inserted', missingCodes.length, 'new permissions');
-        }
-      }
-
-      // 重新查询所有权限码对应的ID（包含刚插入的）
-      const { data: allPerms } = await supabase
-        .from('permissions')
-        .select('id, code')
-        .in('code', permission_codes);
-      
-      const existingPerms = allPerms || [];
-      console.log('[Roles API] POST - Found permissions:', existingPerms.length, 'of', permission_codes.length);
-      
-      if (existingPerms.length > 0) {
-        const rolePermissions = existingPerms.map((p: any) => ({
-          role_id: newRole.id,
-          permission_id: p.id
-        }));
-        
-        const { error: permError } = await supabase
-          .from('role_permissions')
-          .insert(rolePermissions);
-        
-        if (permError) {
-          console.error('[Roles API] POST - Assign permissions error:', permError);
-        } else {
-          console.log('[Roles API] POST - Inserted', rolePermissions.length, 'role_permissions');
-        }
-      }
-    }
+    const permissionCount = await replaceRolePermissions(supabase, newRole.id, normalizedPermissionCodes);
     
     console.log('[Roles API] Role created successfully:', newRole.id);
     
@@ -172,13 +258,13 @@ export async function POST(request: NextRequest) {
       success: true,
       role: {
         ...newRole,
-        permission_count: permission_codes.length,
+        permission_count: permissionCount,
         is_super_admin: false,
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Roles API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -192,8 +278,9 @@ export async function PUT(request: NextRequest) {
     
     const body = await request.json();
     const { id, name, description, level, permission_codes = [], allowed_projects } = body;
+    const normalizedPermissionCodes = normalizePermissionCodes(permission_codes);
     
-    console.log('[Roles API] Updating role:', id, 'permissions:', permission_codes.length);
+    console.log('[Roles API] Updating role:', id, 'permissions:', normalizedPermissionCodes.length);
     
     if (!id) {
       return NextResponse.json({ error: '角色ID不能为空' }, { status: 400 });
@@ -227,7 +314,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // 更新角色基本信息
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name.trim();
     if (description !== undefined) updateData.description = description;
     if (level !== undefined) updateData.level = level;
@@ -245,67 +332,8 @@ export async function PUT(request: NextRequest) {
       }
     }
     
-    // 更新权限
-    // 先删除旧权限
-    await supabase.from('role_permissions').delete().eq('role_id', id);
-    
-    // 添加新权限
-    if (permission_codes.length > 0) {
-      // 先确保所有权限码都存在于permissions表中
-      const { data: dbPerms } = await supabase
-        .from('permissions')
-        .select('id, code')
-        .in('code', permission_codes);
-      
-      // 找到缺失的权限码并插入
-      const dbCodes = new Set((dbPerms || []).map((p: any) => p.code));
-      const missingCodes = permission_codes.filter((c: string) => !dbCodes.has(c));
-      
-      if (missingCodes.length > 0) {
-        const newPerms = missingCodes.map((code: string) => {
-          const parts = code.split(':');
-          return {
-            code,
-            name: code.replace(/_/g, ' ').replace(/:/g, ' '),
-            description: `Auto-synced permission: ${code}`,
-            resource: parts[0] || 'other',
-            action: parts[1] || 'view',
-          };
-        });
-
-        const { error: insertPermError } = await supabase.from('permissions').insert(newPerms);
-        if (insertPermError) {
-          console.error('[Roles API] PUT - Auto-insert permissions error:', insertPermError);
-        } else {
-          console.log('[Roles API] PUT - Auto-inserted', missingCodes.length, 'new permissions');
-        }
-      }
-
-      // 重新查询所有权限码对应的ID（包含刚插入的）
-      const { data: allPerms } = await supabase
-        .from('permissions')
-        .select('id, code')
-        .in('code', permission_codes);
-      
-      const existingPerms = allPerms || [];
-      console.log('[Roles API] PUT - Found permissions:', existingPerms.length, 'of', permission_codes.length);
-      
-      if (existingPerms.length > 0) {
-        const rolePermissions = existingPerms.map((p: any) => ({
-          role_id: id,
-          permission_id: p.id
-        }));
-        
-        const { error: permError } = await supabase.from('role_permissions').insert(rolePermissions);
-        if (permError) {
-          console.error('[Roles API] PUT - Assign permissions error:', permError);
-        } else {
-          console.log('[Roles API] PUT - Inserted', rolePermissions.length, 'role_permissions');
-        }
-      } else {
-        console.error('[Roles API] PUT - No permissions found for codes:', permission_codes);
-      }
-    }
+    // 更新权限：按差异新增/移除，避免旧逻辑先删后写失败导致权限丢失。
+    await replaceRolePermissions(supabase, Number(id), normalizedPermissionCodes);
     
     // 获取更新后的角色
     const { data: updatedRole } = await supabase
@@ -324,9 +352,9 @@ export async function PUT(request: NextRequest) {
         is_super_admin: updatedRole?.code === 'super_admin',
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Roles API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -382,8 +410,8 @@ export async function DELETE(request: NextRequest) {
     console.log('[Roles API] Role deleted successfully:', id);
     
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Roles API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

@@ -548,19 +548,19 @@ export default function PermissionCenterPage() {
 
   const togglePermission = (code: string, checked: boolean) => {
     if (checked) {
-      setSelectedPermissions([...selectedPermissions, code]);
+      setSelectedPermissions((prev) => Array.from(new Set([...prev, code])));
     } else {
-      setSelectedPermissions(selectedPermissions.filter((p) => p !== code));
+      setSelectedPermissions((prev) => prev.filter((p) => p !== code));
     }
   };
 
   const toggleModulePermissions = (module: typeof PERMISSION_MENU[0], checked: boolean) => {
     if (checked) {
       const allCodes = module.children.map((p) => p.code);
-      setSelectedPermissions([...new Set([...selectedPermissions, ...allCodes])]);
+      setSelectedPermissions((prev) => Array.from(new Set([...prev, ...allCodes])));
     } else {
       const removeCodes = module.children.map((p) => p.code);
-      setSelectedPermissions(selectedPermissions.filter((p) => !removeCodes.includes(p)));
+      setSelectedPermissions((prev) => prev.filter((p) => !removeCodes.includes(p)));
     }
   };
 
