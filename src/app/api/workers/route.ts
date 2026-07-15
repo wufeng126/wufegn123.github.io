@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
+import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
 
 type WorkerProjectEntity = {
   name?: string | null;
@@ -190,12 +191,11 @@ export async function POST(request: NextRequest) {
 
     // 创建对应的项目分配记录
     if (project_id && worker?.id) {
-      await client.from('worker_assignments').upsert({
-        worker_id: worker.id,
-        project_id: project_id,
-        start_date: entry_date || null,
-        status: 'active',
-      }, { onConflict: 'worker_id,project_id' });
+      await syncWorkerProjectAssignment(client, {
+        workerId: worker.id,
+        projectId: project_id,
+        startDate: entry_date || null,
+      });
     }
 
     await auditLog({

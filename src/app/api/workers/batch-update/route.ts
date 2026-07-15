@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { syncWorkerProjectAssignments } from '@/lib/worker-assignment-sync';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,12 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const { data: previousWorkers } = field === 'project_id'
+      ? await client
+        .from('workers')
+        .select('id, project_id, entry_date')
+        .in('id', ids)
+      : { data: [] };
     
     const updateData: Record<string, any> = {};
     updateData[field] = value || null;
@@ -33,6 +40,22 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       throw new Error(`批量修改工人失败: ${error.message}`);
+    }
+
+    if (field === 'project_id') {
+      const previousById = new Map(
+        ((previousWorkers || []) as Array<{ id: number; project_id?: number | null; entry_date?: string | null }>)
+          .map((worker) => [Number(worker.id), worker]),
+      );
+      await syncWorkerProjectAssignments(client, ids.map((id) => {
+        const previous = previousById.get(Number(id));
+        return {
+          workerId: Number(id),
+          projectId: value || null,
+          previousProjectId: previous?.project_id || null,
+          startDate: previous?.entry_date || null,
+        };
+      }));
     }
 
     return NextResponse.json({ success: true, count: data?.length || 0 });

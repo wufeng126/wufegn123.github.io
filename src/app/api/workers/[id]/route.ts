@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
+import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
 
 export async function PUT(
   request: NextRequest,
@@ -12,6 +13,12 @@ export async function PUT(
     const { name, work_type, id_card, phone, bank_card, project_id, status, entry_date, team_name, is_blacklist, remark } = body;
 
     const client = getSupabaseClient();
+    const workerId = parseInt(id);
+    const { data: previousWorker } = await client
+      .from('workers')
+      .select('project_id')
+      .eq('id', workerId)
+      .maybeSingle();
     
     // 只更新明确传入的字段，避免覆盖未提供的字段为 null
     const updateData: Record<string, unknown> = {};
@@ -40,7 +47,7 @@ export async function PUT(
     const { data, error } = await client
       .from('workers')
       .update(updateData)
-      .eq('id', parseInt(id))
+      .eq('id', workerId)
       .select()
       .single();
 
@@ -48,10 +55,19 @@ export async function PUT(
       throw new Error(`更新工人失败: ${error.message}`);
     }
 
+    if (project_id !== undefined) {
+      await syncWorkerProjectAssignment(client, {
+        workerId,
+        projectId: project_id || null,
+        previousProjectId: previousWorker?.project_id || null,
+        startDate: entry_date || data?.entry_date || null,
+      });
+    }
+
     await auditLog({
       operationType: 'update',
       resourceType: 'worker',
-      resourceId: parseInt(id),
+      resourceId: workerId,
       details: { name: data?.name, changes: updateData },
       request,
     });

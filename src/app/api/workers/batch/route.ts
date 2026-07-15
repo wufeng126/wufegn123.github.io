@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
+import { syncWorkerProjectAssignment, syncWorkerProjectAssignments } from '@/lib/worker-assignment-sync';
 
 // 不限制手机号、身份证号、银行卡号格式，仅做非空判断
 
@@ -184,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     // 分离新增、更新和调岗数据
     const toInsert: any[] = [];
-    const toUpdate: Array<{ id: number; data: any }> = [];
+    const toUpdate: Array<{ id: number; data: any; old_project_id: number | null }> = [];
     const toTransfer: Array<{ id: number; data: any; old_project_id: number | null }> = [];
     const batchErrors: Array<{ row: number; name: string; reason: string }> = [];
 
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
           }
         } else if (importMode === 'upsert') {
           // 覆盖更新模式
-          toUpdate.push({ id: existing.id, data });
+          toUpdate.push({ id: existing.id, data, old_project_id: existing.project_id });
         } else {
           // 仅新增模式，跳过重复
           batchErrors.push({ row, name: data.name, reason: '身份证号已存在（已跳过）' });
@@ -270,6 +271,11 @@ export async function POST(request: NextRequest) {
                   stats.skipped++;
                   stats.errorDetails.push({ row: 0, name: worker.name, reason: errorMsg });
                 } else if (singleData) {
+                  await syncWorkerProjectAssignment(client, {
+                    workerId: singleData.id,
+                    projectId: worker.project_id || null,
+                    startDate: worker.entry_date || null,
+                  });
                   stats.inserted++;
                 }
               } catch (singleCatchError: any) {
@@ -279,6 +285,11 @@ export async function POST(request: NextRequest) {
               }
             }
           } else if (data) {
+            await syncWorkerProjectAssignments(client, data.map((worker: { id: number; project_id?: number | null; entry_date?: string | null }) => ({
+              workerId: worker.id,
+              projectId: worker.project_id || null,
+              startDate: worker.entry_date || null,
+            })));
             stats.inserted += data.length;
           }
         } catch (batchError: any) {
@@ -302,6 +313,11 @@ export async function POST(request: NextRequest) {
                 stats.skipped++;
                 stats.errorDetails.push({ row: 0, name: worker.name, reason: errorMsg });
               } else if (singleData) {
+                await syncWorkerProjectAssignment(client, {
+                  workerId: singleData.id,
+                  projectId: worker.project_id || null,
+                  startDate: worker.entry_date || null,
+                });
                 stats.inserted++;
               }
             } catch {
@@ -332,6 +348,12 @@ export async function POST(request: NextRequest) {
           stats.errors++;
           stats.errorDetails.push({ row: 0, name: item.data.name, reason: `更新失败: ${error.message}` });
         } else {
+          await syncWorkerProjectAssignment(client, {
+            workerId: item.id,
+            projectId: item.data.project_id || null,
+            previousProjectId: item.old_project_id || null,
+            startDate: item.data.entry_date || null,
+          });
           stats.updated++;
         }
       }

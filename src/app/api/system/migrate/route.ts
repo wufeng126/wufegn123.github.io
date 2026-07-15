@@ -138,6 +138,8 @@ BEGIN
 END $$;
 
 -- WPS 花名册同步所需字段
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS project_id INTEGER;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'in_service';
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS age INTEGER;
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS entry_date VARCHAR(20);
@@ -161,6 +163,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS worker_assignments_worker_project_key ON worke
 CREATE INDEX IF NOT EXISTS worker_assignments_worker_id_idx ON worker_assignments(worker_id);
 CREATE INDEX IF NOT EXISTS worker_assignments_project_id_idx ON worker_assignments(project_id);
 CREATE INDEX IF NOT EXISTS worker_assignments_status_idx ON worker_assignments(status);
+
+INSERT INTO worker_assignments (worker_id, project_id, start_date, status)
+SELECT id, project_id, entry_date, 'active'
+FROM workers
+WHERE project_id IS NOT NULL
+  AND COALESCE(status, 'in_service') <> 'left'
+ON CONFLICT (worker_id, project_id) DO UPDATE
+SET status = 'active',
+    start_date = COALESCE(worker_assignments.start_date, EXCLUDED.start_date),
+    end_date = NULL;
 
 -- WPS 花名册同步日志，只保存业务字段，不保存身份证/银行卡照片等附件内容
 CREATE TABLE IF NOT EXISTS wps_worker_sync_logs (

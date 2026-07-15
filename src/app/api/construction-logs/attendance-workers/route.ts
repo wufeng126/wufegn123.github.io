@@ -20,8 +20,15 @@ function parseWorkerIds(value: unknown) {
 }
 
 function isMissingTableError(error: { message?: string; code?: string } | null) {
-  const message = error?.message || '';
-  return error?.code === '42P01' || message.includes('does not exist') || message.includes('relation');
+  const message = (error?.message || '').toLowerCase();
+  return (
+    error?.code === '42P01' ||
+    error?.code === 'PGRST205' ||
+    message.includes('does not exist') ||
+    message.includes('relation') ||
+    message.includes('could not find') ||
+    message.includes('schema cache')
+  );
 }
 
 async function assertProjectAccess(projectId: number, supabase: unknown, user: Parameters<typeof getAccessibleProjectIds>[1]) {

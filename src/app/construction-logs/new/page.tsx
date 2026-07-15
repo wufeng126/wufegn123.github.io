@@ -77,6 +77,7 @@ export default function NewConstructionLogPage() {
   const [drafts, setDrafts] = useState<ProjectLogDraft[]>([createDraft()]);
   const [attendanceOptions, setAttendanceOptions] = useState<Record<string, AttendanceOptions>>({});
   const [attendanceLoading, setAttendanceLoading] = useState<Record<string, boolean>>({});
+  const [attendanceErrors, setAttendanceErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -102,13 +103,22 @@ export default function NewConstructionLogPage() {
     projectIds.forEach((projectId) => {
       if (attendanceOptions[projectId] || attendanceLoading[projectId]) return;
       setAttendanceLoading(current => ({ ...current, [projectId]: true }));
+      setAttendanceErrors(current => {
+        const next = { ...current };
+        delete next[projectId];
+        return next;
+      });
       fetch(`/api/construction-logs/attendance-workers?projectId=${projectId}`)
         .then(res => res.json())
         .then(json => {
           if (json.success === false) throw new Error(json.error || '出勤人员加载失败');
           setAttendanceOptions(current => ({ ...current, [projectId]: json.data || emptyAttendanceOptions }));
         })
-        .catch(() => {
+        .catch((loadError: unknown) => {
+          setAttendanceErrors(current => ({
+            ...current,
+            [projectId]: loadError instanceof Error ? loadError.message : '出勤人员加载失败',
+          }));
           setAttendanceOptions(current => ({ ...current, [projectId]: emptyAttendanceOptions }));
         })
         .finally(() => {
@@ -295,6 +305,7 @@ export default function NewConstructionLogPage() {
           {drafts.map((draft, index) => {
             const options = draft.project_id ? attendanceOptions[draft.project_id] || emptyAttendanceOptions : emptyAttendanceOptions;
             const loadingWorkers = draft.project_id ? attendanceLoading[draft.project_id] : false;
+            const attendanceError = draft.project_id ? attendanceErrors[draft.project_id] : '';
             const visibleSet = new Set(options.visible_worker_ids);
             const scopedSet = new Set(options.scoped_worker_ids);
             const selectedSet = new Set(draft.attendance_worker_ids);
@@ -386,6 +397,10 @@ export default function NewConstructionLogPage() {
                       <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-white py-8 text-sm text-[#86909C]">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         正在加载项目花名册...
+                      </div>
+                    ) : attendanceError ? (
+                      <div className="mt-3 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">
+                        出勤人员加载失败：{attendanceError}
                       </div>
                     ) : options.workers.length === 0 ? (
                       <div className="mt-3 rounded-lg bg-white py-8 text-center text-sm text-[#86909C]">
