@@ -3,6 +3,24 @@ import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { getCurrentUser } from '@/lib/auth';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 
+type ProjectOption = {
+  id: number;
+  name?: string | null;
+};
+
+function normalizeProjectIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map((projectId) => Number(projectId))
+      .filter((projectId) => Number.isInteger(projectId))
+  ));
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 // 获取当前用户可访问的项目ID列表
 export async function GET(request: NextRequest) {
   try {
@@ -27,62 +45,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: userError.message }, { status: 500 });
     }
     
-    // 如果是超级管理员，返回所有项目
+    const assignedProjectIds = normalizeProjectIds(userData?.managed_projects);
+
+    // 如果是超级管理员，业务访问范围为全部项目；负责项目仍保留单独勾选范围，用于待办/提醒。
     if (isSuperAdminUser(user.role)) {
       const { data: allProjects } = await supabase
         .from('projects')
-        .select('id');
+        .select('id,name')
+        .order('created_at', { ascending: false });
       
-      const allProjectIds = (allProjects || []).map((p: any) => p.id);
+      const projectRows = (allProjects || []) as ProjectOption[];
+      const allProjectIds = projectRows.map((p) => Number(p.id)).filter((id) => Number.isInteger(id));
       
       console.log('[User Projects API] Super admin, all projects:', allProjectIds.length);
       
       return NextResponse.json({
         success: true,
         project_ids: allProjectIds,
+        accessible_project_ids: allProjectIds,
+        assigned_project_ids: assignedProjectIds,
+        projects: projectRows,
         all_projects: true,
       });
     }
     
-    // 获取用户直接分配的项目
-    const userAllowedProjects: number[] = userData?.managed_projects || [];
-    
-    // 获取用户通过角色分配的项目
-    const { data: userRoles } = await supabase
-      .from('user_roles')
-      .select('role_id')
-      .eq('user_id', user.id);
-    
-    const roleProjectIds: number[] = [];
-    
-    if (userRoles && userRoles.length > 0) {
-      const roleIds = userRoles.map((ur: any) => ur.role_id);
-      const { data: roles } = await supabase
-        .from('roles')
-        .select('allowed_projects')
-        .in('id', roleIds);
-      
-      if (roles) {
-        for (const role of roles) {
-          if (role.allowed_projects && Array.isArray(role.allowed_projects)) {
-            roleProjectIds.push(...role.allowed_projects);
-          }
-        }
+    let projects: ProjectOption[] = [];
+    if (assignedProjectIds.length > 0) {
+      const { data: projectRows, error: projectError } = await supabase
+        .from('projects')
+        .select('id,name')
+        .in('id', assignedProjectIds)
+        .order('created_at', { ascending: false });
+
+      if (projectError) {
+        console.error('[User Projects API] Project query error:', projectError);
+        return NextResponse.json({ error: projectError.message }, { status: 500 });
       }
+
+      projects = (projectRows || []) as ProjectOption[];
     }
     
-    // 合并：用户自己的项目 + 角色允许的项目
-    const allAllowedProjects = [...new Set([...userAllowedProjects, ...roleProjectIds])];
-    
-    console.log('[User Projects API] Accessible projects:', allAllowedProjects.length);
+    console.log('[User Projects API] Accessible projects:', assignedProjectIds.length);
     
     return NextResponse.json({
       success: true,
-      project_ids: allAllowedProjects,
-      all_projects: allAllowedProjects.length === 0,
+      project_ids: assignedProjectIds,
+      accessible_project_ids: assignedProjectIds,
+      assigned_project_ids: assignedProjectIds,
+      projects,
+      all_projects: false,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[User Projects API] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error, '获取项目权限失败') }, { status: 500 });
   }
 }

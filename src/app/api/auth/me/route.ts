@@ -5,6 +5,10 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { getUserDisplayName } from '@/lib/user-display-name';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 // 获取用户权限码列表
 async function fetchUserPermissions(userId: number, userRole: string): Promise<string[]> {
   try {
@@ -31,16 +35,14 @@ async function fetchUserPermissions(userId: number, userRole: string): Promise<s
           .in('id', permIds);
         return perms?.map((p: { code: string }) => p.code) || [];
       }
-      const { data: allPerms } = await client.from('permissions').select('code');
-      return allPerms?.map((p: { code: string }) => p.code) || [];
+      return [];
     }
     const { data } = await client
       .from('role_permissions')
       .select('permission_id')
       .eq('role_id', roleRow.id);
     if (!data || data.length === 0) {
-      const { data: allPerms } = await client.from('permissions').select('code');
-      return allPerms?.map((p: { code: string }) => p.code) || [];
+      return [];
     }
     const permIds = data.map((rp: { permission_id: number }) => rp.permission_id);
     const { data: perms } = await client
@@ -150,8 +152,9 @@ export async function GET(request: Request) {
         permissions,
       },
     });
-  } catch (error: any) {
-    console.error('[Auth Me] Error:', error.message);
-    return apiError(error.message || '认证失败', 500, 'AUTH_ERROR');
+  } catch (error: unknown) {
+    const message = getErrorMessage(error, '认证失败');
+    console.error('[Auth Me] Error:', message);
+    return apiError(message, 500, 'AUTH_ERROR');
   }
 }

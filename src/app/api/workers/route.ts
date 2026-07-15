@@ -3,6 +3,48 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 
+type WorkerProjectEntity = {
+  name?: string | null;
+};
+
+type WorkerProject = WorkerProjectEntity | WorkerProjectEntity[] | null;
+
+type WorkerRow = {
+  id: number;
+  name: string;
+  work_type?: string | null;
+  id_card?: string | null;
+  phone?: string | null;
+  bank_card?: string | null;
+  project_id?: number | null;
+  status?: string | null;
+  left_at?: string | null;
+  created_at?: string | null;
+  entry_date?: string | null;
+  team_name?: string | null;
+  is_blacklist?: boolean | null;
+  remark?: string | null;
+  projects?: WorkerProject;
+};
+
+function normalizeProjectIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map((projectId) => Number(projectId))
+      .filter((projectId) => Number.isInteger(projectId))
+  ));
+}
+
+function getProjectName(projects?: WorkerProject) {
+  if (Array.isArray(projects)) return projects[0]?.name || null;
+  return projects?.name || null;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 // 获取可访问的项目ID列表
 async function getAccessibleProjectIds(userId: number, userRole: string) {
   const client = getSupabaseClient();
@@ -10,7 +52,7 @@ async function getAccessibleProjectIds(userId: number, userRole: string) {
   // 超级管理员可以访问所有项目
   if (userRole === 'super_admin') {
     const { data } = await client.from('projects').select('id');
-    return (data || []).map((p: any) => p.id);
+    return normalizeProjectIds((data || []).map((project) => project.id));
   }
   
   // 获取用户直接分配的项目
@@ -20,32 +62,7 @@ async function getAccessibleProjectIds(userId: number, userRole: string) {
     .eq('id', userId)
     .single();
   
-  const userProjects: number[] = userData?.managed_projects || [];
-  
-  // 获取用户通过角色分配的项目
-  const { data: userRoles } = await client
-    .from('user_roles')
-    .select('role_id')
-    .eq('user_id', userId);
-  
-  const roleProjects: number[] = [];
-  if (userRoles && userRoles.length > 0) {
-    const roleIds = userRoles.map((ur: any) => ur.role_id);
-    const { data: roles } = await client
-      .from('roles')
-      .select('allowed_projects')
-      .in('id', roleIds);
-    
-    if (roles) {
-      for (const role of roles) {
-        if (role.allowed_projects && Array.isArray(role.allowed_projects)) {
-          roleProjects.push(...role.allowed_projects);
-        }
-      }
-    }
-  }
-  
-  return [...new Set([...userProjects, ...roleProjects])];
+  return normalizeProjectIds(userData?.managed_projects);
 }
 
 export async function GET(request: NextRequest) {
@@ -61,6 +78,7 @@ export async function GET(request: NextRequest) {
     
     // 获取可访问的项目ID
     const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
+    const isSuperAdmin = user?.role === 'super_admin';
     
     let query = client.from('workers').select(`
       id,
@@ -97,9 +115,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 数据权限过滤：project_id为NULL的工人允许所有有权限的用户查看
-    let workers = data || [];
-    if (accessibleProjects.length > 0) {
-      workers = workers.filter((w: any) => w.project_id === null || accessibleProjects.includes(w.project_id));
+    let workers = ((data || []) as WorkerRow[]);
+    if (!isSuperAdmin && accessibleProjects.length === 0) {
+      workers = [];
+    } else if (accessibleProjects.length > 0) {
+      workers = workers.filter((w) => w.project_id === null || accessibleProjects.includes(Number(w.project_id)));
     }
 
     // 格式化返回数据
@@ -111,7 +131,7 @@ export async function GET(request: NextRequest) {
       phone: worker.phone,
       bank_card: worker.bank_card,
       project_id: worker.project_id,
-      project_name: (worker.projects as any)?.name || null,
+      project_name: getProjectName(worker.projects),
       status: worker.status || 'in_service',
       left_at: worker.left_at,
       created_at: worker.created_at,
@@ -122,10 +142,10 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({ workers: formattedWorkers });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: getErrorMessage(error, '查询失败') },
       { status: 500 }
     );
   }
@@ -147,7 +167,8 @@ export async function POST(request: NextRequest) {
     // 验证用户是否有权限操作该项目的工人
     if (project_id) {
       const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
-      if (accessibleProjects.length > 0 && !accessibleProjects.includes(project_id)) {
+      const isSuperAdmin = user?.role === 'super_admin';
+      if (!isSuperAdmin && (accessibleProjects.length === 0 || !accessibleProjects.includes(project_id))) {
         return NextResponse.json({ error: '无权在该项目下创建工人' }, { status: 403 });
       }
     }
@@ -186,10 +207,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ worker });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '创建失败' },
+      { error: getErrorMessage(error, '创建失败') },
       { status: 500 }
     );
   }

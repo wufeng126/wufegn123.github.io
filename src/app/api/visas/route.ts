@@ -16,6 +16,43 @@ function getLast6Months(): string[] {
   return months;
 }
 
+function emptyVisaResponse(page: number, pageSize: number) {
+  const monthlyData = getLast6Months().map((month) => ({
+    month,
+    monthLabel: month.substring(5) + '月',
+    newCount: 0,
+    completedCount: 0,
+    amount: 0,
+  }));
+
+  return NextResponse.json({
+    visas: [],
+    pagination: { page, pageSize, total: 0, totalPages: 0 },
+    stats: {
+      totalCount: 0,
+      completedCount: 0,
+      confirmedCount: 0,
+      approvedCount: 0,
+      submittedCount: 0,
+      pendingCount: 0,
+      totalAmount: 0,
+      completedRate: 0,
+      relatedProjects: 0,
+      activeProjectsCount: 0,
+      currentMonthNew: 0,
+      currentMonthCompleted: 0,
+      currentMonthAmount: 0,
+      overdueCount: 0,
+      warningCount: 0,
+      newGrowth: '0',
+      completedGrowth: '0',
+      amountGrowth: '0',
+    },
+    monthlyData,
+    activeProjectsWithVisa: [],
+  });
+}
+
 // 获取签证列表
 export async function GET(request: NextRequest) {
   try {
@@ -39,6 +76,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '10');
 
+    if (Array.isArray(accessibleProjects) && accessibleProjects.length === 0) {
+      return emptyVisaResponse(page, pageSize);
+    }
+
     // 构建查询
     let query = client
       .from('visas')
@@ -52,12 +93,12 @@ export async function GET(request: NextRequest) {
     // 项目过滤
     if (projectId && projectId !== 'all') {
       const pid = parseInt(projectId);
-      if (accessibleProjects && accessibleProjects.length > 0 && !accessibleProjects.includes(pid)) {
+      if (Array.isArray(accessibleProjects) && !accessibleProjects.includes(pid)) {
         return NextResponse.json({ data: [], total: 0, page, pageSize, stats: { total: 0, pending: 0, totalAmount: 0 }, trend: {} });
       }
       query = query.eq('project_id', pid);
       statsQuery = statsQuery.eq('project_id', pid);
-    } else if (accessibleProjects && accessibleProjects.length > 0) {
+    } else if (Array.isArray(accessibleProjects)) {
       query = query.in('project_id', accessibleProjects);
       statsQuery = statsQuery.in('project_id', accessibleProjects);
     }
@@ -114,7 +155,7 @@ export async function GET(request: NextRequest) {
       .select('id, status, visa_amount, project_id, occurrence_date');
     
     // 应用项目过滤
-    if (accessibleProjects && accessibleProjects.length > 0) {
+    if (Array.isArray(accessibleProjects)) {
       allVisasQuery = allVisasQuery.in('project_id', accessibleProjects);
     }
     
@@ -126,7 +167,7 @@ export async function GET(request: NextRequest) {
       .select('id, name, status')
       .eq('status', '进行中');
     
-    if (accessibleProjects && accessibleProjects.length > 0) {
+    if (Array.isArray(accessibleProjects)) {
       activeProjectsQuery = activeProjectsQuery.in('id', accessibleProjects);
     }
     
@@ -291,6 +332,11 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (Array.isArray(accessibleProjects) && !accessibleProjects.includes(Number(project_id))) {
+      return NextResponse.json({ error: '无权在该项目下创建签证' }, { status: 403 });
+    }
+
     const finalStatus = status === '草稿' ? '草稿' : '已提交';
     const projectManagerUserId = Number(project_manager_user_id || 0);
 

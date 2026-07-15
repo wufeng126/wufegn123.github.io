@@ -3,6 +3,19 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function normalizeProjectIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map((projectId) => Number(projectId))
+      .filter((projectId) => Number.isInteger(projectId))
+  ));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const client = getSupabaseClient();
@@ -11,7 +24,7 @@ export async function GET(request: NextRequest) {
     const user = await getCurrentUser();
     
     // 查询项目数据
-    let query = client
+    const query = client
       .from('projects')
       .select('id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, created_at')
       .order('year', { ascending: false })
@@ -34,40 +47,13 @@ export async function GET(request: NextRequest) {
         .eq('id', user.id)
         .single();
       
-      if (userData) {
-        // 获取用户直接分配的项目
-        const userAllowedProjects: number[] = userData.managed_projects || [];
-        
-        // 获取用户通过角色分配的项目
-        const { data: userRoles } = await client
-          .from('user_roles')
-          .select('role_id')
-          .eq('user_id', user.id);
-        
-        const roleProjectIds: number[] = [];
-        if (userRoles && userRoles.length > 0) {
-          const roleIds = userRoles.map(ur => ur.role_id);
-          const { data: roles } = await client
-            .from('roles')
-            .select('allowed_projects')
-            .in('id', roleIds);
-          
-          if (roles) {
-            for (const role of roles) {
-              if (role.allowed_projects && Array.isArray(role.allowed_projects)) {
-                roleProjectIds.push(...role.allowed_projects);
-              }
-            }
-          }
-        }
-        
-        // 合并：用户自己的项目 + 角色允许的项目
-        const allAllowedProjects = [...new Set([...userAllowedProjects, ...roleProjectIds])];
-        
-        // 如果有权限控制，过滤项目
-        if (allAllowedProjects.length > 0) {
-          filteredProjects = filteredProjects.filter(p => allAllowedProjects.includes(p.id));
-        }
+      const allAllowedProjects = normalizeProjectIds(userData?.managed_projects);
+
+      // 如果有权限控制，过滤项目；没有分配项目时不能回退为全部可见。
+      if (allAllowedProjects.length > 0) {
+        filteredProjects = filteredProjects.filter(p => allAllowedProjects.includes(p.id));
+      } else {
+        filteredProjects = [];
       }
     }
     
@@ -163,10 +149,10 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({ projects: projectsWithProgress });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: getErrorMessage(error, '查询失败') },
       { status: 500 }
     );
   }
@@ -213,10 +199,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ project: projectData });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '创建失败' },
+      { error: getErrorMessage(error, '创建失败') },
       { status: 500 }
     );
   }

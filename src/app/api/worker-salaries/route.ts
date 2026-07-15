@@ -4,8 +4,57 @@ import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 
+type RelatedNameEntity = {
+  name?: string | null;
+};
+
+type RelatedName = RelatedNameEntity | RelatedNameEntity[] | null;
+
+type SalaryPaymentRow = {
+  salary_id: number;
+  payment_amount?: unknown;
+};
+
+type WorkerSalaryRow = {
+  id: number;
+  worker_id: number;
+  project_id: number;
+  year_month?: string | null;
+  work_hours?: unknown;
+  hourly_rate?: unknown;
+  contract_work_pay?: unknown;
+  gross_pay?: unknown;
+  income_tax?: unknown;
+  advance_pay?: unknown;
+  labor_insurance?: unknown;
+  fine?: unknown;
+  net_pay?: unknown;
+  remark?: string | null;
+  payment_status?: string | null;
+  workers?: RelatedName;
+  projects?: RelatedName;
+};
+
+function normalizeProjectIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map((projectId) => Number(projectId))
+      .filter((projectId) => Number.isInteger(projectId))
+  ));
+}
+
+function getRelatedName(value?: RelatedName, fallback = '未知') {
+  if (Array.isArray(value)) return value[0]?.name || fallback;
+  return value?.name || fallback;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 // 安全解析 numeric 类型
-function parseNumeric(value: any): number {
+function parseNumeric(value: unknown): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
@@ -14,15 +63,16 @@ function parseNumeric(value: any): number {
   }
   // 处理 Decimal.js 对象格式
   if (typeof value === 'object') {
-    if ('$numberDecimal' in value) {
-      const parsed = parseFloat(String(value.$numberDecimal));
+    const numericObject = value as Record<string, unknown>;
+    if ('$numberDecimal' in numericObject) {
+      const parsed = parseFloat(String(numericObject.$numberDecimal));
       return isNaN(parsed) ? 0 : parsed;
     }
     // 处理 { "0": "-", "1": "2", ... } 格式
-    const str = Object.keys(value)
+    const str = Object.keys(numericObject)
       .filter(k => !isNaN(Number(k)))
       .sort((a, b) => Number(a) - Number(b))
-      .map(k => String(value[k]))
+      .map(k => String(numericObject[k]))
       .join('');
     const parsed = parseFloat(str);
     return isNaN(parsed) ? 0 : parsed;
@@ -37,7 +87,7 @@ async function getAccessibleProjectIds(userId: number, userRole: string) {
   // 超级管理员可以访问所有项目
   if (userRole === 'super_admin') {
     const { data } = await client.from('projects').select('id');
-    return (data || []).map((p: any) => p.id);
+    return normalizeProjectIds((data || []).map((project) => project.id));
   }
   
   // 获取用户直接分配的项目
@@ -47,32 +97,7 @@ async function getAccessibleProjectIds(userId: number, userRole: string) {
     .eq('id', userId)
     .single();
   
-  const userProjects: number[] = userData?.managed_projects || [];
-  
-  // 获取用户通过角色分配的项目
-  const { data: userRoles } = await client
-    .from('user_roles')
-    .select('role_id')
-    .eq('user_id', userId);
-  
-  const roleProjects: number[] = [];
-  if (userRoles && userRoles.length > 0) {
-    const roleIds = userRoles.map((ur: any) => ur.role_id);
-    const { data: roles } = await client
-      .from('roles')
-      .select('allowed_projects')
-      .in('id', roleIds);
-    
-    if (roles) {
-      for (const role of roles) {
-        if (role.allowed_projects && Array.isArray(role.allowed_projects)) {
-          roleProjects.push(...role.allowed_projects);
-        }
-      }
-    }
-  }
-  
-  return [...new Set([...userProjects, ...roleProjects])];
+  return normalizeProjectIds(userData?.managed_projects);
 }
 
 export async function GET(request: NextRequest) {
@@ -89,6 +114,7 @@ export async function GET(request: NextRequest) {
     
     // 获取可访问的项目ID
     const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
+    const isSuperAdmin = user?.role === 'super_admin';
     
     let query = client
       .from('worker_salaries')
@@ -143,15 +169,17 @@ export async function GET(request: NextRequest) {
 
     // 按 salary_id 汇总已付金额
     const paidAmountMap = new Map<number, number>();
-    (salaryPaymentsData || []).forEach((payment: any) => {
+    ((salaryPaymentsData || []) as SalaryPaymentRow[]).forEach((payment) => {
       const current = paidAmountMap.get(payment.salary_id) || 0;
       paidAmountMap.set(payment.salary_id, current + parseNumeric(payment.payment_amount));
     });
 
     // 数据权限过滤
-    let filteredData = data || [];
-    if (accessibleProjects.length > 0) {
-      filteredData = filteredData.filter((record: any) => accessibleProjects.includes(record.project_id));
+    let filteredData = ((data || []) as WorkerSalaryRow[]);
+    if (!isSuperAdmin && accessibleProjects.length === 0) {
+      filteredData = [];
+    } else if (accessibleProjects.length > 0) {
+      filteredData = filteredData.filter((record) => accessibleProjects.includes(Number(record.project_id)));
     }
 
     // 格式化返回数据，关联已付金额，确保所有金额字段为数字类型
@@ -159,8 +187,8 @@ export async function GET(request: NextRequest) {
       id: record.id,
       worker_id: record.worker_id,
       project_id: record.project_id,
-      worker_name: (record.workers as any)?.name || '未知工人',
-      project_name: (record.projects as any)?.name || '未知项目',
+      worker_name: getRelatedName(record.workers, '未知工人'),
+      project_name: getRelatedName(record.projects, '未知项目'),
       year_month: record.year_month,
       work_hours: parseNumeric(record.work_hours),
       hourly_rate: parseNumeric(record.hourly_rate),
@@ -177,15 +205,15 @@ export async function GET(request: NextRequest) {
     }));
 
     // 计算总金额
-    const totalGrossPay = filteredData.reduce((sum: number, record: any) => {
+    const totalGrossPay = filteredData.reduce((sum: number, record) => {
       return sum + parseNumeric(record.gross_pay || '0');
     }, 0);
 
-    const totalNetPay = filteredData.reduce((sum: number, record: any) => {
+    const totalNetPay = filteredData.reduce((sum: number, record) => {
       return sum + parseNumeric(record.net_pay || '0');
     }, 0);
 
-    const totalPaid = filteredData.reduce((sum: number, record: any) => {
+    const totalPaid = filteredData.reduce((sum: number, record) => {
       return sum + (paidAmountMap.get(record.id) || 0);
     }, 0);
 
@@ -203,8 +231,8 @@ export async function GET(request: NextRequest) {
       worker_count: number;
     }>();
 
-    filteredData.forEach((record: any) => {
-      const projectName = (record.projects as any)?.name || '未分配项目';
+    filteredData.forEach((record) => {
+      const projectName = getRelatedName(record.projects, '未分配项目');
       const projectId = record.project_id;
       const grossPay = parseNumeric(record.gross_pay || '0');
       const incomeTax = parseNumeric(record.income_tax || '0');
@@ -251,10 +279,10 @@ export async function GET(request: NextRequest) {
       totalPaid: totalPaid.toFixed(2),
       projectSummary,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: getErrorMessage(error, '查询失败') },
       { status: 500 }
     );
   }
@@ -292,8 +320,9 @@ export async function POST(request: NextRequest) {
     // 获取当前用户并验证权限
     const user = await getCurrentUser();
     const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
+    const isSuperAdmin = user?.role === 'super_admin';
     
-    if (accessibleProjects.length > 0 && !accessibleProjects.includes(project_id)) {
+    if (!isSuperAdmin && (accessibleProjects.length === 0 || !accessibleProjects.includes(project_id))) {
       return NextResponse.json({ error: '无权在该项目下创建工资记录' }, { status: 403 });
     }
 
@@ -359,10 +388,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ salary: salaryData });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '创建失败' },
+      { error: getErrorMessage(error, '创建失败') },
       { status: 500 }
     );
   }

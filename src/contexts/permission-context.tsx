@@ -117,6 +117,15 @@ async function safeJson(res: Response) {
   }
 }
 
+function normalizeProjectIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map((projectId) => Number(projectId))
+      .filter((projectId) => Number.isInteger(projectId))
+  ));
+}
+
 export function PermissionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserPermission | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -178,9 +187,11 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
         const projRes = await authFetch('/api/system/permission/my-projects');
         if (projRes.ok) {
           const projData = await safeJson(projRes);
-          if (projData?.projects) {
-            userManagedProjects = (projData.projects as Array<{ id: number }>).map((p) => p.id);
-          }
+          userManagedProjects = normalizeProjectIds(
+            projData?.assigned_project_ids
+              || projData?.project_ids
+              || (projData?.projects as Array<{ id: number }> | undefined)?.map((p) => p.id)
+          );
         }
       } catch {
         // 项目获取失败，使用空数组
