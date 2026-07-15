@@ -10,6 +10,18 @@ function cleanText(value: unknown): string | null {
   return text || null;
 }
 
+function normalizeDocumentUrl(value: unknown): string | null {
+  const text = cleanText(value);
+  if (!text) return null;
+  try {
+    const url = new URL(text);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return text;
+  }
+}
+
 async function requireSuperAdmin(request: NextRequest) {
   const auth = await requireAuth(request);
   if (!auth.ok) return auth;
@@ -25,6 +37,7 @@ function normalizeBindingPayload(body: Record<string, unknown>) {
     project_id: Number.isFinite(projectId) && projectId > 0 ? projectId : null,
     wps_project_name: cleanText(body.wpsProjectName ?? body.wps_project_name),
     worksheet_name: cleanText(body.worksheetName ?? body.worksheet_name),
+    wps_document_url: normalizeDocumentUrl(body.wpsDocumentUrl ?? body.wps_document_url ?? body.documentUrl ?? body.document_url),
     wps_form_id: cleanText(body.wpsFormId ?? body.wps_form_id),
     wps_sheet_id: cleanText(body.wpsSheetId ?? body.wps_sheet_id),
     wps_table_id: cleanText(body.wpsTableId ?? body.wps_table_id),
@@ -36,8 +49,8 @@ function normalizeBindingPayload(body: Record<string, unknown>) {
 
 function validateBinding(data: ReturnType<typeof normalizeBindingPayload>) {
   if (!data.project_id) return '请选择系统项目';
-  if (!data.wps_project_name && !data.worksheet_name && !data.wps_form_id && !data.wps_sheet_id && !data.wps_table_id) {
-    return '请至少填写一个 WPS 项目名称、工作表名称或稳定 ID';
+  if (!data.wps_project_name && !data.worksheet_name && !data.wps_document_url && !data.wps_form_id && !data.wps_sheet_id && !data.wps_table_id) {
+    return '请至少填写一个 WPS 文档链接、项目名称、工作表名称或稳定 ID';
   }
   return null;
 }
@@ -77,6 +90,11 @@ export async function GET(request: NextRequest) {
       success: true,
       bindings: bindings || [],
       projects: projects || [],
+      integration: {
+        webhookPath: '/api/integrations/wps/workers/webhook',
+        tokenConfigured: Boolean(process.env.WPS_WORKER_SYNC_TOKEN || process.env.WPS_SYNC_TOKEN),
+        pullCredentialConfigured: Boolean(process.env.WPS_ACCESS_TOKEN || process.env.WPS_APP_ID || process.env.WPS_APP_SECRET),
+      },
       stats: {
         totalBindings: bindings?.length || 0,
         activeBindings: bindingRows.filter((item) => item.is_active).length,

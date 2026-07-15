@@ -1,9 +1,21 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
+import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 
 type NotificationSeverity = 'info' | 'warning' | 'danger';
-type NotificationRow = { id?: number | string };
+type NotificationRow = { id?: number | string; recipient_user_id?: number | null };
 type SupabaseErrorLike = { message?: string; details?: string } | null;
+type SettingEnabled = boolean | string | number | null | undefined;
+
+function isEnabled(value: SettingEnabled, fallback = false) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = value.trim().toLowerCase();
+  if (['false', '0', 'off', 'no', 'disabled'].includes(normalized)) return false;
+  if (['true', '1', 'on', 'yes', 'enabled'].includes(normalized)) return true;
+  return fallback;
+}
 
 function getPriority(severity: NotificationSeverity) {
   if (severity === 'danger') return 2;
@@ -96,22 +108,6 @@ export async function pushBusinessNotification(params: {
       return;
     }
 
-    const { data: webhookSetting } = await supabase
-      .from('notification_settings')
-      .select('setting_value, enabled')
-      .eq('setting_key', 'dingtalk_webhook')
-      .single();
-
-    const { data: secretSetting } = await supabase
-      .from('notification_settings')
-      .select('setting_value')
-      .eq('setting_key', 'dingtalk_secret')
-      .single();
-
-    if (!webhookSetting?.setting_value || !webhookSetting.enabled) {
-      return;
-    }
-
     const { data: typeSettings } = await supabase
       .from('notification_settings')
       .select('setting_key, enabled')
@@ -127,31 +123,44 @@ export async function pushBusinessNotification(params: {
       ]);
 
     const typeEnabledMap: Record<string, boolean> = {};
-    typeSettings?.forEach((setting: { setting_key: string; enabled: boolean }) => {
-      typeEnabledMap[setting.setting_key] = setting.enabled;
+    typeSettings?.forEach((setting: { setting_key: string; enabled: SettingEnabled }) => {
+      typeEnabledMap[setting.setting_key] = isEnabled(setting.enabled, true);
     });
+    const isTypeEnabled = (key: string) => typeEnabledMap[key] !== false;
 
     let shouldSend = false;
-    if (['new_report', 'new_worker'].includes(type) && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
-    if (type === 'new_settlement' && (typeEnabledMap['settlement_reminder_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
-    if (['new_worker_salary', 'new_salary'].includes(type) && (typeEnabledMap['salary_reminder_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
-    if (type === 'new_worker_payment' && (typeEnabledMap['salary_reminder_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
-    if (type === 'new_client_payment' && (typeEnabledMap['client_payment_reminder_enabled'] || typeEnabledMap['payment_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
-    if (type === 'new_supplier_payment' && (typeEnabledMap['supplier_payment_reminder_enabled'] || typeEnabledMap['payment_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
-    if (type === 'cost_warning' && typeEnabledMap['cost_warning_enabled']) shouldSend = true;
-    if (type === 'monthly_analysis_workflow' && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
-    if (type === 'construction_log_alert' && (typeEnabledMap['cost_warning_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
-    if (type === 'construction_daily_report' && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
-    if (['visa_workflow', 'visa_workflow_overdue'].includes(type) && (typeEnabledMap['visa_reminder_enabled'] || typeEnabledMap['new_record_reminder_enabled'])) shouldSend = true;
+    if (['new_report', 'new_worker'].includes(type) && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
+    if (type === 'new_settlement' && (isTypeEnabled('settlement_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (['new_worker_salary', 'new_salary'].includes(type) && (isTypeEnabled('salary_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (type === 'new_worker_payment' && (isTypeEnabled('salary_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (type === 'new_client_payment' && (isTypeEnabled('client_payment_reminder_enabled') || isTypeEnabled('payment_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (type === 'new_supplier_payment' && (isTypeEnabled('supplier_payment_reminder_enabled') || isTypeEnabled('payment_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (type === 'cost_warning' && isTypeEnabled('cost_warning_enabled')) shouldSend = true;
+    if (type === 'monthly_analysis_workflow' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
+    if (type === 'construction_log_alert' && (isTypeEnabled('cost_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (type === 'construction_daily_report' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
+    if (['visa_workflow', 'visa_workflow_overdue'].includes(type) && (isTypeEnabled('visa_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
 
     const { data: dingtalkEnabled } = await supabase
       .from('notification_settings')
       .select('enabled')
       .eq('setting_key', 'dingtalk_enabled')
       .single();
-    if (dingtalkEnabled && !dingtalkEnabled.enabled) shouldSend = false;
+    if (dingtalkEnabled && !isEnabled(dingtalkEnabled.enabled, true)) shouldSend = false;
 
     if (!shouldSend) return;
+
+    const { data: webhookSetting } = await supabase
+      .from('notification_settings')
+      .select('setting_value, enabled')
+      .eq('setting_key', 'dingtalk_webhook')
+      .single();
+
+    const { data: secretSetting } = await supabase
+      .from('notification_settings')
+      .select('setting_value')
+      .eq('setting_key', 'dingtalk_secret')
+      .single();
 
     let projectName: string | undefined;
     if (projectId) {
@@ -175,19 +184,71 @@ export async function pushBusinessNotification(params: {
     };
 
     const { title: msgTitle, text } = formatDingTalkMessage(notifParams);
-    const result = await sendDingTalkNotification(
-      webhookSetting.setting_value,
-      secretSetting?.setting_value,
-      msgTitle,
-      text
-    );
+    const notificationIds = notificationRows
+      .map((notification) => notification.id)
+      .filter((id): id is number | string => id !== undefined && id !== null);
 
-    const notificationIds = notificationRows.map((notification) => notification.id).filter(Boolean);
-    if (result.success && notificationIds.length > 0) {
+    let robotSent = false;
+    if (webhookSetting?.setting_value && isEnabled(webhookSetting.enabled, true)) {
+      const result = await sendDingTalkNotification(
+        webhookSetting.setting_value,
+        secretSetting?.setting_value,
+        msgTitle,
+        text
+      );
+      robotSent = result.success;
+    }
+
+    const sentNotificationIds = new Set<number | string>();
+    if (robotSent) {
+      notificationIds.forEach((id) => sentNotificationIds.add(id));
+    }
+
+    if (uniqueRecipientIds.length > 0) {
+      const { data: recipientUsers, error: recipientError } = await supabase
+        .from('users')
+        .select('id,dingtalk_user_id,is_disabled,dingtalk_active')
+        .in('id', uniqueRecipientIds);
+
+      if (recipientError) {
+        console.error('[DingTalk Work] Failed to query recipients:', recipientError);
+      } else {
+        const systemUserIdByDingTalkId = new Map<string, number>();
+        const dingtalkUserIds = (recipientUsers || [])
+          .filter((user: { dingtalk_user_id?: string | null; is_disabled?: boolean | null; dingtalk_active?: boolean | null }) => {
+            if (!user.dingtalk_user_id) return false;
+            if (user.is_disabled === true) return false;
+            if (user.dingtalk_active === false) return false;
+            return true;
+          })
+          .map((user: { id: number; dingtalk_user_id: string }) => {
+            systemUserIdByDingTalkId.set(String(user.dingtalk_user_id), user.id);
+            return String(user.dingtalk_user_id);
+          });
+
+        const workResult = await sendDingTalkWorkNotification(dingtalkUserIds, notifParams);
+        if (!workResult.success && workResult.errmsg && !workResult.missingConfig) {
+          console.error('[DingTalk Work] Send failed:', workResult.errmsg);
+        }
+
+        const sentSystemUserIds = new Set(
+          workResult.sentUserIds
+            .map((dingtalkUserId) => systemUserIdByDingTalkId.get(dingtalkUserId))
+            .filter((id): id is number => Boolean(id))
+        );
+        notificationRows.forEach((notification) => {
+          if (notification.id && notification.recipient_user_id && sentSystemUserIds.has(notification.recipient_user_id)) {
+            sentNotificationIds.add(notification.id);
+          }
+        });
+      }
+    }
+
+    if (sentNotificationIds.size > 0) {
       await supabase
         .from('notifications')
         .update({ is_sent: true, sent_at: new Date().toISOString() })
-        .in('id', notificationIds);
+        .in('id', Array.from(sentNotificationIds));
     }
   } catch (error) {
     console.error('[Business notification] Push failed:', error);

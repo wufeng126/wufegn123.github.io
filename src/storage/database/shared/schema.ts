@@ -505,6 +505,7 @@ export const wpsProjectBindings = pgTable("wps_project_bindings", {
 	projectId: integer("project_id").notNull(),
 	wpsProjectName: varchar("wps_project_name", { length: 200 }),
 	worksheetName: varchar("worksheet_name", { length: 200 }),
+	wpsDocumentUrl: text("wps_document_url"),
 	wpsFormId: varchar("wps_form_id", { length: 120 }),
 	wpsSheetId: varchar("wps_sheet_id", { length: 120 }),
 	wpsTableId: varchar("wps_table_id", { length: 120 }),

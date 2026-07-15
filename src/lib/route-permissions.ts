@@ -76,6 +76,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/ai/knowledge': {},
   '/api/integrations/wps/workers/logs': { permission: 'workers:import' },
   '/api/integrations/wps/workers/bindings': { permission: 'system:manage', superAdminOnly: true },
+  '/api/integrations/wps/workers/sync': { permission: 'system:manage', superAdminOnly: true },
   '/api/miscellaneous-materials/recognize': { permission: 'miscellaneous_materials:view' },
 
   // === 新导航容器页 ===
@@ -258,6 +259,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/dingtalk/contacts': 'system:dingtalk_manage',
   '/api/dingtalk/bindings': 'system:dingtalk_manage',
   '/api/integrations/wps/workers/bindings': 'system:manage',
+  '/api/integrations/wps/workers/sync': 'system:manage',
 };
 
 /**

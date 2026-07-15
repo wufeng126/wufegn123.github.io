@@ -8,6 +8,7 @@ export interface WpsWorkerInput {
   wpsFormId?: string | null;
   wpsSheetId?: string | null;
   wpsTableId?: string | null;
+  wpsDocumentUrl?: string | null;
   projectName?: string | null;
   worksheetName?: string | null;
   name?: string | null;
@@ -35,6 +36,7 @@ const FIELD_ALIASES: Record<keyof WpsWorkerInput, string[]> = {
   wpsFormId: ['wpsFormId', 'wps_form_id', 'formId', 'form_id', 'formID', '表单ID', '表单id'],
   wpsSheetId: ['wpsSheetId', 'wps_sheet_id', 'sheetId', 'sheet_id', 'worksheetId', 'worksheet_id', '工作表ID', '工作表id'],
   wpsTableId: ['wpsTableId', 'wps_table_id', 'tableId', 'table_id', 'bitableId', 'bitable_id', '多维表格ID', '多维表格id'],
+  wpsDocumentUrl: ['wpsDocumentUrl', 'wps_document_url', 'documentUrl', 'document_url', 'docUrl', 'doc_url', '文档链接', 'WPS文档链接'],
   projectName: ['projectName', 'project_name', 'project', '项目名称', '所属项目'],
   worksheetName: ['worksheetName', 'worksheet_name', 'sheetName', 'sheet_name', 'tableName', 'table_name', '工作表', '工作表名称'],
   name: ['name', 'workerName', 'worker_name', '姓名', '工人姓名'],
@@ -120,6 +122,7 @@ export function extractWpsWorkerRecords(payload: unknown): WpsWorkerInput[] {
       wpsFormId: pickField(flat, FIELD_ALIASES.wpsFormId) || pickField(body, FIELD_ALIASES.wpsFormId),
       wpsSheetId: pickField(flat, FIELD_ALIASES.wpsSheetId) || pickField(body, FIELD_ALIASES.wpsSheetId),
       wpsTableId: pickField(flat, FIELD_ALIASES.wpsTableId) || pickField(body, FIELD_ALIASES.wpsTableId),
+      wpsDocumentUrl: pickField(flat, FIELD_ALIASES.wpsDocumentUrl) || pickField(body, FIELD_ALIASES.wpsDocumentUrl),
       projectName: recordProjectName,
       worksheetName: pickField(flat, FIELD_ALIASES.worksheetName) || pickField(body, FIELD_ALIASES.worksheetName),
       name: pickField(flat, FIELD_ALIASES.name),
@@ -293,6 +296,7 @@ type WpsProjectBindingRow = {
   wps_form_id: string | null;
   wps_sheet_id: string | null;
   wps_table_id: string | null;
+  wps_document_url?: string | null;
   projects?: { id: number; name: string } | { id: number; name: string }[] | null;
 };
 
@@ -303,12 +307,13 @@ function getBindingProject(binding: WpsProjectBindingRow | null) {
 
 async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInput): Promise<WpsProjectBindingRow | null> {
   const clean = (value?: string | null) => value?.trim() || null;
-  const selectFields = 'id, project_id, wps_project_name, worksheet_name, wps_form_id, wps_sheet_id, wps_table_id, projects(id, name)';
+  const selectFields = 'id, project_id, wps_project_name, worksheet_name, wps_document_url, wps_form_id, wps_sheet_id, wps_table_id, projects(id, name)';
 
   for (const [column, value] of [
     ['wps_form_id', clean(input.wpsFormId)],
     ['wps_sheet_id', clean(input.wpsSheetId)],
     ['wps_table_id', clean(input.wpsTableId)],
+    ['wps_document_url', clean(input.wpsDocumentUrl)],
   ] as const) {
     if (!value) continue;
     const { data } = await client

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Link2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardList, ExternalLink, FileSpreadsheet, Link2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,7 @@ interface WpsBinding {
   project_id: number;
   wps_project_name?: string | null;
   worksheet_name?: string | null;
+  wps_document_url?: string | null;
   wps_form_id?: string | null;
   wps_sheet_id?: string | null;
   wps_table_id?: string | null;
@@ -37,6 +38,17 @@ interface WpsBinding {
   projects?: ProjectOption | ProjectOption[] | null;
 }
 
+interface SyncLog {
+  id: number;
+  project_name?: string | null;
+  worksheet_name?: string | null;
+  worker_name?: string | null;
+  action?: string | null;
+  status?: string | null;
+  message?: string | null;
+  created_at?: string | null;
+}
+
 interface BindingStats {
   totalBindings: number;
   activeBindings: number;
@@ -44,11 +56,18 @@ interface BindingStats {
   unconfiguredProjects: number;
 }
 
+interface IntegrationInfo {
+  webhookPath: string;
+  tokenConfigured: boolean;
+  pullCredentialConfigured: boolean;
+}
+
 interface BindingForm {
   id?: number;
   projectId: string;
   wpsProjectName: string;
   worksheetName: string;
+  wpsDocumentUrl: string;
   wpsFormId: string;
   wpsSheetId: string;
   wpsTableId: string;
@@ -60,6 +79,7 @@ const emptyForm: BindingForm = {
   projectId: '',
   wpsProjectName: '',
   worksheetName: '',
+  wpsDocumentUrl: '',
   wpsFormId: '',
   wpsSheetId: '',
   wpsTableId: '',
@@ -86,17 +106,41 @@ function statusBadge(status?: string | null) {
   return <Badge variant="secondary">未同步</Badge>;
 }
 
+function actionText(action?: string | null) {
+  const map: Record<string, string> = {
+    created: '新增',
+    updated: '更新',
+    transferred: '调入',
+    skipped: '跳过',
+    error: '失败',
+  };
+  return action ? map[action] || action : '-';
+}
+
 export default function WpsConfigPage() {
   const { toast } = useToast();
   const [bindings, setBindings] = useState<WpsBinding[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [logs, setLogs] = useState<SyncLog[]>([]);
   const [stats, setStats] = useState<BindingStats>({ totalBindings: 0, activeBindings: 0, configuredProjects: 0, unconfiguredProjects: 0 });
+  const [integration, setIntegration] = useState<IntegrationInfo>({ webhookPath: '/api/integrations/wps/workers/webhook', tokenConfigured: false, pullCredentialConfigured: false });
+  const [origin] = useState(() => (typeof window === 'undefined' ? '' : window.location.origin));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<BindingForm>(emptyForm);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const response = await fetch('/api/integrations/wps/workers/logs?pageSize=8');
+      const data = await response.json();
+      if (response.ok && data.success) setLogs(data.logs || []);
+    } catch {
+      setLogs([]);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -107,12 +151,14 @@ export default function WpsConfigPage() {
       setBindings(data.bindings || []);
       setProjects(data.projects || []);
       setStats(data.stats || { totalBindings: 0, activeBindings: 0, configuredProjects: 0, unconfiguredProjects: 0 });
+      setIntegration(data.integration || { webhookPath: '/api/integrations/wps/workers/webhook', tokenConfigured: false, pullCredentialConfigured: false });
+      await fetchLogs();
     } catch (error) {
       toast({ title: '加载失败', description: error instanceof Error ? error.message : '获取 WPS 配置失败', variant: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [fetchLogs, toast]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -120,6 +166,8 @@ export default function WpsConfigPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [fetchData]);
+
+  const webhookUrl = `${origin}${integration.webhookPath}`;
 
   const filteredBindings = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -130,6 +178,7 @@ export default function WpsConfigPage() {
         project?.name,
         binding.wps_project_name,
         binding.worksheet_name,
+        binding.wps_document_url,
         binding.wps_form_id,
         binding.wps_sheet_id,
         binding.wps_table_id,
@@ -149,6 +198,7 @@ export default function WpsConfigPage() {
       projectId: String(binding.project_id),
       wpsProjectName: binding.wps_project_name || '',
       worksheetName: binding.worksheet_name || '',
+      wpsDocumentUrl: binding.wps_document_url || '',
       wpsFormId: binding.wps_form_id || '',
       wpsSheetId: binding.wps_sheet_id || '',
       wpsTableId: binding.wps_table_id || '',
@@ -167,10 +217,14 @@ export default function WpsConfigPage() {
         body: JSON.stringify({}),
       });
       const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || '同步失败');
+      if (!response.ok) throw new Error(data.error || '同步失败');
+      const summary = data.summary || {};
       toast({
-        title: '同步完成',
-        description: `成功 ${data.summary?.created || 0} 条，更新 ${data.summary?.updated || 0} 条，失败 ${data.summary?.failed || 0} 条`,
+        title: data.success ? '同步完成' : '同步检查完成',
+        description: data.success
+          ? `新增 ${summary.created || 0} 人，更新 ${summary.updated || 0} 人，调入 ${summary.transferred || 0} 人，失败 ${summary.failed || 0} 条`
+          : data.message || '请查看绑定台账中的同步结果说明',
+        variant: data.success ? 'default' : 'warning',
       });
       await fetchData();
     } catch (error) {
@@ -185,8 +239,8 @@ export default function WpsConfigPage() {
       toast({ title: '请选择系统项目', variant: 'error' });
       return;
     }
-    if (!form.wpsProjectName && !form.worksheetName && !form.wpsFormId && !form.wpsSheetId && !form.wpsTableId) {
-      toast({ title: '请至少填写一个 WPS 名称或 ID', variant: 'error' });
+    if (!form.wpsDocumentUrl && !form.wpsProjectName && !form.worksheetName && !form.wpsFormId && !form.wpsSheetId && !form.wpsTableId) {
+      toast({ title: '请至少填写一个 WPS 文档链接、名称或 ID', variant: 'error' });
       return;
     }
 
@@ -213,7 +267,6 @@ export default function WpsConfigPage() {
   };
 
   const toggleActive = async (binding: WpsBinding) => {
-    const project = getProject(binding);
     const response = await fetch('/api/integrations/wps/workers/bindings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -222,6 +275,7 @@ export default function WpsConfigPage() {
         projectId: binding.project_id,
         wpsProjectName: binding.wps_project_name || '',
         worksheetName: binding.worksheet_name || '',
+        wpsDocumentUrl: binding.wps_document_url || '',
         wpsFormId: binding.wps_form_id || '',
         wpsSheetId: binding.wps_sheet_id || '',
         wpsTableId: binding.wps_table_id || '',
@@ -234,7 +288,7 @@ export default function WpsConfigPage() {
       toast({ title: '操作失败', description: data.error || '更新启用状态失败', variant: 'error' });
       return;
     }
-    toast({ title: binding.is_active === false ? '已启用同步' : '已停用同步', description: project?.name });
+    toast({ title: binding.is_active === false ? '已启用同步' : '已停用同步' });
     await fetchData();
   };
 
@@ -255,9 +309,9 @@ export default function WpsConfigPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">WPS 花名册同步配置</h1>
-          <p className="mt-1 text-sm text-gray-500">绑定系统项目与 WPS 表单、工作表或多维表格，确保扫码填报稳定进入正确项目。</p>
+          <p className="mt-1 text-sm text-gray-500">绑定系统项目与 WPS 表单、多维表格或可下载文档链接，扫码填报后进入工人档案。</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -292,99 +346,158 @@ export default function WpsConfigPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <CardTitle className="text-base">绑定台账</CardTitle>
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-              <Input className="pl-9" placeholder="搜索项目、WPS名称或ID" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <CardTitle className="text-base">绑定台账</CardTitle>
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Input className="pl-9" placeholder="搜索项目、链接、WPS 名称或 ID" value={search} onChange={(event) => setSearch(event.target.value)} />
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {filteredBindings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-14 text-center text-gray-500">
-              <Link2 className="mb-3 h-9 w-9 text-gray-300" />
-              <p>{loading ? '正在加载配置...' : '暂无 WPS 项目绑定配置'}</p>
-              {!loading && <p className="mt-1 text-sm">新增后，WPS 同步会优先按绑定关系识别项目。</p>}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>系统项目</TableHead>
-                  <TableHead>WPS 名称</TableHead>
-                  <TableHead>稳定 ID</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>最近同步</TableHead>
-                  <TableHead>同步结果</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBindings.map((binding) => {
-                  const project = getProject(binding);
-                  return (
-                    <TableRow key={binding.id}>
-                      <TableCell>
-                        <div className="font-medium">{project?.name || `项目 #${binding.project_id}`}</div>
-                        <div className="text-xs text-gray-500">{project?.year || '-'}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div>{binding.wps_project_name || '-'}</div>
-                        <div className="text-xs text-gray-500">工作表：{binding.worksheet_name || '-'}</div>
-                      </TableCell>
-                      <TableCell className="max-w-64 text-xs text-gray-600">
-                        <div className="truncate">表单：{binding.wps_form_id || '-'}</div>
-                        <div className="truncate">工作表ID：{binding.wps_sheet_id || '-'}</div>
-                        <div className="truncate">多维表格：{binding.wps_table_id || '-'}</div>
-                      </TableCell>
-                      <TableCell>
-                        {binding.is_active === false ? (
-                          <Badge variant="secondary">已停用</Badge>
-                        ) : (
-                          <Badge className="bg-blue-600">启用中</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">{formatDateTime(binding.last_sync_at)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {statusBadge(binding.last_sync_status)}
-                          {binding.last_sync_status === 'error' ? <AlertCircle className="h-4 w-4 text-red-500" /> : null}
-                          {binding.last_sync_status === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : null}
-                        </div>
-                        <div className="mt-1 max-w-56 truncate text-xs text-gray-500" title={binding.last_sync_message || ''}>
-                          {binding.last_sync_message || '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(binding)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => toggleActive(binding)}>
-                            {binding.is_active === false ? '启用' : '停用'}
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteBinding(binding)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {filteredBindings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-14 text-center text-gray-500">
+                <Link2 className="mb-3 h-9 w-9 text-gray-300" />
+                <p>{loading ? '正在加载配置...' : '暂无 WPS 项目绑定配置'}</p>
+                {!loading && <p className="mt-1 text-sm">新增后，系统会按绑定关系识别项目并写入工人档案。</p>}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>系统项目</TableHead>
+                    <TableHead>WPS 文档</TableHead>
+                    <TableHead>匹配标识</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>最近同步</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredBindings.map((binding) => {
+                    const project = getProject(binding);
+                    return (
+                      <TableRow key={binding.id}>
+                        <TableCell>
+                          <div className="font-medium">{project?.name || `项目 #${binding.project_id}`}</div>
+                          <div className="text-xs text-gray-500">{project?.year || '-'}</div>
+                        </TableCell>
+                        <TableCell className="max-w-72">
+                          <div className="font-medium">{binding.wps_project_name || binding.worksheet_name || '-'}</div>
+                          {binding.wps_document_url ? (
+                            <a className="mt-1 flex items-center gap-1 truncate text-xs text-blue-600 hover:underline" href={binding.wps_document_url} target="_blank" rel="noreferrer">
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                              {binding.wps_document_url}
+                            </a>
+                          ) : (
+                            <div className="mt-1 text-xs text-gray-500">未配置文档链接</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-64 text-xs text-gray-600">
+                          <div className="truncate">表单：{binding.wps_form_id || '-'}</div>
+                          <div className="truncate">工作表ID：{binding.wps_sheet_id || '-'}</div>
+                          <div className="truncate">多维表格：{binding.wps_table_id || '-'}</div>
+                        </TableCell>
+                        <TableCell>
+                          {binding.is_active === false ? <Badge variant="secondary">已停用</Badge> : <Badge className="bg-blue-600">启用中</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {statusBadge(binding.last_sync_status)}
+                            {binding.last_sync_status === 'error' ? <AlertCircle className="h-4 w-4 text-red-500" /> : null}
+                            {binding.last_sync_status === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : null}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">{formatDateTime(binding.last_sync_at)}</div>
+                          <div className="mt-1 max-w-56 truncate text-xs text-gray-500" title={binding.last_sync_message || ''}>
+                            {binding.last_sync_message || '-'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEditDialog(binding)} title="编辑">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => toggleActive(binding)}>
+                              {binding.is_active === false ? '启用' : '停用'}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => deleteBinding(binding)} title="删除">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileSpreadsheet className="h-4 w-4" />
+                接入状态
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="rounded-lg border bg-gray-50 p-3">
+                <div className="text-xs text-gray-500">Webhook 地址</div>
+                <div className="mt-1 break-all font-mono text-xs text-gray-800">{webhookUrl}</div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>同步 Token</span>
+                {integration.tokenConfigured ? <Badge className="bg-green-600">已配置</Badge> : <Badge variant="destructive">未配置</Badge>}
+              </div>
+              <div className="flex items-center justify-between">
+                <span>主动拉取凭证</span>
+                {integration.pullCredentialConfigured ? <Badge className="bg-green-600">已配置</Badge> : <Badge variant="outline">未配置</Badge>}
+              </div>
+              <p className="text-xs leading-5 text-gray-500">
+                实时同步建议在 WPS 自动化中调用 webhook；文档链接仅在服务器能直接下载表格时支持手动拉取。
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ClipboardList className="h-4 w-4" />
+                最近同步日志
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {logs.length === 0 ? (
+                <div className="rounded-lg border border-dashed py-8 text-center text-sm text-gray-500">暂无同步日志</div>
+              ) : (
+                <div className="space-y-3">
+                  {logs.map((log) => (
+                    <div key={log.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-medium">{log.worker_name || '-'}</div>
+                        {statusBadge(log.status)}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">{log.project_name || '-'} · {actionText(log.action)} · {formatDateTime(log.created_at)}</div>
+                      <div className="mt-2 line-clamp-2 text-xs text-gray-600">{log.message || '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{form.id ? '编辑 WPS 绑定' : '新增 WPS 绑定'}</DialogTitle>
-            <DialogDescription>优先填写稳定 ID；如果暂时拿不到 ID，可以先填写 WPS 项目名称或工作表名称。</DialogDescription>
+            <DialogDescription>一个系统项目可以绑定一个 WPS 项目二维码、工作表或文档链接。</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
@@ -400,6 +513,10 @@ export default function WpsConfigPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>WPS 文档链接</Label>
+              <Input value={form.wpsDocumentUrl} onChange={(event) => setForm((prev) => ({ ...prev, wpsDocumentUrl: event.target.value }))} placeholder="粘贴 WPS 表格、多维表格或可下载 Excel 链接" />
+            </div>
             <div className="space-y-2">
               <Label>WPS 项目名称</Label>
               <Input value={form.wpsProjectName} onChange={(event) => setForm((prev) => ({ ...prev, wpsProjectName: event.target.value }))} placeholder="如：A项目花名册" />
@@ -410,11 +527,11 @@ export default function WpsConfigPage() {
             </div>
             <div className="space-y-2">
               <Label>WPS 表单 ID</Label>
-              <Input value={form.wpsFormId} onChange={(event) => setForm((prev) => ({ ...prev, wpsFormId: event.target.value }))} placeholder="可选，推荐填写" />
+              <Input value={form.wpsFormId} onChange={(event) => setForm((prev) => ({ ...prev, wpsFormId: event.target.value }))} placeholder="可选，推荐填写稳定 ID" />
             </div>
             <div className="space-y-2">
               <Label>WPS 工作表 ID</Label>
-              <Input value={form.wpsSheetId} onChange={(event) => setForm((prev) => ({ ...prev, wpsSheetId: event.target.value }))} placeholder="可选，推荐填写" />
+              <Input value={form.wpsSheetId} onChange={(event) => setForm((prev) => ({ ...prev, wpsSheetId: event.target.value }))} placeholder="可选" />
             </div>
             <div className="space-y-2">
               <Label>WPS 多维表格 ID</Label>
@@ -429,7 +546,7 @@ export default function WpsConfigPage() {
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label>备注</Label>
-              <Textarea value={form.remark} onChange={(event) => setForm((prev) => ({ ...prev, remark: event.target.value }))} placeholder="例如：WPS 二维码负责人、表单用途等" rows={3} />
+              <Textarea value={form.remark} onChange={(event) => setForm((prev) => ({ ...prev, remark: event.target.value }))} placeholder="例如：二维码负责人、WPS 表单用途、字段口径等" rows={3} />
             </div>
           </div>
           <DialogFooter>

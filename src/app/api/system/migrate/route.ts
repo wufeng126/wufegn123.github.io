@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS wps_project_bindings (
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   wps_project_name VARCHAR(200),
   worksheet_name VARCHAR(200),
+  wps_document_url TEXT,
   wps_form_id VARCHAR(120),
   wps_sheet_id VARCHAR(120),
   wps_table_id VARCHAR(120),
@@ -161,6 +162,7 @@ CREATE TABLE IF NOT EXISTS wps_project_bindings (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+ALTER TABLE wps_project_bindings ADD COLUMN IF NOT EXISTS wps_document_url TEXT;
 CREATE INDEX IF NOT EXISTS wps_project_bindings_project_id_idx ON wps_project_bindings(project_id);
 CREATE INDEX IF NOT EXISTS wps_project_bindings_active_idx ON wps_project_bindings(is_active);
 CREATE INDEX IF NOT EXISTS wps_project_bindings_form_id_idx ON wps_project_bindings(wps_form_id);

@@ -49,7 +49,7 @@ interface Notification {
   sent_at: string | null;
   created_at: string;
   read_at: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
 }
 
 interface Stats {
@@ -148,14 +148,10 @@ export default function NotificationsPage() {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [dingtalkSecret, setDingtalkSecret] = useState('');
   const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testingWorkNotice, setTestingWorkNotice] = useState(false);
   const [checking, setChecking] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-
-  useEffect(() => {
-    fetchData();
-    fetchSettings();
-  }, [activeTab, page]);
 
   const fetchData = async () => {
     try {
@@ -188,6 +184,14 @@ export default function NotificationsPage() {
       console.error('获取设置失败:', error);
     }
   };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchData();
+      fetchSettings();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, page]);
 
   // 标记已读
   const markAsRead = async (id: number) => {
@@ -267,6 +271,28 @@ export default function NotificationsPage() {
       toast({ title: '测试失败', description: '网络错误', variant: 'error' });
     } finally {
       setTestingWebhook(false);
+    }
+  };
+
+  // 测试钉钉个人工作通知
+  const testWorkNotice = async () => {
+    setTestingWorkNotice(true);
+    try {
+      const res = await fetch('/api/notifications/dingtalk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test: true, channel: 'work' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: '测试成功', description: '钉钉个人工作通知已发送', variant: 'success' });
+      } else {
+        toast({ title: '测试失败', description: data.error || '发送失败', variant: 'error' });
+      }
+    } catch (error) {
+      toast({ title: '测试失败', description: '网络错误', variant: 'error' });
+    } finally {
+      setTestingWorkNotice(false);
     }
   };
 
@@ -447,9 +473,18 @@ export default function NotificationsPage() {
                   <TestTube className="w-4 h-4" />
                   测试
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={testWorkNotice}
+                  disabled={testingWorkNotice}
+                  className="flex items-center gap-1"
+                >
+                  {testingWorkNotice ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  测试个人
+                </Button>
               </div>
               <p className="text-xs" style={{ color: '#86909C' }}>
-                在钉钉群中添加自定义机器人，获取Webhook地址后粘贴到此处
+                群机器人用于群内广播；个人工作通知使用钉钉企业内部应用配置，按接收人推送到对应钉钉账号
               </p>
               <label className="text-sm font-medium mt-3 block" style={{ color: '#1D2129' }}>钉钉机器人加签密钥 (Secret)</label>
               <div className="flex gap-2">
@@ -462,7 +497,7 @@ export default function NotificationsPage() {
                 />
               </div>
               <p className="text-xs" style={{ color: '#86909C' }}>
-                创建机器人时选择"加签"安全设置，获取SEC开头的密钥
+                创建机器人时选择“加签”安全设置，获取SEC开头的密钥
               </p>
             </div>
 
