@@ -213,9 +213,11 @@ interface User {
   username: string;
   name: string;
   phone?: string;
+  role?: string;
+  is_disabled?: boolean;
   role_ids: number[];
   role_names: string;
-  roles: { id: number; name: string }[];
+  roles: { id: number; name: string; code?: string | null }[];
   allowed_projects: number[];
   dingtalk_bound?: boolean;
   dingtalk_info?: {
@@ -253,6 +255,172 @@ function buildProjectRoleMap(assignments: ProjectRoleAssignment[]): ProjectRoleM
   }, {});
 }
 
+const MENU_PERMISSION_CODE_SET = new Set(PERMISSION_MENU.flatMap((module) => module.children.map((item) => item.code)));
+
+function pickPermissionCodes(codes: string[]) {
+  return Array.from(new Set(codes)).filter((code) => MENU_PERMISSION_CODE_SET.has(code));
+}
+
+type RoleTemplate = {
+  key: string;
+  name: string;
+  code: string;
+  level: number;
+  description: string;
+  scope: string;
+  todoRule: string;
+  permissions: string[];
+  special?: boolean;
+};
+
+const ROLE_TEMPLATES: RoleTemplate[] = [
+  {
+    key: 'budget',
+    name: '预算员',
+    code: 'budget',
+    level: 20,
+    description: '负责项目数据录入、报量、签证、月度分析、收付款查看和经营分析。',
+    scope: '只能查看被分配项目；可在项目内勾选预算员身份接收提醒。',
+    todoRule: '只接收自己负责项目、自己发起流程或被指定处理的待办。',
+    permissions: pickPermissionCodes([
+      'reports:monthly_view',
+      'reports:monthly_export',
+      'projects:view',
+      'projects:edit',
+      'work_items:view',
+      'work_items:edit',
+      'work_items:progress',
+      'visas:view',
+      'visas:edit',
+      'visas:attachments',
+      'client_reports:view',
+      'client_reports:edit',
+      'client_payments:view',
+      'suppliers:view',
+      'settlements:view',
+      'supplier_payments:view',
+      'miscellaneous_materials:view',
+      'miscellaneous_materials:edit',
+      'comprehensive_expenses:view',
+      'cost_center:view',
+      'data_board:supplier_cost_view',
+      'data_board:worker_cost_view',
+      'data_board:fund_management_view',
+      'construction_logs:view',
+      'knowledge:view',
+      'knowledge:write',
+      'knowledge:monthly_analysis',
+    ]),
+  },
+  {
+    key: 'project_manager',
+    name: '项目经理',
+    code: 'project_manager',
+    level: 30,
+    description: '负责项目现场推进、签证线下办理、施工日志查看和月度分析补充确认。',
+    scope: '只能查看被分配项目；在项目内勾选项目经理身份。',
+    todoRule: '接收签证推进、月度分析补充、风险提醒等项目内待办。',
+    permissions: pickPermissionCodes([
+      'projects:view',
+      'work_items:view',
+      'visas:view',
+      'visas:edit',
+      'visas:attachments',
+      'client_reports:view',
+      'construction_logs:view',
+      'construction_logs:edit',
+      'knowledge:view',
+      'knowledge:write',
+      'knowledge:monthly_analysis',
+    ]),
+  },
+  {
+    key: 'finance',
+    name: '财务',
+    code: 'finance',
+    level: 40,
+    description: '负责收付款、工资发放、供应商付款和资金经营数据查看。',
+    scope: '按项目列表控制可查看项目，避免非负责项目数据外溢。',
+    todoRule: '只接收被指定的付款、工资、财务确认类待办。',
+    permissions: pickPermissionCodes([
+      'projects:view',
+      'client_payments:view',
+      'client_payments:edit',
+      'supplier_payments:view',
+      'supplier_payments:edit',
+      'salaries:view',
+      'salaries:query',
+      'salaries:pay_edit',
+      'settlements:view',
+      'comprehensive_expenses:view',
+      'cost_center:view',
+      'data_board:fund_management_view',
+    ]),
+  },
+  {
+    key: 'boss',
+    name: '老板',
+    code: 'boss',
+    level: 5,
+    description: '查看所有业务明细和经营分析，只处理需要老板批复的流程。',
+    scope: '默认具备全局业务查看能力，不需要逐个项目授权。',
+    todoRule: '待办只显示提交给老板本人处理的事项，不按全部项目泛推。',
+    permissions: pickPermissionCodes([
+      'reports:monthly_view',
+      'reports:monthly_export',
+      'projects:view',
+      'work_items:view',
+      'visas:view',
+      'client_reports:view',
+      'client_payments:view',
+      'workers:view',
+      'salaries:view',
+      'salaries:query',
+      'suppliers:view',
+      'settlements:view',
+      'supplier_payments:view',
+      'miscellaneous_materials:view',
+      'comprehensive_expenses:view',
+      'cost_center:view',
+      'data_board:supplier_cost_view',
+      'data_board:worker_cost_view',
+      'data_board:fund_management_view',
+      'construction_logs:view',
+      'cost_estimation:view',
+      'knowledge:view',
+      'knowledge:monthly_analysis',
+      'knowledge:approval',
+    ]),
+  },
+  {
+    key: 'site_staff',
+    name: '现场人员',
+    code: 'site_staff',
+    level: 60,
+    description: '负责施工日志填写、现场基础资料查看和必要的签证信息提交。',
+    scope: '只能查看被分配项目；建议只勾选实际所在项目。',
+    todoRule: '只接收施工日志、现场补充资料等本人相关提醒。',
+    permissions: pickPermissionCodes([
+      'projects:view',
+      'visas:view',
+      'construction_logs:view',
+      'construction_logs:edit',
+      'knowledge:view',
+    ]),
+  },
+  {
+    key: 'super_admin',
+    name: '超级管理员',
+    code: 'super_admin',
+    level: 1,
+    description: '系统维护角色，可管理全部项目和系统配置。',
+    scope: '具备全系统管理能力，但负责项目/待办提醒必须单独勾选。',
+    todoRule: '不因为超级管理员身份默认接收全部项目待办。',
+    permissions: [],
+    special: true,
+  },
+];
+
 export default function PermissionCenterPage() {
   const { toast } = useToast();
   
@@ -283,6 +451,24 @@ export default function PermissionCenterPage() {
   const [editingUserRoles, setEditingUserRoles] = useState<number[]>([]);
   const [editingUserProjects, setEditingUserProjects] = useState<number[]>([]);
   const [editingProjectRoles, setEditingProjectRoles] = useState<Record<number, ProjectRoleCode[]>>({});
+
+  const isPendingUser = (user: User) =>
+    user.role === 'pending' || user.is_disabled || (user.role_ids || []).length === 0;
+
+  const isBossRole = (role: { code?: string | null; name: string }) =>
+    role.code === 'boss' || role.name.includes('老板') || role.name.includes('总经理');
+
+  const editingUserCanUseGlobalProjectScope = () => {
+    if (editingUser?.role === 'super_admin') return true;
+    return roles.some((role) => editingUserRoles.includes(role.id) && isBossRole(role));
+  };
+
+  const permissionCenterStats = {
+    totalUsers: users.length,
+    pendingUsers: users.filter(isPendingUser).length,
+    dingtalkBoundUsers: users.filter((user) => user.dingtalk_bound).length,
+    projectIdentityUsers: users.filter((user) => Object.keys(userProjectRoles[user.id] || {}).length > 0).length,
+  };
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -413,6 +599,32 @@ export default function PermissionCenterPage() {
       setSelectedPermissions([]);
       setSelectedProjects([]);
     }
+    setRoleDialogOpen(true);
+  };
+
+  const openRoleTemplate = (template: RoleTemplate) => {
+    if (template.special) return;
+
+    const existingRole = roles.find((role) => role.code === template.code || role.name === template.name);
+    if (existingRole) {
+      void openRoleDialog(existingRole);
+      return;
+    }
+
+    setEditingRole(null);
+    setRoleForm({
+      name: template.name,
+      description: template.description,
+      code: template.code,
+      level: template.level,
+    });
+    setSelectedPermissions(template.permissions);
+    setSelectedProjects([]);
+    setExpandedModules(
+      PERMISSION_MENU.filter((module) =>
+        module.children.some((permission) => template.permissions.includes(permission.code))
+      ).map((module) => module.code)
+    );
     setRoleDialogOpen(true);
   };
 
@@ -561,6 +773,15 @@ export default function PermissionCenterPage() {
   const saveUserRoles = async () => {
     if (!editingUser) return;
 
+    if (projects.length > 0 && editingUserProjects.length === 0 && !editingUserCanUseGlobalProjectScope()) {
+      toast({
+        title: '请选择可访问项目',
+        description: '普通员工只能查看被分配项目；只有老板或超级管理员可留空表示全局查看。',
+        variant: 'error',
+      });
+      return;
+    }
+
     try {
       const res = await fetch('/api/system/permission/users', {
         method: 'PUT',
@@ -622,8 +843,8 @@ export default function PermissionCenterPage() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-gray-900">权限管理中心</h1>
-          <p className="text-gray-500 mt-1">管理角色、用户权限和菜单访问控制</p>
+          <h1 className="text-xl font-semibold tracking-tight text-gray-900">用户与权限</h1>
+          <p className="text-gray-500 mt-1">按岗位模板分配系统权限，按项目列表控制可见范围，按项目身份承接待办提醒</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={initPermissions}>
@@ -633,16 +854,43 @@ export default function PermissionCenterPage() {
         </div>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">系统用户</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-900">{permissionCenterStats.totalUsers}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">待分配账号</p>
+            <p className="mt-2 text-2xl font-semibold text-orange-600">{permissionCenterStats.pendingUsers}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">钉钉已绑定</p>
+            <p className="mt-2 text-2xl font-semibold text-blue-600">{permissionCenterStats.dingtalkBoundUsers}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-500">已配置项目身份</p>
+            <p className="mt-2 text-2xl font-semibold text-green-600">{permissionCenterStats.projectIdentityUsers}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* 标签页 */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="roles" className="gap-2">
             <Shield className="w-4 h-4" />
-            角色管理
+            岗位模板
           </TabsTrigger>
           <TabsTrigger value="users" className="gap-2">
             <Users className="w-4 h-4" />
-            用户管理
+            用户分配
           </TabsTrigger>
           <TabsTrigger value="config" className="gap-2">
             <Menu className="w-4 h-4" />
@@ -652,11 +900,56 @@ export default function PermissionCenterPage() {
 
         {/* 角色管理 */}
         <TabsContent value="roles" className="mt-4">
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>岗位模板</CardTitle>
+              <CardDescription>
+                先按岗位建立权限模板，再在用户分配中勾选具体项目。超级管理员是系统维护身份，不作为普通业务岗位使用。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 lg:grid-cols-3">
+                {ROLE_TEMPLATES.map((template) => (
+                  <div key={template.key} className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900">{template.name}</h3>
+                          {template.special ? (
+                            <Badge variant="destructive">特殊角色</Badge>
+                          ) : (
+                            <Badge variant="outline">{template.permissions.length} 项权限</Badge>
+                          )}
+                        </div>
+                        <p className="mt-2 text-sm text-gray-600">{template.description}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2 text-xs text-gray-500">
+                      <p><span className="font-medium text-gray-700">项目范围：</span>{template.scope}</p>
+                      <p><span className="font-medium text-gray-700">待办规则：</span>{template.todoRule}</p>
+                    </div>
+                    <div className="mt-4">
+                      {template.special ? (
+                        <Button variant="outline" size="sm" disabled>
+                          系统内置
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => openRoleTemplate(template)}>
+                          {roles.some((role) => role.code === template.code || role.name === template.name) ? '编辑模板' : '按模板新建'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>角色列表</CardTitle>
-                <CardDescription>管理系统中的角色及其权限</CardDescription>
+                <CardDescription>模板保存后会出现在这里；如需微调某一岗位，可编辑对应角色权限</CardDescription>
               </div>
               <Button onClick={() => openRoleDialog()}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -678,7 +971,7 @@ export default function PermissionCenterPage() {
                 <TableBody>
                   {roles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                         暂无角色，请点击「新建角色」创建
                       </TableCell>
                     </TableRow>
@@ -735,65 +1028,96 @@ export default function PermissionCenterPage() {
         <TabsContent value="users" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>用户列表</CardTitle>
-              <CardDescription>管理用户角色分配和项目访问权限</CardDescription>
+              <CardTitle>用户分配台账</CardTitle>
+              <CardDescription>
+                待分配钉钉账号在这里指定岗位模板、可访问项目和项目内业务身份，保存后账号正式启用
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>状态</TableHead>
                     <TableHead>用户名</TableHead>
                     <TableHead>姓名</TableHead>
                     <TableHead>手机号</TableHead>
-                    <TableHead>角色</TableHead>
+                    <TableHead>岗位模板</TableHead>
                     <TableHead>钉钉绑定</TableHead>
                     <TableHead>可访问项目</TableHead>
+                    <TableHead>项目身份</TableHead>
                     <TableHead>操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                         暂无用户数据
                       </TableCell>
                     </TableRow>
                   ) : (
-                    users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.username}</TableCell>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>{user.phone || '-'}</TableCell>
-                        <TableCell>
-                          {user.role_names || (
-                            <span className="text-gray-400">未分配</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {user.dingtalk_bound ? (
-                            <span className="inline-flex items-center gap-1 text-sm text-blue-600">
-                              <Smartphone className="w-3.5 h-3.5" />
-                              {user.dingtalk_info?.name || user.dingtalk_info?.user_id || '已绑定'}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-sm">未绑定</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {user.allowed_projects?.length === 0 ? (
-                            <span className="text-green-600">全部项目</span>
-                          ) : (
-                            <span className="text-orange-600">{user.allowed_projects?.length || 0} 个项目</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => openUserRoleDialog(user)}>
-                            <UserCog className="w-4 h-4 mr-1" />
-                            分配角色
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    users.map((user) => {
+                      const pending = isPendingUser(user);
+                      const canUseGlobalScope = user.role === 'super_admin' || (user.roles || []).some(isBossRole);
+                      const selectedProjectCount = user.allowed_projects?.length || 0;
+                      return (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            {user.is_disabled ? (
+                              <Badge variant="destructive">已禁用</Badge>
+                            ) : pending ? (
+                              <Badge variant="outline" className="border-orange-300 bg-orange-50 text-orange-700">待分配</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700">已启用</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">{user.username}</TableCell>
+                          <TableCell>{user.name}</TableCell>
+                          <TableCell>{user.phone || user.dingtalk_info?.mobile || '-'}</TableCell>
+                          <TableCell>
+                            {(user.roles || []).length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {user.roles.map((role) => (
+                                  <Badge key={role.id} variant="outline">{role.name}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">未分配</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {user.dingtalk_bound ? (
+                              <span className="inline-flex items-center gap-1 text-sm text-blue-600">
+                                <Smartphone className="w-3.5 h-3.5" />
+                                {user.dingtalk_info?.name || user.dingtalk_info?.user_id || '已绑定'}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-sm">未绑定</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {selectedProjectCount === 0 ? (
+                              canUseGlobalScope ? (
+                                <span className="text-green-600">全部项目</span>
+                              ) : (
+                                <span className="text-red-600">未选择项目</span>
+                              )
+                            ) : (
+                              <span className="text-orange-600">{selectedProjectCount} 个项目</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            {getUserProjectRoleSummary(user.id)}
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm" onClick={() => openUserRoleDialog(user)}>
+                              <UserCog className="w-4 h-4 mr-1" />
+                              分配岗位与项目
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -850,9 +1174,9 @@ export default function PermissionCenterPage() {
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingRole ? '编辑角色' : '新建角色'}</DialogTitle>
+            <DialogTitle>{editingRole ? '编辑岗位模板' : '新建岗位模板'}</DialogTitle>
             <DialogDescription>
-              {editingRole ? `编辑角色「${editingRole.name}」的权限配置` : '创建新角色并配置权限'}
+              {editingRole ? `编辑「${editingRole.name}」的权限配置` : '创建新岗位模板并配置权限'}
             </DialogDescription>
           </DialogHeader>
           
@@ -860,7 +1184,7 @@ export default function PermissionCenterPage() {
             {/* 基本信息 */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="roleName">角色名称 *</Label>
+                <Label htmlFor="roleName">岗位模板名称 *</Label>
                 <Input
                   id="roleName"
                   value={roleForm.name}
@@ -870,7 +1194,7 @@ export default function PermissionCenterPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="roleLevel">角色级别</Label>
+                <Label htmlFor="roleLevel">模板级别</Label>
                 <Input
                   id="roleLevel"
                   type="number"
@@ -882,7 +1206,7 @@ export default function PermissionCenterPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="roleDesc">角色描述</Label>
+              <Label htmlFor="roleDesc">模板描述</Label>
               <Input
                 id="roleDesc"
                 value={roleForm.description}
@@ -893,7 +1217,7 @@ export default function PermissionCenterPage() {
 
             {/* 可访问项目 */}
             <div className="space-y-2">
-              <Label>可访问项目（留空表示可访问全部项目）</Label>
+              <Label>模板默认项目范围（建议留空，具体项目在用户分配中勾选）</Label>
               <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
                 {projects.length === 0 ? (
                   <p className="text-gray-400 text-sm">暂无可选项目</p>
@@ -976,7 +1300,7 @@ export default function PermissionCenterPage() {
                 ))}
               </div>
               <p className="text-sm text-gray-500">
-                已选择 {selectedPermissions.length} 个权限
+                已选择 {selectedPermissions.length} 个权限。需要取消模板里的权限时，直接取消对应勾选后保存。
               </p>
             </div>
           </div>
@@ -995,25 +1319,32 @@ export default function PermissionCenterPage() {
 
       {/* 用户角色分配对话框 */}
       <Dialog open={userRoleDialogOpen} onOpenChange={setUserRoleDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>分配角色</DialogTitle>
+            <DialogTitle>分配岗位与项目</DialogTitle>
             <DialogDescription>
-              为用户「{editingUser?.name}」分配角色和可访问项目
+              为用户「{editingUser?.name}」指定岗位模板、可访问项目和项目内待办身份
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+              <p className="font-medium">分配规则</p>
+              <p className="mt-1">
+                普通员工必须勾选可访问项目；老板可全局查看业务明细；超级管理员可管理全部项目，但负责项目和待办提醒仍按下方项目身份单独勾选。
+              </p>
+            </div>
+
             {/* 角色选择 */}
             <div className="space-y-2">
-              <Label>分配角色</Label>
+              <Label>1. 业务岗位模板</Label>
               <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
                 {roles.length === 0 ? (
                   <p className="text-gray-400 text-sm">暂无可用角色</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="grid gap-2 md:grid-cols-2">
                     {roles.filter((r) => !r.is_super_admin).map((role) => (
-                      <div key={role.id} className="flex items-center gap-2">
+                      <div key={role.id} className="flex items-center gap-2 rounded-md border border-gray-100 p-2">
                         <Checkbox
                           id={`role-${role.id}`}
                           checked={editingUserRoles.includes(role.id)}
@@ -1037,14 +1368,29 @@ export default function PermissionCenterPage() {
 
             {/* 项目选择 */}
             <div className="space-y-2">
-              <Label>可访问项目（留空表示可访问全部项目）</Label>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label>2. 可访问项目</Label>
+                  <p className="mt-1 text-xs text-gray-500">
+                    普通员工按项目列表勾选；留空只建议用于老板或超级管理员这类全局查看身份。
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditingUserProjects(projects.map((project) => project.id))}
+                  disabled={projects.length === 0}
+                >
+                  全选项目
+                </Button>
+              </div>
               <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
                 {projects.length === 0 ? (
                   <p className="text-gray-400 text-sm">暂无可选项目</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="grid gap-2 md:grid-cols-2">
                     {projects.map((project) => (
-                      <div key={project.id} className="flex items-center gap-2">
+                      <div key={project.id} className="flex items-center gap-2 rounded-md border border-gray-100 p-2">
                         <Checkbox
                           id={`up-${project.id}`}
                           checked={editingUserProjects.includes(project.id)}
@@ -1061,7 +1407,7 @@ export default function PermissionCenterPage() {
             </div>
             <div className="space-y-2">
               <div>
-                <Label>项目内业务身份</Label>
+                <Label>3. 项目内业务身份与待办提醒</Label>
                 {editingUser && (
                   <p className="text-xs text-blue-600 mt-1">
                     当前配置：{getUserProjectRoleSummary(editingUser.id)}

@@ -21,6 +21,7 @@ type RoleRow = {
   id: number;
   name: string;
   code?: string | null;
+  is_super_admin?: boolean | null;
 };
 
 type UserRoleRow = {
@@ -30,6 +31,31 @@ type UserRoleRow = {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function inferUserBaseRole(existingRole: string | null | undefined, assignedRoles: RoleRow[]) {
+  if (existingRole === 'super_admin' || assignedRoles.some((role) => role.is_super_admin)) return 'super_admin';
+  if (assignedRoles.length === 0) return 'pending';
+
+  const normalizedRoles = assignedRoles.map((role) => ({
+    code: String(role.code || '').toLowerCase(),
+    name: String(role.name || ''),
+  }));
+
+  if (normalizedRoles.some((role) => role.code === 'boss' || role.name.includes('老板') || role.name.includes('总经理'))) {
+    return 'boss';
+  }
+  if (normalizedRoles.some((role) => role.code === 'project_manager' || role.name.includes('项目经理'))) {
+    return 'project_manager';
+  }
+  if (normalizedRoles.some((role) => role.code === 'finance' || role.name.includes('财务'))) {
+    return 'finance';
+  }
+  if (normalizedRoles.some((role) => role.code === 'site_staff' || role.name.includes('现场'))) {
+    return 'team_leader';
+  }
+
+  return 'admin';
 }
 
 // 获取用户列表
@@ -174,14 +200,27 @@ export async function PUT(request: NextRequest) {
       }
     }
     
-    // 更新用户基础状态：待分配账号一旦分配角色，即允许登录
-    const userUpdate: Record<string, unknown> = {};
+    let assignedRoles: RoleRow[] = [];
+    if (Array.isArray(role_ids) && role_ids.length > 0) {
+      const { data: selectedRoles, error: selectedRoleError } = await supabase
+        .from('roles')
+        .select('id, name, code, is_super_admin')
+        .in('id', role_ids);
+
+      if (selectedRoleError) {
+        console.error('[Users API] Fetch selected roles error:', selectedRoleError);
+        return NextResponse.json({ error: selectedRoleError.message }, { status: 500 });
+      }
+      assignedRoles = (selectedRoles || []) as RoleRow[];
+    }
+
+    // 更新用户基础状态：待分配账号一旦分配岗位模板，即允许登录
+    const userUpdate: Record<string, unknown> = {
+      role: inferUserBaseRole(existingUser.role, assignedRoles),
+      is_disabled: existingUser.role === 'super_admin' ? false : assignedRoles.length === 0,
+    };
     if (allowed_projects !== undefined) {
       userUpdate.managed_projects = allowed_projects;
-    }
-    if (role_ids && role_ids.length > 0 && existingUser.role === 'pending') {
-      userUpdate.role = 'admin';
-      userUpdate.is_disabled = false;
     }
 
     if (Object.keys(userUpdate).length > 0) {
