@@ -27,6 +27,11 @@ function isEnabledValue(value: unknown, fallback = true) {
   return fallback;
 }
 
+type NotificationSettingRow = {
+  id: number;
+  setting_key: string;
+};
+
 async function ensureDefaultSettings(client: ReturnType<typeof getSupabaseClient>) {
   const keys = DEFAULT_SETTINGS.map((item) => item.key);
   const { data } = await client
@@ -46,6 +51,20 @@ async function ensureDefaultSettings(client: ReturnType<typeof getSupabaseClient
       description: item.description,
     })),
   );
+}
+
+async function findSettingRows(client: ReturnType<typeof getSupabaseClient>, key: string) {
+  const { data, error } = await client
+    .from('notification_settings')
+    .select('id, setting_key')
+    .eq('setting_key', key)
+    .order('id', { ascending: true });
+
+  if (error) {
+    throw new Error(`查询设置失败: ${error.message}`);
+  }
+
+  return (data || []) as NotificationSettingRow[];
 }
 
 export async function GET() {
@@ -92,16 +111,9 @@ export async function PUT(request: NextRequest) {
 
     const client = getSupabaseClient();
     const defaultSetting = DEFAULT_SETTINGS.find((item) => item.key === key);
-
-    const { data: existing, error: existingError } = await client
-      .from('notification_settings')
-      .select('id')
-      .eq('setting_key', key)
-      .maybeSingle();
-
-    if (existingError) {
-      throw new Error(`查询设置失败: ${existingError.message}`);
-    }
+    const existingRows = await findSettingRows(client, key);
+    const existing = existingRows[0];
+    const duplicateIds = existingRows.slice(1).map((item) => item.id);
 
     if (!existing?.id) {
       const { error: insertError } = await client
@@ -120,17 +132,24 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const updateData: Record<string, unknown> = {};
     if (value !== undefined) updateData.setting_value = value;
     if (enabled !== undefined) updateData.enabled = String(enabled);
 
     const { error } = await client
       .from('notification_settings')
       .update(updateData)
-      .eq('setting_key', key);
+      .eq('id', existing.id);
 
     if (error) {
       throw new Error(`更新设置失败: ${error.message}`);
+    }
+
+    if (duplicateIds.length > 0) {
+      await client
+        .from('notification_settings')
+        .delete()
+        .in('id', duplicateIds);
     }
 
     return NextResponse.json({ success: true });

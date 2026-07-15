@@ -238,7 +238,7 @@ export default function NotificationsPage() {
       const data = await res.json();
       setSettings(data.settings || {});
       setWebhookUrl(data.settings?.dingtalk_webhook?.value || '');
-    setDingtalkSecret(data.settings?.dingtalk_secret?.value || '');
+      setDingtalkSecret(data.settings?.dingtalk_secret?.value || '');
     } catch (error) {
       console.error('获取设置失败:', error);
     }
@@ -294,20 +294,34 @@ export default function NotificationsPage() {
   // 保存Webhook设置
   const saveWebhook = async () => {
     try {
-      await fetch('/api/notifications/settings', {
+      const webhookRes = await fetch('/api/notifications/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'dingtalk_webhook', value: webhookUrl }),
+        body: JSON.stringify({ key: 'dingtalk_webhook', value: webhookUrl.trim() }),
       });
-      await fetch('/api/notifications/settings', {
+      const webhookData = await webhookRes.json().catch(() => ({}));
+      if (!webhookRes.ok) {
+        throw new Error(webhookData.error || 'Webhook 保存失败');
+      }
+
+      const secretRes = await fetch('/api/notifications/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'dingtalk_secret', value: dingtalkSecret }),
+        body: JSON.stringify({ key: 'dingtalk_secret', value: dingtalkSecret.trim() }),
       });
+      const secretData = await secretRes.json().catch(() => ({}));
+      if (!secretRes.ok) {
+        throw new Error(secretData.error || '加签密钥保存失败');
+      }
+
       toast({ title: '保存成功', description: '钉钉配置已更新', variant: 'success' });
       fetchSettings();
     } catch (error) {
-      toast({ title: '保存失败', variant: 'error' });
+      toast({
+        title: '保存失败',
+        description: error instanceof Error ? error.message : '请稍后重试',
+        variant: 'error',
+      });
     }
   };
 
@@ -379,14 +393,22 @@ export default function NotificationsPage() {
   // 切换通知开关
   const toggleSetting = async (key: string, enabled: boolean) => {
     try {
-      await fetch('/api/notifications/settings', {
+      const res = await fetch('/api/notifications/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, enabled }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || '设置保存失败');
+      }
       fetchSettings();
     } catch (error) {
-      toast({ title: '设置失败', variant: 'error' });
+      toast({
+        title: '设置失败',
+        description: error instanceof Error ? error.message : '请稍后重试',
+        variant: 'error',
+      });
     }
   };
 
