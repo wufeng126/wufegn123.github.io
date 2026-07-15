@@ -28,6 +28,12 @@ interface PriceRecord {
   created_at?: string;
 }
 
+interface AliasRow {
+  id: number;
+  standard_item_id: number;
+  alias_name: string;
+}
+
 interface Candidate {
   id: number;
   code: string;
@@ -118,6 +124,7 @@ export default function NewBidPage() {
   const [standards, setStandards] = useState<StandardItem[]>([]);
   const [bidPrices, setBidPrices] = useState<PriceRecord[]>([]);
   const [costPrices, setCostPrices] = useState<PriceRecord[]>([]);
+  const [aliases, setAliases] = useState<AliasRow[]>([]);
   const [items, setItems] = useState<BoqItem[]>([]);
   const [fees, setFees] = useState<MgmtFee[]>(defaultFees);
 
@@ -129,6 +136,7 @@ export default function NewBidPage() {
           setStandards(json.data.standards || []);
           setBidPrices(json.data.bidPrices || []);
           setCostPrices(json.data.costPrices || []);
+          setAliases(json.data.aliases || []);
         }
       });
   }
@@ -175,6 +183,46 @@ export default function NewBidPage() {
     return text.includes(keyword.toLowerCase());
   });
 
+  function buildCandidates(rawName: string) {
+    return standards
+      .map(standard => {
+        const aliasScore = aliases
+          .filter(alias => alias.standard_item_id === standard.id)
+          .reduce((max, alias) => Math.max(max, fuzzyScore(rawName, alias.alias_name)), 0);
+        return {
+          id: standard.id,
+          code: standard.code,
+          name: standard.name,
+          score: Math.max(fuzzyScore(rawName, standard.name), fuzzyScore(rawName, standard.code), aliasScore),
+        };
+      })
+      .filter(candidate => candidate.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+  }
+
+  function rememberAlias(standardItemId: number, aliasName: string, sourceType = 'manual') {
+    const name = aliasName.trim();
+    if (!standardItemId || !name) return;
+    const exists = aliases.some(alias => alias.standard_item_id === standardItemId && normalize(alias.alias_name) === normalize(name));
+    if (exists) return;
+    void fetch('/api/bid-estimations/library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'alias',
+        standard_item_id: standardItemId,
+        alias_name: name,
+        source_type: sourceType,
+      }),
+    })
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) setAliases(prev => [...prev, json.data]);
+      })
+      .catch(() => undefined);
+  }
+
   function parseBoq(file: File) {
     const reader = new FileReader();
     reader.onload = event => {
@@ -193,11 +241,7 @@ export default function NewBidPage() {
         const rawName = String(row[nameKey] || '').trim();
         const unit = unitKey ? String(row[unitKey] || '').trim() : '';
         const quantity = toNumber(row[qtyKey]);
-        const candidates = standards
-          .map(standard => ({ id: standard.id, code: standard.code, name: standard.name, score: fuzzyScore(rawName, standard.name) }))
-          .filter(candidate => candidate.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 5);
+        const candidates = buildCandidates(rawName);
         const best = candidates[0];
         const matched = best && best.score >= 72 ? standards.find(s => s.id === best.id) : null;
         const priceMatch = matched ? matchPrices(matched.id) : { bid: null, cost: null };
@@ -253,6 +297,8 @@ export default function NewBidPage() {
     const standard = standards.find(item => item.id === standardId);
     if (!standard) return;
     const priceMatch = matchPrices(standard.id);
+    const current = items.find(item => item.rowId === rowId);
+    if (current?.boq_item_name) rememberAlias(standard.id, current.boq_item_name, 'manual');
     setItems(prev => prev.map(item => item.rowId === rowId ? {
       ...item,
       standard_item_id: standard.id,
@@ -296,6 +342,7 @@ export default function NewBidPage() {
       if (!json.success) throw new Error(json.error);
       const standard = json.data as StandardItem;
       setStandards(prev => [...prev, standard]);
+      rememberAlias(standard.id, item.boq_item_name, 'manual');
       setItems(prev => prev.map(row => row.rowId === rowId ? {
         ...row,
         standard_item_id: standard.id,

@@ -28,9 +28,32 @@ interface PriceRow {
   bid_standard_items?: { code?: string; name?: string };
 }
 
+interface AliasRow {
+  id: number;
+  standard_item_id: number;
+  alias_name: string;
+}
+
+interface ImportReviewRow {
+  rowId: string;
+  originalName: string;
+  standardItemId: number | '';
+  matchScore: number;
+  projectName: string;
+  region: string;
+  projectType: string;
+  unit: string;
+  price: number;
+  year: number;
+  materialIncluded: boolean;
+  remark: string;
+  ignored: boolean;
+}
+
 interface StandardInsight {
   bidCount: number;
   costCount: number;
+  aliasCount: number;
   latestBidPrice: number;
   latestBidYear?: number;
 }
@@ -77,6 +100,8 @@ export default function BidLibraryPage() {
   const [standards, setStandards] = useState<StandardItem[]>([]);
   const [bidPrices, setBidPrices] = useState<PriceRow[]>([]);
   const [costPrices, setCostPrices] = useState<PriceRow[]>([]);
+  const [aliases, setAliases] = useState<AliasRow[]>([]);
+  const [reviewRows, setReviewRows] = useState<ImportReviewRow[]>([]);
   const [standardForm, setStandardForm] = useState(initialStandard);
   const [priceForm, setPriceForm] = useState(initialPrice);
   const [saving, setSaving] = useState(false);
@@ -88,6 +113,7 @@ export default function BidLibraryPage() {
       setStandards(json.data.standards || []);
       setBidPrices(json.data.bidPrices || []);
       setCostPrices(json.data.costPrices || []);
+      setAliases(json.data.aliases || []);
     }
   }
 
@@ -99,6 +125,7 @@ export default function BidLibraryPage() {
           setStandards(json.data.standards || []);
           setBidPrices(json.data.bidPrices || []);
           setCostPrices(json.data.costPrices || []);
+          setAliases(json.data.aliases || []);
         }
       });
   }, []);
@@ -109,10 +136,10 @@ export default function BidLibraryPage() {
   const standardInsights = useMemo(() => {
     const map: Record<number, StandardInsight> = {};
     standards.forEach(item => {
-      map[item.id] = { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+      map[item.id] = { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
     });
     bidPrices.forEach(row => {
-      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
       current.bidCount += 1;
       const rowYear = Number(row.bid_year || 0);
       if (!current.latestBidYear || rowYear >= current.latestBidYear) {
@@ -122,12 +149,17 @@ export default function BidLibraryPage() {
       map[row.standard_item_id] = current;
     });
     costPrices.forEach(row => {
-      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
       current.costCount += 1;
       map[row.standard_item_id] = current;
     });
+    aliases.forEach(row => {
+      const current = map[row.standard_item_id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
+      current.aliasCount += 1;
+      map[row.standard_item_id] = current;
+    });
     return map;
-  }, [standards, bidPrices, costPrices]);
+  }, [standards, bidPrices, costPrices, aliases]);
 
   const stats = useMemo(() => [
     { label: '标准清单', value: standards.length, unit: '项' },
@@ -211,80 +243,164 @@ export default function BidLibraryPage() {
     XLSX.writeFile(workbook, `${priceTypeLabel}_导入模板.xlsx`);
   }
 
+  function cell(row: Record<string, unknown>, keys: string[]) {
+    for (const key of keys) {
+      const value = row[key];
+      if (value !== undefined && value !== null && String(value).trim()) return value;
+    }
+    return '';
+  }
+
   function findStandard(row: Record<string, unknown>) {
     const code = String(row['标准编码'] || row['编码'] || '').trim();
     if (code) {
       const exactCode = standards.find(item => normalize(item.code) === normalize(code));
-      if (exactCode) return exactCode;
+      if (exactCode) return { item: exactCode, score: 100 };
     }
 
     const name = String(row['标准清单名称'] || row['标准清单'] || row['清单名称'] || row['原始清单名称'] || '').trim();
     if (!name) return null;
+    const exactAlias = aliases.find(alias => normalize(alias.alias_name) === normalize(name));
+    if (exactAlias) {
+      const item = standards.find(standard => standard.id === exactAlias.standard_item_id);
+      if (item) return { item, score: 100 };
+    }
+
     const scored = standards
-      .map(item => ({ item, score: Math.max(fuzzyScore(name, item.name), fuzzyScore(name, item.code)) }))
+      .map(item => {
+        const aliasScore = aliases
+          .filter(alias => alias.standard_item_id === item.id)
+          .reduce((max, alias) => Math.max(max, fuzzyScore(name, alias.alias_name)), 0);
+        return { item, score: Math.max(fuzzyScore(name, item.name), fuzzyScore(name, item.code), aliasScore) };
+      })
       .sort((a, b) => b.score - a.score)[0];
-    return scored && scored.score >= 72 ? scored.item : null;
+    return scored && scored.score >= 55 ? scored : null;
   }
 
   function importPriceFile(file: File) {
     if (tab === 'standard') return;
     const reader = new FileReader();
-    reader.onload = async event => {
+    reader.onload = event => {
       const data = new Uint8Array(event.target?.result as ArrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-      const type = tab === 'bidPrice' ? 'bidPrice' : 'costPrice';
-      const unmatched: string[] = [];
-      const payloads = rows.map(row => {
-        const standard = findStandard(row);
-        const price = toNumber(row['单价'] || row['中标单价'] || row['结算单价'] || row['人工成本价'] || row['成本价']);
-        if (!standard || !price) {
-          unmatched.push(String(row['标准清单名称'] || row['清单名称'] || row['原始清单名称'] || row['标准编码'] || '空白行'));
-          return null;
-        }
+      const parsed = rows.map((row, index) => {
+        const matched = findStandard(row);
+        const standard = matched?.item;
+        const price = toNumber(cell(row, ['单价', '中标单价', '结算单价', '人工成本价', '成本价']));
         const year = toNumber(row['年份'] || row['中标年份'] || row['结算年份'] || new Date().getFullYear());
         return {
-          type,
-          standard_item_id: standard.id,
-          project_name: String(row['来源项目'] || row['项目名称'] || '').trim(),
+          rowId: `${Date.now()}-${index}`,
+          originalName: String(cell(row, ['原始清单名称', '清单名称', '标准清单名称', '标准清单']) || '').trim(),
+          standardItemId: standard?.id || '',
+          matchScore: matched?.score || 0,
+          projectName: String(cell(row, ['来源项目', '项目名称']) || '').trim(),
           region: String(row['地区'] || '').trim(),
-          project_type: String(row['工程类型'] || '').trim(),
-          item_original_name: String(row['原始清单名称'] || row['清单名称'] || '').trim(),
-          unit: String(row['单位'] || standard.unit || '').trim(),
+          projectType: String(row['工程类型'] || '').trim(),
+          unit: String(row['单位'] || standard?.unit || '').trim(),
           price,
-          material_included: boolFromCell(row['是否含材料'] || row['含材料']),
+          materialIncluded: boolFromCell(row['是否含材料'] || row['含材料']),
           remark: String(row['备注'] || '').trim(),
-          bid_year: year,
-          cost_year: year,
-        };
-      }).filter(Boolean);
+          year: year || new Date().getFullYear(),
+          ignored: !standard || !price,
+        } satisfies ImportReviewRow;
+      }).filter(row => row.originalName || row.price || row.projectName);
 
-      if (!payloads.length) {
-        alert('未识别到可导入的数据，请检查标准编码、标准清单名称和单价列');
+      if (!parsed.length) {
+        alert('未识别到可导入的数据，请检查清单名称和单价列');
         return;
       }
 
-      setSaving(true);
-      try {
-        const results = await Promise.all(payloads.map(payload => fetch('/api/bid-estimations/library', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).then(res => res.json())));
-        const failed = results.filter(result => !result.success);
-        if (failed.length) throw new Error(failed[0].error || '部分数据导入失败');
-        await load();
-        const skipped = unmatched.length ? `，跳过 ${unmatched.length} 行未匹配数据：${unmatched.slice(0, 5).join('、')}` : '';
-        alert(`已导入 ${payloads.length} 条${priceTypeLabel}${skipped}`);
-      } catch (e: unknown) {
-        alert(e instanceof Error ? e.message : '批量导入失败');
-      } finally {
-        setSaving(false);
-        if (importRef.current) importRef.current.value = '';
-      }
+      setReviewRows(parsed);
+      if (importRef.current) importRef.current.value = '';
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  function updateReviewRow(rowId: string, updates: Partial<ImportReviewRow>) {
+    setReviewRows(prev => prev.map(row => row.rowId === rowId ? { ...row, ...updates } : row));
+  }
+
+  async function confirmImportRows() {
+    const validRows = reviewRows.filter(row => !row.ignored && row.standardItemId && row.price > 0);
+    if (!validRows.length) return alert('请至少保留一条已匹配且有单价的数据');
+
+    const type = tab === 'bidPrice' ? 'bidPrice' : 'costPrice';
+    setSaving(true);
+    try {
+      const results = await Promise.all(validRows.map(row => fetch('/api/bid-estimations/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          standard_item_id: Number(row.standardItemId),
+          project_name: row.projectName,
+          region: row.region,
+          project_type: row.projectType,
+          item_original_name: row.originalName,
+          unit: row.unit,
+          price: row.price,
+          material_included: row.materialIncluded,
+          remark: row.remark,
+          bid_year: row.year,
+          cost_year: row.year,
+        }),
+      }).then(res => res.json())));
+      const failed = results.filter(result => !result.success);
+      if (failed.length) throw new Error(failed[0].error || '部分数据导入失败');
+
+      await Promise.allSettled(validRows
+        .filter(row => row.originalName && row.standardItemId)
+        .map(row => fetch('/api/bid-estimations/library', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'alias',
+            standard_item_id: Number(row.standardItemId),
+            alias_name: row.originalName,
+            source_type: 'import',
+          }),
+        })));
+
+      await load();
+      setReviewRows([]);
+      alert(`已导入 ${validRows.length} 条${priceTypeLabel}，并同步沉淀清单别名`);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : '批量导入失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createStandardForReview(row: ImportReviewRow) {
+    const defaultCode = `TMP-${Date.now().toString().slice(-6)}`;
+    const code = window.prompt('请输入标准清单编码', defaultCode)?.trim();
+    if (!code) return;
+    const name = window.prompt('请输入标准清单名称', row.originalName)?.trim();
+    if (!name) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/bid-estimations/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'standard',
+          code,
+          name,
+          unit: row.unit,
+          material_included: row.materialIncluded,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      await load();
+      updateReviewRow(row.rowId, { standardItemId: json.data.id, matchScore: 100, ignored: false });
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : '新增标准清单失败');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -409,6 +525,17 @@ export default function BidLibraryPage() {
                     </div>
                   </div>
                 </div>
+                {reviewRows.length > 0 && (
+                  <ImportReviewTable
+                    rows={reviewRows}
+                    standards={standards}
+                    saving={saving}
+                    onChange={updateReviewRow}
+                    onCreateStandard={createStandardForReview}
+                    onConfirm={confirmImportRows}
+                    onCancel={() => setReviewRows([])}
+                  />
+                )}
                 <PriceTable rows={activeRows} type={tab} />
               </section>
             </div>
@@ -437,6 +564,95 @@ function Input({ label, value, onChange, placeholder, type = 'text' }: { label: 
   );
 }
 
+function ImportReviewTable({
+  rows,
+  standards,
+  saving,
+  onChange,
+  onCreateStandard,
+  onConfirm,
+  onCancel,
+}: {
+  rows: ImportReviewRow[];
+  standards: StandardItem[];
+  saving: boolean;
+  onChange: (rowId: string, updates: Partial<ImportReviewRow>) => void;
+  onCreateStandard: (row: ImportReviewRow) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const validCount = rows.filter(row => !row.ignored && row.standardItemId && row.price > 0).length;
+  const problemCount = rows.length - validCount;
+  return (
+    <section className="overflow-hidden rounded-lg border border-[#FADC9D] bg-[#FFFDF7]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#FADC9D] px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-[#1D2129]">导入待确认</p>
+          <p className="mt-1 text-xs text-[#86909C]">先确认匹配关系和单价，再写入历史库；原始清单名称会自动沉淀为别名。</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#86909C]">可导入 {validCount} 条 / 需处理 {problemCount} 条</span>
+          <button onClick={onCancel} className="h-8 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#4E5969]">取消</button>
+          <button disabled={saving || validCount === 0} onClick={onConfirm} className="h-8 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">确认入库</button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1180px] text-sm">
+          <thead className="bg-[#FFF7E8] text-xs text-[#86909C]">
+            <tr>
+              <th className="px-3 py-3 text-left font-medium">原始清单</th>
+              <th className="px-3 py-3 text-left font-medium">匹配标准清单</th>
+              <th className="px-3 py-3 text-left font-medium">来源项目</th>
+              <th className="px-3 py-3 text-left font-medium">地区 / 类型</th>
+              <th className="px-3 py-3 text-center font-medium">单位</th>
+              <th className="px-3 py-3 text-right font-medium">单价</th>
+              <th className="px-3 py-3 text-center font-medium">年份</th>
+              <th className="px-3 py-3 text-center font-medium">含材料</th>
+              <th className="px-3 py-3 text-center font-medium">处理</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#FADC9D] bg-white">
+            {rows.map(row => (
+              <tr key={row.rowId} className={row.ignored ? 'bg-[#F7F8FA] text-[#86909C]' : ''}>
+                <td className="px-3 py-3">
+                  <input value={row.originalName} onChange={e => onChange(row.rowId, { originalName: e.target.value })} className="h-9 w-52 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
+                  <div className="mt-1 text-xs text-[#86909C]">匹配度 {row.matchScore}</div>
+                </td>
+                <td className="px-3 py-3">
+                  <select value={row.standardItemId} onChange={e => onChange(row.rowId, { standardItemId: Number(e.target.value) || '', ignored: !e.target.value || row.price <= 0, matchScore: e.target.value ? 100 : row.matchScore })} className="h-9 w-64 rounded-lg border border-[#D9DCE3] px-2 text-sm">
+                    <option value="">未匹配</option>
+                    {standards.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
+                  </select>
+                  {!row.standardItemId && (
+                    <button onClick={() => onCreateStandard(row)} className="mt-2 h-7 rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF]">新增标准清单</button>
+                  )}
+                </td>
+                <td className="px-3 py-3"><input value={row.projectName} onChange={e => onChange(row.rowId, { projectName: e.target.value })} className="h-9 w-40 rounded-lg border border-[#D9DCE3] px-2 text-sm" /></td>
+                <td className="px-3 py-3">
+                  <div className="flex gap-2">
+                    <input value={row.region} onChange={e => onChange(row.rowId, { region: e.target.value })} placeholder="地区" className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
+                    <input value={row.projectType} onChange={e => onChange(row.rowId, { projectType: e.target.value })} placeholder="类型" className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
+                  </div>
+                </td>
+                <td className="px-3 py-3 text-center"><input value={row.unit} onChange={e => onChange(row.rowId, { unit: e.target.value })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-center text-sm" /></td>
+                <td className="px-3 py-3 text-right"><input type="number" value={row.price || ''} onChange={e => onChange(row.rowId, { price: Number(e.target.value) || 0, ignored: !row.standardItemId || Number(e.target.value) <= 0 })} className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm" /></td>
+                <td className="px-3 py-3 text-center"><input type="number" value={row.year || ''} onChange={e => onChange(row.rowId, { year: Number(e.target.value) || new Date().getFullYear() })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-center text-sm" /></td>
+                <td className="px-3 py-3 text-center"><input type="checkbox" checked={row.materialIncluded} onChange={e => onChange(row.rowId, { materialIncluded: e.target.checked })} /></td>
+                <td className="px-3 py-3 text-center">
+                  <label className="inline-flex items-center gap-1 text-xs text-[#4E5969]">
+                    <input type="checkbox" checked={row.ignored} onChange={e => onChange(row.rowId, { ignored: e.target.checked })} />
+                    忽略
+                  </label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function StandardTable({ standards, insights }: { standards: StandardItem[]; insights: Record<number, StandardInsight> }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[#E5E6EB]">
@@ -450,12 +666,13 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
             <th className="px-3 py-3 text-left font-medium">材料</th>
             <th className="px-3 py-3 text-right font-medium">中标价记录</th>
             <th className="px-3 py-3 text-right font-medium">成本价记录</th>
+            <th className="px-3 py-3 text-right font-medium">别名</th>
             <th className="px-3 py-3 text-right font-medium">最近中标价</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E5E6EB]">
           {standards.map(item => {
-            const insight = insights[item.id] || { bidCount: 0, costCount: 0, latestBidPrice: 0 };
+            const insight = insights[item.id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
             return (
               <tr key={item.id}>
                 <td className="px-3 py-3 font-medium text-[#165DFF]">{item.code}</td>
@@ -465,6 +682,7 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
                 <td className="px-3 py-3 text-[#4E5969]">{item.material_included ? '含材料' : '不含材料'}</td>
                 <td className="px-3 py-3 text-right text-[#4E5969]">{insight.bidCount}</td>
                 <td className="px-3 py-3 text-right text-[#4E5969]">{insight.costCount}</td>
+                <td className="px-3 py-3 text-right text-[#4E5969]">{insight.aliasCount}</td>
                 <td className="px-3 py-3 text-right font-medium text-[#1D2129]">
                   {insight.latestBidPrice ? `${Number(insight.latestBidPrice).toLocaleString()} 元/${item.unit || '-'}` : '-'}
                 </td>
