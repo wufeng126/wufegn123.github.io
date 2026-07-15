@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileText, Loader2, RefreshCw, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileText, Loader2, RefreshCw, UsersRound } from 'lucide-react';
 import { getDefaultDailyReportDate, getReadableDate } from '@/lib/construction-log-deadline';
 
 type Person = { id: number; name: string; status?: string };
@@ -19,6 +19,14 @@ type ProjectDetail = {
   issue_count: number;
   contents: string[];
   issues: string[];
+  ai_sections?: {
+    construction_content?: string;
+    labor_teams?: string;
+    materials_machinery?: string;
+    quality_safety?: string;
+    progress_risks?: string;
+    tomorrow_plan?: string;
+  };
 };
 
 type ReportSummary = {
@@ -33,6 +41,9 @@ type ReportSummary = {
     log_count: number;
     issue_count: number;
     headcount_total: number;
+    narrative?: string;
+    key_points?: string[];
+    risk_summary?: string;
   };
   projects: ProjectDetail[];
 };
@@ -68,6 +79,26 @@ function PersonList({ users, empty }: { users: Person[]; empty: string }) {
       ))}
     </span>
   );
+}
+
+function SectionBlock({ title, children, tone = 'default' }: { title: string; children: string; tone?: 'default' | 'risk' }) {
+  return (
+    <div className={tone === 'risk' ? 'rounded-lg border border-amber-100 bg-amber-50 p-3' : 'rounded-lg border border-slate-100 bg-slate-50 p-3'}>
+      <div className={tone === 'risk' ? 'mb-1 text-xs font-semibold text-amber-700' : 'mb-1 text-xs font-semibold text-slate-500'}>{title}</div>
+      <p className={tone === 'risk' ? 'text-sm leading-6 text-amber-900' : 'text-sm leading-6 text-slate-700'}>{children || '日志中未单独记录。'}</p>
+    </div>
+  );
+}
+
+function getProjectSections(project: ProjectDetail) {
+  return {
+    construction_content: project.ai_sections?.construction_content || project.contents.slice(0, 4).join('；') || '日志中未单独记录。',
+    labor_teams: project.ai_sections?.labor_teams || `当日提交 ${project.submitted_users.length}/${project.expected_users.length} 人，现场出勤合计 ${project.headcount_total} 人。`,
+    materials_machinery: project.ai_sections?.materials_machinery || '日志中未单独记录材料、机械使用情况。',
+    quality_safety: project.ai_sections?.quality_safety || (project.issues.length ? `记录问题/异常：${project.issues.slice(0, 4).join('；')}` : '未记录质量、安全异常。'),
+    progress_risks: project.ai_sections?.progress_risks || (project.issue_count > 0 || project.missing_users.length > 0 ? '存在需跟进事项，请项目负责人核查。' : '未识别到明显进度风险。'),
+    tomorrow_plan: project.ai_sections?.tomorrow_plan || '日志中未单独记录明日计划。',
+  };
 }
 
 export default function ConstructionDailyReportsPage() {
@@ -172,95 +203,130 @@ export default function ConstructionDailyReportsPage() {
           </div>
         ) : summary ? (
           <>
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold">{getReadableDate(summary.report_date)} 公司总览</h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    生成时间：{report?.generated_at ? new Date(report.generated_at).toLocaleString('zh-CN') : '-'}
-                    {report?.pushed_at ? `，已推送：${new Date(report.pushed_at).toLocaleString('zh-CN')}` : '，尚未自动推送'}
+            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">项目施工日报</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">{getReadableDate(summary.report_date)} 项目施工日报</h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      生成时间：{report?.generated_at ? new Date(report.generated_at).toLocaleString('zh-CN') : '-'}
+                      {report?.pushed_at ? `，已推送：${new Date(report.pushed_at).toLocaleString('zh-CN')}` : '，尚未自动推送'}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
+                    AI 萃取：{report?.ai_status === 'done' ? '已生成' : report?.ai_status === 'fallback' ? '本地兜底' : '待生成'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6 p-5">
+                <section>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded bg-blue-600 text-xs font-semibold text-white">一</span>
+                    <h3 className="text-base font-semibold text-slate-950">公司整体情况</h3>
+                  </div>
+                  <p className="rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
+                    {summary.company.narrative || `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。`}
                   </p>
-                </div>
-                <div className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                  AI 总结：{report?.ai_status === 'done' ? '已生成' : '预留'}
-                </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatCard label="有日志项目" value={`${summary.company.submitted_projects}/${summary.company.total_projects}`} tone="text-blue-700" />
+                    <StatCard label="已交人员" value={`${summary.company.submitted_user_count}/${summary.company.expected_user_count}`} tone="text-emerald-700" />
+                    <StatCard label="逾期补交" value={summary.company.late_user_count} tone="text-amber-700" />
+                    <StatCard label="未交项目人员项" value={summary.company.missing_assignment_count} tone="text-red-600" />
+                    <StatCard label="日志条数" value={summary.company.log_count} tone="text-slate-900" />
+                    <StatCard label="出勤合计" value={summary.company.headcount_total} tone="text-slate-900" />
+                    <StatCard label="问题异常" value={summary.company.issue_count} tone="text-orange-600" />
+                    <StatCard label="项目明细" value={projects.length} tone="text-slate-900" />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-[1fr_0.8fr]">
+                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                      <div className="mb-2 text-xs font-semibold text-blue-700">日报要点</div>
+                      <ul className="space-y-1 text-sm leading-6 text-blue-900">
+                        {(summary.company.key_points?.length ? summary.company.key_points : [
+                          `当日 ${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有施工日志。`,
+                          `出勤合计 ${summary.company.headcount_total} 人，日志 ${summary.company.log_count} 条。`,
+                        ]).map((item, index) => <li key={index}>· {item}</li>)}
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border border-amber-100 bg-amber-50 p-4">
+                      <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-amber-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />风险提醒
+                      </div>
+                      <p className="text-sm leading-6 text-amber-900">
+                        {summary.company.risk_summary || (summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0 ? `存在 ${summary.company.issue_count} 条问题异常、${summary.company.missing_assignment_count} 个未提交项目人员项。` : '未识别到明显日报风险。')}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded bg-blue-600 text-xs font-semibold text-white">二</span>
+                    <h3 className="text-base font-semibold text-slate-950">各项目情况</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    {projects.map((project, index) => {
+                      const sections = getProjectSections(project);
+                      return (
+                        <article key={project.project_id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <h4 className="text-base font-semibold">{index + 1}. {project.project_name}</h4>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-blue-700">
+                                  <FileText className="h-3.5 w-3.5" />日志 {project.log_count}
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
+                                  <UsersRound className="h-3.5 w-3.5" />出勤 {project.headcount_total}
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-amber-700">
+                                  <Clock3 className="h-3.5 w-3.5" />逾期 {project.late_users.length}
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-slate-700">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />已交 {project.submitted_users.length}/{project.expected_users.length}
+                                </span>
+                              </div>
+                            </div>
+                            {project.issue_count > 0 ? (
+                              <span className="rounded-md bg-orange-50 px-2 py-1 text-xs font-medium text-orange-700">
+                                {project.issue_count} 条问题异常
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                            <SectionBlock title="今日施工内容">{sections.construction_content}</SectionBlock>
+                            <SectionBlock title="人员/班组情况">{sections.labor_teams}</SectionBlock>
+                            <SectionBlock title="材料机械情况">{sections.materials_machinery}</SectionBlock>
+                            <SectionBlock title="质量安全问题" tone={project.issue_count > 0 ? 'risk' : 'default'}>{sections.quality_safety}</SectionBlock>
+                            <SectionBlock title="进度风险" tone={project.issue_count > 0 || project.missing_users.length > 0 ? 'risk' : 'default'}>{sections.progress_risks}</SectionBlock>
+                            <SectionBlock title="明日计划">{sections.tomorrow_plan}</SectionBlock>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                            <div className="rounded-lg bg-slate-50 p-3">
+                              <div className="mb-2 text-xs font-medium text-slate-500">已提交人员</div>
+                              <PersonList users={project.submitted_users} empty="暂无提交" />
+                            </div>
+                            <div className="rounded-lg bg-amber-50 p-3">
+                              <div className="mb-2 text-xs font-medium text-amber-700">逾期提交人员</div>
+                              <PersonList users={project.late_users} empty="无逾期" />
+                            </div>
+                            <div className="rounded-lg bg-red-50 p-3">
+                              <div className="mb-2 text-xs font-medium text-red-700">未提交人员</div>
+                              <PersonList users={project.missing_users} empty="无未交" />
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
               </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard label="有日志项目" value={`${summary.company.submitted_projects}/${summary.company.total_projects}`} tone="text-blue-700" />
-                <StatCard label="已交人员" value={`${summary.company.submitted_user_count}/${summary.company.expected_user_count}`} tone="text-emerald-700" />
-                <StatCard label="逾期补交" value={summary.company.late_user_count} tone="text-amber-700" />
-                <StatCard label="未交项目人员项" value={summary.company.missing_assignment_count} tone="text-red-600" />
-                <StatCard label="日志条数" value={summary.company.log_count} tone="text-slate-900" />
-                <StatCard label="出勤合计" value={summary.company.headcount_total} tone="text-slate-900" />
-                <StatCard label="问题异常" value={summary.company.issue_count} tone="text-orange-600" />
-                <StatCard label="项目明细" value={projects.length} tone="text-slate-900" />
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              {projects.map(project => (
-                <div key={project.project_id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-base font-semibold">{project.project_name}</h3>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-blue-700">
-                          <FileText className="h-3.5 w-3.5" />日志 {project.log_count}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
-                          <UsersRound className="h-3.5 w-3.5" />出勤 {project.headcount_total}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-amber-700">
-                          <Clock3 className="h-3.5 w-3.5" />逾期 {project.late_users.length}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-slate-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" />已交 {project.submitted_users.length}/{project.expected_users.length}
-                        </span>
-                      </div>
-                    </div>
-                    {project.issue_count > 0 ? (
-                      <span className="rounded-md bg-orange-50 px-2 py-1 text-xs font-medium text-orange-700">
-                        {project.issue_count} 条问题异常
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-                    <div className="rounded-lg bg-slate-50 p-3">
-                      <div className="mb-2 text-xs font-medium text-slate-500">已提交人员</div>
-                      <PersonList users={project.submitted_users} empty="暂无提交" />
-                    </div>
-                    <div className="rounded-lg bg-amber-50 p-3">
-                      <div className="mb-2 text-xs font-medium text-amber-700">逾期提交人员</div>
-                      <PersonList users={project.late_users} empty="无逾期" />
-                    </div>
-                    <div className="rounded-lg bg-red-50 p-3">
-                      <div className="mb-2 text-xs font-medium text-red-700">未提交人员</div>
-                      <PersonList users={project.missing_users} empty="无未交" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div>
-                      <div className="mb-2 text-xs font-medium text-slate-500">施工内容摘要</div>
-                      <div className="space-y-2">
-                        {project.contents.length ? project.contents.slice(0, 5).map((item, index) => (
-                          <p key={index} className="rounded-lg bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">{item}</p>
-                        )) : <p className="text-sm text-slate-400">暂无施工内容</p>}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-2 text-xs font-medium text-slate-500">问题异常摘要</div>
-                      <div className="space-y-2">
-                        {project.issues.length ? project.issues.slice(0, 5).map((item, index) => (
-                          <p key={index} className="rounded-lg bg-orange-50 px-3 py-2 text-sm leading-6 text-orange-800">{item}</p>
-                        )) : <p className="text-sm text-slate-400">暂无问题异常</p>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </section>
           </>
         ) : (
