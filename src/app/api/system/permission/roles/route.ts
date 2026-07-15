@@ -71,14 +71,15 @@ async function ensurePermissionIds(supabase: SupabaseClient, permissionCodes: st
       console.error('[Permission Sync] Upsert error:', insertError);
       // 如果 upsert 失败，尝试逐个插入并忽略错误
       for (const perm of newPermissions) {
-        await supabase
-          .from('permissions')
-          .insert(perm)
-          .select()
-          .single()
-          .catch(() => {
-            // 忽略重复插入错误
-          });
+        try {
+          await supabase
+            .from('permissions')
+            .insert(perm)
+            .select()
+            .single();
+        } catch {
+          // 忽略重复插入错误
+        }
       }
     }
   }
