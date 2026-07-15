@@ -1,796 +1,528 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Smartphone,
+  UserCheck,
+  UserCog,
+  UserX,
+  Users,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
-} from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import {
-  Link2, Unlink, UserSearch, RefreshCw, Users, Phone, Clock,
-  AlertTriangle, CheckCircle2, XCircle, Search, UserCheck, UserX,
-} from 'lucide-react';
 import { getUserDisplayName } from '@/lib/user-display-name';
 
-interface BoundUser {
-  id: number;
-  userId?: number;
-  username: string;
-  name: string;
-  role: string;
-  role_names?: string;
-  project_count?: number;
-  projectNames?: string[];
-  dingtalk_user_id?: string;
-  dingtalkUserId?: string;
-  dingtalk_name?: string;
-  dingtalkName?: string;
-  dingtalk_mobile?: string;
-  dingtalkMobile?: string;
-  dingtalk_dept_id?: string;
-  dingtalkDept?: string;
-  lastSyncAt?: string | null;
-  last_dingtalk_sync_at?: string | null;
-  isDisabled?: boolean;
-  is_disabled?: boolean;
-  dingtalkActive?: boolean;
-  dingtalk_active?: boolean;
-}
-
-interface UnboundUser {
+type PermissionUser = {
   id: number;
   username: string;
-  name: string;
-  role?: string;
+  name?: string | null;
+  role?: string | null;
+  is_disabled?: boolean | null;
+  role_ids?: number[];
   role_names?: string;
-  project_count?: number;
-  projectNames?: string[];
-}
+  roles?: Array<{ id: number; name: string; code?: string | null }>;
+  allowed_projects?: number[];
+  dingtalk_bound?: boolean;
+  dingtalk_info?: {
+    user_id?: string | null;
+    name?: string | null;
+    mobile?: string | null;
+    dept_id?: string | null;
+    active?: boolean | null;
+    last_sync?: string | null;
+  } | null;
+  created_at?: string;
+  last_login?: string | null;
+};
 
-interface DingtalkContact {
+type SyncStatus = {
+  totalContacts: number;
+  activeContacts: number;
+  lastSyncTime: string | null;
+  pendingAccounts: number;
+  enabledAccounts: number;
+  disabledAccounts: number;
+  boundAccounts: number;
+};
+
+type DingTalkConfigStatus = {
+  configured: boolean;
+  config?: Record<string, string | boolean>;
+};
+
+type DingTalkContact = {
   id: number;
-  dingtalkUserId: string;
+  dingtalk_user_id: string;
   name: string;
-  mobile: string | null;
-  deptName: string | null;
-  active: boolean;
-  bound: boolean;
-  syncTime: string;
+  mobile?: string | null;
+  dept_name_list?: string | null;
+  active?: boolean | null;
+  title?: string | null;
+  sync_time?: string | null;
+};
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('zh-CN', { hour12: false });
 }
 
-interface BindingLog {
-  id: number;
-  operationType: string;
-  userId: number | null;
-  username: string | null;
-  dingtalkUserId: string | null;
-  dingtalkName: string | null;
-  details: string;
-  createdAt: string;
+function getAccountStatus(user: PermissionUser) {
+  if (user.role === 'pending' || (user.role_ids || []).length === 0) {
+    return { label: '待分配', className: 'border-orange-200 bg-orange-50 text-orange-700' };
+  }
+  if (user.is_disabled || user.dingtalk_info?.active === false) {
+    return { label: '已禁用', className: 'border-red-200 bg-red-50 text-red-700' };
+  }
+  return { label: '已启用', className: 'border-green-200 bg-green-50 text-green-700' };
+}
+
+function matchUserKeyword(user: PermissionUser, keyword: string) {
+  if (!keyword) return true;
+  const search = keyword.toLowerCase();
+  return [
+    user.username,
+    user.name,
+    user.dingtalk_info?.name,
+    user.dingtalk_info?.mobile,
+    user.dingtalk_info?.user_id,
+    user.role_names,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(search));
+}
+
+function matchContactKeyword(contact: DingTalkContact, keyword: string) {
+  if (!keyword) return true;
+  const search = keyword.toLowerCase();
+  return [contact.name, contact.mobile, contact.dingtalk_user_id, contact.dept_name_list, contact.title]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(search));
 }
 
 export default function DingtalkBindingPage() {
+  const router = useRouter();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('bound');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [keyword, setKeyword] = useState('');
+  const [activeTab, setActiveTab] = useState('pending');
+  const [users, setUsers] = useState<PermissionUser[]>([]);
+  const [contacts, setContacts] = useState<DingTalkContact[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [configStatus, setConfigStatus] = useState<DingTalkConfigStatus | null>(null);
 
-  // 数据
-  const [boundUsers, setBoundUsers] = useState<BoundUser[]>([]);
-  const [unboundUsers, setUnboundUsers] = useState<UnboundUser[]>([]);
-  const [contacts, setContacts] = useState<DingtalkContact[]>([]);
-  const [bindingLogs, setBindingLogs] = useState<BindingLog[]>([]);
-
-  // 搜索
-  const [boundSearch, setBoundSearch] = useState('');
-  const [unboundSearch, setUnboundSearch] = useState('');
-  const [contactSearch, setContactSearch] = useState('');
-  const [logSearch, setLogSearch] = useState('');
-
-  // 绑定对话框
-  const [bindDialogOpen, setBindDialogOpen] = useState(false);
-  const [selectedDingtalkUser, setSelectedDingtalkUser] = useState<DingtalkContact | null>(null);
-  const [selectedSystemUserId, setSelectedSystemUserId] = useState<string>('');
-  const [binding, setBinding] = useState(false);
-
-  // 解绑对话框
-  const [unbindDialogOpen, setUnbindDialogOpen] = useState(false);
-  const [unbindingUser, setUnbindingUser] = useState<BoundUser | null>(null);
-  const [unbinding, setUnbinding] = useState(false);
-
-  // 同步状态
-  const [syncStatus, setSyncStatus] = useState<{ total: number; active: number; lastSyncTime: string | null } | null>(null);
-
-  const fetchBoundUsers = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/dingtalk/bindings?tab=bound');
-      const data = await res.json();
-      if (data.success) setBoundUsers(data.data || []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
+      const [usersRes, statusRes, contactsRes, configRes] = await Promise.all([
+        fetch('/api/system/permission/users'),
+        fetch('/api/dingtalk/contacts?status=true'),
+        fetch('/api/dingtalk/contacts?active_only=false&limit=200'),
+        fetch('/api/dingtalk/config'),
+      ]);
 
-  const fetchUnboundUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/dingtalk/bindings?tab=unbound_users');
-      const data = await res.json();
-      if (data.success) setUnboundUsers(data.data || []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
+      const [usersData, statusData, contactsData, configData] = await Promise.all([
+        usersRes.json(),
+        statusRes.json(),
+        contactsRes.json(),
+        configRes.json(),
+      ]);
 
-  const fetchContacts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/dingtalk/bindings?tab=unbound_dingtalk');
-      const data = await res.json();
-      if (data.success) setContacts(data.data || []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
-
-  const fetchBindingLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/dingtalk/bindings?tab=logs');
-      const data = await res.json();
-      if (data.success) setBindingLogs(data.data || []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
-
-  const fetchSyncStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/dingtalk/contacts?status=true');
-      const data = await res.json();
-      if (data.success && data.data) {
-        setSyncStatus({
-          total: data.data.totalContacts || 0,
-          active: data.data.activeContacts || 0,
-          lastSyncTime: data.data.lastSyncTime || null,
-        });
-      }
-    } catch { /* ignore */ }
-  }, []);
+      if (usersData.success) setUsers(usersData.users || []);
+      if (statusData.success) setSyncStatus(statusData.data || null);
+      if (contactsData.success) setContacts(contactsData.data || []);
+      if (configData.success) setConfigStatus(configData.data || null);
+    } catch {
+      toast({ title: '读取失败', description: '无法读取钉钉集成数据', variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    fetchBoundUsers();
-    fetchUnboundUsers();
-    fetchSyncStatus();
-  }, [fetchBoundUsers, fetchUnboundUsers, fetchSyncStatus]);
+    queueMicrotask(() => {
+      void loadData();
+    });
+  }, [loadData]);
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    if (tab === 'bound') fetchBoundUsers();
-    else if (tab === 'unbound') fetchUnboundUsers();
-    else if (tab === 'contacts') fetchContacts();
-    else if (tab === 'logs') fetchBindingLogs();
-  };
+  const dingTalkUsers = useMemo(
+    () => users.filter((user) => user.dingtalk_bound || user.dingtalk_info?.user_id),
+    [users]
+  );
 
-  const handleSyncContacts = async () => {
+  const pendingUsers = useMemo(
+    () =>
+      dingTalkUsers.filter(
+        (user) => user.role === 'pending' || (user.role_ids || []).length === 0
+      ),
+    [dingTalkUsers]
+  );
+
+  const enabledUsers = useMemo(
+    () =>
+      dingTalkUsers.filter(
+        (user) =>
+          user.role !== 'pending' &&
+          (user.role_ids || []).length > 0 &&
+          !user.is_disabled &&
+          user.dingtalk_info?.active !== false
+      ),
+    [dingTalkUsers]
+  );
+
+  const disabledUsers = useMemo(
+    () =>
+      dingTalkUsers.filter(
+        (user) => Boolean(user.is_disabled) || user.dingtalk_info?.active === false
+      ),
+    [dingTalkUsers]
+  );
+
+  const filteredPendingUsers = pendingUsers.filter((user) => matchUserKeyword(user, keyword));
+  const filteredEnabledUsers = enabledUsers.filter((user) => matchUserKeyword(user, keyword));
+  const filteredDisabledUsers = disabledUsers.filter((user) => matchUserKeyword(user, keyword));
+  const filteredContacts = contacts.filter((contact) => matchContactKeyword(contact, keyword));
+
+  const handleSync = async () => {
     setSyncing(true);
     try {
       const res = await fetch('/api/dingtalk/contacts/sync', { method: 'POST' });
       const data = await res.json();
-      if (data.success) {
-        toast({ title: '同步成功', description: `已同步 ${data.data.userCount} 人` });
-        fetchSyncStatus();
-        if (activeTab === 'contacts') fetchContacts();
-      } else {
-        toast({ title: '同步失败', description: data.error, variant: 'error' });
+      if (!data.success) {
+        toast({ title: '同步失败', description: data.error || '请检查钉钉配置', variant: 'error' });
+        return;
       }
-    } catch {
-      toast({ title: '同步失败', description: '网络错误', variant: 'error' });
-    }
-    setSyncing(false);
-  };
-
-  const handleAutoMatch = async () => {
-    setBinding(true);
-    try {
-      const res = await fetch('/api/dingtalk/bindings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'auto_match' }),
+      toast({
+        title: '同步完成',
+        description: data.message || `已同步 ${data.data?.userCount || 0} 名钉钉人员`,
       });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: '自动匹配完成', description: `成功绑定 ${data.data.matched} 个用户` });
-        fetchBoundUsers();
-        fetchUnboundUsers();
-        if (activeTab === 'contacts') fetchContacts();
-      } else {
-        toast({ title: '自动匹配失败', description: data.error, variant: 'error' });
-      }
+      await loadData();
     } catch {
-      toast({ title: '操作失败', description: '网络错误', variant: 'error' });
-    }
-    setBinding(false);
-  };
-
-  const handleManualBind = async () => {
-    if (!selectedDingtalkUser || !selectedSystemUserId) {
-      toast({ title: '请选择', description: '请选择系统用户和钉钉人员', variant: 'error' });
-      return;
-    }
-    setBinding(true);
-    try {
-      const res = await fetch('/api/dingtalk/bindings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'bind',
-          userId: parseInt(selectedSystemUserId),
-          dingtalkUserId: selectedDingtalkUser.dingtalkUserId,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: '绑定成功' });
-        setBindDialogOpen(false);
-        setSelectedDingtalkUser(null);
-        setSelectedSystemUserId('');
-        fetchBoundUsers();
-        fetchUnboundUsers();
-        if (activeTab === 'contacts') fetchContacts();
-      } else {
-        toast({ title: '绑定失败', description: data.error, variant: 'error' });
-      }
-    } catch {
-      toast({ title: '操作失败', description: '网络错误', variant: 'error' });
-    }
-    setBinding(false);
-  };
-
-  const handleUnbind = async () => {
-    if (!unbindingUser) return;
-    setUnbinding(true);
-    try {
-      const res = await fetch('/api/dingtalk/bindings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'unbind',
-          userId: unbindingUser.id || unbindingUser.userId,
-          dingtalkUserId: unbindingUser.dingtalk_user_id || unbindingUser.dingtalkUserId,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: '解绑成功', description: '已解除绑定，历史数据不受影响' });
-        setUnbindDialogOpen(false);
-        setUnbindingUser(null);
-        fetchBoundUsers();
-        if (activeTab === 'unbound') fetchUnboundUsers();
-        if (activeTab === 'contacts') fetchContacts();
-      } else {
-        toast({ title: '解绑失败', description: data.error, variant: 'error' });
-      }
-    } catch {
-      toast({ title: '操作失败', description: '网络错误', variant: 'error' });
-    }
-    setUnbinding(false);
-  };
-
-  const handleToggleDisable = async (user: BoundUser, disable: boolean) => {
-    try {
-      const res = await fetch('/api/dingtalk/bindings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: disable ? 'disable' : 'enable', userId: user.id || user.userId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: disable ? '已禁用' : '已启用', description: disable ? '该用户已被禁用登录' : '该用户已恢复登录权限' });
-        fetchBoundUsers();
-      } else {
-        toast({ title: '操作失败', description: data.error, variant: 'error' });
-      }
-    } catch {
-      toast({ title: '操作失败', description: '网络错误', variant: 'error' });
+      toast({ title: '同步失败', description: '网络或服务异常', variant: 'error' });
+    } finally {
+      setSyncing(false);
     }
   };
 
-  const filteredBoundUsers = boundUsers.filter(u =>
-    !boundSearch || u.name.includes(boundSearch) || u.username.includes(boundSearch) ||
-    (u.dingtalk_name || u.dingtalkName || '').includes(boundSearch) || (u.dingtalk_mobile || u.dingtalkMobile || '').includes(boundSearch)
-  );
+  const goPermission = () => {
+    router.push('/system-management?tab=permission');
+  };
 
-  const filteredUnboundUsers = unboundUsers.filter(u =>
-    !unboundSearch || u.name.includes(unboundSearch) || u.username.includes(unboundSearch)
-  );
-
-  const filteredContacts = contacts.filter(c =>
-    !contactSearch || c.name.includes(contactSearch) || c.mobile?.includes(contactSearch) || c.dingtalkUserId.includes(contactSearch)
-  );
-
-  const filteredLogs = bindingLogs.filter(l =>
-    !logSearch || l.username?.includes(logSearch) || l.dingtalkName?.includes(logSearch) || l.operationType.includes(logSearch) || l.details?.includes(logSearch)
-  );
+  const statCards = [
+    {
+      title: '钉钉配置',
+      value: configStatus?.configured ? '已配置' : '未配置',
+      desc: configStatus?.configured ? '可执行通讯录同步和免登录' : '请先配置 AppKey / AppSecret / CorpId',
+      icon: Smartphone,
+      tone: configStatus?.configured ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50',
+    },
+    {
+      title: '通讯录人员',
+      value: `${syncStatus?.activeContacts || 0}/${syncStatus?.totalContacts || 0}`,
+      desc: `最近同步：${formatDateTime(syncStatus?.lastSyncTime)}`,
+      icon: Users,
+      tone: 'text-blue-700 bg-blue-50',
+    },
+    {
+      title: '待分配账号',
+      value: String(syncStatus?.pendingAccounts ?? pendingUsers.length),
+      desc: '需分配岗位模板和项目后才能登录',
+      icon: UserCog,
+      tone: 'text-orange-700 bg-orange-50',
+    },
+    {
+      title: '自动禁用账号',
+      value: String(syncStatus?.disabledAccounts ?? disabledUsers.length),
+      desc: '钉钉离职/停用后自动禁止登录',
+      icon: UserX,
+      tone: 'text-red-700 bg-red-50',
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* 头部 */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">钉钉通讯录绑定</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            管理系统用户与钉钉账号的绑定关系
+          <h1 className="text-xl font-semibold tracking-tight text-slate-950">组织与账号集成</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            钉钉作为普通员工唯一账号来源；同步后生成待分配账号，完成岗位和项目分配后正式启用。
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {syncStatus && (
-            <Badge variant="outline" className="text-xs">
-              <Users className="w-3 h-3 mr-1" />
-              通讯录 {syncStatus.active}/{syncStatus.total} 人
-            </Badge>
-          )}
-          <Button variant="outline" size="sm" onClick={handleSyncContacts} disabled={syncing}>
-            <RefreshCw className={`w-4 h-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? '同步中...' : '同步通讯录'}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={loadData} disabled={loading || syncing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            刷新
           </Button>
-          <Button size="sm" onClick={handleAutoMatch} disabled={binding}>
-            <UserSearch className="w-4 h-4 mr-1" />
-            手机号自动匹配
+          <Button onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? '同步中' : '立即同步钉钉'}
           </Button>
         </div>
       </div>
 
-      {/* 选项卡 */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="bound">已绑定用户</TabsTrigger>
-          <TabsTrigger value="unbound">未绑定系统用户</TabsTrigger>
-          <TabsTrigger value="contacts">钉钉通讯录人员</TabsTrigger>
-          <TabsTrigger value="logs">绑定日志</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <Card key={card.title}>
+              <CardContent className="flex items-start gap-3 p-4">
+                <div className={`rounded-lg p-2 ${card.tone}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-500">{card.title}</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">{card.value}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{card.desc}</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-        {/* 已绑定用户 */}
-        <TabsContent value="bound">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">已绑定用户 ({filteredBoundUsers.length})</CardTitle>
-                <div className="relative w-60">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索姓名/用户名/手机号..."
-                    className="pl-9 h-9"
-                    value={boundSearch}
-                    onChange={e => setBoundSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filteredBoundUsers.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  {loading ? '加载中...' : '暂无已绑定用户'}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>系统用户</TableHead>
-                      <TableHead>钉钉手机号</TableHead>
-                      <TableHead>系统角色</TableHead>
-                      <TableHead>项目权限</TableHead>
-                      <TableHead>钉钉姓名</TableHead>
-                      <TableHead>钉钉部门</TableHead>
-                      <TableHead>钉钉userId</TableHead>
-                      <TableHead>账号状态</TableHead>
-                      <TableHead>最后同步</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredBoundUsers.map(u => {
-                      const uid = u.id || u.userId;
-                      const mobile = u.dingtalk_mobile || u.dingtalkMobile || '-';
-                      const roleName = u.role_names || u.role || '-';
-                      const projCount = u.project_count ?? (u.projectNames?.length ?? 0);
-                      const dtName = u.dingtalk_name || u.dingtalkName || '-';
-                      const dtDept = u.dingtalk_dept_id || u.dingtalkDept || '-';
-                      const dtUserId = u.dingtalk_user_id || u.dingtalkUserId || '-';
-                      const disabled = u.is_disabled || u.isDisabled;
-                      const dtActive = u.dingtalk_active ?? u.dingtalkActive ?? true;
-                      const lastSync = u.last_dingtalk_sync_at || u.lastSyncAt;
-                      return (
-                      <TableRow key={uid}>
-                        <TableCell className="font-medium">{getUserDisplayName(u)}</TableCell>
-                        <TableCell>{mobile}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{roleName}</Badge>
-                        </TableCell>
-                        <TableCell className="max-w-32 truncate">
-                          {projCount > 0 ? `${projCount} 个项目` : '-'}
-                        </TableCell>
-                        <TableCell>{dtName}</TableCell>
-                        <TableCell>{dtDept}</TableCell>
-                        <TableCell className="text-xs font-mono">{dtUserId}</TableCell>
-                        <TableCell>
-                          {disabled ? (
-                            <Badge variant="destructive">已禁用</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-green-100 text-green-700">正常</Badge>
-                          )}
-                          {!dtActive && dtUserId !== '-' && (
-                            <Badge variant="outline" className="ml-1 text-orange-600 border-orange-300">钉钉离职</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {lastSync ? new Date(lastSync).toLocaleString() : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {disabled ? (
-                              <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700" onClick={() => handleToggleDisable(u, false)}>
-                                <UserCheck className="w-4 h-4 mr-1" />启用
-                              </Button>
-                            ) : (
-                              <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700" onClick={() => handleToggleDisable(u, true)}>
-                                <UserX className="w-4 h-4 mr-1" />禁用
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => { setUnbindingUser(u); setUnbindDialogOpen(true); }}
-                            >
-                              <Unlink className="w-4 h-4 mr-1" />解绑
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ); })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 未绑定系统用户 */}
-        <TabsContent value="unbound">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">未绑定系统用户 ({filteredUnboundUsers.length})</CardTitle>
-                <div className="relative w-60">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索姓名/用户名/手机号..."
-                    className="pl-9 h-9"
-                    value={unboundSearch}
-                    onChange={e => setUnboundSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filteredUnboundUsers.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  {loading ? '加载中...' : '所有系统用户均已绑定钉钉账号'}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>系统用户</TableHead>
-                      <TableHead>用户名</TableHead>
-                      <TableHead>系统角色</TableHead>
-                      <TableHead>项目权限</TableHead>
-                      <TableHead>绑定状态</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUnboundUsers.map(u => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-medium">{getUserDisplayName(u)}</TableCell>
-                        <TableCell>{u.username || '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{u.role_names || u.role || '未分配'}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {(u.project_count ?? (u.projectNames?.length ?? 0)) > 0 ? `${u.project_count ?? u.projectNames!.length} 个项目` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-muted-foreground">
-                            <XCircle className="w-3 h-3 mr-1" />未绑定
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedSystemUserId(String(u.id));
-                              fetchUnboundUsers();
-                              setBindDialogOpen(true);
-                            }}
-                          >
-                            <Link2 className="w-4 h-4 mr-1" />手动绑定
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 钉钉通讯录人员 */}
-        <TabsContent value="contacts">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">钉钉通讯录人员 ({filteredContacts.length})</CardTitle>
-                <div className="relative w-60">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索姓名/手机号/userId..."
-                    className="pl-9 h-9"
-                    value={contactSearch}
-                    onChange={e => setContactSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filteredContacts.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  {loading ? '加载中...' : '暂无通讯录数据，请先同步通讯录'}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>钉钉姓名</TableHead>
-                      <TableHead>手机号</TableHead>
-                      <TableHead>部门</TableHead>
-                      <TableHead>钉钉userId</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>绑定状态</TableHead>
-                      <TableHead>同步时间</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredContacts.map(c => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-medium">{c.name}</TableCell>
-                        <TableCell>{c.mobile || '-'}</TableCell>
-                        <TableCell>{c.deptName || '-'}</TableCell>
-                        <TableCell className="text-xs font-mono">{c.dingtalkUserId}</TableCell>
-                        <TableCell>
-                          <Badge variant={c.active ? 'default' : 'secondary'}>
-                            {c.active ? '在职' : '离职'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {c.bound ? (
-                            <Badge variant="default" className="bg-green-600">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />已绑定
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              <XCircle className="w-3 h-3 mr-1" />未绑定
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(c.syncTime).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          {!c.bound && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedDingtalkUser(c);
-                                setSelectedSystemUserId('');
-                                fetchUnboundUsers();
-                                setBindDialogOpen(true);
-                              }}
-                            >
-                              <Link2 className="w-4 h-4 mr-1" />绑定
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 绑定日志 */}
-        <TabsContent value="logs">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">绑定日志</CardTitle>
-                <div className="relative w-60">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索用户/操作/详情..."
-                    className="pl-9 h-9"
-                    value={logSearch}
-                    onChange={e => setLogSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filteredLogs.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  {loading ? '加载中...' : '暂无绑定日志'}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>时间</TableHead>
-                      <TableHead>操作类型</TableHead>
-                      <TableHead>系统用户</TableHead>
-                      <TableHead>钉钉用户</TableHead>
-                      <TableHead>详情</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLogs.map(l => (
-                      <TableRow key={l.id}>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(l.createdAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              l.operationType === 'unbind' ? 'destructive' :
-                              l.operationType === 'bind_auto' ? 'secondary' : 'default'
-                            }
-                          >
-                            {l.operationType === 'bind_auto' ? '自动绑定' :
-                             l.operationType === 'bind_manual' ? '手动绑定' :
-                             l.operationType === 'unbind' ? '解绑' : l.operationType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{l.username || '-'}</TableCell>
-                        <TableCell>{l.dingtalkName || '-'}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-xs truncate" title={l.details}>
-                          {l.details || '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* 手动绑定对话框 */}
-      <Dialog open={bindDialogOpen} onOpenChange={setBindDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>手动绑定钉钉账号</DialogTitle>
-            <DialogDescription>选择系统用户和钉钉人员进行一对一绑定</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* 钉钉人员 */}
+      <Card className="border-blue-100 bg-blue-50/60">
+        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
             <div>
-              <label className="text-sm font-medium mb-1.5 block">钉钉人员</label>
-              {selectedDingtalkUser ? (
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div>
-                    <div className="font-medium">{selectedDingtalkUser.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {selectedDingtalkUser.mobile && <span><Phone className="w-3 h-3 inline mr-1" />{selectedDingtalkUser.mobile}</span>}
-                      {selectedDingtalkUser.deptName && <span className="ml-2">{selectedDingtalkUser.deptName}</span>}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedDingtalkUser(null)}>更换</Button>
-                </div>
-              ) : (
-                <Select value="" onValueChange={v => {
-                  const c = contacts.find(c => c.dingtalkUserId === v);
-                  if (c) setSelectedDingtalkUser(c);
-                }}>
-                  <SelectTrigger><SelectValue placeholder="选择钉钉人员" /></SelectTrigger>
-                  <SelectContent>
-                    {contacts.filter(c => !c.bound && c.active).map(c => (
-                      <SelectItem key={c.dingtalkUserId} value={c.dingtalkUserId}>
-                        {c.name} {c.mobile ? `(${c.mobile})` : ''} {c.deptName ? `- ${c.deptName}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            {/* 系统用户 */}
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">系统用户</label>
-              <Select value={selectedSystemUserId} onValueChange={setSelectedSystemUserId}>
-                <SelectTrigger><SelectValue placeholder="选择系统用户" /></SelectTrigger>
-                <SelectContent>
-                  {unboundUsers.map(u => (
-                    <SelectItem key={u.id} value={String(u.id)}>
-                      {getUserDisplayName(u)} - {u.role_names || u.role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 校验提示 */}
-            <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-950/20 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm">
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <div>
-                <p>一个系统用户只能绑定一个钉钉账号，一个钉钉账号只能绑定一个系统用户。</p>
-                <p>绑定后该用户可通过钉钉免登方式登录系统。</p>
-              </div>
+              <p className="font-medium text-blue-950">账号启用规则</p>
+              <p className="mt-1 text-sm leading-6 text-blue-800">
+                每天自动同步钉钉人员。新人员进入待分配账号；超级管理员在“用户与权限”中分配岗位模板、可访问项目和项目身份后，账号才允许登录。
+              </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBindDialogOpen(false)}>取消</Button>
-            <Button onClick={handleManualBind} disabled={binding || (!selectedDingtalkUser && !selectedSystemUserId) || (!selectedDingtalkUser || !selectedSystemUserId)}>
-              {binding ? '绑定中...' : '确认绑定'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Button variant="outline" className="bg-white" onClick={goPermission}>
+            去用户与权限分配
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
 
-      {/* 解绑确认对话框 */}
-      <Dialog open={unbindDialogOpen} onOpenChange={setUnbindDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>确认解绑</DialogTitle>
-            <DialogDescription>解除系统用户与钉钉账号的绑定关系</DialogDescription>
-          </DialogHeader>
-          {unbindingUser && (
-            <div className="space-y-3 py-2">
-              <div className="p-3 bg-muted rounded-lg space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">系统用户</span>
-                  <span className="font-medium">{getUserDisplayName(unbindingUser)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">钉钉账号</span>
-                  <span className="font-medium">{unbindingUser.dingtalk_name || unbindingUser.dingtalkName}</span>
-                </div>
-              </div>
-              <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
-                <Clock className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>解绑不会删除历史业务数据，该用户将无法通过钉钉免登方式登录。</span>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUnbindDialogOpen(false)}>取消</Button>
-            <Button variant="destructive" onClick={handleUnbind} disabled={unbinding}>
-              {unbinding ? '解绑中...' : '确认解绑'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Card>
+        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>账号同步台账</CardTitle>
+            <CardDescription>
+              只展示钉钉来源账号，不再维护未绑定系统账号入口。
+            </CardDescription>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索姓名 / 手机 / userId"
+              className="pl-9"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="pending">待分配账号</TabsTrigger>
+              <TabsTrigger value="enabled">已启用账号</TabsTrigger>
+              <TabsTrigger value="disabled">已禁用账号</TabsTrigger>
+              <TabsTrigger value="contacts">钉钉通讯录</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pending" className="mt-4">
+              <UserTable
+                users={filteredPendingUsers}
+                loading={loading}
+                emptyText="暂无待分配账号"
+                actionLabel="去分配"
+                onAction={goPermission}
+              />
+            </TabsContent>
+
+            <TabsContent value="enabled" className="mt-4">
+              <UserTable
+                users={filteredEnabledUsers}
+                loading={loading}
+                emptyText="暂无已启用钉钉账号"
+              />
+            </TabsContent>
+
+            <TabsContent value="disabled" className="mt-4">
+              <UserTable
+                users={filteredDisabledUsers}
+                loading={loading}
+                emptyText="暂无自动禁用账号"
+              />
+            </TabsContent>
+
+            <TabsContent value="contacts" className="mt-4">
+              <ContactsTable contacts={filteredContacts} loading={loading} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function UserTable({
+  users,
+  loading,
+  emptyText,
+  actionLabel,
+  onAction,
+}: {
+  users: PermissionUser[];
+  loading: boolean;
+  emptyText: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  if (users.length === 0) {
+    return (
+      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        {loading ? '正在读取账号...' : emptyText}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>状态</TableHead>
+            <TableHead>姓名</TableHead>
+            <TableHead>手机号</TableHead>
+            <TableHead>岗位模板</TableHead>
+            <TableHead>可访问项目</TableHead>
+            <TableHead>钉钉 UserId</TableHead>
+            <TableHead>最后同步</TableHead>
+            {actionLabel && <TableHead>操作</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {users.map((user) => {
+            const status = getAccountStatus(user);
+            return (
+              <TableRow key={user.id}>
+                <TableCell>
+                  <Badge variant="outline" className={status.className}>
+                    {status.label}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium text-slate-900">{getUserDisplayName(user)}</div>
+                  <div className="text-xs text-slate-500">{user.username}</div>
+                </TableCell>
+                <TableCell>{user.dingtalk_info?.mobile || '-'}</TableCell>
+                <TableCell>
+                  {(user.roles || []).length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {(user.roles || []).map((role) => (
+                        <Badge key={role.id} variant="secondary">{role.name}</Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-orange-600">未分配</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {(user.allowed_projects || []).length > 0 ? `${user.allowed_projects?.length} 个项目` : '-'}
+                </TableCell>
+                <TableCell className="font-mono text-xs">{user.dingtalk_info?.user_id || '-'}</TableCell>
+                <TableCell className="text-xs text-slate-500">
+                  {formatDateTime(user.dingtalk_info?.last_sync)}
+                </TableCell>
+                {actionLabel && (
+                  <TableCell>
+                    <Button variant="outline" size="sm" onClick={onAction}>
+                      <UserCheck className="mr-1 h-4 w-4" />
+                      {actionLabel}
+                    </Button>
+                  </TableCell>
+                )}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loading: boolean }) {
+  if (contacts.length === 0) {
+    return (
+      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        {loading ? '正在读取通讯录...' : '暂无钉钉通讯录数据'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>状态</TableHead>
+            <TableHead>姓名</TableHead>
+            <TableHead>手机号</TableHead>
+            <TableHead>职务</TableHead>
+            <TableHead>部门</TableHead>
+            <TableHead>钉钉 UserId</TableHead>
+            <TableHead>同步时间</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {contacts.map((contact) => (
+            <TableRow key={contact.id}>
+              <TableCell>
+                {contact.active === false ? (
+                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                    <AlertCircle className="mr-1 h-3 w-3" />
+                    停用
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                    在职
+                  </Badge>
+                )}
+              </TableCell>
+              <TableCell className="font-medium text-slate-900">{contact.name}</TableCell>
+              <TableCell>{contact.mobile || '-'}</TableCell>
+              <TableCell>{contact.title || '-'}</TableCell>
+              <TableCell className="max-w-64 truncate">{contact.dept_name_list || '-'}</TableCell>
+              <TableCell className="font-mono text-xs">{contact.dingtalk_user_id}</TableCell>
+              <TableCell className="text-xs text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  <Clock3 className="h-3 w-3" />
+                  {formatDateTime(contact.sync_time)}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
