@@ -218,15 +218,15 @@ export async function GET() {
 
     const existingCodes = new Set((existingPerms || []).map((p: any) => p.code));
 
-    // 3. 插入缺失的权限
+    // 3. 插入缺失的权限（使用 upsert 避免唯一约束冲突）
     const missingPerms = flatPerms.filter(p => !existingCodes.has(p.code));
     if (missingPerms.length > 0) {
       console.log(`[Permission Menu] Inserting ${missingPerms.length} missing permissions...`);
       const { error: insertError } = await supabase
         .from('permissions')
-        .insert(missingPerms);
+        .upsert(missingPerms, { onConflict: 'code' });
       if (insertError) {
-        console.error('[Permission Menu] Insert missing permissions error:', insertError);
+        console.error('[Permission Menu] Upsert missing permissions error:', insertError);
       }
     }
 
@@ -289,10 +289,10 @@ export async function POST() {
     if (permissionRecords.length > 0) {
       const { error: insertError } = await supabase
         .from('permissions')
-        .insert(permissionRecords);
+        .upsert(permissionRecords, { onConflict: 'code' });
       
       if (insertError) {
-        console.error('[Permission Sync] Insert error:', insertError);
+        console.error('[Permission Sync] Upsert error:', insertError);
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
       insertedCount = permissionRecords.length;
