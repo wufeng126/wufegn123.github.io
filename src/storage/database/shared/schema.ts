@@ -862,3 +862,18 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 		index("construction_logs_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
 		index("construction_logs_log_date_idx").using("btree", table.logDate.asc().nullsLast().op("text_ops")),
 	]);
+
+export const constructionDailyReports = pgTable("construction_daily_reports", {
+		id: serial().primaryKey().notNull(),
+		reportDate: varchar("report_date", { length: 10 }).notNull().unique(), // YYYY-MM-DD
+		summary: jsonb().notNull(), // ConstructionDailyReportSummary
+		content: text(), // 报告内容
+		aiSummary: text("ai_summary"), // AI 生成的摘要
+		aiStatus: varchar("ai_status", { length: 20 }).default('pending'), // pending/processing/completed/failed
+		generatedAt: timestamp("generated_at", { withTimezone: true, mode: 'string' }),
+		pushedAt: timestamp("pushed_at", { withTimezone: true, mode: 'string' }),
+		updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	}, (table) => [
+		index("construction_daily_reports_report_date_idx").using("btree", table.reportDate.asc().nullsLast().op("text_ops")),
+		index("construction_daily_reports_ai_status_idx").using("btree", table.aiStatus.asc().nullsLast().op("text_ops")),
+	]);
