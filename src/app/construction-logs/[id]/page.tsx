@@ -18,6 +18,12 @@ type ConstructionLogDetail = {
   headcount?: number | null;
   issues?: string | null;
   created_at?: string | null;
+  attendance_workers?: {
+    worker_id: number;
+    worker_name?: string | null;
+    work_type?: string | null;
+    team_name?: string | null;
+  }[];
   project?: {
     id: number;
     name: string;
@@ -169,6 +175,26 @@ export default function ConstructionLogDetailPage() {
               <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] p-4 text-sm leading-7 text-[#1D2129] whitespace-pre-wrap">
                 {detail.content || '未填写施工内容'}
               </div>
+              {detail.attendance_workers && detail.attendance_workers.length > 0 && (
+                <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-[#1D2129]">出勤人员明细</p>
+                    <span className="rounded-full bg-[#E8F3FF] px-2.5 py-1 text-xs font-medium text-[#165DFF]">
+                      {detail.attendance_workers.length} 人
+                    </span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {detail.attendance_workers.map(worker => (
+                      <div key={`${worker.worker_id}-${worker.worker_name || ''}`} className="rounded-lg bg-[#F7F8FA] px-3 py-2">
+                        <p className="text-sm font-medium text-[#1D2129]">{worker.worker_name || `工人${worker.worker_id}`}</p>
+                        <p className="mt-1 text-xs text-[#86909C]">
+                          {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未记录工种/班组'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {detail.issues && (
                 <div className="mt-4 rounded-lg border border-[#F53F3F]/20 bg-[#FFF1F0] p-4 text-sm leading-7 text-[#C62828] whitespace-pre-wrap">
                   <p className="mb-1 font-medium">异常/问题</p>

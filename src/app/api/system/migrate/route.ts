@@ -21,6 +21,35 @@ CREATE INDEX IF NOT EXISTS construction_logs_project_id_idx ON construction_logs
 CREATE INDEX IF NOT EXISTS construction_logs_user_id_idx ON construction_logs(user_id);
 CREATE INDEX IF NOT EXISTS construction_logs_log_date_idx ON construction_logs(log_date);
 
+-- 施工日志出勤人员明细
+CREATE TABLE IF NOT EXISTS construction_log_attendance (
+  id SERIAL PRIMARY KEY,
+  log_id INTEGER NOT NULL REFERENCES construction_logs(id) ON DELETE CASCADE,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_name VARCHAR(100),
+  work_type VARCHAR(50),
+  team_name VARCHAR(100),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(log_id, worker_id)
+);
+CREATE INDEX IF NOT EXISTS construction_log_attendance_log_id_idx ON construction_log_attendance(log_id);
+CREATE INDEX IF NOT EXISTS construction_log_attendance_project_id_idx ON construction_log_attendance(project_id);
+CREATE INDEX IF NOT EXISTS construction_log_attendance_worker_id_idx ON construction_log_attendance(worker_id);
+
+-- 现场人员在单个项目内负责的工人范围
+CREATE TABLE IF NOT EXISTS site_manager_worker_scopes (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(user_id, project_id, worker_id)
+);
+CREATE INDEX IF NOT EXISTS site_manager_worker_scopes_user_project_idx ON site_manager_worker_scopes(user_id, project_id);
+CREATE INDEX IF NOT EXISTS site_manager_worker_scopes_worker_id_idx ON site_manager_worker_scopes(worker_id);
+
 -- 审批流程配置表
 CREATE TABLE IF NOT EXISTS workflow_configs (
   id SERIAL PRIMARY KEY,
@@ -98,6 +127,16 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50);
 CREATE INDEX IF NOT EXISTS notifications_recipient_user_id_idx ON notifications(recipient_user_id);
 CREATE INDEX IF NOT EXISTS notifications_recipient_role_idx ON notifications(recipient_role);
 
+-- 钉钉群机器人广播开关：只控制公司级群广播，不影响个人工作通知
+DO $$
+BEGIN
+  IF to_regclass('public.notification_settings') IS NOT NULL THEN
+    INSERT INTO notification_settings (setting_key, setting_value, enabled, description)
+    VALUES ('dingtalk_robot_broadcast_enabled', '', 'true', '开启后允许公司级广播消息发送到钉钉群机器人')
+    ON CONFLICT DO NOTHING;
+  END IF;
+END $$;
+
 -- WPS 花名册同步所需字段
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS age INTEGER;
@@ -144,7 +183,7 @@ CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_created_at_idx ON wps_worker_syn
 CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_project_id_idx ON wps_worker_sync_logs(project_id);
 CREATE INDEX IF NOT EXISTS wps_worker_sync_logs_status_idx ON wps_worker_sync_logs(status);
 
--- WPS 椤圭洰/宸ヤ綔琛ㄤ笌绯荤粺椤圭洰缁戝畾
+-- WPS 项目/工作表与系统项目绑定
 CREATE TABLE IF NOT EXISTS wps_project_bindings (
   id SERIAL PRIMARY KEY,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

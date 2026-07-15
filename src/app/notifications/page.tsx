@@ -69,6 +69,65 @@ interface Settings {
   };
 }
 
+const notificationRules = [
+  {
+    settingKey: 'new_record_reminder_enabled',
+    title: '月度分析流转',
+    target: '当前流程节点负责人',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '预算员提交给手动选择的项目经理；项目经理确认后返回原预算员；预算员再选择老板。',
+  },
+  {
+    settingKey: 'visa_reminder_enabled',
+    title: '签证办理流转',
+    target: '项目经理 / 原发起预算员',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '预算员发起后推给项目经理；项目经理完成线下签字后推回预算员确认计入结算。',
+  },
+  {
+    settingKey: 'visa_reminder_enabled',
+    title: '签证超期推进',
+    target: '当前负责人',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '超过 7 天未进入下一状态时，只提醒当前负责推进的人。',
+  },
+  {
+    settingKey: 'cost_warning_enabled',
+    title: '施工日志风险',
+    target: '项目绑定预算员',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '按项目身份中的预算员接收，不因超级管理员可看全部项目而默认接收全部提醒。',
+  },
+  {
+    settingKey: 'new_record_reminder_enabled',
+    title: '项目日报汇总',
+    target: '公司广播',
+    channel: '站内通知 + 钉钉群机器人',
+    detail: '用于每日 12 点后自动汇总推送；后续可再缩小为项目相关人员。',
+  },
+  {
+    settingKey: 'salary_reminder_enabled',
+    title: '工资核算/发放',
+    target: '相关项目预算员、财务或流程负责人',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '工资类提醒不发群，避免工资信息扩散。',
+  },
+  {
+    settingKey: 'supplier_payment_reminder_enabled',
+    title: '供应商付款/结算',
+    target: '相关业务负责人',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '供应商付款和结算按业务记录接收人推送。',
+  },
+  {
+    settingKey: 'dingtalk_robot_broadcast_enabled',
+    title: '公司级广播',
+    target: '钉钉群',
+    channel: '钉钉群机器人',
+    detail: '仅用于日报汇总、系统公告这类适合公开广播的消息。',
+  },
+];
+
 // 获取通知图标
 function getNotificationIcon(type: string, severity: string) {
   if (type.includes('certificate')) {
@@ -506,10 +565,11 @@ export default function NotificationsPage() {
               <p className="text-sm font-medium" style={{ color: '#1D2129' }}>通知开关</p>
               {[
                 { key: 'dingtalk_enabled', label: '钉钉消息推送', desc: '开启后将通过钉钉发送通知消息' },
+                { key: 'dingtalk_robot_broadcast_enabled', label: '群机器人广播', desc: '仅用于项目日报汇总、系统公告等公司级广播' },
                 { key: 'certificate_reminder_enabled', label: '证件到期提醒', desc: '证件即将到期时发送钉钉通知' },
-                { key: 'visa_reminder_enabled', label: '签证到期提醒', desc: '签证即将到期或逾期未办理时发送提醒' },
+                { key: 'visa_reminder_enabled', label: '签证流程提醒', desc: '签证提交、推进、超期和预算员确认时发送提醒' },
                 { key: 'settlement_reminder_enabled', label: '结算单提醒', desc: '新增结算单时发送钉钉通知' },
-                { key: 'new_record_reminder_enabled', label: '新增记录提醒', desc: '新增报量、付款、工人时发送通知' },
+                { key: 'new_record_reminder_enabled', label: '业务流转提醒', desc: '新增记录、月度分析、日报汇总等业务节点通知' },
                 { key: 'salary_reminder_enabled', label: '工资发放提醒', desc: '新增工资发放记录时发送钉钉通知' },
                 { key: 'payment_warning_enabled', label: '应付款预警', desc: '应付款到期、超期欠款时发送预警' },
                 { key: 'cost_warning_enabled', label: '成本预警', desc: '成本超支或利润为负时发送预警' },
@@ -528,6 +588,35 @@ export default function NotificationsPage() {
                   />
                 </div>
               ))}
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div>
+                <p className="text-sm font-medium" style={{ color: '#1D2129' }}>消息推送规则台账</p>
+                <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
+                  这里展示“哪些消息推给哪些人”。待办类消息按项目身份或流程负责人精准推送；群机器人只做公司级广播。
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {notificationRules.map((rule) => {
+                  const enabled = settings[rule.settingKey]?.enabled ?? true;
+                  return (
+                    <div key={`${rule.settingKey}-${rule.title}`} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
+                          <p className="mt-1 text-xs" style={{ color: '#4E5969' }}>接收对象：{rule.target}</p>
+                        </div>
+                        <Badge variant={enabled ? 'default' : 'secondary'}>{enabled ? '已启用' : '已停用'}</Badge>
+                      </div>
+                      <div className="mt-3 rounded-md px-3 py-2 text-xs" style={{ background: '#F7F8FA', color: '#4E5969' }}>
+                        推送通道：{rule.channel}
+                      </div>
+                      <p className="mt-2 text-xs leading-5" style={{ color: '#86909C' }}>{rule.detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </CardContent>
         </Card>

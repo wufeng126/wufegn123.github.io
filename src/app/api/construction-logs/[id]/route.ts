@@ -44,11 +44,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .limit(1)
       .maybeSingle();
 
+    const { data: attendanceWorkers, error: attendanceError } = await supabase
+      .from('construction_log_attendance')
+      .select('worker_id,worker_name,work_type,team_name')
+      .eq('log_id', logId)
+      .order('worker_name', { ascending: true });
+    if (attendanceError) console.warn('[construction-logs] attendance workers load failed', attendanceError.message);
+
     const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
 
     return apiSuccess({
       ...enrichConstructionLog(log),
       project: project || null,
+      attendance_workers: attendanceWorkers || [],
       risk,
       risk_doc: riskDoc || null,
     });

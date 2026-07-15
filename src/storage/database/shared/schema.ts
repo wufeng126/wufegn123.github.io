@@ -225,6 +225,29 @@ export const workerAssignments = pgTable("worker_assignments", {
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
 			name: "worker_assignments_project_id_fkey"
+	}).onDelete("cascade"),
+]);
+
+export const siteManagerWorkerScopes = pgTable("site_manager_worker_scopes", {
+	id: serial().primaryKey().notNull(),
+	userId: integer("user_id").notNull(),
+	projectId: integer("project_id").notNull(),
+	workerId: integer("worker_id").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("site_manager_worker_scopes_user_project_worker_key").on(table.userId, table.projectId, table.workerId),
+	index("site_manager_worker_scopes_user_project_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops"), table.projectId.asc().nullsLast().op("int4_ops")),
+	index("site_manager_worker_scopes_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "site_manager_worker_scopes_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "site_manager_worker_scopes_worker_id_fkey"
 		}).onDelete("cascade"),
 ]);
 
@@ -863,6 +886,37 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 		index("construction_logs_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
 		index("construction_logs_log_date_idx").using("btree", table.logDate.asc().nullsLast().op("text_ops")),
 	]);
+
+export const constructionLogAttendance = pgTable("construction_log_attendance", {
+	id: serial().primaryKey().notNull(),
+	logId: integer("log_id").notNull(),
+	projectId: integer("project_id").notNull(),
+	workerId: integer("worker_id").notNull(),
+	workerName: varchar("worker_name", { length: 100 }),
+	workType: varchar("work_type", { length: 50 }),
+	teamName: varchar("team_name", { length: 100 }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("construction_log_attendance_log_worker_key").on(table.logId, table.workerId),
+	index("construction_log_attendance_log_id_idx").using("btree", table.logId.asc().nullsLast().op("int4_ops")),
+	index("construction_log_attendance_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("construction_log_attendance_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.logId],
+			foreignColumns: [constructionLogs.id],
+			name: "construction_log_attendance_log_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "construction_log_attendance_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "construction_log_attendance_worker_id_fkey"
+		}).onDelete("cascade"),
+]);
 
 export const constructionDailyReports = pgTable("construction_daily_reports", {
 		id: serial().primaryKey().notNull(),

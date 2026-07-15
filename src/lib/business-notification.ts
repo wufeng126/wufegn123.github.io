@@ -23,6 +23,10 @@ function getPriority(severity: NotificationSeverity) {
   return 0;
 }
 
+function shouldUseRobotBroadcast(type: string) {
+  return ['construction_daily_report'].includes(type);
+}
+
 function isMissingRecipientColumn(error: unknown) {
   const err = error as SupabaseErrorLike;
   const message = String(err?.message || err?.details || '');
@@ -162,6 +166,12 @@ export async function pushBusinessNotification(params: {
       .eq('setting_key', 'dingtalk_secret')
       .single();
 
+    const { data: robotBroadcastSetting } = await supabase
+      .from('notification_settings')
+      .select('enabled')
+      .eq('setting_key', 'dingtalk_robot_broadcast_enabled')
+      .maybeSingle();
+
     let projectName: string | undefined;
     if (projectId) {
       const { data: project } = await supabase
@@ -189,7 +199,11 @@ export async function pushBusinessNotification(params: {
       .filter((id): id is number | string => id !== undefined && id !== null);
 
     let robotSent = false;
-    if (webhookSetting?.setting_value && isEnabled(webhookSetting.enabled, true)) {
+    const canSendRobotBroadcast =
+      shouldUseRobotBroadcast(type) &&
+      isEnabled(robotBroadcastSetting?.enabled, true);
+
+    if (canSendRobotBroadcast && webhookSetting?.setting_value && isEnabled(webhookSetting.enabled, true)) {
       const result = await sendDingTalkNotification(
         webhookSetting.setting_value,
         secretSetting?.setting_value,

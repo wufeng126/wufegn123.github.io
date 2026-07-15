@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ClipboardList, ExternalLink, FileSpreadsheet, Link2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardList, Copy, ExternalLink, FileSpreadsheet, Info, Link2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,6 +87,21 @@ const emptyForm: BindingForm = {
   remark: '',
 };
 
+const webhookSamplePayload = `{
+  "projectName": "A项目",
+  "worksheetName": "A项目",
+  "records": [
+    {
+      "姓名": "张三",
+      "性别": "男",
+      "身份证号": "110101199001011234",
+      "联系方式": "13800000000",
+      "银行卡号": "6222000000000000",
+      "入场日期": "2026-07-15"
+    }
+  ]
+}`;
+
 function getProject(binding: WpsBinding): ProjectOption | null {
   if (!binding.projects) return null;
   return Array.isArray(binding.projects) ? binding.projects[0] : binding.projects;
@@ -129,6 +144,7 @@ export default function WpsConfigPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [testingBindingId, setTestingBindingId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<BindingForm>(emptyForm);
 
@@ -234,6 +250,29 @@ export default function WpsConfigPage() {
     }
   };
 
+  const testBinding = async (binding: WpsBinding) => {
+    setTestingBindingId(binding.id);
+    try {
+      const response = await fetch('/api/integrations/wps/workers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testOnly: true, bindingId: binding.id }),
+      });
+      const data = await response.json();
+      const result = data.bindingResults?.[0];
+      if (!response.ok) throw new Error(data.error || '测试失败');
+      toast({
+        title: result?.status === 'success' ? '测试通过' : '测试完成',
+        description: result?.message || data.message || '测试不会写入工人档案',
+        variant: result?.status === 'error' ? 'error' : result?.status === 'warning' ? 'warning' : 'default',
+      });
+    } catch (error) {
+      toast({ title: '测试失败', description: error instanceof Error ? error.message : 'WPS 绑定测试失败', variant: 'error' });
+    } finally {
+      setTestingBindingId(null);
+    }
+  };
+
   const saveBinding = async () => {
     if (!form.projectId) {
       toast({ title: '请选择系统项目', variant: 'error' });
@@ -304,6 +343,15 @@ export default function WpsConfigPage() {
     await fetchData();
   };
 
+  const copyText = async (text: string, title: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title });
+    } catch {
+      toast({ title: '复制失败', description: '请手动选中文本复制', variant: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -343,6 +391,42 @@ export default function WpsConfigPage() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-gray-500">未配置项目</CardTitle></CardHeader>
           <CardContent className="text-2xl font-semibold text-amber-600">{stats.unconfiguredProjects}</CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <Card className="border-blue-100 bg-blue-50/60">
+          <CardContent className="flex gap-3 p-4">
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
+            <div>
+              <p className="font-medium text-blue-950">1. 先绑定系统项目</p>
+              <p className="mt-1 text-sm leading-6 text-blue-800">
+                每个系统项目绑定一个 WPS 工作表或二维码来源。你把 WPS 工作表名称改成系统项目名称后，系统会优先按稳定 ID，其次按项目/工作表名称识别。
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-100 bg-emerald-50/60">
+          <CardContent className="flex gap-3 p-4">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+            <div>
+              <p className="font-medium text-emerald-950">2. 再测试同步</p>
+              <p className="mt-1 text-sm leading-6 text-emerald-800">
+                “测试”只读取和解析，不写入工人档案；“立即同步”才会新增、更新或调入当前项目。身份证照片、银行卡照片等附件字段不会保存。
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-100 bg-amber-50/60">
+          <CardContent className="flex gap-3 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-medium text-amber-950">3. 冲突处理口径</p>
+              <p className="mt-1 text-sm leading-6 text-amber-800">
+                身份证号相同视为同一工人；重复进入新项目时更新当前项目和调动记录，历史工资仍按原项目、原月份保留。
+              </p>
+            </div>
+          </CardContent>
         </Card>
       </div>
 
@@ -417,6 +501,9 @@ export default function WpsConfigPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => testBinding(binding)} disabled={testingBindingId === binding.id}>
+                              {testingBindingId === binding.id ? '测试中' : '测试'}
+                            </Button>
                             <Button variant="ghost" size="sm" onClick={() => openEditDialog(binding)} title="编辑">
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -449,6 +536,16 @@ export default function WpsConfigPage() {
               <div className="rounded-lg border bg-gray-50 p-3">
                 <div className="text-xs text-gray-500">Webhook 地址</div>
                 <div className="mt-1 break-all font-mono text-xs text-gray-800">{webhookUrl}</div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 h-8 bg-white"
+                  onClick={() => copyText(webhookUrl, 'Webhook 地址已复制')}
+                >
+                  <Copy className="mr-1 h-3.5 w-3.5" />
+                  复制地址
+                </Button>
               </div>
               <div className="flex items-center justify-between">
                 <span>同步 Token</span>
@@ -461,6 +558,38 @@ export default function WpsConfigPage() {
               <p className="text-xs leading-5 text-gray-500">
                 实时同步建议在 WPS 自动化中调用 webhook；文档链接仅在服务器能直接下载表格时支持手动拉取。
               </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Link2 className="h-4 w-4" />
+                WPS 自动化配置
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="space-y-2 rounded-lg border bg-gray-50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-gray-900">HTTP 请求</span>
+                  <Badge variant="outline">POST</Badge>
+                </div>
+                <p className="text-xs leading-5 text-gray-600">在 WPS 表单/多维表格自动化中设置“新增记录后发送 HTTP 请求”。</p>
+              </div>
+              <div className="rounded-lg border bg-gray-50 p-3">
+                <div className="text-xs text-gray-500">Header</div>
+                <div className="mt-1 font-mono text-xs text-gray-800">x-wps-sync-token: 你的同步Token</div>
+              </div>
+              <div className="rounded-lg border bg-gray-50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs text-gray-500">JSON 示例</div>
+                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => copyText(webhookSamplePayload, 'JSON 示例已复制')}>
+                    <Copy className="mr-1 h-3.5 w-3.5" />
+                    复制
+                  </Button>
+                </div>
+                <pre className="mt-2 max-h-56 overflow-auto rounded bg-white p-2 text-[11px] leading-5 text-gray-700">{webhookSamplePayload}</pre>
+              </div>
             </CardContent>
           </Card>
 

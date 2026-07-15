@@ -37,19 +37,19 @@ const FIELD_ALIASES: Record<keyof WpsWorkerInput, string[]> = {
   wpsSheetId: ['wpsSheetId', 'wps_sheet_id', 'sheetId', 'sheet_id', 'worksheetId', 'worksheet_id', '工作表ID', '工作表id'],
   wpsTableId: ['wpsTableId', 'wps_table_id', 'tableId', 'table_id', 'bitableId', 'bitable_id', '多维表格ID', '多维表格id'],
   wpsDocumentUrl: ['wpsDocumentUrl', 'wps_document_url', 'documentUrl', 'document_url', 'docUrl', 'doc_url', '文档链接', 'WPS文档链接'],
-  projectName: ['projectName', 'project_name', 'project', '项目名称', '所属项目'],
+  projectName: ['projectName', 'project_name', 'project', '项目名称', '所属项目', '项目', '工程名称', '所属工程'],
   worksheetName: ['worksheetName', 'worksheet_name', 'sheetName', 'sheet_name', 'tableName', 'table_name', '工作表', '工作表名称'],
-  name: ['name', 'workerName', 'worker_name', '姓名', '工人姓名'],
+  name: ['name', 'workerName', 'worker_name', '姓名', '工人姓名', '人员姓名', '员工姓名'],
   gender: ['gender', 'sex', '性别'],
-  idCard: ['idCard', 'id_card', 'idNumber', '身份证号', '身份证号码'],
-  phone: ['phone', 'mobile', 'mobilePhone', '联系方式', '联系电话', '手机号', '手机号码', '电话'],
-  bankCard: ['bankCard', 'bank_card', '银行卡号', '银行卡', '工资卡号'],
-  entryDate: ['entryDate', 'entry_date', 'inDate', '入场日期', '进场日期', '入职日期'],
+  idCard: ['idCard', 'id_card', 'idNumber', 'id_number', '身份证号', '身份证号码', '身份证', '证件号码'],
+  phone: ['phone', 'mobile', 'mobilePhone', 'mobile_phone', '联系方式', '联系电话', '手机号', '手机号码', '电话', '电话号码'],
+  bankCard: ['bankCard', 'bank_card', '银行卡号', '银行卡', '工资卡号', '银行卡号码', '开户卡号'],
+  entryDate: ['entryDate', 'entry_date', 'inDate', '入场日期', '进场日期', '入职日期', '入场时间', '进场时间'],
   workType: ['workType', 'work_type', '工种', '班组工种'],
-  teamName: ['teamName', 'team_name', '班组', '队伍', '班组名称'],
+  teamName: ['teamName', 'team_name', '班组', '队伍', '班组名称', '施工班组'],
 };
 
-const ATTACHMENT_KEYWORDS = ['照片', '图片', '附件', 'photo', 'image', 'file', 'attachment'];
+const ATTACHMENT_KEYWORDS = ['照片', '图片', '附件', '影像', '扫描件', 'photo', 'image', 'file', 'attachment', 'upload'];
 
 function normalizeText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -91,22 +91,64 @@ function pickField(source: Record<string, unknown>, aliases: string[]): string |
 function flattenRecord(record: unknown): Record<string, unknown> {
   if (!record || typeof record !== 'object') return {};
   const obj = record as Record<string, unknown>;
-  const fields = (obj.fields || obj.values || obj.record || obj.data) as Record<string, unknown> | undefined;
+  const fields = (obj.fields || obj.values || obj.record || obj.data || obj.formData || obj.form_data) as Record<string, unknown> | undefined;
   return {
     ...obj,
     ...(fields && typeof fields === 'object' && !Array.isArray(fields) ? fields : {}),
   };
 }
 
+function asRecordArray(value: unknown): unknown[] | null {
+  return Array.isArray(value) ? value : null;
+}
+
+function getNestedRecordArray(source: Record<string, unknown>, paths: string[][]): unknown[] | null {
+  for (const path of paths) {
+    let current: unknown = source;
+    for (const key of path) {
+      if (!current || typeof current !== 'object' || !(key in (current as Record<string, unknown>))) {
+        current = null;
+        break;
+      }
+      current = (current as Record<string, unknown>)[key];
+    }
+    const records = asRecordArray(current);
+    if (records) return records;
+  }
+  return null;
+}
+
+function hasMeaningfulWorkerSignal(input: WpsWorkerInput): boolean {
+  return Boolean(
+    input.name ||
+    input.idCard ||
+    input.phone ||
+    input.bankCard ||
+    input.entryDate ||
+    input.workType ||
+    input.teamName
+  );
+}
+
 export function extractWpsWorkerRecords(payload: unknown): WpsWorkerInput[] {
   const body = flattenRecord(payload);
-  const candidateRecords =
-    Array.isArray(payload) ? payload :
-    Array.isArray(body.records) ? body.records :
-    Array.isArray(body.items) ? body.items :
-    Array.isArray((body.data as Record<string, unknown> | undefined)?.records) ? (body.data as Record<string, unknown>).records as unknown[] :
-    Array.isArray((body.event as Record<string, unknown> | undefined)?.records) ? (body.event as Record<string, unknown>).records as unknown[] :
-    [payload];
+  const nestedRecords = getNestedRecordArray(body, [
+    ['records'],
+    ['items'],
+    ['rows'],
+    ['list'],
+    ['data', 'records'],
+    ['data', 'items'],
+    ['data', 'rows'],
+    ['data', 'list'],
+    ['event', 'records'],
+    ['event', 'items'],
+    ['event', 'data', 'records'],
+    ['payload', 'records'],
+    ['payload', 'items'],
+    ['payload', 'rows'],
+  ]);
+  const candidateRecords = Array.isArray(payload) ? payload : nestedRecords || [payload];
 
   return candidateRecords.map((record) => {
     const flat = flattenRecord(record);
@@ -134,7 +176,7 @@ export function extractWpsWorkerRecords(payload: unknown): WpsWorkerInput[] {
       workType: pickField(flat, FIELD_ALIASES.workType),
       teamName: pickField(flat, FIELD_ALIASES.teamName),
     };
-  });
+  }).filter(hasMeaningfulWorkerSignal);
 }
 
 function sanitizeIdCard(idCard?: string | null): string | null {

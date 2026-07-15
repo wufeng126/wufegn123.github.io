@@ -22,6 +22,8 @@ type ConstructionLogDraft = {
   location?: string | null;
   content: string;
   headcount?: number | string | null;
+  attendance_worker_ids?: number[];
+  scope_worker_ids?: number[];
   issues?: string | null;
 };
 
@@ -31,8 +33,25 @@ type InsertedConstructionLogRow = {
   id: number;
 };
 
+type AttendanceWorkerRow = {
+  id: number;
+  name: string;
+  work_type?: string | null;
+  team_name?: string | null;
+  status?: string | null;
+};
+
 function asPayload(value: unknown): ConstructionLogPayload {
   return value && typeof value === 'object' ? value as ConstructionLogPayload : {};
+}
+
+function normalizeOptionalIdList(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  return Array.from(new Set(
+    value
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0),
+  ));
 }
 
 function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[] {
@@ -47,6 +66,8 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
           headcount: typeof payload.headcount === 'number' || typeof payload.headcount === 'string'
             ? payload.headcount
             : null,
+          attendance_worker_ids: normalizeOptionalIdList(payload.attendance_worker_ids),
+          scope_worker_ids: normalizeOptionalIdList(payload.scope_worker_ids),
           issues: payload.issues ? String(payload.issues) : null,
         };
       })
@@ -58,6 +79,8 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
     location: body.location ? String(body.location) : null,
     content: String(body.content || '').trim(),
     headcount: typeof body.headcount === 'number' || typeof body.headcount === 'string' ? body.headcount : null,
+    attendance_worker_ids: normalizeOptionalIdList(body.attendance_worker_ids),
+    scope_worker_ids: normalizeOptionalIdList(body.scope_worker_ids),
     issues: body.issues ? String(body.issues) : null,
   }].filter((item) => item.project_id && item.content);
 }
@@ -66,6 +89,11 @@ function toNullableHeadcount(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getDraftHeadcount(draft: ConstructionLogDraft) {
+  if (Array.isArray(draft.attendance_worker_ids)) return draft.attendance_worker_ids.length;
+  return toNullableHeadcount(draft.headcount);
 }
 
 async function createRiskSideEffects(
@@ -243,6 +271,34 @@ export async function POST(request: NextRequest) {
       return apiBadRequest('当天施工日志已提交。如需调整，请先在日志详情中修改原记录。');
     }
 
+    const attendanceWorkersByProject = new Map<number, Map<number, AttendanceWorkerRow>>();
+    for (const projectId of uniqueProjectIds) {
+      const draftIds = drafts
+        .filter((draft) => draft.project_id === projectId)
+        .flatMap((draft) => [
+          ...(draft.attendance_worker_ids || []),
+          ...(draft.scope_worker_ids || []),
+        ]);
+      const workerIds = Array.from(new Set(draftIds));
+      if (workerIds.length === 0) continue;
+
+      const { data: workerRows, error: workerError } = await supabase
+        .from('workers')
+        .select('id,name,work_type,team_name,status')
+        .eq('project_id', projectId)
+        .in('id', workerIds);
+      if (workerError) throw new Error(workerError.message);
+
+      const activeWorkers = ((workerRows || []) as AttendanceWorkerRow[])
+        .filter((worker) => (worker.status || 'in_service') !== 'left');
+      const workerMap = new Map(activeWorkers.map((worker) => [Number(worker.id), worker]));
+      const invalidWorkerId = workerIds.find((workerId) => !workerMap.has(workerId));
+      if (invalidWorkerId) {
+        return apiBadRequest('出勤人员只能选择当前项目在场花名册中的工人');
+      }
+      attendanceWorkersByProject.set(projectId, workerMap);
+    }
+
     const dailyGroupId = randomUUID();
     const submittedAt = new Date().toISOString();
     const sourceType = body.source_type === 'ocr' ? 'ocr' : 'manual';
@@ -253,7 +309,7 @@ export async function POST(request: NextRequest) {
       log_date,
       location: draft.location || null,
       content: draft.content,
-      headcount: toNullableHeadcount(draft.headcount),
+      headcount: getDraftHeadcount(draft),
       issues: draft.issues || null,
       daily_group_id: dailyGroupId,
       submission_status: submissionWindow.submissionStatus,
@@ -269,6 +325,43 @@ export async function POST(request: NextRequest) {
     if (error) throw new Error(error.message);
 
     const insertedRows = data || [];
+    const attendanceRows = insertedRows.flatMap((row, index) => {
+      const draft = drafts[index];
+      const workerMap = attendanceWorkersByProject.get(draft.project_id);
+      return (draft.attendance_worker_ids || []).map((workerId) => {
+        const worker = workerMap?.get(workerId);
+        return {
+          log_id: row.id,
+          project_id: draft.project_id,
+          worker_id: workerId,
+          worker_name: worker?.name || null,
+          work_type: worker?.work_type || null,
+          team_name: worker?.team_name || null,
+        };
+      });
+    });
+    if (attendanceRows.length > 0) {
+      const { error: attendanceError } = await supabase
+        .from('construction_log_attendance')
+        .insert(attendanceRows);
+      if (attendanceError) throw new Error(attendanceError.message);
+    }
+
+    const scopeRows = drafts.flatMap((draft) => (
+      (draft.scope_worker_ids || []).map((workerId) => ({
+        user_id: user.id,
+        project_id: draft.project_id,
+        worker_id: workerId,
+        updated_at: submittedAt,
+      }))
+    ));
+    if (scopeRows.length > 0) {
+      const { error: scopeError } = await supabase
+        .from('site_manager_worker_scopes')
+        .upsert(scopeRows, { onConflict: 'user_id,project_id,worker_id' });
+      if (scopeError) throw new Error(scopeError.message);
+    }
+
     for (let index = 0; index < insertedRows.length; index += 1) {
       await createRiskSideEffects(supabase, insertedRows[index], drafts[index], log_date, user?.id);
     }

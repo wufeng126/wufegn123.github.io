@@ -14,6 +14,10 @@ function isEnabled(value: unknown, fallback = true) {
   return fallback;
 }
 
+function shouldUseRobotBroadcast(type: string) {
+  return ['construction_daily_report'].includes(type);
+}
+
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseClient();
 
@@ -33,6 +37,12 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('setting_key', 'dingtalk_secret')
       .single();
+
+    const { data: robotBroadcastSetting } = await supabase
+      .from('notification_settings')
+      .select('enabled')
+      .eq('setting_key', 'dingtalk_robot_broadcast_enabled')
+      .maybeSingle();
 
     const webhookUrl = webhookSetting?.setting_value;
     const secret = secretSetting?.setting_value;
@@ -162,7 +172,12 @@ export async function POST(request: NextRequest) {
       const { title, text } = formatDingTalkMessage(params);
       let sent = false;
 
-      if (webhookUrl && isEnabled(webhookSetting?.enabled, true)) {
+      if (
+        webhookUrl &&
+        isEnabled(webhookSetting?.enabled, true) &&
+        isEnabled(robotBroadcastSetting?.enabled, true) &&
+        shouldUseRobotBroadcast(notification.type)
+      ) {
         const result = await sendDingTalkNotification(webhookUrl, secret, title, text);
         sent = sent || result.success;
       }
