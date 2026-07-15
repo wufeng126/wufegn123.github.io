@@ -16,6 +16,7 @@ import {
 } from '@/lib/construction-log-risk';
 import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { getProjectActiveWorkers } from '@/lib/project-workers';
 
 type ConstructionLogDraft = {
   project_id: number;
@@ -282,15 +283,10 @@ export async function POST(request: NextRequest) {
       const workerIds = Array.from(new Set(draftIds));
       if (workerIds.length === 0) continue;
 
-      const { data: workerRows, error: workerError } = await supabase
-        .from('workers')
-        .select('id,name,work_type,team_name,status')
-        .eq('project_id', projectId)
-        .in('id', workerIds);
-      if (workerError) throw new Error(workerError.message);
-
-      const activeWorkers = ((workerRows || []) as AttendanceWorkerRow[])
-        .filter((worker) => (worker.status || 'in_service') !== 'left');
+      const activeWorkers = await getProjectActiveWorkers(supabase, projectId, {
+        workerIds,
+        fields: 'id,name,work_type,team_name,status,project_id',
+      }) as AttendanceWorkerRow[];
       const workerMap = new Map(activeWorkers.map((worker) => [Number(worker.id), worker]));
       const invalidWorkerId = workerIds.find((workerId) => !workerMap.has(workerId));
       if (invalidWorkerId) {

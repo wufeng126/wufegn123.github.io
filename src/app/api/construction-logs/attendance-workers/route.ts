@@ -3,17 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
-
-type WorkerRow = {
-  id: number;
-  name: string;
-  work_type?: string | null;
-  team_name?: string | null;
-  status?: string | null;
-  project_id?: number | null;
-  entry_date?: string | null;
-  phone?: string | null;
-};
+import { getProjectActiveWorkers } from '@/lib/project-workers';
 
 function parseProjectId(value: string | null) {
   const projectId = Number(value);
@@ -54,15 +44,7 @@ export async function GET(request: NextRequest) {
     const hasAccess = await assertProjectAccess(projectId, supabase, auth.user);
     if (!hasAccess) return apiForbidden('无权查看该项目花名册');
 
-    const { data: workerRows, error: workerError } = await supabase
-      .from('workers')
-      .select('id,name,work_type,team_name,status,project_id,entry_date,phone')
-      .eq('project_id', projectId)
-      .order('name', { ascending: true });
-    if (workerError) throw new Error(workerError.message);
-
-    const workers = ((workerRows || []) as WorkerRow[])
-      .filter((worker) => (worker.status || 'in_service') !== 'left')
+    const workers = (await getProjectActiveWorkers(supabase, projectId))
       .map((worker) => ({
         id: worker.id,
         name: worker.name,
@@ -121,14 +103,10 @@ export async function POST(request: NextRequest) {
     const hasAccess = await assertProjectAccess(projectId, supabase, auth.user);
     if (!hasAccess) return apiForbidden('无权维护该项目负责范围');
 
-    const { data: workerRows, error: workerError } = await supabase
-      .from('workers')
-      .select('id')
-      .eq('project_id', projectId)
-      .in('id', workerIds);
-    if (workerError) throw new Error(workerError.message);
-
-    const validWorkerIds = ((workerRows || []) as { id: number }[]).map((row) => Number(row.id));
+    const validWorkerIds = (await getProjectActiveWorkers(supabase, projectId, {
+      workerIds,
+      fields: 'id,name,status,project_id',
+    })).map((row) => Number(row.id));
     if (validWorkerIds.length !== workerIds.length) return apiBadRequest('只能加入当前项目花名册中的工人');
 
     const rows = validWorkerIds.map((workerId) => ({
