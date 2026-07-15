@@ -572,7 +572,7 @@ function WorkItemsContent() {
     }, 0),
     totalSettlement: subitems.reduce((sum, item) => {
       const qty = parseFloat(item.settlement_quantity || '0') || 0;
-      const price = parseFloat(item.contract_price || '0') || 0;
+      const price = parseFloat(item.limit_price || item.contract_price || '0') || 0;
       return sum + qty * price;
     }, 0) + addonStats.totalAmount,
     warningItems: subitems.filter(item => {
@@ -614,13 +614,16 @@ function WorkItemsContent() {
       const settleRemainingQty = budgetQty - totalSettledQty;
       const quantityGap = totalReportedQty - totalSettledQty;
       const amountGap = reportAmount - settlementAmount;
+      const settleProgress = budgetQty > 0 ? totalSettledQty / budgetQty : 0;
+      const reportRemainingRate = budgetQty > 0 ? reportRemainingQty / budgetQty : 0;
       const risks: string[] = [];
 
       if (totalSettledQty > totalReportedQty) risks.push('多结少报');
       if (monthlySettledQty > 0 && monthlyReportedQty <= 0) risks.push('本月漏报');
       if (budgetQty > 0 && reportRemainingQty / budgetQty < 0.1) risks.push('对上余量不足');
-      if (settlementAmount > reportAmount) risks.push('金额倒挂');
-      if (budgetQty > 0 && totalSettledQty > budgetQty) risks.push('对下超预算量');
+      if (settlementAmount > reportAmount) risks.push('资金/利润风险');
+      if (budgetQty > 0 && totalSettledQty > budgetQty) risks.push('对下超结');
+      if (settleProgress >= 0.8 && reportRemainingRate >= 0.2) risks.push('漏报风险');
 
       return {
         ...item,
@@ -699,6 +702,48 @@ function WorkItemsContent() {
       totalAmountGap: summary.totalReportAmount - summary.totalSettlementAmount,
     };
   }, [subitems, projectAddons, analysisReports, analysisSettlements, analysisAddonSettlements]);
+
+  const projectComparisonSummary = useMemo(() => {
+    const budgetAmount = projectStats.totalBudget;
+    const settlementBudgetAmount = subitems.reduce((sum, item) => {
+      const qty = parseFloat(item.budget_quantity || '0') || 0;
+      const price = parseFloat(item.limit_price || item.contract_price || '0') || 0;
+      return sum + qty * price;
+    }, 0);
+    const reportAmount = analysisStats.totalReportAmount;
+    const settlementAmount = analysisStats.totalSettlementAmount;
+    const reportRemainingAmount = budgetAmount - reportAmount;
+    const settlementRemainingAmount = settlementBudgetAmount - settlementAmount;
+    const reportProgress = budgetAmount > 0 ? (reportAmount / budgetAmount) * 100 : 0;
+    const settlementProgress = settlementBudgetAmount > 0 ? (settlementAmount / settlementBudgetAmount) * 100 : 0;
+    const normalRows = analysisStats.rows.filter(row => !row.isAddon);
+    const addonRows = analysisStats.rows.filter(row => row.isAddon);
+    const overSettledItems = normalRows.filter(row => row.budgetQty > 0 && row.totalSettledQty > row.budgetQty).length;
+    const amountInvertedItems = normalRows.filter(row => row.settlementAmount > row.reportAmount).length;
+    const possibleMissedReportItems = normalRows.filter(row => {
+      const settleProgress = row.budgetQty > 0 ? row.totalSettledQty / row.budgetQty : 0;
+      const reportRemainingRate = row.budgetQty > 0 ? row.reportRemainingQty / row.budgetQty : 0;
+      return settleProgress >= 0.8 && reportRemainingRate >= 0.2;
+    }).length;
+
+    return {
+      budgetAmount,
+      settlementBudgetAmount,
+      reportAmount,
+      settlementAmount,
+      reportRemainingAmount,
+      settlementRemainingAmount,
+      amountGap: reportAmount - settlementAmount,
+      reportProgress,
+      settlementProgress,
+      riskCount: analysisStats.riskCount,
+      overSettledItems,
+      amountInvertedItems,
+      possibleMissedReportItems,
+      addonAmount: addonRows.reduce((sum, row) => sum + row.settlementAmount, 0),
+      addonItems: addonRows.length,
+    };
+  }, [analysisStats, projectStats.totalBudget, subitems]);
 
   // 刷新数据
   const refreshSubitems = async () => {
@@ -1813,6 +1858,15 @@ function WorkItemsContent() {
     return `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`;
   };
 
+  const formatQuantity = (value: number) => {
+    return value.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  const formatPercent = (value: number) => {
+    if (!Number.isFinite(value)) return '0%';
+    return `${value.toFixed(1)}%`;
+  };
+
   const getStatusStyle = (status: string) => {
     switch (status) {
       case '进行中': return 'bg-[#1A58B3] text-white';
@@ -2281,7 +2335,7 @@ function WorkItemsContent() {
                           <TableHead className="text-right">累计对上报量</TableHead>
                           <TableHead className="text-right">剩余工程量</TableHead>
                           <TableHead className="text-center">上报进度</TableHead>
-                          <TableHead className="text-right">合同单价</TableHead>
+                          <TableHead className="text-right">结算单价</TableHead>
                           <TableHead className="text-right">上报金额</TableHead>
                           <TableHead>状态</TableHead>
                           <TableHead className="text-center">操作</TableHead>
@@ -2406,9 +2460,9 @@ function WorkItemsContent() {
                           const budgetQty = parseFloat(item.budget_quantity) || 0;
                           const settlementQty = parseFloat(item.settlement_quantity || '0') || 0;
                           const remainingQty = budgetQty - settlementQty;
-                          const contractPrice = parseFloat(item.contract_price || '0') || 0;
+                          const settlementPrice = parseFloat(item.limit_price || item.contract_price || '0') || 0;
                           const progress = budgetQty > 0 ? (settlementQty / budgetQty) * 100 : 0;
-                          const settlementAmount = settlementQty * contractPrice;
+                          const settlementAmount = settlementQty * settlementPrice;
                           return (
                             <TableRow key={item.id} className={`${progress > 80 ? 'bg-red-50' : index % 2 === 1 ? 'bg-[#F8FAFC]' : ''} hover:bg-[#F0F7FF]`}>
                               <TableCell className="font-medium">{item.subitem_name}</TableCell>
@@ -2427,7 +2481,7 @@ function WorkItemsContent() {
                                   <span className="text-sm text-gray-600 w-12 text-right">{progress.toFixed(0)}%</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right">{item.contract_price || '-'}</TableCell>
+                              <TableCell className="text-right">{item.limit_price || item.contract_price || '-'}</TableCell>
                               <TableCell className="text-right font-bold text-[#1A58B3]">{formatCurrency(settlementAmount)}</TableCell>
                               <TableCell>{getProgressBadge(progress)}</TableCell>
                               <TableCell className="text-center">
@@ -2616,96 +2670,189 @@ function WorkItemsContent() {
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="py-3">
-                    <p className="text-sm text-blue-600">本月对上金额</p>
-                    <p className="text-lg font-bold text-blue-700 mt-1">{formatCurrency(analysisStats.monthlyReportAmount)}</p>
+                    <p className="text-sm text-blue-600">预算总金额</p>
+                    <p className="text-lg font-bold text-blue-700 mt-1">{formatCurrency(projectComparisonSummary.budgetAmount)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-emerald-200 bg-emerald-50">
                   <CardContent className="py-3">
-                    <p className="text-sm text-emerald-600">本月对下金额</p>
-                    <p className="text-lg font-bold text-emerald-700 mt-1">{formatCurrency(analysisStats.monthlySettlementAmount)}</p>
+                    <p className="text-sm text-emerald-600">对上累计报量</p>
+                    <p className="text-lg font-bold text-emerald-700 mt-1">{formatCurrency(projectComparisonSummary.reportAmount)}</p>
+                    <p className="mt-1 text-xs text-emerald-700/70">完成 {formatPercent(projectComparisonSummary.reportProgress)}</p>
                   </CardContent>
                 </Card>
-                <Card className={analysisStats.monthlyAmountGap < 0 ? 'border-red-200 bg-red-50' : 'border-sky-200 bg-sky-50'}>
+                <Card className="border-amber-200 bg-amber-50">
                   <CardContent className="py-3">
-                    <p className={analysisStats.monthlyAmountGap < 0 ? 'text-sm text-red-600' : 'text-sm text-sky-600'}>本月金额差异</p>
-                    <p className={analysisStats.monthlyAmountGap < 0 ? 'text-lg font-bold text-red-700 mt-1' : 'text-lg font-bold text-sky-700 mt-1'}>
-                      {formatCurrency(analysisStats.monthlyAmountGap)}
+                    <p className="text-sm text-amber-600">对下累计结算</p>
+                    <p className="text-lg font-bold text-amber-700 mt-1">{formatCurrency(projectComparisonSummary.settlementAmount)}</p>
+                    <p className="mt-1 text-xs text-amber-700/70">占预算 {formatPercent(projectComparisonSummary.settlementProgress)}</p>
+                  </CardContent>
+                </Card>
+                <Card className={projectComparisonSummary.amountGap < 0 ? 'border-red-200 bg-red-50' : 'border-purple-200 bg-purple-50'}>
+                  <CardContent className="py-3">
+                    <p className={projectComparisonSummary.amountGap < 0 ? 'text-sm text-red-600' : 'text-sm text-purple-600'}>对上对下差额</p>
+                    <p className={projectComparisonSummary.amountGap < 0 ? 'text-lg font-bold text-red-700 mt-1' : 'text-lg font-bold text-purple-700 mt-1'}>
+                      {formatCurrency(projectComparisonSummary.amountGap)}
+                    </p>
+                    <p className={projectComparisonSummary.amountGap < 0 ? 'mt-1 text-xs text-red-700/70' : 'mt-1 text-xs text-purple-700/70'}>
+                      对上累计 - 对下累计
                     </p>
                   </CardContent>
                 </Card>
-                <Card className={analysisStats.totalAmountGap < 0 ? 'border-red-200 bg-red-50' : 'border-purple-200 bg-purple-50'}>
+                <Card className={projectComparisonSummary.riskCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-gray-50'}>
                   <CardContent className="py-3">
-                    <p className={analysisStats.totalAmountGap < 0 ? 'text-sm text-red-600' : 'text-sm text-purple-600'}>累计金额差异</p>
-                    <p className={analysisStats.totalAmountGap < 0 ? 'text-lg font-bold text-red-700 mt-1' : 'text-lg font-bold text-purple-700 mt-1'}>
-                      {formatCurrency(analysisStats.totalAmountGap)}
+                    <p className={projectComparisonSummary.riskCount > 0 ? 'text-sm text-orange-600' : 'text-sm text-gray-600'}>风险提醒项</p>
+                    <p className={projectComparisonSummary.riskCount > 0 ? 'text-lg font-bold text-orange-700 mt-1' : 'text-lg font-bold text-gray-700 mt-1'}>
+                      {projectComparisonSummary.riskCount}
                     </p>
+                    <p className="mt-1 text-xs text-orange-700/70">按清单项统计</p>
                   </CardContent>
                 </Card>
-                <Card className={analysisStats.riskCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-gray-50'}>
-                  <CardContent className="py-3">
-                    <p className={analysisStats.riskCount > 0 ? 'text-sm text-orange-600' : 'text-sm text-gray-600'}>风险提醒项</p>
-                    <p className={analysisStats.riskCount > 0 ? 'text-lg font-bold text-orange-700 mt-1' : 'text-lg font-bold text-gray-700 mt-1'}>
-                      {analysisStats.riskCount}
-                    </p>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">项目整体汇总对比</h4>
+                        <p className="mt-1 text-sm text-gray-500">先看项目总盘子，再下钻到清单项定位问题</p>
+                      </div>
+                      <Badge variant={projectComparisonSummary.amountGap < 0 ? 'destructive' : 'outline'}>
+                        {projectComparisonSummary.amountGap < 0 ? '需要关注' : '整体正常'}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500">对上剩余未报</p>
+                        <p className={projectComparisonSummary.reportRemainingAmount < 0 ? 'mt-1 text-base font-semibold text-red-600' : 'mt-1 text-base font-semibold text-gray-900'}>
+                          {formatCurrency(projectComparisonSummary.reportRemainingAmount)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500">对下剩余未结</p>
+                        <p className={projectComparisonSummary.settlementRemainingAmount < 0 ? 'mt-1 text-base font-semibold text-red-600' : 'mt-1 text-base font-semibold text-gray-900'}>
+                          {formatCurrency(projectComparisonSummary.settlementRemainingAmount)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500">本月对上金额</p>
+                        <p className="mt-1 text-base font-semibold text-blue-700">{formatCurrency(analysisStats.monthlyReportAmount)}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500">本月对下金额</p>
+                        <p className="mt-1 text-base font-semibold text-emerald-700">{formatCurrency(analysisStats.monthlySettlementAmount)}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500">本月金额差异</p>
+                        <p className={analysisStats.monthlyAmountGap < 0 ? 'mt-1 text-base font-semibold text-red-600' : 'mt-1 text-base font-semibold text-gray-900'}>
+                          {formatCurrency(analysisStats.monthlyAmountGap)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-500">内部附加成本</p>
+                        <p className="mt-1 text-base font-semibold text-orange-700">{formatCurrency(projectComparisonSummary.addonAmount)}</p>
+                        <p className="mt-1 text-xs text-gray-500">{projectComparisonSummary.addonItems} 项</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className={projectComparisonSummary.riskCount > 0 ? 'border-orange-200' : ''}>
+                  <CardContent className="pt-6">
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-gray-900">风险提醒</h4>
+                      <p className="mt-1 text-sm text-gray-500">只做提醒，帮助预算员优先核查</p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+                        <span className="text-sm text-red-700">对下超结</span>
+                        <span className="font-semibold text-red-700">{projectComparisonSummary.overSettledItems} 项</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+                        <span className="text-sm text-orange-700">对下金额大于对上报量</span>
+                        <span className="font-semibold text-orange-700">{projectComparisonSummary.amountInvertedItems} 项</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                        <span className="text-sm text-amber-700">接近完工仍有较大未报量</span>
+                        <span className="font-semibold text-amber-700">{projectComparisonSummary.possibleMissedReportItems} 项</span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
 
               <Card>
                 <CardContent className="pt-6">
+                  <div className="mb-4">
+                    <h4 className="font-semibold text-gray-900">清单项下钻明细</h4>
+                    <p className="mt-1 text-sm text-gray-500">预算清单参与工程量和金额对比，内部附加清单只参与金额差异</p>
+                  </div>
                   {analysisStats.rows.length > 0 ? (
-                    <Table className="zebra-table">
-                      <TableHeader>
-                        <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
-                          <TableHead>分项名称</TableHead>
-                          <TableHead>单位</TableHead>
-                          <TableHead className="text-right">预算量</TableHead>
-                          <TableHead className="text-right">本月对上</TableHead>
-                          <TableHead className="text-right">本月对下</TableHead>
-                          <TableHead className="text-right">累计对上</TableHead>
-                          <TableHead className="text-right">累计对下</TableHead>
-                          <TableHead className="text-right">量差</TableHead>
-                          <TableHead className="text-right">金额差</TableHead>
-                          <TableHead>提醒</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {analysisStats.rows.map((row, index) => (
-                          <TableRow key={row.id} className={`${row.risks.length > 0 ? 'bg-orange-50/70' : index % 2 === 1 ? 'bg-[#F8FAFC]' : ''} hover:bg-[#F0F7FF]`}>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {row.isAddon && <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">附加</Badge>}
-                                <span>{row.subitem_name}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{row.unit}</TableCell>
-                            <TableCell className="text-right">{row.isAddon ? '-' : row.budgetQty.toFixed(2)}</TableCell>
-                            <TableCell className="text-right text-blue-600">{row.isAddon ? '-' : row.monthlyReportedQty.toFixed(2)}</TableCell>
-                            <TableCell className="text-right text-emerald-600">{row.monthlySettledQty.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">{row.isAddon ? '-' : row.totalReportedQty.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">{row.totalSettledQty.toFixed(2)}</TableCell>
-                            <TableCell className={row.quantityGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right text-gray-700'}>
-                              {row.isAddon ? '-' : row.quantityGap.toFixed(2)}
-                            </TableCell>
-                            <TableCell className={row.amountGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right font-semibold text-[#1A58B3]'}>
-                              {formatCurrency(row.amountGap)}
-                            </TableCell>
-                            <TableCell>
-                              {row.risks.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {row.risks.map(risk => (
-                                    <Badge key={risk} variant="outline" className="border-orange-200 bg-orange-100 text-orange-700">{risk}</Badge>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-sm text-gray-400">正常</span>
-                              )}
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table className="zebra-table min-w-[1180px]">
+                        <TableHeader>
+                          <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
+                            <TableHead>清单名称</TableHead>
+                            <TableHead>类型</TableHead>
+                            <TableHead>单位</TableHead>
+                            <TableHead className="text-right">预算量</TableHead>
+                            <TableHead className="text-right">预算金额</TableHead>
+                            <TableHead className="text-right">本月对上</TableHead>
+                            <TableHead className="text-right">本月对下</TableHead>
+                            <TableHead className="text-right">累计对上</TableHead>
+                            <TableHead className="text-right">累计对下</TableHead>
+                            <TableHead className="text-right">对上剩余</TableHead>
+                            <TableHead className="text-right">对下剩余</TableHead>
+                            <TableHead className="text-right">金额差</TableHead>
+                            <TableHead>提醒</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {analysisStats.rows.map((row, index) => (
+                            <TableRow key={row.id} className={`${row.risks.length > 0 ? 'bg-orange-50/70' : index % 2 === 1 ? 'bg-[#F8FAFC]' : ''} hover:bg-[#F0F7FF]`}>
+                              <TableCell className="font-medium">
+                                <span className="line-clamp-2">{row.subitem_name}</span>
+                              </TableCell>
+                              <TableCell>
+                                {row.isAddon ? (
+                                  <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">内部附加</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">预算清单</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>{row.unit}</TableCell>
+                              <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</TableCell>
+                              <TableCell className="text-right">{row.isAddon ? '-' : formatCurrency(row.budgetQty * row.contractPrice)}</TableCell>
+                              <TableCell className="text-right text-blue-600">{row.isAddon ? '-' : formatQuantity(row.monthlyReportedQty)}</TableCell>
+                              <TableCell className="text-right text-emerald-600">{formatQuantity(row.monthlySettledQty)}</TableCell>
+                              <TableCell className="text-right font-medium">{row.isAddon ? '-' : formatQuantity(row.totalReportedQty)}</TableCell>
+                              <TableCell className="text-right font-medium">{formatQuantity(row.totalSettledQty)}</TableCell>
+                              <TableCell className={row.reportRemainingQty < 0 ? 'text-right font-semibold text-red-600' : 'text-right text-gray-700'}>
+                                {row.isAddon ? '-' : formatQuantity(row.reportRemainingQty)}
+                              </TableCell>
+                              <TableCell className={row.settleRemainingQty < 0 ? 'text-right font-semibold text-red-600' : 'text-right text-gray-700'}>
+                                {row.isAddon ? '-' : formatQuantity(row.settleRemainingQty)}
+                              </TableCell>
+                              <TableCell className={row.amountGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right font-semibold text-[#1A58B3]'}>
+                                {formatCurrency(row.amountGap)}
+                              </TableCell>
+                              <TableCell>
+                                {row.risks.length > 0 ? (
+                                  <div className="flex min-w-40 flex-wrap gap-1">
+                                    {row.risks.map(risk => (
+                                      <Badge key={risk} variant="outline" className="border-orange-200 bg-orange-100 text-orange-700">{risk}</Badge>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-400">正常</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">暂无数据</div>
                   )}
