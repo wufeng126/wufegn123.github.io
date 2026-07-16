@@ -213,7 +213,8 @@ export default function BidEstimationPage() {
               <Link href="/cost-estimation/bid/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm text-white">新建测算</Link>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] text-sm">
                 <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
                   <tr>
@@ -246,6 +247,42 @@ export default function BidEstimationPage() {
                 </tbody>
               </table>
             </div>
+            <div className="space-y-3 p-3 md:hidden">
+              {bids.map(bid => (
+                <Link
+                  key={bid.id}
+                  href={`/cost-estimation/bid/${bid.id}`}
+                  className="block rounded-lg border border-[#E5E6EB] bg-white p-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[#165DFF]">{bid.name}</p>
+                      <p className="mt-1 text-xs text-[#86909C]">{bid.region || '-'} / {bid.project_type || '-'} / {bid.created_at?.slice(0, 10) || '-'}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{bid.status || '测算中'}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-[#F7F8FA] p-2">
+                      <div className="text-[#86909C]">内部成本</div>
+                      <div className="mt-1 font-semibold text-[#1D2129]">{money(bid.total_labor_cost)} 元</div>
+                    </div>
+                    <div className="rounded-md bg-[#F7F8FA] p-2">
+                      <div className="text-[#86909C]">管理费</div>
+                      <div className="mt-1 font-semibold text-[#1D2129]">{money(bid.management_fee)} 元</div>
+                    </div>
+                    <div className="rounded-md bg-[#E8F3FF] p-2">
+                      <div className="text-[#165DFF]">测算总价</div>
+                      <div className="mt-1 font-semibold text-[#165DFF]">{money(bid.total_amount)} 元</div>
+                    </div>
+                    <div className="rounded-md bg-[#F7F8FA] p-2">
+                      <div className="text-[#86909C]">保存版本</div>
+                      <div className="mt-1 font-semibold text-[#1D2129]">{bid.version_count || 0} 个</div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            </>
           )}
         </section>
       </div>

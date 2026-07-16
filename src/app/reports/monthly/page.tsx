@@ -764,7 +764,7 @@ export default function MonthlyReportPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
-                  <div className="overflow-x-auto">
+                  <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
                       <thead><tr className="border-b text-muted-foreground text-xs">
                         <th className="text-left py-2 px-2">项目名称</th>
@@ -815,6 +815,60 @@ export default function MonthlyReportPage() {
                     </table>
                   </div>
                   {/* 回款季节性说明 */}
+                  <div className="space-y-3 md:hidden">
+                    {data.collectionLagAnalysis.map((item, idx) => (
+                      <article key={idx} className="space-y-3 rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-sm font-medium">{item.projectName}</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">{item.responsiblePerson || '未设置责任人'}</p>
+                          </div>
+                          <RiskBadge level={
+                            item.riskLevel === 'high' || item.riskLevel === 'critical' ? 'danger' :
+                            item.riskLevel === 'medium' ? 'warning' : 'normal'
+                          } label={
+                            item.riskLevel === 'critical' ? '极高风险' :
+                            item.riskLevel === 'high' ? '高风险' :
+                            item.riskLevel === 'medium' ? '中风险' : '低风险'
+                          } />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-md bg-muted/50 p-2">
+                            <div className="text-muted-foreground">累计确认产值</div>
+                            <div className="mt-1 font-medium">{formatAmountSmart(item.cumulativeOutput)}</div>
+                          </div>
+                          <div className="rounded-md bg-muted/50 p-2">
+                            <div className="text-muted-foreground">累计应回款</div>
+                            <div className="mt-1 font-medium">{formatAmountSmart(item.cumulativeReceivable)}</div>
+                          </div>
+                          <div className="rounded-md bg-muted/50 p-2">
+                            <div className="text-muted-foreground">累计已回款</div>
+                            <div className="mt-1 font-medium text-emerald-600">{formatAmountSmart(item.cumulativeReceived)}</div>
+                          </div>
+                          <div className="rounded-md bg-muted/50 p-2">
+                            <div className="text-muted-foreground">应收未回</div>
+                            <div className={`mt-1 font-semibold ${item.unreceived > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                              {item.unreceived > 0 ? formatAmountSmart(item.unreceived) : (item.isOverCollected ? `超收 ${formatAmountSmart(item.overCollectedAmount || 0)}` : '已结清')}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-xs">
+                          <span className="text-muted-foreground">账龄</span>
+                          <Badge variant="outline" className={
+                            item.agingDays > 90 ? 'bg-red-50 text-red-700 border-red-200' :
+                            item.agingDays > 60 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            item.agingDays > 30 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                            'bg-green-50 text-green-700 border-green-200'
+                          }>
+                            {item.agingCategory}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          预计回款时间：{item.estimatedPaymentDate || '-'}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
                   {data?.seasonalNote && (
                     <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
                       <Info className="w-4 h-4 mt-0.5 shrink-0" />
@@ -849,12 +903,14 @@ export default function MonthlyReportPage() {
               icon={<FileText className="w-4 h-4" />}
             >
             <Tabs defaultValue="labor" className="w-full">
-              <TabsList>
-                <TabsTrigger value="labor" className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" />人工成本</TabsTrigger>
-                <TabsTrigger value="supplier" className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" />供应商结算</TabsTrigger>
-                <TabsTrigger value="supplier-payment" className="flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" />供应商付款</TabsTrigger>
-                <TabsTrigger value="projects" className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />项目明细</TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto pb-1">
+                <TabsList className="w-max min-w-full justify-start">
+                  <TabsTrigger value="labor" className="flex items-center gap-1.5 whitespace-nowrap"><Users className="w-3.5 h-3.5" />人工成本</TabsTrigger>
+                  <TabsTrigger value="supplier" className="flex items-center gap-1.5 whitespace-nowrap"><Building2 className="w-3.5 h-3.5" />供应商结算</TabsTrigger>
+                  <TabsTrigger value="supplier-payment" className="flex items-center gap-1.5 whitespace-nowrap"><CreditCard className="w-3.5 h-3.5" />供应商付款</TabsTrigger>
+                  <TabsTrigger value="projects" className="flex items-center gap-1.5 whitespace-nowrap"><Shield className="w-3.5 h-3.5" />项目明细</TabsTrigger>
+                </TabsList>
+              </div>
 
               <TabsContent value="labor">
                 <Card>

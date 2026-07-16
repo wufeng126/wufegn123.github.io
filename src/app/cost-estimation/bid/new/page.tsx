@@ -520,7 +520,7 @@ export default function NewBidPage() {
   return (
     <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
       <div className="mx-auto max-w-[1500px] space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Link href="/cost-estimation/bid" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E6EB] bg-white hover:bg-[#F7F8FA]">
               <ArrowLeft className="h-4 w-4 text-[#4E5969]" />
@@ -530,11 +530,11 @@ export default function NewBidPage() {
               <p className="mt-1 text-sm text-[#86909C]">上传甲方清单后，系统自动匹配标准清单、历史中标价和内部成本价。</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={exportExcel} disabled={!items.length} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129] disabled:opacity-50">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button onClick={exportExcel} disabled={!items.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129] disabled:opacity-50">
               <Download className="h-4 w-4" />导出 Excel
             </button>
-            <button onClick={() => saveBid({ saveVersion: true })} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white disabled:opacity-60">
+            <button onClick={() => saveBid({ saveVersion: true })} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white disabled:opacity-60">
               <Save className="h-4 w-4" />保存版本
             </button>
           </div>
@@ -567,17 +567,17 @@ export default function NewBidPage() {
         </div>
 
         <section className="rounded-xl border border-[#E5E6EB] bg-white p-4">
-          <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <div>
               <h2 className="font-semibold text-[#1D2129]">甲方清单与报价工作台</h2>
               <p className="mt-1 text-xs text-[#86909C]">建议报价 = 成本价或历史中标价 × (1 + 管理费率) × (1 + 利润率)。</p>
             </div>
             <div className="flex-1" />
-            <div className="relative min-w-[240px]">
+            <div className="relative w-full sm:min-w-[240px] sm:flex-1 lg:flex-none">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
               <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="搜索清单 / 标准编码" className="h-10 w-full rounded-lg border border-[#D9DCE3] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
             </div>
-            <div className="flex rounded-lg border border-[#D9DCE3] bg-white p-1">
+            <div className="grid w-full grid-cols-3 rounded-lg border border-[#D9DCE3] bg-white p-1 sm:flex sm:w-auto">
               {[
                 ['all', '全部'],
                 ['risk', `风险 ${riskCount}`],
@@ -589,12 +589,12 @@ export default function NewBidPage() {
               ))}
             </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) parseBoq(e.target.files[0]); }} />
-            <button onClick={() => fileRef.current?.click()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129]">
+            <button onClick={() => fileRef.current?.click()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129] sm:w-auto">
               <Upload className="h-4 w-4" />上传清单
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1500px] text-sm">
               <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
                 <tr>
@@ -656,6 +656,70 @@ export default function NewBidPage() {
               </tbody>
             </table>
           </div>
+          <div className="space-y-3 md:hidden">
+            {visibleItems.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[#E5E6EB] px-4 py-12 text-center text-sm text-[#86909C]">
+                <FileSpreadsheet className="mx-auto mb-3 h-10 w-10 text-[#C9CDD4]" />
+                上传甲方清单后开始测算。
+              </div>
+            ) : (
+              visibleItems.map(item => (
+                <article key={item.rowId} className={`rounded-lg border p-3 ${item.pricing_warning ? 'border-[#FADC9D] bg-[#FFFBF0]' : 'border-[#E5E6EB] bg-white'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="line-clamp-2 text-sm font-semibold text-[#1D2129]">{item.boq_item_name}</p>
+                      <p className="mt-1 text-xs text-[#86909C]">{item.unit || '-'} / 工程量 {money(item.quantity)} / 匹配度 {item.match_score}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.standard_item_id ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
+                      {item.standard_item_id ? '已匹配' : '待匹配'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <label className="block text-xs text-[#4E5969]">
+                      标准清单
+                      <select value={item.standard_item_id || ''} onChange={e => applyStandard(item.rowId, Number(e.target.value))} className="mt-1 h-10 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm outline-none focus:border-[#165DFF]">
+                        <option value="">未匹配</option>
+                        {standards.map(standard => <option key={standard.id} value={standard.id}>{standard.code} / {standard.name}</option>)}
+                      </select>
+                    </label>
+                    {item.candidates.length > 0 && (
+                      <p className="text-xs text-[#86909C]">建议：{item.candidates[0].code} / {item.candidates[0].name}</p>
+                    )}
+                    {!item.standard_item_id && (
+                      <button onClick={() => createStandardFromItem(item.rowId)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF] hover:bg-[#F2F7FF]">
+                        <Plus className="h-3.5 w-3.5" />新增为标准清单
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-[#F7F8FA] p-2">
+                      <div className="text-[#86909C]">历史中标价</div>
+                      <div className="mt-1 font-medium text-[#1D2129]">{item.historical_bid_price ? money(item.historical_bid_price) : '-'}</div>
+                    </div>
+                    <div className="rounded-md bg-[#F7F8FA] p-2">
+                      <div className="text-[#86909C]">内部成本价</div>
+                      <div className="mt-1 font-medium text-[#1D2129]">{item.cost_price ? money(item.cost_price) : '-'}</div>
+                    </div>
+                    <label className="rounded-md bg-[#F7F8FA] p-2">
+                      <span className="block text-[#86909C]">利润率</span>
+                      <input type="number" value={item.profit_rate} onChange={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="mt-1 h-9 w-full rounded-md border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[#165DFF]" />
+                    </label>
+                    <label className="rounded-md bg-[#E8F3FF] p-2">
+                      <span className="block text-[#165DFF]">最终单价</span>
+                      <input type="number" value={Number(item.final_price.toFixed(2)) || ''} onChange={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="mt-1 h-9 w-full rounded-md border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[#165DFF]" />
+                    </label>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between rounded-md bg-[#F7F8FA] px-3 py-2 text-sm">
+                    <span className="text-[#86909C]">最终合价</span>
+                    <span className="font-semibold text-[#1D2129]">{money(item.final_amount)}</span>
+                  </div>
+                  {item.pricing_warning && <p className="mt-2 rounded-md bg-[#FFF7E8] px-2 py-1 text-xs text-[#F59E0B]">{item.pricing_warning}</p>}
+                </article>
+              ))
+            )}
+          </div>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -666,12 +730,12 @@ export default function NewBidPage() {
             </div>
             <div className="space-y-2">
               {fees.map((fee, index) => (
-                <div key={index} className="grid grid-cols-5 gap-2">
+                <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   <input value={fee.position} onChange={e => updateFee(index, { position: e.target.value })} placeholder="岗位" className="h-9 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
                   <input type="number" value={fee.monthly_salary} onChange={e => updateFee(index, { monthly_salary: Number(e.target.value) || 0 })} placeholder="月工资" className="h-9 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
                   <input type="number" value={fee.headcount} onChange={e => updateFee(index, { headcount: Number(e.target.value) || 0 })} placeholder="人数" className="h-9 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
                   <input type="number" value={fee.months} onChange={e => updateFee(index, { months: Number(e.target.value) || 0 })} placeholder="月份" className="h-9 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
-                  <div className="flex h-9 items-center justify-end rounded-lg bg-[#F7F8FA] px-2 text-sm tabular-nums">{money(fee.amount)}</div>
+                  <div className="col-span-2 flex h-9 items-center justify-end rounded-lg bg-[#F7F8FA] px-2 text-sm tabular-nums sm:col-span-1">{money(fee.amount)}</div>
                 </div>
               ))}
             </div>

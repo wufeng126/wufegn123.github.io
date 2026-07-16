@@ -1153,15 +1153,10 @@ input::placeholder, textarea::placeholder {
     min-width: 60px;
   }
   
-  .flex.gap-2, .flex.gap-3, .flex.gap-4 {
-    gap: 0.5rem;
-  }
-  
-  .flex.gap-2 button,
-  .flex.gap-3 button,
-  .flex.gap-4 button {
-    min-height: 44px;
-    padding: 0 1rem;
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
   }
   
   .dialog-content,
@@ -1173,12 +1168,12 @@ input::placeholder, textarea::placeholder {
     max-width: 100vw !important;
   }
   
-  .dialog-header {
-    @apply text-base p-4 border-b sticky top-0 bg-white z-10;
+  [data-slot="dialog-header"] {
+    @apply text-left;
   }
   
-  .dialog-footer {
-    @apply p-4 sticky bottom-0 bg-white border-t;
+  [data-slot="dialog-footer"] {
+    @apply sticky bottom-0 -mx-4 mt-auto border-t bg-white px-4 pt-4;
     padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
   }
   
@@ -1186,10 +1181,13 @@ input::placeholder, textarea::placeholder {
     background: rgba(0, 0, 0, 0.5) !important;
   }
   
-  [data-slot="select-trigger"],
+  [data-slot="select-trigger"] {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
   [data-slot="popover-content"] {
-    max-width: 100vw;
-    width: 100vw;
+    max-width: calc(100vw - 1.5rem);
   }
   
   main, .main-content {
@@ -1310,12 +1308,20 @@ input::placeholder, textarea::placeholder {
     @apply h-2.5;
   }
   
-  .flex-row {
-    @apply flex-col;
+  .mobile-action-grid {
+    @apply grid w-full grid-cols-2 gap-2;
   }
-  
-  .flex-row-reverse {
-    @apply flex-col-reverse;
+
+  .mobile-action-grid > * {
+    @apply w-full;
+  }
+
+  .mobile-filter-grid {
+    @apply grid w-full grid-cols-1 gap-3;
+  }
+
+  .mobile-filter-grid > * {
+    @apply w-full;
   }
   
   @supports (padding-bottom: env(safe-area-inset-bottom)) {

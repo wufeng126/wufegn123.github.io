@@ -736,13 +736,13 @@ function ImportReviewTable({
           <p className="text-sm font-medium text-[#1D2129]">导入待确认</p>
           <p className="mt-1 text-xs text-[#86909C]">先确认匹配关系和单价，再写入历史库；原始清单名称会自动沉淀为别名。</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#86909C]">可导入 {validCount} 条 / 需处理 {problemCount} 条</span>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+          <span className="col-span-2 text-xs text-[#86909C] sm:col-span-1">可导入 {validCount} 条 / 需处理 {problemCount} 条</span>
           <button onClick={onCancel} className="h-8 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#4E5969]">取消</button>
           <button disabled={saving || validCount === 0} onClick={onConfirm} className="h-8 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">确认入库</button>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1180px] text-sm">
           <thead className="bg-[#FFF7E8] text-xs text-[#86909C]">
             <tr>
@@ -795,6 +795,70 @@ function ImportReviewTable({
           </tbody>
         </table>
       </div>
+      <div className="space-y-3 p-3 md:hidden">
+        {rows.map(row => (
+          <article key={row.rowId} className={`rounded-lg border bg-white p-3 ${row.ignored ? 'border-[#E5E6EB] opacity-70' : row.standardItemId && row.price > 0 ? 'border-[#E5E6EB]' : 'border-[#FADC9D]'}`}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <label className="min-w-0 flex-1 text-xs text-[#86909C]">
+                原始清单
+                <input value={row.originalName} onChange={e => onChange(row.rowId, { originalName: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+              </label>
+              <span className="shrink-0 rounded-full bg-[#F7F8FA] px-2 py-1 text-xs text-[#4E5969]">匹配 {row.matchScore}</span>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs text-[#86909C]">
+                匹配标准清单
+                <select value={row.standardItemId} onChange={e => onChange(row.rowId, { standardItemId: Number(e.target.value) || '', ignored: !e.target.value || row.price <= 0, matchScore: e.target.value ? 100 : row.matchScore })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]">
+                  <option value="">未匹配</option>
+                  {standards.map(item => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
+                </select>
+              </label>
+              {!row.standardItemId && (
+                <button onClick={() => onCreateStandard(row)} className="h-8 w-full rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF]">新增标准清单</button>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs text-[#86909C]">
+                  来源项目
+                  <input value={row.projectName} onChange={e => onChange(row.rowId, { projectName: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                </label>
+                <label className="block text-xs text-[#86909C]">
+                  单位
+                  <input value={row.unit} onChange={e => onChange(row.rowId, { unit: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                </label>
+                <label className="block text-xs text-[#86909C]">
+                  地区
+                  <input value={row.region} onChange={e => onChange(row.rowId, { region: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                </label>
+                <label className="block text-xs text-[#86909C]">
+                  工程类型
+                  <input value={row.projectType} onChange={e => onChange(row.rowId, { projectType: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                </label>
+                <label className="block text-xs text-[#86909C]">
+                  单价
+                  <input type="number" value={row.price || ''} onChange={e => onChange(row.rowId, { price: Number(e.target.value) || 0, ignored: !row.standardItemId || Number(e.target.value) <= 0 })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                </label>
+                <label className="block text-xs text-[#86909C]">
+                  年份
+                  <input type="number" value={row.year || ''} onChange={e => onChange(row.rowId, { year: Number(e.target.value) || new Date().getFullYear() })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 border-t border-[#F2F3F5] pt-3 text-xs text-[#4E5969]">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={row.materialIncluded} onChange={e => onChange(row.rowId, { materialIncluded: e.target.checked })} />
+                  含材料
+                </label>
+                <label className="flex items-center justify-end gap-2">
+                  <input type="checkbox" checked={row.ignored} onChange={e => onChange(row.rowId, { ignored: e.target.checked })} />
+                  忽略
+                </label>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
@@ -802,7 +866,7 @@ function ImportReviewTable({
 function StandardTable({ standards, insights }: { standards: StandardItem[]; insights: Record<number, StandardInsight> }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[#E5E6EB]">
-      <table className="w-full min-w-[860px] text-sm">
+      <table className="hidden w-full min-w-[860px] text-sm md:table">
         <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
           <tr>
             <th className="px-3 py-3 text-left font-medium">编码</th>
@@ -837,6 +901,44 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
           })}
         </tbody>
       </table>
+      <div className="space-y-3 p-3 md:hidden">
+        {standards.map(item => {
+          const insight = insights[item.id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
+          return (
+            <article key={item.id} className="rounded-lg border border-[#E5E6EB] bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#1D2129]">{item.name}</p>
+                  <p className="mt-1 text-xs text-[#165DFF]">{item.code} / {item.unit || '-'}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#F7F8FA] px-2 py-1 text-xs text-[#4E5969]">
+                  {item.material_included ? '含材料' : '不含材料'}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-[#F7F8FA] p-2">
+                  <div className="text-[#86909C]">分类</div>
+                  <div className="mt-1 truncate font-medium text-[#1D2129]">{item.category || '-'}</div>
+                </div>
+                <div className="rounded-md bg-[#E8F3FF] p-2">
+                  <div className="text-[#165DFF]">最近中标价</div>
+                  <div className="mt-1 truncate font-medium text-[#165DFF]">
+                    {insight.latestBidPrice ? `${Number(insight.latestBidPrice).toLocaleString()} 元/${item.unit || '-'}` : '-'}
+                  </div>
+                </div>
+                <div className="rounded-md bg-[#F7F8FA] p-2">
+                  <div className="text-[#86909C]">中标价记录</div>
+                  <div className="mt-1 font-medium text-[#1D2129]">{insight.bidCount}</div>
+                </div>
+                <div className="rounded-md bg-[#F7F8FA] p-2">
+                  <div className="text-[#86909C]">成本价记录</div>
+                  <div className="mt-1 font-medium text-[#1D2129]">{insight.costCount}</div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -844,7 +946,7 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
 function PriceTable({ rows, type }: { rows: PriceRow[]; type: Tab }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[#E5E6EB]">
-      <table className="w-full min-w-[760px] text-sm">
+      <table className="hidden w-full min-w-[760px] text-sm md:table">
         <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
           <tr>
             <th className="px-3 py-3 text-left font-medium">标准清单</th>
@@ -871,6 +973,32 @@ function PriceTable({ rows, type }: { rows: PriceRow[]; type: Tab }) {
           )}
         </tbody>
       </table>
+      <div className="space-y-3 p-3 md:hidden">
+        {rows.length === 0 ? (
+          <div className="rounded-lg bg-[#F7F8FA] px-4 py-8 text-center text-sm text-[#86909C]">暂无数据</div>
+        ) : (
+          rows.map(row => (
+            <article key={row.id} className="rounded-lg border border-[#E5E6EB] bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#1D2129]">
+                    {row.bid_standard_items?.code || '-'} / {row.bid_standard_items?.name || '-'}
+                  </p>
+                  <p className="mt-1 text-xs text-[#86909C]">{row.project_name || '-'} / {row.region || '-'} / {row.project_type || '-'}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">
+                  {type === 'bidPrice' ? row.bid_year : row.cost_year}
+                </span>
+              </div>
+              <div className="mt-3 rounded-md bg-[#F7F8FA] p-3">
+                <div className="text-xs text-[#86909C]">单价</div>
+                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{Number(row.price || 0).toLocaleString()} 元</div>
+              </div>
+              {row.remark && <p className="mt-2 line-clamp-2 text-xs text-[#4E5969]">{row.remark}</p>}
+            </article>
+          ))
+        )}
+      </div>
     </section>
   );
 }
