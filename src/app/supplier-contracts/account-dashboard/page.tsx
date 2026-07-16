@@ -188,17 +188,17 @@ export default function AccountDashboardPage() {
   };
 
   return (
-    <div className="container mx-auto py-4 space-y-4">
+    <div className="container mx-auto space-y-4 px-3 py-4 sm:px-4 md:px-6">
       {/* 头部 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-xl font-bold">应付台账</h1>
-        <Button variant="outline" onClick={handleExport}>
+        <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
           <Download className="w-4 h-4 mr-1" /> 导出
         </Button>
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card><CardContent className="pt-3 px-3">
           <div className="text-xs text-muted-foreground">合同数量</div>
           <div className="text-xl font-bold">{summary.totalContracts}</div>
@@ -304,9 +304,9 @@ export default function AccountDashboardPage() {
       {/* 筛选区域 */}
       <Card>
         <CardContent className="pt-3 px-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="供应商" /></SelectTrigger>
+              <SelectTrigger className="w-full lg:w-[140px]"><SelectValue placeholder="供应商" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部供应商</SelectItem>
                 {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
@@ -314,7 +314,7 @@ export default function AccountDashboardPage() {
             </Select>
 
             <Select value={filterProject} onValueChange={setFilterProject}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="项目" /></SelectTrigger>
+              <SelectTrigger className="w-full lg:w-[140px]"><SelectValue placeholder="项目" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部项目</SelectItem>
                 {projects.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
@@ -322,7 +322,7 @@ export default function AccountDashboardPage() {
             </Select>
 
             <Select value={filterSupplierType} onValueChange={setFilterSupplierType}>
-              <SelectTrigger className="w-[120px]"><SelectValue placeholder="类型" /></SelectTrigger>
+              <SelectTrigger className="w-full lg:w-[120px]"><SelectValue placeholder="类型" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类型</SelectItem>
                 <SelectItem value="supplier">供应商</SelectItem>
@@ -334,6 +334,7 @@ export default function AccountDashboardPage() {
               variant={showOverdueOnly ? 'default' : 'outline'}
               size="sm"
               onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+              className="h-10 w-full lg:w-auto"
             >
               <AlertTriangle className="w-4 h-4 mr-1" /> 欠款预警
             </Button>
@@ -342,7 +343,7 @@ export default function AccountDashboardPage() {
               placeholder="搜索..."
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              className="flex-1 min-w-[150px]"
+              className="w-full sm:col-span-2 lg:min-w-[150px] lg:flex-1"
             />
           </div>
         </CardContent>
@@ -351,7 +352,7 @@ export default function AccountDashboardPage() {
       {/* 数据表格 */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -398,6 +399,70 @@ export default function AccountDashboardPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+          <div className="space-y-3 p-3 md:hidden">
+            {loading ? (
+              <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                加载中...
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                暂无数据
+              </div>
+            ) : (
+              filteredData.map((item, idx) => (
+                <article
+                  key={`${item.contract_id}-${idx}`}
+                  className={`rounded-lg border p-3 ${item.pending_amount > 0 ? 'border-red-200 bg-red-50/40' : 'border-gray-100 bg-white'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900">{item.supplier_name}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.contract_name || '-'}</p>
+                    </div>
+                    <Badge variant={item.contract_status === '已完结' ? 'default' : 'secondary'} className="shrink-0">
+                      {item.contract_status === '已完结' ? '已完结' : '履约中'}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-white/80 p-2">
+                      <p className="text-muted-foreground">累计结算</p>
+                      <p className="mt-1 font-semibold text-blue-600">¥{item.total_settlement.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-md bg-white/80 p-2">
+                      <p className="text-muted-foreground">应付金额</p>
+                      <p className="mt-1 font-semibold">¥{item.payable_amount.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-md bg-white/80 p-2">
+                      <p className="text-muted-foreground">已付金额</p>
+                      <p className="mt-1 font-semibold text-green-600">¥{item.paid_amount.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-md bg-white/80 p-2">
+                      <p className="text-muted-foreground">未付金额</p>
+                      <p className={`mt-1 font-semibold ${item.pending_amount > 0 ? 'text-red-600' : ''}`}>
+                        ¥{item.pending_amount.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 divide-x rounded-md border bg-white text-center text-xs">
+                    <div className="min-w-0 px-2 py-2">
+                      <p className="text-muted-foreground">合同额</p>
+                      <p className="mt-1 truncate font-medium">¥{item.total_amount.toLocaleString()}</p>
+                    </div>
+                    <div className="min-w-0 px-2 py-2">
+                      <p className="text-muted-foreground">质保金</p>
+                      <p className="mt-1 truncate font-medium text-purple-600">¥{item.warranty_amount.toLocaleString()}</p>
+                    </div>
+                    <div className="min-w-0 px-2 py-2">
+                      <p className="text-muted-foreground">尾款</p>
+                      <p className="mt-1 truncate font-medium text-orange-600">¥{item.final_payment.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

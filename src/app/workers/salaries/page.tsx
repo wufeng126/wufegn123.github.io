@@ -505,7 +505,7 @@ export default function WorkerSalariesPage() {
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>月度工资</h1>
           <p className="text-sm mt-1" style={{ color: '#86909C' }}>按月录入和管理工人工资</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
           <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9">
             <Download className="w-4 h-4 mr-1.5" />下载模板
           </Button>
@@ -528,10 +528,10 @@ export default function WorkerSalariesPage() {
             <DialogTrigger asChild>
               <Button onClick={resetForm} className="btn-primary h-9"><Plus className="w-4 h-4 mr-1.5" />新增工资</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
               <DialogHeader><DialogTitle className="dialog-header">新增工资记录</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>工人 *</Label>
                     <Popover open={workerSearchOpen} onOpenChange={setWorkerSearchOpen}>
                       <PopoverTrigger asChild>
@@ -589,20 +589,20 @@ export default function WorkerSalariesPage() {
                   </div>
                 </div>
                 <div><Label className="text-sm" style={{ color: '#1D2129' }}>年月 *</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>工时</Label><Input type="number" value={formData.work_hours} onChange={(e) => setFormData({ ...formData, work_hours: e.target.value })} className="mt-1.5" /></div>
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>时薪</Label><Input type="number" step="0.01" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="mt-1.5" /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>包工工资</Label><Input type="number" step="0.01" value={formData.contract_work_pay} onChange={(e) => setFormData({ ...formData, contract_work_pay: e.target.value })} className="mt-1.5" /></div>
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>个人所得税</Label><Input type="number" step="0.01" value={formData.income_tax} onChange={(e) => setFormData({ ...formData, income_tax: e.target.value })} className="mt-1.5" /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>预支款</Label><Input type="number" step="0.01" value={formData.advance_pay} onChange={(e) => setFormData({ ...formData, advance_pay: e.target.value })} className="mt-1.5" /></div>
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>劳保费</Label><Input type="number" step="0.01" value={formData.labor_insurance} onChange={(e) => setFormData({ ...formData, labor_insurance: e.target.value })} className="mt-1.5" /></div>
                 </div>
                 <div><Label className="text-sm" style={{ color: '#1D2129' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
-                <div className="flex justify-end gap-3 pt-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">取消</Button>
                   <Button type="submit" className="btn-primary">保存</Button>
                 </div>
@@ -613,7 +613,7 @@ export default function WorkerSalariesPage() {
       </div>
 
       {/* 统计卡片 */}
-      <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <Card className="stat-card stat-card-blue">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
@@ -725,7 +725,7 @@ export default function WorkerSalariesPage() {
         <Card className={`transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
           <CardContent className="pt-5">
             <h3 className="text-base font-semibold mb-4" style={{ color: '#1D2129' }}>项目工资汇总</h3>
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <Table className="zebra-table">
               <TableHeader>
                   <TableRow>
@@ -780,24 +780,56 @@ export default function WorkerSalariesPage() {
                 </TableBody>
               </Table>
             </div>
+            <div className="space-y-3 md:hidden">
+              {projectSummary.map((item, index) => (
+                <div key={item.project_id || index} className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{item.project_name}</p>
+                      <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{item.worker_count}人</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs" style={{ color: '#86909C' }}>实发</p>
+                      <p className="text-base font-bold" style={{ color: '#00B42A' }}>{formatCurrency(item.total_net_pay)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div><span style={{ color: '#86909C' }}>应发 </span><span className="font-medium" style={{ color: '#165DFF' }}>{formatCurrency(item.total_gross_pay)}</span></div>
+                    <div><span style={{ color: '#86909C' }}>个税 </span><span className="font-medium" style={{ color: '#F53F3F' }}>{formatCurrency(item.total_income_tax)}</span></div>
+                    <div><span style={{ color: '#86909C' }}>预支 </span><span className="font-medium" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_advance_pay)}</span></div>
+                    <div><span style={{ color: '#86909C' }}>劳保 </span><span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(item.total_labor_insurance)}</span></div>
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold" style={{ color: '#1D2129' }}>合计</span>
+                  <span className="text-base font-bold" style={{ color: '#00B42A' }}>{formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_net_pay, 0))}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: '#86909C' }}>
+                  <span>应发 {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_gross_pay, 0))}</span>
+                  <span>{projectSummary.reduce((sum, p) => sum + p.worker_count, 0)}人</span>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <div className="filter-bar">
+        <div className="filter-bar mobile-filter-grid sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           <Calendar className="w-4 h-4" style={{ color: '#86909C' }} />
           <Select value={filterYear} onValueChange={setFilterYear}>
-            <SelectTrigger className="w-24 h-8"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-24 h-9 sm:h-8"><SelectValue /></SelectTrigger>
             <SelectContent>{yearOptions.map(y => (<SelectItem key={y} value={y}>{y}年</SelectItem>))}</SelectContent>
           </Select>
           <Select value={filterMonth} onValueChange={setFilterMonth}>
-            <SelectTrigger className="w-20 h-8"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-20 h-9 sm:h-8"><SelectValue /></SelectTrigger>
             <SelectContent>{monthOptions.map(m => (<SelectItem key={m} value={m}>{m}月</SelectItem>))}</SelectContent>
           </Select>
           <Select value={filterProject} onValueChange={setFilterProject}>
-            <SelectTrigger className="w-36 h-8"><SelectValue placeholder="全部项目" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-36 h-9 sm:h-8"><SelectValue placeholder="全部项目" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部项目</SelectItem>
               {projects.map(p => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}
@@ -805,7 +837,7 @@ export default function WorkerSalariesPage() {
           </Select>
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#C9CDD4' }} />
-            <Input placeholder="搜索工人姓名" value={searchWorker} onChange={(e) => setSearchWorker(e.target.value)} className="w-40 pl-9 h-8" />
+            <Input placeholder="搜索工人姓名" value={searchWorker} onChange={(e) => setSearchWorker(e.target.value)} className="w-full sm:w-40 pl-9 h-9 sm:h-8" />
           </div>
           {searchWorker && (
             <Button variant="ghost" size="sm" onClick={() => setSearchWorker('')} className="h-8" style={{ color: '#86909C' }}>
@@ -847,7 +879,7 @@ export default function WorkerSalariesPage() {
                       <div key={projectName} className="border rounded-lg overflow-hidden" style={{ borderColor: '#E5E6EB' }}>
                         {/* 项目标题行 - 可折叠 */}
                         <div
-                          className="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                          className="flex flex-col gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:py-2.5"
                           style={{ background: '#F7F8FA' }}
                           onClick={() => {
                             const newCollapsed = new Set(mainCollapsedProjects);
@@ -859,7 +891,7 @@ export default function WorkerSalariesPage() {
                             setMainCollapsedProjects(newCollapsedProjects => newCollapsed);
                           }}
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
                             <span className={`transition-transform text-gray-400 text-xs ${isCollapsed ? '' : 'rotate-180'}`}>▼</span>
                             <Checkbox
                               checked={allSelected}
@@ -874,10 +906,10 @@ export default function WorkerSalariesPage() {
                               }}
                               onClick={(e) => e.stopPropagation()}
                             />
-                            <span className="font-medium" style={{ color: '#1D2129' }}>{projectName}</span>
-                            <span className="text-sm" style={{ color: '#86909C' }}>({projectSalaries.length}人)</span>
+                            <span className="truncate font-medium" style={{ color: '#1D2129' }}>{projectName}</span>
+                            <span className="shrink-0 text-sm" style={{ color: '#86909C' }}>({projectSalaries.length}人)</span>
                           </div>
-                          <div className="flex items-center gap-6 text-sm">
+                          <div className="grid grid-cols-3 gap-2 text-sm sm:flex sm:items-center sm:gap-6">
                             <span style={{ color: '#86909C' }}>应发: <span className="font-medium" style={{ color: '#165DFF' }}>{formatCurrency(projectGrossPay)}</span></span>
                             <span style={{ color: '#86909C' }}>实发: <span className="font-medium" style={{ color: '#00B42A' }}>{formatCurrency(projectNetPay)}</span></span>
                             <span style={{ color: '#86909C' }}>已发: <span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(projectPaid)}</span></span>
@@ -885,7 +917,8 @@ export default function WorkerSalariesPage() {
                         </div>
                         {/* 项目内明细表格 */}
                         {!isCollapsed && (
-                          <Table className="zebra-table">
+                          <>
+                          <Table className="zebra-table hidden md:table">
               <TableHeader>
                               <TableRow style={{ background: '#FAFBFD', borderBottom: '1px solid #E5E6EB' }}>
                                 <TableHead className="w-12"></TableHead>
@@ -951,6 +984,61 @@ export default function WorkerSalariesPage() {
                               ))}
                             </TableBody>
                           </Table>
+                          <div className="space-y-2 bg-white p-3 md:hidden">
+                            {projectSalaries.map((salary) => (
+                              <div key={salary.id} className="rounded-lg border border-gray-100 p-3" style={{ background: selectedIds.has(salary.id) ? '#E8F3FF' : '#FFFFFF' }}>
+                                <div className="flex items-start gap-3">
+                                  <Checkbox checked={selectedIds.has(salary.id)} onCheckedChange={() => handleSelectOne(salary.id)} className="mt-1" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{salary.worker_name}</p>
+                                        <p className="mt-0.5 text-xs" style={{ color: '#86909C' }}>工时 {salary.work_hours} · 时薪 {salary.hourly_rate}</p>
+                                      </div>
+                                      <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
+                                        salary.payment_status === 'overpaid' ? 'bg-red-50 text-red-700' :
+                                        salary.payment_status === 'paid' ? 'bg-green-50 text-green-700' :
+                                        salary.payment_status === 'partial' ? 'bg-orange-50 text-orange-700' :
+                                        'bg-gray-50 text-gray-500'
+                                      }`}>
+                                        {salary.payment_status === 'overpaid' ? '超额发放' : salary.payment_status === 'paid' ? '已发清' : salary.payment_status === 'partial' ? '部分发放' : '未发放'}
+                                      </span>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                                      <div>
+                                        <p style={{ color: '#86909C' }}>应发</p>
+                                        <p className="font-semibold" style={{ color: '#165DFF' }}>{formatCurrency(salary.gross_pay)}</p>
+                                      </div>
+                                      <div>
+                                        <p style={{ color: '#86909C' }}>实发</p>
+                                        <p className="font-semibold" style={{ color: '#00B42A' }}>{formatCurrency(salary.net_pay)}</p>
+                                      </div>
+                                      <div>
+                                        <p style={{ color: '#86909C' }}>已发</p>
+                                        <p className="font-semibold" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : '#86909C' }}>{formatCurrency(salary.paid || 0)}</p>
+                                      </div>
+                                      <div>
+                                        <p style={{ color: '#86909C' }}>包工</p>
+                                        <p style={{ color: '#4E5969' }}>{salary.contract_work_pay}</p>
+                                      </div>
+                                      <div>
+                                        <p style={{ color: '#86909C' }}>扣减</p>
+                                        <p style={{ color: '#4E5969' }}>{formatCurrency((Number(salary.income_tax) || 0) + (Number(salary.advance_pay) || 0) + (Number(salary.labor_insurance) || 0) + (Number(salary.fine) || 0))}</p>
+                                      </div>
+                                      <div>
+                                        <p style={{ color: '#86909C' }}>未发</p>
+                                        <p style={{ color: '#F53F3F' }}>{formatCurrency(salary.unpaid_amount || 0)}</p>
+                                      </div>
+                                    </div>
+                                    {salary.payment_warning && (
+                                      <p className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600">{salary.payment_warning}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          </>
                         )}
                       </div>
                     );
@@ -986,7 +1074,7 @@ export default function WorkerSalariesPage() {
 
       {/* 批量修改对话框 */}
       <Dialog open={batchEditDialogOpen} onOpenChange={setBatchEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader><DialogTitle className="dialog-header">批量修改（已选 {selectedIds.size} 项）</DialogTitle></DialogHeader>
           <form onSubmit={handleBatchEdit} className="space-y-4">
             <div><Label className="text-sm" style={{ color: '#1D2129' }}>选择要修改的字段</Label>
@@ -1003,7 +1091,7 @@ export default function WorkerSalariesPage() {
               </Select>
             </div>
             {batchEditField && <div><Label className="text-sm" style={{ color: '#1D2129' }}>新值</Label><Input type="number" step="0.01" value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>}
-            <div className="flex justify-end gap-3 pt-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+            <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:flex sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
               <Button type="button" variant="outline" onClick={() => setBatchEditDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" disabled={!batchEditField} className="btn-primary">确认修改</Button>
             </div>
@@ -1013,7 +1101,7 @@ export default function WorkerSalariesPage() {
 
       {/* 数据管理弹窗 */}
       <Dialog open={dataManagerOpen} onOpenChange={setDataManagerOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogContent className="flex max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-4xl flex-col overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="dialog-header flex items-center gap-2">
               <Settings className="w-5 h-5 text-orange-600" />
@@ -1055,7 +1143,7 @@ export default function WorkerSalariesPage() {
                           <div key={projectName} className="border rounded-lg overflow-hidden">
                             {/* 项目标题行 - 可折叠 */}
                             <div 
-                              className="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                              className="flex cursor-pointer flex-col gap-3 bg-gray-50 px-4 py-3 transition-colors hover:bg-gray-100 sm:flex-row sm:items-center sm:justify-between"
                               onClick={() => {
                                 // 切换折叠/展开状态
                                 const newCollapsed = new Set(collapsedProjects);
@@ -1067,7 +1155,7 @@ export default function WorkerSalariesPage() {
                                 setCollapsedProjects(newCollapsed);
                               }}
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
                                 {/* 单独的折叠箭头，不触发勾选 */}
                                 <button 
                                   className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600"
@@ -1099,16 +1187,17 @@ export default function WorkerSalariesPage() {
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                 />
-                                <span className="font-medium text-gray-800">{projectName}</span>
-                                <span className="text-sm text-gray-500">({projectSalaries.length}条记录)</span>
+                                <span className="truncate font-medium text-gray-800">{projectName}</span>
+                                <span className="shrink-0 text-sm text-gray-500">({projectSalaries.length}条记录)</span>
                               </div>
-                              <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-4 sm:justify-end">
                                 <span className="text-sm text-gray-500">实发合计: <span className="font-medium text-green-600">{formatCurrency(projectTotal)}</span></span>
                               </div>
                             </div>
                             {/* 项目内明细表格 - 根据折叠状态显示/隐藏 */}
                             {!isCollapsed && (
-                              <Table className="zebra-table">
+                              <>
+                              <Table className="zebra-table hidden md:table">
               <TableHeader>
                                   <TableRow className="bg-white">
                                     <TableHead className="w-12"></TableHead>
@@ -1134,6 +1223,29 @@ export default function WorkerSalariesPage() {
                                   ))}
                                 </TableBody>
                               </Table>
+                              <div className="space-y-2 bg-white p-3 md:hidden">
+                                {projectSalaries.map((salary) => (
+                                  <div key={salary.id} className={`rounded-lg border p-3 ${deleteSelectedIds.has(salary.id) ? 'border-red-100 bg-red-50' : 'border-gray-100 bg-white'}`}>
+                                    <div className="flex items-start gap-3">
+                                      <Checkbox checked={deleteSelectedIds.has(salary.id)} onCheckedChange={() => handleDeleteSelectOne(salary.id)} className="mt-1" />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <p className="truncate text-sm font-semibold text-gray-900">{salary.worker_name}</p>
+                                            <p className="mt-0.5 text-xs text-gray-500">{salary.year_month} · 工时 {salary.work_hours}</p>
+                                          </div>
+                                          <p className="shrink-0 text-sm font-semibold" style={{ color: '#00B42A' }}>{formatCurrency(salary.net_pay)}</p>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                                          <div><span className="text-gray-500">应发 </span><span className="font-medium">{formatCurrency(salary.gross_pay)}</span></div>
+                                          <div><span className="text-gray-500">备注 </span><span className="text-gray-600">{salary.remark || '-'}</span></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              </>
                             )}
                           </div>
                         );
@@ -1142,11 +1254,11 @@ export default function WorkerSalariesPage() {
                   );
                 })()}
               </div>
-              <div className="flex justify-between items-center pt-4 border-t" style={{ borderColor: '#E5E6EB' }}>
+              <div className="flex flex-col gap-3 pt-4 border-t sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
                 <div className="text-sm text-gray-500">
                   共 {allSalaries.length} 条记录，已选择 {deleteSelectedIds.size} 条（跨 {(() => { const groups = new Set(Array.from(deleteSelectedIds).map(id => allSalaries.find(s => s.id === id)?.project_name)); return groups.size; })()} 个项目）
                 </div>
-                <div className="flex gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:flex">
                   <Button type="button" variant="outline" onClick={() => setDataManagerOpen(false)} className="border-gray-300">取消</Button>
                   <Button type="button" variant="destructive" onClick={handleDataManagerDelete} disabled={deleteSelectedIds.size === 0}>
                     <Trash2 className="w-4 h-4 mr-1.5" />确认删除 ({deleteSelectedIds.size})
@@ -1160,7 +1272,7 @@ export default function WorkerSalariesPage() {
 
       {/* 导入结果对话框 */}
       <AlertDialog open={importResultOpen} onOpenChange={setImportResultOpen}>
-        <AlertDialogContent className="max-w-md">
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>导入结果</AlertDialogTitle>
           </AlertDialogHeader>
@@ -1241,7 +1353,7 @@ export default function WorkerSalariesPage() {
       </AlertDialog>
       {/* 批量删除二次确认 */}
       <AlertDialog open={batchDeleteConfirm} onOpenChange={setBatchDeleteConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="w-5 h-5" />

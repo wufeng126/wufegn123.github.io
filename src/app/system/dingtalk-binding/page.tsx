@@ -270,12 +270,12 @@ export default function DingtalkBindingPage() {
             钉钉作为普通员工唯一账号来源；同步后生成待分配账号，完成岗位和项目分配后正式启用。
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={loadData} disabled={loading || syncing}>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <Button variant="outline" onClick={loadData} disabled={loading || syncing} className="w-full sm:w-auto">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
           </Button>
-          <Button onClick={handleSync} disabled={syncing}>
+          <Button onClick={handleSync} disabled={syncing} className="w-full sm:w-auto">
             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? '同步中' : '立即同步钉钉'}
           </Button>
@@ -313,7 +313,7 @@ export default function DingtalkBindingPage() {
               </p>
             </div>
           </div>
-          <Button variant="outline" className="bg-white" onClick={goPermission}>
+          <Button variant="outline" className="w-full bg-white lg:w-auto" onClick={goPermission}>
             去用户与权限分配
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
@@ -338,14 +338,16 @@ export default function DingtalkBindingPage() {
             />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 pb-4 sm:px-6 sm:pb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="pending">待分配账号</TabsTrigger>
-              <TabsTrigger value="enabled">已启用账号</TabsTrigger>
-              <TabsTrigger value="disabled">已禁用账号</TabsTrigger>
-              <TabsTrigger value="contacts">钉钉通讯录</TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto pb-1">
+              <TabsList className="w-max min-w-full justify-start">
+                <TabsTrigger value="pending" className="whitespace-nowrap">待分配账号</TabsTrigger>
+                <TabsTrigger value="enabled" className="whitespace-nowrap">已启用账号</TabsTrigger>
+                <TabsTrigger value="disabled" className="whitespace-nowrap">已禁用账号</TabsTrigger>
+                <TabsTrigger value="contacts" className="whitespace-nowrap">钉钉通讯录</TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="pending" className="mt-4">
               <UserTable
@@ -405,7 +407,8 @@ function UserTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="hidden overflow-x-auto md:block">
       <Table>
         <TableHeader>
           <TableRow>
@@ -466,6 +469,55 @@ function UserTable({
         </TableBody>
       </Table>
     </div>
+    <div className="space-y-3 md:hidden">
+      {users.map((user) => {
+        const status = getAccountStatus(user);
+        return (
+          <article key={user.id} className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">{getUserDisplayName(user)}</p>
+                <p className="mt-1 truncate text-xs text-slate-500">{user.username}</p>
+              </div>
+              <Badge variant="outline" className={`${status.className} shrink-0`}>
+                {status.label}
+              </Badge>
+            </div>
+
+            <div className="mt-3 grid gap-2 text-xs">
+              <div className="flex justify-between gap-3">
+                <span className="shrink-0 text-slate-500">手机号</span>
+                <span className="truncate font-medium text-slate-900">{user.dingtalk_info?.mobile || '-'}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="shrink-0 text-slate-500">岗位模板</span>
+                <span className="truncate font-medium text-slate-900">
+                  {(user.roles || []).length > 0 ? (user.roles || []).map((role) => role.name).join('、') : '未分配'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="shrink-0 text-slate-500">可访问项目</span>
+                <span className="font-medium text-slate-900">
+                  {(user.allowed_projects || []).length > 0 ? `${user.allowed_projects?.length} 个项目` : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="shrink-0 text-slate-500">最后同步</span>
+                <span className="truncate text-right text-slate-500">{formatDateTime(user.dingtalk_info?.last_sync)}</span>
+              </div>
+            </div>
+
+            {actionLabel && (
+              <Button variant="outline" size="sm" onClick={onAction} className="mt-3 w-full">
+                <UserCheck className="mr-1 h-4 w-4" />
+                {actionLabel}
+              </Button>
+            )}
+          </article>
+        );
+      })}
+    </div>
+    </>
   );
 }
 
@@ -479,7 +531,8 @@ function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loa
   }
 
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="hidden overflow-x-auto md:block">
       <Table>
         <TableHeader>
           <TableRow>
@@ -524,5 +577,47 @@ function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loa
         </TableBody>
       </Table>
     </div>
+    <div className="space-y-3 md:hidden">
+      {contacts.map((contact) => (
+        <article key={contact.id} className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">{contact.name}</p>
+              <p className="mt-1 truncate text-xs text-slate-500">{contact.mobile || '-'}</p>
+            </div>
+            {contact.active === false ? (
+              <Badge variant="outline" className="shrink-0 border-red-200 bg-red-50 text-red-700">
+                <AlertCircle className="mr-1 h-3 w-3" />
+                停用
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="shrink-0 border-green-200 bg-green-50 text-green-700">
+                <CheckCircle2 className="mr-1 h-3 w-3" />
+                在职
+              </Badge>
+            )}
+          </div>
+          <div className="mt-3 grid gap-2 text-xs">
+            <div className="flex justify-between gap-3">
+              <span className="shrink-0 text-slate-500">职务</span>
+              <span className="truncate font-medium text-slate-900">{contact.title || '-'}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="shrink-0 text-slate-500">部门</span>
+              <span className="truncate font-medium text-slate-900">{contact.dept_name_list || '-'}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="shrink-0 text-slate-500">钉钉 UserId</span>
+              <span className="truncate font-mono text-slate-900">{contact.dingtalk_user_id}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="shrink-0 text-slate-500">同步时间</span>
+              <span className="truncate text-right text-slate-500">{formatDateTime(contact.sync_time)}</span>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+    </>
   );
 }

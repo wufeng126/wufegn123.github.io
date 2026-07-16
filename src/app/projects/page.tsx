@@ -416,7 +416,7 @@ export default function ProjectsPage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="btn-primary h-9" onClick={openAddDialog}>
+            <Button className="btn-primary h-9 w-full sm:w-auto" onClick={openAddDialog}>
               <Plus className="w-4 h-4 mr-1.5" />
               新增项目
             </Button>
@@ -971,7 +971,7 @@ export default function ProjectsPage() {
 
       {/* 删除确认弹窗 - 显示关联数据 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除项目</AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -994,7 +994,7 @@ export default function ProjectsPage() {
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} disabled={deleteLoading} className="bg-red-500 hover:bg-red-600">
               {deleteLoading ? '删除中...' : '确认删除'}

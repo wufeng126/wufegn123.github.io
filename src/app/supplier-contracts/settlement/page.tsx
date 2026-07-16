@@ -503,11 +503,11 @@ export default function SettlementPage() {
   };
 
   return (
-    <div className="container mx-auto py-4 space-y-4">
+    <div className="container mx-auto space-y-4 px-3 py-4 sm:px-4">
       {/* 头部 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-xl font-bold">结算管理</h1>
-        <div className="flex gap-2 flex-wrap">
+        <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
           <Button onClick={() => {
             setSettlementForm({
               supplier_id: filterSupplier !== 'all' ? filterSupplier : '',
@@ -533,7 +533,7 @@ export default function SettlementPage() {
 
       {/* 统计卡片 - 按筛选条件显示 */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
           <Card><CardContent className="pt-3 px-3">
             <div className="text-xs text-muted-foreground">结算单数</div>
             <div className="text-lg font-bold">{filteredStats.totalSettlements}</div>
@@ -568,9 +568,9 @@ export default function SettlementPage() {
       {/* 筛选区域 */}
       <Card>
         <CardContent className="pt-3 px-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="mobile-filter-grid sm:flex sm:flex-wrap sm:gap-2">
             <Select value={filterSupplier} onValueChange={(v) => { setFilterSupplier(v); setFilterContract('all'); }}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full sm:w-[140px]">
                 <SelectValue placeholder="供应商" />
               </SelectTrigger>
               <SelectContent>
@@ -582,7 +582,7 @@ export default function SettlementPage() {
             </Select>
 
             <Select value={filterContract} onValueChange={setFilterContract}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="合同" />
               </SelectTrigger>
               <SelectContent>
@@ -596,7 +596,7 @@ export default function SettlementPage() {
             </Select>
 
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[120px]">
+              <SelectTrigger className="w-full sm:w-[120px]">
                 <SelectValue placeholder="结算类型" />
               </SelectTrigger>
               <SelectContent>
@@ -610,7 +610,7 @@ export default function SettlementPage() {
               placeholder="搜索结算单号/供应商..."
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              className="flex-1 min-w-[150px]"
+              className="w-full sm:min-w-[150px] sm:flex-1"
             />
           </div>
         </CardContent>
@@ -619,7 +619,7 @@ export default function SettlementPage() {
       {/* 表格 */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -673,12 +673,60 @@ export default function SettlementPage() {
               </TableBody>
             </Table>
           </div>
+          <div className="space-y-3 p-3 md:hidden">
+            {loading ? (
+              <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-gray-500">加载中...</div>
+            ) : filteredSettlements.length === 0 ? (
+              <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-gray-500">暂无数据</div>
+            ) : (
+              filteredSettlements.map(s => (
+                <div key={s.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900">{s.supplier_name || '-'}</p>
+                      <p className="mt-1 truncate font-mono text-xs text-gray-500">{s.settlement_no}</p>
+                    </div>
+                    <Badge variant={s.settlement_type === 'final' ? 'default' : 'secondary'} className="shrink-0">
+                      {s.settlement_type === 'progress' ? '进度结算' : '总结算'}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 truncate text-xs text-gray-500">{s.contract?.contract_name || '-'}</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-gray-500">结算金额</p>
+                      <p className="mt-0.5 font-semibold text-gray-900">{formatCurrency(s.settlement_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">应付金额</p>
+                      <p className="mt-0.5 font-semibold text-blue-600">{formatCurrency(s.payable_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">付款比例</p>
+                      <p className="mt-0.5 font-medium text-gray-900">{formatPercent(s.payment_ratio)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">结算日期</p>
+                      <p className="mt-0.5 font-medium text-gray-900">{formatDate(s.settlement_date)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
+                    <Badge variant={s.status === '已确认' ? 'default' : 'outline'}>
+                      {s.status || '待确认'}
+                    </Badge>
+                    <Button variant="outline" size="sm" onClick={() => handleDeleteSettlement(s.id)} className="text-red-600">
+                      <Trash2 className="mr-1 h-4 w-4" />删除
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* 新增合同对话框 */}
       <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingContract ? '编辑合同' : '新增合同'}</DialogTitle>
           </DialogHeader>
@@ -732,7 +780,7 @@ export default function SettlementPage() {
               <div className="flex items-center gap-2 mb-3 text-sm font-medium text-orange-600">
                 <span className="px-2 py-0.5 bg-orange-100 rounded text-orange-700">财务管控字段</span>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <Label className="text-amber-700">进度付款 (%)</Label>
                   <Input 
@@ -779,7 +827,7 @@ export default function SettlementPage() {
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setContractDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveContract}>保存</Button>
           </DialogFooter>
@@ -788,7 +836,7 @@ export default function SettlementPage() {
 
       {/* 新增结算对话框 */}
       <Dialog open={settlementDialogOpen} onOpenChange={setSettlementDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingSettlement ? '编辑结算单' : '新增结算单'}</DialogTitle>
           </DialogHeader>
@@ -847,7 +895,7 @@ export default function SettlementPage() {
 
             <div className="space-y-2">
               <Label>结算类型 <span className="text-red-500">*</span></Label>
-              <div className="flex gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   type="button"
                   variant={settlementForm.settlement_type === 'progress' ? 'default' : 'outline'}
@@ -926,7 +974,7 @@ export default function SettlementPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setSettlementDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveSettlement}>保存</Button>
           </DialogFooter>
@@ -935,7 +983,7 @@ export default function SettlementPage() {
 
       {/* 批量导入对话框 */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>批量导入结算单</DialogTitle>
             <p className="text-sm text-gray-500">请上传 Excel 文件，支持 .xlsx 和 .xls 格式</p>
@@ -987,7 +1035,7 @@ export default function SettlementPage() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => {
               setImportDialogOpen(false);
               setImportFile(null);

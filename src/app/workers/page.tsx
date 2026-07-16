@@ -63,9 +63,9 @@ export default function WorkersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-3 sm:p-0">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">工人成本管理</h1>
+        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">工人成本管理</h1>
         <p className="text-gray-500 mt-1">查询工人年度工资汇总</p>
       </div>
 
@@ -78,15 +78,15 @@ export default function WorkersPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:flex">
             <Input
               placeholder="请输入工人姓名"
               value={searchName}
               onChange={(e) => setSearchName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="max-w-md"
+              className="w-full sm:max-w-md"
             />
-            <Button onClick={handleSearch} disabled={loading}>
+            <Button onClick={handleSearch} disabled={loading} className="w-full sm:w-auto">
               <Search className="w-4 h-4 mr-2" />
               {loading ? '查询中...' : '查询'}
             </Button>
@@ -125,15 +125,17 @@ export default function WorkersPage() {
               {/* 年度工资汇总 */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
+                  <CardTitle className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <span>年度工资记录</span>
-                    <span className="text-2xl font-bold text-blue-600">
+                    <span className="text-xl font-bold text-blue-600 sm:text-2xl">
                       总计: ¥{totalAmount}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {salaries.length > 0 ? (
+                    <>
+                    <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -158,6 +160,26 @@ export default function WorkersPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
+                    <div className="space-y-3 md:hidden">
+                      {salaries.map((salary) => (
+                        <div key={salary.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium">{salary.project_name}</div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                {new Date(salary.pay_date).toLocaleDateString('zh-CN')}
+                              </div>
+                            </div>
+                            <div className="shrink-0 font-semibold text-green-600">¥{salary.amount}</div>
+                          </div>
+                          <div className="mt-3 text-sm text-gray-600">
+                            备注：{salary.remark || '-'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    </>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
                       暂无工资记录

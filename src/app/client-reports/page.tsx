@@ -394,25 +394,25 @@ export default function ClientReportsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 tracking-tight">产值结算</h1>
           <p className="text-sm text-gray-500 mt-0.5">管理产值结算、开票金额、扣款和按比例付款</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadTemplate}>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:justify-end">
+          <Button variant="outline" onClick={downloadTemplate} className="w-full lg:w-auto">
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             下载模板
           </Button>
-          <Button variant="outline" onClick={handleExport}>
+          <Button variant="outline" onClick={handleExport} className="w-full lg:w-auto">
             <Download className="w-4 h-4 mr-2" />
             导出
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={() => window.print()} className="w-full lg:w-auto">
             <Printer className="w-4 h-4 mr-2" />
             打印
           </Button>
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing} className="w-full lg:w-auto">
             <Upload className="w-4 h-4 mr-2" />
             {importing ? '导入中...' : '导入'}
           </Button>
@@ -423,23 +423,23 @@ export default function ClientReportsPage() {
             onChange={handleImport}
             className="hidden"
           />
-          <Button variant="outline" onClick={() => setBatchDialogOpen(true)}>
+          <Button variant="outline" onClick={() => setBatchDialogOpen(true)} className="w-full lg:w-auto">
             <Upload className="w-4 h-4 mr-2" />
             批量录入
           </Button>
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setAddDialogOpen(true)} style={{ background: '#165DFF' }}>
+              <Button onClick={() => setAddDialogOpen(true)} className="w-full lg:w-auto" style={{ background: '#165DFF' }}>
                 <Plus className="w-4 h-4 mr-2" />
                 新增结算
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>新增产值结算</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleAdd} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label>项目 *</Label>
                     <Select
@@ -468,7 +468,7 @@ export default function ClientReportsPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label>结算金额</Label>
                     <Input
@@ -490,7 +490,7 @@ export default function ClientReportsPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <Label>扣款金额</Label>
                     <Input
@@ -531,7 +531,7 @@ export default function ClientReportsPage() {
                     placeholder="备注信息"
                   />
                 </div>
-                <div className="flex justify-end gap-2 pt-4">
+                <div className="grid grid-cols-2 gap-2 pt-4 sm:flex sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
                     取消
                   </Button>
@@ -544,7 +544,7 @@ export default function ClientReportsPage() {
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -663,75 +663,127 @@ export default function ClientReportsPage() {
           {loading ? (
             <div className="text-center py-8 text-gray-500">加载中...</div>
           ) : reports.length > 0 ? (
-            <Table className="zebra-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>项目名称</TableHead>
-                  <TableHead>结算日期</TableHead>
-                  <TableHead className="text-right">结算金额</TableHead>
-                  <TableHead className="text-right">开票金额</TableHead>
-                  <TableHead className="text-right">税率</TableHead>
-                  <TableHead className="text-right">不含税收入</TableHead>
-                  <TableHead className="text-right">税费</TableHead>
-                  <TableHead className="text-right">扣款金额</TableHead>
-                  <TableHead className="text-right">按比例付款</TableHead>
-                  <TableHead>备注</TableHead>
-                  <TableHead className="text-center">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <Table className="zebra-table min-w-[1080px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>项目名称</TableHead>
+                      <TableHead>结算日期</TableHead>
+                      <TableHead className="text-right">结算金额</TableHead>
+                      <TableHead className="text-right">开票金额</TableHead>
+                      <TableHead className="text-right">税率</TableHead>
+                      <TableHead className="text-right">不含税收入</TableHead>
+                      <TableHead className="text-right">税费</TableHead>
+                      <TableHead className="text-right">扣款金额</TableHead>
+                      <TableHead className="text-right">按比例付款</TableHead>
+                      <TableHead>备注</TableHead>
+                      <TableHead className="text-center">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reports.map((report) => (
+                      <TableRow key={report.id}>
+                        <TableCell className="font-medium">{report.project_name}</TableCell>
+                        <TableCell>{report.report_date?.split('T')[0]}</TableCell>
+                        <TableCell className="text-right font-medium text-blue-600">
+                          {formatCurrency(report.settlement_amount)}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600">
+                          {formatCurrency(report.invoice_amount)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="px-2 py-0.5 rounded text-xs" style={{ background: '#E8F3FF', color: '#165DFF' }}>
+                            {report.tax_rate || 9}%
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-purple-600">
+                          {formatNumber(report.untaxed_income)}
+                        </TableCell>
+                        <TableCell className="text-right text-orange-600">
+                          {formatNumber(report.tax_amount)}
+                        </TableCell>
+                        <TableCell className="text-right text-red-600">
+                          {formatCurrency(report.deduction_amount)}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {formatCurrency(report.proportional_payment)}
+                        </TableCell>
+                        <TableCell className="text-gray-500">{report.remark || '-'}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(report)}
+                              className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(report)}
+                              className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
                 {reports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell className="font-medium">{report.project_name}</TableCell>
-                    <TableCell>{report.report_date?.split('T')[0]}</TableCell>
-                    <TableCell className="text-right font-medium text-blue-600">
-                      {formatCurrency(report.settlement_amount)}
-                    </TableCell>
-                    <TableCell className="text-right text-green-600">
-                      {formatCurrency(report.invoice_amount)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className="px-2 py-0.5 rounded text-xs" style={{ background: '#E8F3FF', color: '#165DFF' }}>
-                        {report.tax_rate || 9}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-purple-600">
-                      {formatNumber(report.untaxed_income)}
-                    </TableCell>
-                    <TableCell className="text-right text-orange-600">
-                      {formatNumber(report.tax_amount)}
-                    </TableCell>
-                    <TableCell className="text-right text-red-600">
-                      {formatCurrency(report.deduction_amount)}
-                    </TableCell>
-                    <TableCell className="text-right text-gray-600">
-                      {formatCurrency(report.proportional_payment)}
-                    </TableCell>
-                    <TableCell className="text-gray-500">{report.remark || '-'}</TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleEdit(report)}
-                          className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleDelete(report)}
-                          className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                  <div key={report.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-gray-900">{report.project_name}</div>
+                        <div className="mt-1 text-xs text-gray-500">{report.report_date?.split('T')[0] || '-'}</div>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      <span className="shrink-0 rounded px-2 py-0.5 text-xs" style={{ background: '#E8F3FF', color: '#165DFF' }}>
+                        税率 {report.tax_rate || 9}%
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <div className="rounded bg-blue-50 p-2">
+                        <div className="text-xs text-blue-600">结算金额</div>
+                        <div className="mt-1 font-semibold text-blue-700">{formatCurrency(report.settlement_amount)}</div>
+                      </div>
+                      <div className="rounded bg-green-50 p-2">
+                        <div className="text-xs text-green-600">开票金额</div>
+                        <div className="mt-1 font-semibold text-green-700">{formatCurrency(report.invoice_amount)}</div>
+                      </div>
+                      <div className="rounded bg-purple-50 p-2">
+                        <div className="text-xs text-purple-600">不含税收入</div>
+                        <div className="mt-1 font-semibold text-purple-700">{formatNumber(report.untaxed_income)}</div>
+                      </div>
+                      <div className="rounded bg-orange-50 p-2">
+                        <div className="text-xs text-orange-600">税费</div>
+                        <div className="mt-1 font-semibold text-orange-700">{formatNumber(report.tax_amount)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div>扣款：<span className="font-medium text-red-600">{formatCurrency(report.deduction_amount)}</span></div>
+                      <div>按比例付款：<span className="font-medium text-gray-900">{formatCurrency(report.proportional_payment)}</span></div>
+                    </div>
+                    {report.remark && <div className="mt-2 text-xs text-gray-500">备注：{report.remark}</div>}
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3 sm:flex sm:justify-end">
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(report)} className="h-8">
+                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                        编辑
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDelete(report)} className="h-8 text-red-600 hover:text-red-700">
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        删除
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           ) : (
             <div className="text-center py-8 text-gray-500">
               暂无结算数据
@@ -742,12 +794,12 @@ export default function ClientReportsPage() {
 
       {/* 批量录入对话框 */}
       <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>批量录入产值结算</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleBatchAdd} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label>选择项目 *</Label>
                 <Select value={batchProjectId} onValueChange={setBatchProjectId}>
@@ -789,7 +841,7 @@ export default function ClientReportsPage() {
                 rows={10}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="grid grid-cols-2 gap-2 pt-4 sm:flex sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setBatchDialogOpen(false)}>
                 取消
               </Button>
@@ -801,7 +853,7 @@ export default function ClientReportsPage() {
 
       {/* 编辑对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑产值结算</DialogTitle>
           </DialogHeader>
@@ -812,7 +864,7 @@ export default function ClientReportsPage() {
                 <span className="font-medium text-gray-900">{editingReport?.project_name}</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label>结算金额</Label>
                 <Input
@@ -832,7 +884,7 @@ export default function ClientReportsPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div>
                 <Label>扣款金额</Label>
                 <Input
@@ -880,7 +932,7 @@ export default function ClientReportsPage() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveEdit} style={{ background: '#165DFF' }}>保存</Button>
           </div>
@@ -889,12 +941,12 @@ export default function ClientReportsPage() {
 
       {/* 删除确认对话框 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
           </DialogHeader>
           <p className="py-4">确定要删除该产值结算记录吗？此操作不可恢复。</p>
-          <div className="flex justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>取消</Button>
             <Button variant="destructive" onClick={handleConfirmDelete}>删除</Button>
           </div>

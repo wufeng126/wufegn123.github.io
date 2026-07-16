@@ -122,7 +122,7 @@ export default function ConstructionLogDetailPage() {
   const riskStatus = riskTags.find(tag => tag.startsWith('风险状态:'))?.replace('风险状态:', '') || '待确认';
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-4xl">
         <div className="mb-5 flex items-center justify-between">
           <Link href="/construction-logs?tab=logs" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
@@ -137,11 +137,11 @@ export default function ConstructionLogDetailPage() {
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-10 text-center text-sm text-[#4E5969]">{error || '未找到施工日志'}</div>
         ) : (
           <div className="space-y-4">
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-5">
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="text-sm text-[#86909C]">施工日志详情</p>
-                  <h1 className="mt-1 text-2xl font-bold text-[#1D2129]">{detail.project?.name || `项目${detail.project_id}`}</h1>
+                  <h1 className="mt-1 break-words text-xl font-bold text-[#1D2129] sm:text-2xl">{detail.project?.name || `项目${detail.project_id}`}</h1>
                   <div className="mt-3 flex flex-wrap gap-3 text-sm text-[#4E5969]">
                     <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4 text-[#165DFF]" />{detail.log_date}</span>
                     <span className="inline-flex items-center gap-1"><Users className="h-4 w-4 text-[#7C3AED]" />{detail.user_name || '未记录人员'}</span>
@@ -157,7 +157,7 @@ export default function ConstructionLogDetailPage() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-5">
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#1D2129]">
                 <FileText className="h-4 w-4 text-[#165DFF]" />
                 现场记录
@@ -203,7 +203,7 @@ export default function ConstructionLogDetailPage() {
               )}
             </section>
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-5">
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
               <h2 className="text-sm font-semibold text-[#1D2129]">风险识别与沉淀状态</h2>
               {detail.risk?.hasRisk ? (
                 <div className="mt-3 space-y-3">

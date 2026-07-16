@@ -249,7 +249,7 @@ export default function AuditLogsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <label className="text-sm text-gray-500 mb-1 block">操作类型</label>
               <Select value={operationType} onValueChange={(val) => { setOperationType(val === 'all' ? '' : val); setPage(1); }}>
@@ -357,6 +357,7 @@ export default function AuditLogsPage() {
             </div>
           ) : (
             <>
+              <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -402,13 +403,50 @@ export default function AuditLogsPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {logs.map((log) => (
+                  <div key={log.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs text-gray-500">{formatTime(log.created_at)}</div>
+                        <div className="mt-1 font-medium">{log.username || '系统'}</div>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={`${OPERATION_COLORS[log.operation_type] || 'bg-gray-100 text-gray-800'} shrink-0`}
+                      >
+                        {OPERATION_TYPE_MAP[log.operation_type] || log.operation_type}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs text-gray-500">资源类型</div>
+                        <div className="mt-1">{RESOURCE_TYPE_MAP[log.resource_type || ''] || log.resource_type || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">资源ID</div>
+                        <div className="mt-1">{log.resource_id || '-'}</div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-xs text-gray-500">操作详情</div>
+                        <div className="mt-1 line-clamp-3 text-gray-600">{formatDetails(log.details)}</div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-xs text-gray-500">IP地址</div>
+                        <div className="mt-1 text-gray-500">{log.ip_address || '-'}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               {/* 分页 */}
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm text-gray-500">
                   共 {total} 条记录，第 {page}/{totalPages || 1} 页
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:flex">
                   <Button
                     variant="outline"
                     size="sm"
@@ -446,8 +484,8 @@ export default function AuditLogsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-4">
-            <div className="flex-1 max-w-xs">
+          <div className="grid gap-3 sm:flex sm:items-end">
+            <div className="max-w-xs flex-1">
               <label className="text-sm text-gray-500 mb-1 block">清理此日期之前的日志</label>
               <Input
                 type="date"
@@ -457,19 +495,19 @@ export default function AuditLogsPage() {
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={!cleanupDate} className="gap-2">
+                <Button variant="destructive" disabled={!cleanupDate} className="w-full gap-2 sm:w-auto">
                   <Trash2 className="h-4 w-4" />
                   清理日志
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-lg">
                 <AlertDialogHeader>
                   <AlertDialogTitle>确认清理日志</AlertDialogTitle>
                   <AlertDialogDescription>
                     此操作将删除 {cleanupDate} 之前的所有日志记录，且不可恢复。确定继续吗？
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
+                <AlertDialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
                   <AlertDialogCancel>取消</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCleanup} className="bg-red-600 hover:bg-red-700">
                     确认清理

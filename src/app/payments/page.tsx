@@ -262,18 +262,18 @@ export default function PaymentsPage() {
   };
 
   return (
-    <div className="container mx-auto py-4 space-y-4">
+    <div className="container mx-auto space-y-4 px-3 py-4 sm:px-4 md:px-6">
       {/* 头部 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-xl font-bold">付款记录</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport}><Download className="w-4 h-4 mr-1" /> 导出</Button>
-          <Button onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4 mr-1" /> 新增付款</Button>
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex">
+          <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto"><Download className="w-4 h-4 mr-1" /> 导出</Button>
+          <Button onClick={() => setDialogOpen(true)} className="w-full sm:w-auto"><Plus className="w-4 h-4 mr-1" /> 新增付款</Button>
         </div>
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <Card><CardContent className="pt-3 px-3">
           <div className="text-xs text-muted-foreground">付款总额</div>
           <div className="text-xl font-bold text-red-600">¥{(stats.total / 10000).toFixed(1)}万</div>
@@ -319,15 +319,15 @@ export default function PaymentsPage() {
       {/* 筛选 */}
       <Card>
         <CardContent className="pt-3 px-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
             <Select value={filterSupplier} onValueChange={v => { setFilterSupplier(v); setFilterContract('all'); }}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="供应商" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="供应商" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部供应商</SelectItem>
                 {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Input placeholder="搜索..." value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} className="flex-1 min-w-[150px]" />
+            <Input placeholder="搜索..." value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} className="min-w-0 flex-1" />
           </div>
         </CardContent>
       </Card>
@@ -335,8 +335,51 @@ export default function PaymentsPage() {
       {/* 表格 */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="divide-y md:hidden">
+            {loading ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">加载中...</div>
+            ) : filteredData.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">暂无付款记录</div>
+            ) : (
+              filteredData.map(p => {
+                const contractName = p.contract?.contract_name || p.contract_name || '';
+                return (
+                  <div key={p.id} className="space-y-3 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{p.supplier_name}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{contractName || '-'}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-bold text-red-600">¥{Number(p.payment_amount).toLocaleString()}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{p.payment_date}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md bg-muted/50 p-2">
+                        <p className="text-muted-foreground">类型</p>
+                        <Badge variant={p.payment_type === 'progress' ? 'default' : p.payment_type === 'final' ? 'secondary' : 'outline'} className="mt-1">
+                          {p.payment_type === 'progress' ? '进度款' : p.payment_type === 'final' ? '尾款' : '质保金返还'}
+                        </Badge>
+                      </div>
+                      <div className="rounded-md bg-muted/50 p-2">
+                        <p className="text-muted-foreground">方式</p>
+                        <p className="mt-1 truncate font-medium">{p.payment_method || '-'}</p>
+                      </div>
+                    </div>
+                    {p.remark && <p className="line-clamp-2 text-xs text-muted-foreground">{p.remark}</p>}
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-700">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>供应商</TableHead>
@@ -387,7 +430,7 @@ export default function PaymentsPage() {
 
       {/* 新增对话框 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>新增付款记录</DialogTitle>
           </DialogHeader>
@@ -416,7 +459,7 @@ export default function PaymentsPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>付款日期</Label>
                 <Input type="date" value={formData.payment_date}
@@ -429,7 +472,7 @@ export default function PaymentsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>付款类型</Label>
                 <Select value={formData.payment_type}
@@ -458,7 +501,7 @@ export default function PaymentsPage() {
                 onChange={e => setFormData(p => ({ ...p, remark: e.target.value }))} />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
               <Button type="submit">保存</Button>
             </div>

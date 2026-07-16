@@ -388,14 +388,14 @@ export default function SupplierRosterPage() {
   };
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
+    <div className="container mx-auto px-3 py-4 sm:p-4 md:p-6">
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight mb-2">供应商库</h1>
         <p className="text-muted-foreground">管理供应商和班组基础信息</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardContent className="p-3">
             <div className="text-2xl font-bold">{stats.total}</div>
@@ -458,15 +458,15 @@ export default function SupplierRosterPage() {
                 className="pl-9"
               />
             </div>
-            <Button onClick={() => openEditDialog()} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => openEditDialog()} className="w-full bg-blue-600 hover:bg-blue-700 md:w-auto">
                 <Plus className="w-4 h-4 mr-1" /> 新增供应商
               </Button>
           </div>
 
           {/* Table */}
           <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table>
+            <CardContent className="p-0">
+              <Table className="hidden md:table">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[120px]">供应商名称</TableHead>
@@ -524,6 +524,44 @@ export default function SupplierRosterPage() {
                   )}
                 </TableBody>
               </Table>
+              <div className="space-y-3 p-3 md:hidden">
+                {loading ? (
+                  <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-muted-foreground">加载中...</div>
+                ) : filteredSuppliers.length === 0 ? (
+                  <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-muted-foreground">暂无供应商数据</div>
+                ) : filteredSuppliers.map((supplier) => (
+                  <article key={supplier.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900">{supplier.name}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{supplier.contact || '-'} / {supplier.phone || '-'}</p>
+                      </div>
+                      <Badge variant={supplier.type === 'supplier' ? 'default' : 'secondary'} className="shrink-0">
+                        {supplier.type === 'supplier' ? '供应商' : '班组'}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-xs">
+                      <span className="text-muted-foreground">合同状态</span>
+                      {supplier.has_contract ? (
+                        <Badge className="bg-green-100 text-green-800">已签合同</Badge>
+                      ) : (
+                        <Badge className="border-orange-200 bg-orange-100 text-orange-700">待签合同</Badge>
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
+                      <Button size="sm" variant="outline" onClick={() => openEditDialog(supplier)} className="px-0">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openContractDialog(supplier.id)} className="px-0">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(supplier.id)} className="px-0 text-red-600">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -562,15 +600,15 @@ export default function SupplierRosterPage() {
                 className="pl-9"
               />
             </div>
-            <Button onClick={() => openContractDialog()} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => openContractDialog()} className="w-full bg-blue-600 hover:bg-blue-700 md:w-auto">
               <Plus className="w-4 h-4 mr-1" /> 新增合同
             </Button>
           </div>
 
           {/* Table */}
           <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table>
+            <CardContent className="p-0">
+              <Table className="hidden md:table">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[120px]">供应商</TableHead>
@@ -649,6 +687,59 @@ export default function SupplierRosterPage() {
                   )}
                 </TableBody>
               </Table>
+              <div className="space-y-3 p-3 md:hidden">
+                {contractsLoading ? (
+                  <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-muted-foreground">加载中...</div>
+                ) : filteredContracts.length === 0 ? (
+                  <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-muted-foreground">暂无合同数据</div>
+                ) : filteredContracts.map((contract) => {
+                  const supplier = suppliers.find(s => s.id === contract.supplier_id);
+                  const project = projects.find(p => p.id === contract.project_id);
+                  return (
+                    <article key={contract.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-gray-900">{contract.contract_name || '-'}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{supplier?.name || '-'} / {project?.name || '-'}</p>
+                        </div>
+                        {contract.has_final_settlement ? (
+                          <Badge variant="secondary" className="shrink-0">已决算</Badge>
+                        ) : contract.locked ? (
+                          <Badge variant="secondary" className="shrink-0">已完结</Badge>
+                        ) : (
+                          <Badge className="shrink-0 bg-green-100 text-green-800">履约中</Badge>
+                        )}
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <p className="text-muted-foreground">累计结算</p>
+                          <p className="mt-1 font-semibold text-blue-600">¥{Number(contract.total_settlement_amount || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <p className="text-muted-foreground">已付金额</p>
+                          <p className="mt-1 font-semibold text-green-600">¥{Number(contract.total_paid_amount || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <p className="text-muted-foreground">进度未付</p>
+                          <p className="mt-1 font-semibold text-orange-600">¥{Number(contract.progress_pending_amount || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <p className="text-muted-foreground">决算未付</p>
+                          <p className="mt-1 font-semibold text-red-600">¥{Number(contract.final_pending_amount || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-gray-100 pt-3">
+                        <Button size="sm" variant="outline" onClick={() => openContractDialog(undefined, contract)}>
+                          <Edit className="mr-1 h-4 w-4" />编辑
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteContract(contract.id)} className="text-red-600">
+                          <Trash2 className="mr-1 h-4 w-4" />删除
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -656,7 +747,7 @@ export default function SupplierRosterPage() {
 
       {/* Supplier Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? '编辑供应商' : '新增供应商'}</DialogTitle>
           </DialogHeader>
@@ -682,7 +773,7 @@ export default function SupplierRosterPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="contact">联系人</Label>
                 <Input
@@ -703,7 +794,7 @@ export default function SupplierRosterPage() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
             <Button onClick={handleSave}>{editId ? '保存' : '创建'}</Button>
           </DialogFooter>
@@ -712,7 +803,7 @@ export default function SupplierRosterPage() {
 
       {/* Contract Dialog */}
       <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{contractEditId ? '编辑合同' : '新增合同'}</DialogTitle>
           </DialogHeader>
@@ -776,7 +867,7 @@ export default function SupplierRosterPage() {
               <div className="flex items-center gap-2 mb-3 text-sm font-medium text-orange-600">
                 <span className="px-2 py-0.5 bg-orange-100 rounded text-orange-700">财务管控字段</span>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="grid gap-2">
                   <Label htmlFor="payment_ratio_active" className="text-amber-700">进度付款比例 (%)</Label>
                   <Input
@@ -804,7 +895,7 @@ export default function SupplierRosterPage() {
                 提示：进度付款比例+决算比例建议不超过100%，结算时将自动按比例计算应付金额
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="sign_date">签订日期</Label>
                 <Input
@@ -825,7 +916,7 @@ export default function SupplierRosterPage() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setContractDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveContract}>{contractEditId ? '保存' : '创建'}</Button>
           </DialogFooter>

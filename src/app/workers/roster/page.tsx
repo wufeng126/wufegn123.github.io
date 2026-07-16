@@ -639,25 +639,25 @@ export default function WorkerRosterPage() {
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>花名册</h1>
           <p className="text-sm mt-1" style={{ color: '#86909C' }}>工人基本信息管理</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap sm:justify-end">
+          <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9 w-full sm:w-auto">
             <Download className="w-4 h-4 mr-1.5" />下载模板
           </Button>
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="btn-secondary h-9 cursor-pointer">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="btn-secondary h-9 w-full cursor-pointer sm:w-auto">
             <Upload className="w-4 h-4 mr-1.5" />批量导入<span className="text-xs text-muted-foreground ml-1">(CSV/XLSX)</span>
           </Button>
-          <Button variant="outline" onClick={handleExport} className="btn-secondary h-9">
+          <Button variant="outline" onClick={handleExport} className="btn-secondary h-9 w-full sm:w-auto">
             <Download className="w-4 h-4 mr-1.5" />导出
           </Button>
           <Link href="/workers/import-history">
-            <Button variant="outline" className="btn-secondary h-9">
+            <Button variant="outline" className="btn-secondary h-9 w-full sm:w-auto">
               <History className="w-4 h-4 mr-1.5" />导入历史
             </Button>
           </Link>
           <Button 
             variant="outline" 
             onClick={() => setDataManageDialogOpen(true)} 
-            className="btn-secondary h-9"
+            className="btn-secondary h-9 w-full sm:w-auto"
           >
             <Database className="w-4 h-4 mr-1.5" />数据管理
           </Button>
@@ -667,28 +667,28 @@ export default function WorkerRosterPage() {
       {/* 新增/编辑对话框 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogTrigger asChild>
-          <Button onClick={openAddDialog} className="btn-primary h-9">
+          <Button onClick={openAddDialog} className="btn-primary h-9 w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-1.5" />新增工人
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="dialog-header">{editingWorker ? '编辑工人' : '新增工人'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>姓名 *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="mt-1.5" required /></div>
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>工种</Label><Input value={formData.work_type} onChange={(e) => setFormData({ ...formData, work_type: e.target.value })} placeholder="如：木工、钢筋工" className="mt-1.5" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>身份证号</Label><Input value={formData.id_card} onChange={(e) => setFormData({ ...formData, id_card: e.target.value })} maxLength={18} className="mt-1.5" /></div>
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>联系方式</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="mt-1.5" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>银行卡号</Label><Input value={formData.bank_card} onChange={(e) => setFormData({ ...formData, bank_card: e.target.value })} className="mt-1.5" /></div>
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>入职日期</Label><Input type="date" value={formData.entry_date} onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })} className="mt-1.5" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><Label className="text-sm" style={{ color: '#1D2129' }}>所属项目</Label>
                 <Select value={formData.project_id} onValueChange={(value) => setFormData({ ...formData, project_id: value })}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择项目" /></SelectTrigger>
@@ -708,7 +708,7 @@ export default function WorkerRosterPage() {
               </Label>
             </div>
             <div><Label className="text-sm" style={{ color: '#1D2129' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} placeholder="记录重要信息" className="mt-1.5" /></div>
-            <div className="flex justify-end gap-3 pt-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t sm:flex sm:justify-end sm:gap-3" style={{ borderColor: '#E5E6EB' }}>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" className="btn-primary">{editingWorker ? '保存' : '新增'}</Button>
             </div>
@@ -831,8 +831,8 @@ export default function WorkerRosterPage() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center">
-                  <ResponsiveContainer width="55%" height={200}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <ResponsiveContainer width="100%" height={200} className="sm:!w-[55%]">
                     <PieChart>
                       <Pie
                         data={workTypeDistribution}
@@ -856,7 +856,7 @@ export default function WorkerRosterPage() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="flex-1 space-y-1.5 max-h-[200px] overflow-y-auto pr-2">
+                  <div className="w-full flex-1 space-y-1.5 max-h-[200px] overflow-y-auto pr-2">
                     {workTypeDistribution.map((item, index) => (
                       <div key={item.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5">
@@ -891,7 +891,7 @@ export default function WorkerRosterPage() {
             </div>
             {showProjectStats && (
               <div className="border-t" style={{ borderColor: '#E5E6EB' }}>
-                <div className="overflow-x-auto">
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full">
                     <thead>
                       <tr style={{ background: '#F7F8FA' }}>
@@ -951,6 +951,36 @@ export default function WorkerRosterPage() {
                     </tbody>
                   </table>
                 </div>
+                <div className="grid gap-2 p-3 md:hidden">
+                  {projectStats.map((proj) => {
+                    const isHighlighted = highlightProjectId === proj.projectId;
+                    return (
+                      <button
+                        key={proj.projectId}
+                        type="button"
+                        className="rounded-lg border p-3 text-left transition"
+                        style={{
+                          borderColor: isHighlighted ? '#165DFF' : '#E5E6EB',
+                          background: isHighlighted ? '#E8F3FF' : '#fff',
+                        }}
+                        onClick={() => {
+                          const newProjectId = proj.projectId === 0 ? 'all' : proj.projectId.toString();
+                          setFilterProject(newProjectId);
+                          setHighlightProjectId(proj.projectId === 0 ? null : proj.projectId);
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate text-sm font-medium" style={{ color: '#1D2129' }}>{proj.projectName}</span>
+                          <span className="text-xs" style={{ color: '#86909C' }}>{proj.total}</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <span className="rounded-md px-2 py-1" style={{ background: '#E8FFEA', color: '#00B42A' }}>在场 {proj.inService}</span>
+                          <span className="rounded-md px-2 py-1" style={{ background: '#FFF7E8', color: '#FF7D00' }}>退场 {proj.left}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="px-5 py-2.5 border-t text-xs" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
                   提示：点击项目行可筛选该项目工人
                 </div>
@@ -962,14 +992,14 @@ export default function WorkerRosterPage() {
 
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <div className="filter-bar flex-wrap gap-2">
+        <div className="filter-bar grid gap-2 sm:flex sm:flex-wrap">
           <Filter className="w-4 h-4 flex-shrink-0" style={{ color: '#86909C' }} />
-          <div className="relative flex-shrink-0">
+          <div className="relative w-full sm:w-auto sm:flex-shrink-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#C9CDD4' }} />
-            <Input placeholder="搜索姓名或工种" value={searchName} onChange={(e) => setSearchName(e.target.value)} className="w-40 pl-9 h-8" />
+            <Input placeholder="搜索姓名或工种" value={searchName} onChange={(e) => setSearchName(e.target.value)} className="h-9 w-full pl-9 sm:h-8 sm:w-40" />
           </div>
           <Select value={filterProject} onValueChange={setFilterProject}>
-            <SelectTrigger className="w-32 h-8"><SelectValue placeholder="所属项目" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:h-8 sm:w-32"><SelectValue placeholder="所属项目" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部项目</SelectItem>
               <SelectItem value="unassigned">未分配项目</SelectItem>
@@ -977,14 +1007,14 @@ export default function WorkerRosterPage() {
             </SelectContent>
           </Select>
           <Select value={filterWorkType} onValueChange={setFilterWorkType}>
-            <SelectTrigger className="w-28 h-8"><SelectValue placeholder="工种" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:h-8 sm:w-28"><SelectValue placeholder="工种" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部工种</SelectItem>
               {workTypes.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-24 h-8"><SelectValue placeholder="状态" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:h-8 sm:w-24"><SelectValue placeholder="状态" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部状态</SelectItem>
               <SelectItem value="in_service">在场</SelectItem>
@@ -994,12 +1024,12 @@ export default function WorkerRosterPage() {
             </SelectContent>
           </Select>
           {/* 快速切换按钮 */}
-          <div className="flex gap-1 ml-auto">
+          <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex sm:gap-1">
             <Button 
               variant={filterStatus === 'in_service' ? 'default' : 'outline'} 
               size="sm" 
               onClick={() => setFilterStatus(filterStatus === 'in_service' ? 'all' : 'in_service')} 
-              className="h-8 px-2 text-xs"
+              className="h-9 px-2 text-xs sm:h-8"
             >
               <UserCheck className="w-3 h-3 mr-1" />在场
             </Button>
@@ -1007,17 +1037,17 @@ export default function WorkerRosterPage() {
               variant={filterStatus === 'left' ? 'default' : 'outline'} 
               size="sm" 
               onClick={() => setFilterStatus(filterStatus === 'left' ? 'all' : 'left')} 
-              className="h-8 px-2 text-xs"
+              className="h-9 px-2 text-xs sm:h-8"
             >
               <LogOut className="w-3 h-3 mr-1" />退场
             </Button>
           </div>
           {(searchName || filterProject !== 'all' || filterWorkType !== 'all' || filterStatus !== 'all') && (
-            <Button variant="ghost" size="sm" onClick={() => { setSearchName(''); setFilterProject('all'); setFilterWorkType('all'); setFilterStatus('all'); }} className="h-8" style={{ color: '#86909C' }}>
+            <Button variant="ghost" size="sm" onClick={() => { setSearchName(''); setFilterProject('all'); setFilterWorkType('all'); setFilterStatus('all'); }} className="h-9 sm:h-8" style={{ color: '#86909C' }}>
               <X className="w-4 h-4 mr-1" />重置
             </Button>
           )}
-          <div className="flex gap-2 items-center border-l pl-3 ml-2" style={{ borderColor: '#E5E6EB' }}>
+          <div className="grid grid-cols-2 gap-2 border-t pt-2 sm:ml-2 sm:flex sm:items-center sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0" style={{ borderColor: '#E5E6EB' }}>
             {selectedIds.size > 0 && (
               <span className="text-sm" style={{ color: '#86909C' }}>已选 {selectedIds.size} 项</span>
             )}
@@ -1049,7 +1079,7 @@ export default function WorkerRosterPage() {
                     <div key={group.key} className="border-b last:border-b-0" style={{ borderColor: '#E5E6EB' }}>
                       {/* 项目标题行 - 可折叠 */}
                       <div
-                        className="flex items-center justify-between px-5 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                        className="flex flex-col gap-2 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-2.5"
                         style={{ background: '#F7F8FA' }}
                         onClick={() => {
                           const newCollapsed = new Set(collapsedProjects);
@@ -1061,7 +1091,7 @@ export default function WorkerRosterPage() {
                           setCollapsedProjects(newCollapsed);
                         }}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto">
                           <span className={`transition-transform text-gray-400 text-xs ${isCollapsed ? '' : 'rotate-180'}`}>▼</span>
                           <Checkbox
                             checked={allSelected}
@@ -1077,17 +1107,18 @@ export default function WorkerRosterPage() {
                             onClick={(e) => e.stopPropagation()}
                           />
                           <Building2 className="w-4 h-4" style={{ color: group.key === '__unassigned__' ? '#86909C' : '#165DFF' }} />
-                          <span className="font-medium" style={{ color: '#1D2129' }}>{group.projectName}</span>
+                          <span className="min-w-0 flex-1 truncate font-medium sm:flex-none" style={{ color: '#1D2129' }}>{group.projectName}</span>
                           <span className="text-sm" style={{ color: '#86909C' }}>({group.workers.length}人)</span>
                         </div>
-                        <div className="flex items-center gap-4 text-sm">
+                        <div className="flex w-full items-center gap-4 pl-12 text-sm sm:w-auto sm:pl-0">
                           <span style={{ color: '#86909C' }}>在场: <span className="font-medium" style={{ color: '#00B42A' }}>{inServiceCount}</span></span>
                           <span style={{ color: '#86909C' }}>退场: <span className="font-medium" style={{ color: '#FF7D00' }}>{leftCount}</span></span>
                         </div>
                       </div>
                       {/* 项目内明细表格 */}
                       {!isCollapsed && (
-                        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                        <>
+                        <div className="hidden overflow-x-auto max-h-[500px] overflow-y-auto md:block">
                           <Table className="zebra-table">
                             <TableHeader className="sticky top-0 z-10" style={{ background: '#FAFBFD' }}>
                               <TableRow style={{ background: '#FAFBFD', borderBottom: '1px solid #E5E6EB' }}>
@@ -1151,6 +1182,60 @@ export default function WorkerRosterPage() {
                             </TableBody>
                           </Table>
                         </div>
+                        <div className="grid gap-3 p-3 md:hidden">
+                          {group.workers.map((worker) => (
+                            <article
+                              key={worker.id}
+                              className="rounded-lg border bg-white p-3"
+                              style={{
+                                borderColor: selectedIds.has(worker.id) ? '#165DFF' : '#E5E6EB',
+                                background: selectedIds.has(worker.id) ? '#F5F8FF' : '#fff',
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <Checkbox checked={selectedIds.has(worker.id)} onCheckedChange={() => handleSelectOne(worker.id)} />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <LinkableCell href={`/hr-salary?tab=salaries&worker_id=${worker.id}`} className="truncate text-sm font-semibold text-foreground">
+                                        {worker.name}
+                                      </LinkableCell>
+                                      {worker.is_blacklist && <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-600">黑</span>}
+                                    </div>
+                                    <div className="mt-1 text-xs" style={{ color: '#86909C' }}>{worker.work_type || '-'} / {worker.phone || '-'}</div>
+                                  </div>
+                                </div>
+                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  worker.is_blacklist ? 'bg-red-100 text-red-600' :
+                                  worker.status === 'left' ? 'bg-orange-100 text-orange-700' :
+                                  worker.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+                                  'bg-green-100 text-green-700'
+                                }`}>
+                                  {worker.is_blacklist ? '黑名单' : worker.status === 'left' ? '退场' : worker.status === 'archived' ? '已归档' : '在场'}
+                                </span>
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-md bg-gray-50 p-2">
+                                  <div style={{ color: '#86909C' }}>身份证</div>
+                                  <div className="mt-1 truncate" style={{ color: '#1D2129' }}>{worker.id_card || '-'}</div>
+                                </div>
+                                <div className="rounded-md bg-gray-50 p-2">
+                                  <div style={{ color: '#86909C' }}>入场日期</div>
+                                  <div className="mt-1" style={{ color: '#1D2129' }}>{worker.entry_date ? worker.entry_date.split('T')[0] : '-'}</div>
+                                </div>
+                              </div>
+                              <div className="mt-3 grid grid-cols-4 gap-2">
+                                <Button size="sm" variant="outline" onClick={() => handleEdit(worker)} className="h-8 px-0" style={{ color: '#165DFF' }}><Pencil className="w-4 h-4" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => handleToggleStatus(worker)} className="h-8 px-0" style={{ color: worker.status === 'left' ? '#00B42A' : '#FF7D00' }}>
+                                  {worker.status === 'left' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => handleOpenTransfer(worker)} className="h-8 px-0" style={{ color: '#722ED1' }}><Building2 className="w-4 h-4" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => handleDelete(worker.id)} className="h-8 px-0" style={{ color: '#F53F3F' }}><Trash2 className="w-4 h-4" /></Button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                        </>
                       )}
                     </div>
                   );
@@ -1171,7 +1256,7 @@ export default function WorkerRosterPage() {
 
       {/* 批量修改对话框 */}
       <Dialog open={batchEditDialogOpen} onOpenChange={setBatchEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto">
           <DialogHeader><DialogTitle className="dialog-header">批量修改（已选 {selectedIds.size} 项）</DialogTitle></DialogHeader>
           <form onSubmit={handleBatchEdit} className="space-y-4">
             <div><Label className="text-sm" style={{ color: '#1D2129' }}>选择要修改的字段</Label>
@@ -1190,7 +1275,7 @@ export default function WorkerRosterPage() {
                 <SelectContent>{projects.map((p) => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}</SelectContent>
               </Select>
             </div>}
-            <div className="flex justify-end gap-3 pt-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t sm:flex sm:justify-end sm:gap-3" style={{ borderColor: '#E5E6EB' }}>
               <Button type="button" variant="outline" onClick={() => setBatchEditDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" disabled={!batchEditField} className="btn-primary">确认修改</Button>
             </div>
@@ -1218,7 +1303,7 @@ export default function WorkerRosterPage() {
 
       {/* 调动对话框 */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>工人调动</DialogTitle>
             <DialogDescription>
@@ -1268,7 +1353,7 @@ export default function WorkerRosterPage() {
             </select>
           </div>
 
-          <DialogFooter className="mt-4">
+          <DialogFooter className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>取消</Button>
             <Button onClick={handleTransfer} disabled={!transferProjectId} style={{ background: '#165DFF' }}>确认调动</Button>
           </DialogFooter>

@@ -531,11 +531,11 @@ export default function AuthCenterPage() {
           <CardContent className="p-0">
             {/* Tabs */}
             <div className="border-b">
-              <div className="flex gap-1 p-2">
+              <div className="flex gap-1 overflow-x-auto p-2">
                 <button
                   onClick={() => setActiveTab('roles')}
                   className={cn(
-                    'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                    'shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors',
                     activeTab === 'roles'
                       ? 'bg-blue-100 text-blue-700 border border-blue-200'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -546,7 +546,7 @@ export default function AuthCenterPage() {
                 <button
                   onClick={() => setActiveTab('users')}
                   className={cn(
-                    'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                    'shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors',
                     activeTab === 'users'
                       ? 'bg-blue-100 text-blue-700 border border-blue-200'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -557,7 +557,7 @@ export default function AuthCenterPage() {
                 <button
                   onClick={() => setActiveTab('permissions')}
                   className={cn(
-                    'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                    'shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors',
                     activeTab === 'permissions'
                       ? 'bg-blue-100 text-blue-700 border border-blue-200'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -569,18 +569,18 @@ export default function AuthCenterPage() {
             </div>
 
             {/* Tab Content */}
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* 角色管理 Tab */}
               {activeTab === 'roles' && (
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
+                  <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
                     <h2 className="text-lg font-medium">角色列表</h2>
-                    <Button onClick={() => openRoleDialog()} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={() => openRoleDialog()} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">
                       <Plus className="h-4 w-4 mr-2" />
                       新增角色
                     </Button>
                   </div>
-                  <div className="border rounded-lg">
+                  <div className="hidden overflow-x-auto rounded-lg border md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -636,20 +636,66 @@ export default function AuthCenterPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  <div className="space-y-3 md:hidden">
+                    {roles.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
+                        暂无角色数据
+                      </div>
+                    ) : roles.map((role) => (
+                      <div key={role.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-gray-900">{role.name}</div>
+                            <div className="mt-1">
+                              <Badge variant="outline">{role.code}</Badge>
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="shrink-0">{role.permission_count}</Badge>
+                        </div>
+                        <div className="mt-2 text-sm text-gray-500">{role.description || '-'}</div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openRoleDialog(role)}
+                            className="text-blue-600"
+                          >
+                            <Edit className="mr-1 h-4 w-4" />
+                            编辑
+                          </Button>
+                          {!role.is_super_admin ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteRole(role)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-1 h-4 w-4" />
+                              删除
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="sm" disabled>
+                              超级管理员
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* 用户管理 Tab */}
               {activeTab === 'users' && (
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
+                  <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
                     <h2 className="text-lg font-medium">用户列表</h2>
-                    <Button onClick={openUserDialog} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={openUserDialog} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">
                       <Plus className="h-4 w-4 mr-2" />
                       新增用户
                     </Button>
                   </div>
-                  <div className="border rounded-lg">
+                  <div className="hidden overflow-x-auto rounded-lg border md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -701,6 +747,44 @@ export default function AuthCenterPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  <div className="space-y-3 md:hidden">
+                    {users.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
+                        暂无用户数据
+                      </div>
+                    ) : users.map((user) => (
+                      <div key={user.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-gray-900">{user.name}</div>
+                            <div className="mt-1 truncate text-xs text-gray-500">{user.username}</div>
+                          </div>
+                          <Badge variant="outline" className="shrink-0">{user.role || '-'}</Badge>
+                        </div>
+                        <div className="mt-2 text-sm text-gray-500">{user.phone || '-'}</div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openUserRoleDialog(user)}
+                            className="text-blue-600"
+                          >
+                            <UserCog className="mr-1 h-4 w-4" />
+                            角色
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteUser(user)}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            删除
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -750,7 +834,7 @@ export default function AuthCenterPage() {
 
       {/* 角色编辑对话框 */}
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{editingRole ? '编辑角色' : '新增角色'}</DialogTitle>
             <DialogDescription>
@@ -762,7 +846,7 @@ export default function AuthCenterPage() {
             {/* 角色基本信息 */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-gray-700">基本信息</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">角色名称 *</Label>
                   <Input
@@ -796,14 +880,14 @@ export default function AuthCenterPage() {
             {/* 权限配置 - 确保始终渲染，即使权限为空 */}
             {!roleForm.is_super_admin && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="grid gap-2 sm:flex sm:items-center sm:justify-between">
                   <h3 className="text-sm font-medium text-gray-700">权限配置</h3>
                   <span className="text-sm text-gray-500">
                     已选择 {selectedPermissions.length} 项权限
                   </span>
                 </div>
                 
-                <div className="border rounded-lg p-4 max-h-[400px] overflow-y-auto space-y-6">
+                <div className="max-h-[400px] space-y-6 overflow-y-auto rounded-lg border p-3 sm:p-4">
                   {groupedPermissions.map((module) => (
                     <div key={module.key} className="space-y-2">
                       <div className="flex items-center gap-2 sticky top-0 bg-white pb-2">
@@ -825,7 +909,7 @@ export default function AuthCenterPage() {
                         </Badge>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-2 pl-8">
+                      <div className="grid gap-2 pl-0 sm:grid-cols-2 sm:pl-8">
                         {module.permissions.map((perm) => (
                           <div 
                             key={perm.code} 
@@ -876,7 +960,7 @@ export default function AuthCenterPage() {
 
       {/* 用户角色分配对话框 */}
       <Dialog open={userRoleDialogOpen} onOpenChange={setUserRoleDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>分配角色</DialogTitle>
             <DialogDescription>
@@ -939,7 +1023,7 @@ export default function AuthCenterPage() {
 
       {/* 新增用户对话框 */}
       <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>新增用户</DialogTitle>
             <DialogDescription>创建一个新的系统用户</DialogDescription>

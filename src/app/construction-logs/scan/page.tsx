@@ -135,9 +135,9 @@ export default function ConstructionLogScanPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex items-center gap-3">
+        <div className="mb-5 flex items-start gap-3">
           <Link href="/construction-logs" className="rounded-lg p-2 hover:bg-[#F2F3F5]">
             <ArrowLeft className="h-5 w-5 text-[#4E5969]" />
           </Link>
@@ -149,7 +149,7 @@ export default function ConstructionLogScanPage() {
 
         <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
-            <label className="flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 text-center hover:border-[#165DFF]">
+            <label className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 text-center hover:border-[#165DFF] sm:min-h-[260px]">
               {previews.length > 0 ? (
                 <div className="grid w-full grid-cols-2 gap-2">
                   {previews.slice(0, 6).map((preview, index) => (
@@ -198,13 +198,13 @@ export default function ConstructionLogScanPage() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="rounded-xl border border-[#E5E6EB] bg-white p-5">
-            <div className="mb-4 flex items-center justify-between">
+          <form onSubmit={handleSubmit} className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-semibold text-[#1D2129]">人工确认草稿</h2>
                 <p className="mt-1 text-xs text-[#86909C]">识别内容可能有误，请核对后提交</p>
               </div>
-              <button type="button" onClick={resetDraft} className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#E5E6EB] px-3 text-xs text-[#4E5969] hover:bg-[#F7F8FA]">
+              <button type="button" onClick={resetDraft} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#E5E6EB] px-3 text-xs text-[#4E5969] hover:bg-[#F7F8FA] sm:w-auto">
                 <RotateCcw className="h-3.5 w-3.5" />清空
               </button>
             </div>

@@ -257,9 +257,9 @@ export default function WorkerCostDashboard() {
       title="工人成本统计看板"
       loading={loading}
       filterBar={
-        <div className="flex items-center gap-2">
+        <div className="mobile-filter-grid sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-2">
           <Select value={selectedProject} onValueChange={setSelectedProject}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="选择项目" />
             </SelectTrigger>
             <SelectContent>
@@ -271,7 +271,7 @@ export default function WorkerCostDashboard() {
           </Select>
           <button
             onClick={loadData}
-            className="p-2 hover:bg-accent rounded-md transition-colors"
+            className="flex w-full items-center justify-center rounded-md p-2 transition-colors hover:bg-accent sm:w-auto"
             title="刷新数据"
           >
             <RefreshCw className="h-4 w-4" />
@@ -360,7 +360,7 @@ export default function WorkerCostDashboard() {
       }
       ledgerSection={
         <CollapsibleSection title="项目年度工资汇总" defaultOpen={true}>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -410,6 +410,52 @@ export default function WorkerCostDashboard() {
                 </tfoot>
               )}
             </table>
+          </div>
+          <div className="space-y-3 md:hidden">
+            {projectSummaryData.map((item, idx) => (
+              <div key={`mobile-worker-cost-${idx}`} className="rounded-lg border bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <LinkableCell href={`/projects/${item.id || ''}`}>{item.name}</LinkableCell>
+                    <div className="mt-1 text-xs text-muted-foreground">在岗 {item.activeCount} 人</div>
+                  </div>
+                  <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${item.unpaid > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {item.unpaid > 0 ? '有未付' : '已结清'}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded bg-blue-50 p-2">
+                    <div className="text-blue-600">应付金额</div>
+                    <div className="mt-1 font-semibold text-blue-700">{formatAmountSmart(item.grossPay)}</div>
+                  </div>
+                  <div className="rounded bg-green-50 p-2">
+                    <div className="text-green-600">实发金额</div>
+                    <div className="mt-1 font-semibold text-green-700">{formatAmountSmart(item.netPay)}</div>
+                  </div>
+                  <div className="rounded bg-purple-50 p-2">
+                    <div className="text-purple-600">已付金额</div>
+                    <div className="mt-1 font-semibold text-purple-700">{formatAmountSmart(item.paid)}</div>
+                  </div>
+                  <div className="rounded bg-red-50 p-2">
+                    <div className="text-red-600">未付金额</div>
+                    <div className="mt-1 font-semibold text-red-700">{formatAmountSmart(item.unpaid)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {projectSummaryData.length === 0 && (
+              <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+                暂无数据
+              </div>
+            )}
+            {projectSummaryData.length > 0 && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm font-medium">
+                <div className="flex justify-between"><span>合计人数</span><span>{projectSummaryData.reduce((s, d) => s + d.activeCount, 0)} 人</span></div>
+                <div className="mt-2 flex justify-between"><span>应付金额</span><span>{formatAmountSmart(projectSummaryData.reduce((s, d) => s + d.grossPay, 0))}</span></div>
+                <div className="mt-2 flex justify-between text-purple-600"><span>已付金额</span><span>{formatAmountSmart(projectSummaryData.reduce((s, d) => s + d.paid, 0))}</span></div>
+                <div className="mt-2 flex justify-between text-red-600"><span>未付金额</span><span>{formatAmountSmart(projectSummaryData.reduce((s, d) => s + d.unpaid, 0))}</span></div>
+              </div>
+            )}
           </div>
         </CollapsibleSection>
       }

@@ -647,16 +647,16 @@ export default function NotificationsPage() {
       {/* 消息列表 */}
       <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
         <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
+              <TabsList className="w-full justify-start sm:w-auto">
                 <TabsTrigger value="all">全部</TabsTrigger>
                 <TabsTrigger value="unread">未读 {stats.unread > 0 && `(${stats.unread})`}</TabsTrigger>
                 <TabsTrigger value="danger">预警</TabsTrigger>
               </TabsList>
             </Tabs>
             {stats.unread > 0 && (
-              <Button variant="ghost" size="sm" onClick={markAllRead} className="text-xs">
+              <Button variant="ghost" size="sm" onClick={markAllRead} className="w-full text-xs sm:w-auto">
                 <CheckCheck className="w-4 h-4 mr-1" />
                 全部已读
               </Button>

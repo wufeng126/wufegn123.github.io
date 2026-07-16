@@ -259,7 +259,7 @@ export default function BackupPage() {
           </h1>
           <p className="text-muted-foreground mt-1">系统核心数据定期备份，确保数据安全</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
           <Button onClick={() => setIsBackupDialogOpen(true)} className="gap-2">
             <Play className="w-4 h-4" />
             立即备份
@@ -343,7 +343,7 @@ export default function BackupPage() {
           <CardDescription>最近90天的备份记录列表</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -416,12 +416,67 @@ export default function BackupPage() {
               </TableBody>
             </Table>
           </div>
+          <div className="space-y-3 md:hidden">
+            {records.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">暂无备份记录</div>
+            ) : (
+              records.map((record) => (
+                <div key={record.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-sm">{formatDate(record.created_at)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        记录数：{record.record_count || 0}
+                      </div>
+                    </div>
+                    {getStatusBadge(record.status)}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant={record.backup_type === "manual" ? "default" : "outline"}>
+                      {record.backup_type === "manual" ? "手动" : "自动"}
+                    </Badge>
+                    {(record.modules || "").split(",").filter(Boolean).slice(0, 4).map((m) => (
+                      <Badge key={m} variant="secondary" className="text-xs">
+                        {MODULE_NAMES[m] || m}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    操作人：{record.created_by_name || "-"}
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {record.status === "success" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          toast({ title: "文件路径", description: record.file_key });
+                        }}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        查看路径
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-500"
+                      onClick={() => handleDelete(record.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      删除
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* 备份对话框 */}
       <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Database className="w-5 h-5" />
@@ -444,7 +499,7 @@ export default function BackupPage() {
 
             <div>
               <Label className="text-base font-medium mb-3 block">选择备份模块</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {MODULE_OPTIONS.map((module) => (
                   <div
                     key={module.id}

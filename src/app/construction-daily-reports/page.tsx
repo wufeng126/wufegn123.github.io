@@ -155,10 +155,10 @@ export default function ConstructionDailyReportsPage() {
   const projects = useMemo(() => summary?.projects || [], [summary]);
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 text-slate-950 md:p-6">
+    <div className="min-h-full bg-[#F5F6FA] p-3 text-slate-950 sm:p-4 md:p-6">
       <div className="mx-auto max-w-[1320px] space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <Link href="/workspace" className="rounded-lg p-2 hover:bg-white">
               <ArrowLeft className="h-5 w-5 text-slate-600" />
             </Link>
@@ -168,21 +168,21 @@ export default function ConstructionDailyReportsPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:flex sm:flex-wrap">
+            <label className="inline-flex h-11 min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 sm:h-10">
               <CalendarDays className="h-4 w-4 text-blue-600" />
               <input
                 type="date"
                 value={date}
                 onChange={event => setDate(event.target.value)}
-                className="bg-transparent outline-none"
+                className="min-w-0 flex-1 bg-transparent outline-none"
               />
             </label>
             <button
               type="button"
               onClick={refreshReport}
               disabled={refreshing || loading}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:h-10"
             >
               {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               重新生成
@@ -204,11 +204,11 @@ export default function ConstructionDailyReportsPage() {
         ) : summary ? (
           <>
             <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-5 py-4">
+              <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-medium text-blue-700">项目施工日报</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">{getReadableDate(summary.report_date)} 项目施工日报</h2>
+                    <h2 className="mt-1 text-xl font-semibold tracking-normal text-slate-950 sm:text-2xl">{getReadableDate(summary.report_date)} 项目施工日报</h2>
                     <p className="mt-1 text-xs text-slate-500">
                       生成时间：{report?.generated_at ? new Date(report.generated_at).toLocaleString('zh-CN') : '-'}
                       {report?.pushed_at ? `，已推送：${new Date(report.pushed_at).toLocaleString('zh-CN')}` : '，尚未自动推送'}
@@ -220,7 +220,7 @@ export default function ConstructionDailyReportsPage() {
                 </div>
               </div>
 
-              <div className="space-y-6 p-5">
+              <div className="space-y-6 p-4 sm:p-5">
                 <section>
                   <div className="mb-3 flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded bg-blue-600 text-xs font-semibold text-white">一</span>
@@ -272,7 +272,7 @@ export default function ConstructionDailyReportsPage() {
                     {projects.map((project, index) => {
                       const sections = getProjectSections(project);
                       return (
-                        <article key={project.project_id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                        <article key={project.project_id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <h4 className="text-base font-semibold">{index + 1}. {project.project_name}</h4>

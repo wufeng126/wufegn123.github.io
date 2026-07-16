@@ -74,6 +74,16 @@ type ProjectStatItem = {
   high_risk_count?: number;
 };
 
+type StatsSummary = {
+  expected_days: number;
+  total_logs: number;
+  total_people: number;
+  total_projects: number;
+  submitted_projects: number;
+  risk_total: number;
+  high_risk_total: number;
+};
+
 type Project = { id: number; name: string };
 
 const RISK_TYPE_LABELS: Record<RiskType, string> = {
@@ -124,6 +134,15 @@ export default function ConstructionLogsPage() {
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [stats, setStats] = useState<StatItem[]>([]);
   const [projectStats, setProjectStats] = useState<ProjectStatItem[]>([]);
+  const [statsSummary, setStatsSummary] = useState<StatsSummary>({
+    expected_days: 0,
+    total_logs: 0,
+    total_people: 0,
+    total_projects: 0,
+    submitted_projects: 0,
+    risk_total: 0,
+    high_risk_total: 0,
+  });
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [riskLoading, setRiskLoading] = useState(false);
@@ -165,13 +184,23 @@ export default function ConstructionLogsPage() {
       if (!projRes.ok || projJson.success === false) throw new Error(projJson.error || '项目列表加载失败');
       setLogs(Array.isArray(logJson.data) ? logJson.data : []);
       setStats(Array.isArray(statsJson.data) ? statsJson.data : []);
-      setProjectStats(
+      const nextProjectStats = (
         Array.isArray(statsJson.project_stats)
           ? statsJson.project_stats
           : Array.isArray(statsJson.meta?.project_stats)
             ? statsJson.meta.project_stats
-            : [],
-      );
+            : []
+      ) as ProjectStatItem[];
+      setProjectStats(nextProjectStats);
+      setStatsSummary({
+        expected_days: Number(statsJson.expected_days || statsJson.meta?.expected_days || 0),
+        total_logs: Number(statsJson.log_count || nextProjectStats.reduce((sum, item) => sum + Number(item.count || 0), 0)),
+        total_people: Array.isArray(statsJson.data) ? statsJson.data.length : 0,
+        total_projects: Number(statsJson.project_count || nextProjectStats.length),
+        submitted_projects: Number(statsJson.submitted_project_count || nextProjectStats.filter(item => Number(item.count || 0) > 0).length),
+        risk_total: Number(statsJson.risk_summary?.total || statsJson.meta?.risk_summary?.total || 0),
+        high_risk_total: Number(statsJson.risk_summary?.by_level?.high || statsJson.meta?.risk_summary?.by_level?.high || 0),
+      });
       setProjects(Array.isArray(projJson.projects) ? projJson.projects : []);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '施工日志数据加载失败，请稍后重试');
@@ -215,17 +244,12 @@ export default function ConstructionLogsPage() {
     return map;
   }, [projects]);
 
-  const totalLogs = logs.length;
-  const totalPeople = stats.length;
-  const totalRisks = logs.filter(log => log.risk_level).length;
-  const highRisks = logs.filter(log => log.risk_level === 'high').length;
+  const totalLogs = statsSummary.total_logs;
+  const totalPeople = statsSummary.total_people;
+  const totalRisks = statsSummary.risk_total;
+  const highRisks = statsSummary.high_risk_total;
   const pendingRisks = risks.filter(risk => risk.workflow_status === 'pending').length;
-  const weekLogs = logs.filter(log => {
-    const date = new Date(log.log_date);
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return date >= weekAgo;
-  }).length;
+  const submittedProjects = statsSummary.submitted_projects;
 
   async function handleRiskAction(logId: number) {
     setActionBusy(logId);
@@ -265,18 +289,18 @@ export default function ConstructionLogsPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[#F5F6FA] p-3 sm:p-4 md:p-6">
       <div className="mx-auto max-w-6xl">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-[#1D2129]">施工日志</h1>
+            <h1 className="text-xl font-bold text-[#1D2129] sm:text-2xl">施工日志</h1>
             <p className="mt-1 text-sm text-[#86909C]">现场记录、风险确认、知识沉淀集中处理</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/construction-logs/scan" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
               <Camera className="h-4 w-4" />拍照识别
             </Link>
-            <Link href="/construction-logs/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-sm hover:bg-[#0E49D8]">
+            <Link href="/construction-logs/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-sm hover:bg-[#0E49D8]">
               <Plus className="h-4 w-4" />写日志
             </Link>
           </div>
@@ -295,8 +319,8 @@ export default function ConstructionLogsPage() {
           </div>
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
             <ClipboardList className="mx-auto mb-1 h-5 w-5 text-[#10B981]" />
-            <p className="text-2xl font-bold text-[#1D2129]">{weekLogs}</p>
-            <p className="text-xs text-[#86909C]">本周提交</p>
+            <p className="text-2xl font-bold text-[#1D2129]">{submittedProjects}</p>
+            <p className="text-xs text-[#86909C]">有日志项目</p>
           </div>
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
             <AlertTriangle className="mx-auto mb-1 h-5 w-5 text-[#F59E0B]" />
@@ -379,7 +403,7 @@ export default function ConstructionLogsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex min-w-[150px] flex-col gap-2">
+                  <div className="flex flex-col gap-2 md:min-w-[150px]">
                     <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
                       查看详情
                     </Link>
@@ -402,12 +426,12 @@ export default function ConstructionLogsPage() {
                   <h2 className="font-semibold text-[#1D2129]">施工日志完整率统计</h2>
                   <p className="mt-1 text-xs text-[#86909C]">项目按当月是否有日志统计，人员按当月提交天数和提交次数统计</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <select value={statsProjectId} onChange={event => setStatsProjectId(event.target.value)} className="h-9 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                <div className="grid gap-2 sm:flex sm:flex-wrap">
+                  <select value={statsProjectId} onChange={event => setStatsProjectId(event.target.value)} className="h-9 w-full rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF] sm:w-auto">
                     <option value="all">全部项目</option>
                     {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
                   </select>
-                  <input type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
+                  <input type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF] sm:w-auto" />
                 </div>
               </div>
             </div>
@@ -416,7 +440,7 @@ export default function ConstructionLogsPage() {
               <div className="border-b border-[#E5E6EB] p-4">
                 <h3 className="font-semibold text-[#1D2129]">按项目统计</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#F7F8FA] text-[#86909C]">
@@ -450,13 +474,35 @@ export default function ConstructionLogsPage() {
                   </tbody>
                 </table>
               </div>
+              <div className="divide-y divide-[#F2F3F5] md:hidden">
+                {loading ? (
+                  <div className="p-6 text-center text-sm text-[#86909C]">加载中...</div>
+                ) : projectStats.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-[#86909C]">本月暂无项目提交记录</div>
+                ) : projectStats.map(item => (
+                  <article key={item.project_id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h4 className="min-w-0 font-medium text-[#1D2129]">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</h4>
+                      <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : item.completeness_rate >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                        {item.completeness_rate}%
+                      </span>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div><dt className="text-xs text-[#86909C]">提交天数</dt><dd className="mt-0.5 text-[#4E5969]">{item.submitted_days}/{item.expected_days} 天</dd></div>
+                      <div><dt className="text-xs text-[#86909C]">提交次数</dt><dd className="mt-0.5 font-semibold text-[#165DFF]">{item.count}</dd></div>
+                      <div><dt className="text-xs text-[#86909C]">风险日志</dt><dd className="mt-0.5 text-[#D46B08]">{item.risk_count || 0}</dd></div>
+                      <div><dt className="text-xs text-[#86909C]">最近提交</dt><dd className="mt-0.5 text-[#4E5969]">{item.last_date || '-'}</dd></div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
             </div>
 
             <div className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
               <div className="border-b border-[#E5E6EB] p-4">
                 <h3 className="font-semibold text-[#1D2129]">按人员统计</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#F7F8FA] text-[#86909C]">
@@ -491,6 +537,28 @@ export default function ConstructionLogsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="divide-y divide-[#F2F3F5] md:hidden">
+                {loading ? (
+                  <div className="p-6 text-center text-sm text-[#86909C]">加载中...</div>
+                ) : stats.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-[#86909C]">本月暂无提交记录</div>
+                ) : stats.map((item, index) => (
+                  <article key={item.user_id} className="space-y-3 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0"><span className="mr-2 text-xs text-[#86909C]">#{index + 1}</span><span className="font-medium text-[#1D2129]">{item.user_name}</span></div>
+                      <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : (item.completeness_rate || 0) >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                        {item.completeness_rate || 0}%
+                      </span>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div><dt className="text-xs text-[#86909C]">提交天数</dt><dd className="mt-0.5 text-[#4E5969]">{item.submitted_days || 0}/{item.expected_days || 0} 天</dd></div>
+                      <div><dt className="text-xs text-[#86909C]">提交次数</dt><dd className="mt-0.5 font-semibold text-[#165DFF]">{item.count}</dd></div>
+                      <div><dt className="text-xs text-[#86909C]">风险日志</dt><dd className="mt-0.5 text-[#D46B08]">{item.risk_count || 0}</dd></div>
+                      <div><dt className="text-xs text-[#86909C]">最近提交</dt><dd className="mt-0.5 text-[#4E5969]">{item.last_date || '-'}</dd></div>
+                    </dl>
+                  </article>
+                ))}
               </div>
             </div>
           </div>
@@ -531,11 +599,11 @@ export default function ConstructionLogsPage() {
                     {log.risk_summary && <span className="text-xs text-[#86909C]">{log.risk_summary}</span>}
                   </div>
                 )}
-                <div className="mt-2 flex items-center gap-3 text-xs text-[#86909C]">
+                <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#F2F3F5] pt-3 text-xs text-[#86909C]">
                   {log.headcount != null && <span>{log.headcount}人</span>}
                   {highRisks > 0 && log.risk_level === 'high' && <span className="text-[#F53F3F]">高风险需优先确认</span>}
                   {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
-                  <div className="ml-auto flex items-center gap-3">
+                  <div className="flex w-full shrink-0 items-center justify-end gap-3 md:ml-auto md:w-auto">
                     <Link href={`/construction-logs/${log.id}`} className="font-medium text-[#165DFF] hover:underline">查看详情</Link>
                     <button
                       type="button"

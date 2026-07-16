@@ -385,7 +385,7 @@ function ComprehensiveExpenseContent() {
       {/* 页面标题 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl font-bold" style={{ color: '#1D2129' }}>🤝 综合费用管理</h1>
-        <div className="flex gap-2">
+        <div className="mobile-action-grid sm:flex sm:w-auto sm:gap-2">
           <Button size="sm" onClick={handleAdd} style={{ background: '#165DFF' }} className="hover:opacity-90">
             <Plus className="w-4 h-4 mr-1" />
             新增费用
@@ -455,8 +455,8 @@ function ComprehensiveExpenseContent() {
           {/* 筛选区域 */}
           <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
             <CardContent className="py-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+              <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+                <div className="relative min-w-0 flex-1 sm:min-w-[200px] sm:max-w-[300px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#86909C' }} />
                   <Input
                     placeholder="搜索经办人/备注..."
@@ -466,7 +466,7 @@ function ComprehensiveExpenseContent() {
                   />
                 </div>
                 <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                  <SelectTrigger className="w-36 h-8">
+                  <SelectTrigger className="h-8 w-full sm:w-36">
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent>
@@ -477,7 +477,7 @@ function ComprehensiveExpenseContent() {
                   </SelectContent>
                 </Select>
                 <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger className="w-28 h-8">
+                  <SelectTrigger className="h-8 w-full sm:w-28">
                     <SelectValue placeholder="费用类型" />
                   </SelectTrigger>
                   <SelectContent>
@@ -491,18 +491,18 @@ function ComprehensiveExpenseContent() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-32 h-8"
+                  className="h-8 w-full sm:w-32"
                   placeholder="开始日期"
                 />
-                <span style={{ color: '#86909C' }}>至</span>
+                <span className="hidden sm:inline" style={{ color: '#86909C' }}>至</span>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-32 h-8"
+                  className="h-8 w-full sm:w-32"
                   placeholder="结束日期"
                 />
-                <Button variant="outline" size="sm" onClick={() => fetchExpenses(1)} style={{ borderColor: '#E5E6EB' }}>
+                <Button variant="outline" size="sm" onClick={() => fetchExpenses(1)} className="w-full sm:w-auto" style={{ borderColor: '#E5E6EB' }}>
                   <RefreshCw className="w-4 h-4 mr-1" />
                   刷新
                 </Button>
@@ -597,11 +597,11 @@ function ComprehensiveExpenseContent() {
 
                   {/* 分页 */}
                   {pagination.totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+                    <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
                       <span className="text-sm" style={{ color: '#86909C' }}>
                         共 {pagination.total} 条，第 {pagination.page}/{pagination.totalPages} 页
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                         <Button
                           variant="outline"
                           size="sm"
@@ -811,7 +811,7 @@ function ComprehensiveExpenseContent() {
 
       {/* 新增对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>新增综合费用</DialogTitle>
           </DialogHeader>
@@ -843,7 +843,7 @@ function ComprehensiveExpenseContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>金额（元）<span style={{ color: '#F53F3F' }}>*</span></Label>
                 <Input
@@ -878,7 +878,7 @@ function ComprehensiveExpenseContent() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveAdd} disabled={saving} style={{ background: '#165DFF' }}>
               {saving ? '保存中...' : '保存'}
@@ -889,7 +889,7 @@ function ComprehensiveExpenseContent() {
 
       {/* 编辑对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑综合费用</DialogTitle>
           </DialogHeader>
@@ -921,7 +921,7 @@ function ComprehensiveExpenseContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>金额</Label>
                 <Input
@@ -956,7 +956,7 @@ function ComprehensiveExpenseContent() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveEdit} disabled={saving} style={{ background: '#165DFF' }}>
               {saving ? '保存中...' : '保存'}
@@ -967,7 +967,7 @@ function ComprehensiveExpenseContent() {
 
       {/* 删除确认对话框 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>

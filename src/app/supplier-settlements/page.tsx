@@ -211,16 +211,16 @@ export default function SupplierSettlementsPage() {
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>结算记录</h1>
           <p className="text-sm mt-1" style={{ color: '#86909C' }}>管理供应商/班组的工程结算记录</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Button variant="outline" onClick={fetchSettlements} className="btn-secondary h-9"><RefreshCw className="w-4 h-4 mr-1.5" />刷新</Button>
           <Button variant="outline" onClick={handleExport} className="btn-secondary h-9"><Download className="w-4 h-4 mr-1.5" />导出</Button>
           {selectedIds.size > 0 && <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} className="h-9"><Trash2 className="w-4 h-4 mr-1.5" />删除 ({selectedIds.size})</Button>}
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild><Button onClick={resetForm} className="btn-primary h-9"><Plus className="w-4 h-4 mr-1.5" />新增结算</Button></DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
               <DialogHeader><DialogTitle className="dialog-header">新增结算记录</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>供应商/班组 *</Label>
                     <Select value={formData.supplier_id} onValueChange={(v) => setFormData({ ...formData, supplier_id: v })}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择供应商" /></SelectTrigger>
@@ -234,7 +234,7 @@ export default function SupplierSettlementsPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>结算日期 *</Label><Input type="date" value={formData.settlement_date} onChange={(e) => setFormData({ ...formData, settlement_date: e.target.value })} className="mt-1.5" required /></div>
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>结算类型</Label>
                     <Select value={formData.settlement_type} onValueChange={(v) => setFormData({ ...formData, settlement_type: v })}>
@@ -307,28 +307,28 @@ export default function SupplierSettlementsPage() {
 
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <div className="filter-bar">
+        <div className="filter-bar flex-col items-stretch sm:flex-row sm:items-center">
           <Filter className="w-4 h-4" style={{ color: '#86909C' }} />
-          <Input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="w-32 h-8" />
-          <span style={{ color: '#C9CDD4' }}>-</span>
-          <Input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="w-32 h-8" />
+          <Input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="h-8 w-full sm:w-32" />
+          <span className="hidden sm:inline" style={{ color: '#C9CDD4' }}>-</span>
+          <Input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="h-8 w-full sm:w-32" />
           <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-            <SelectTrigger className="w-28 h-8"><SelectValue placeholder="供应商" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-full sm:w-28"><SelectValue placeholder="供应商" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部供应商</SelectItem>
               {suppliers.map(s => (<SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>))}
             </SelectContent>
           </Select>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#C9CDD4' }} />
-            <Input placeholder="搜索供应商" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} className="w-36 pl-9 h-8" />
+            <Input placeholder="搜索供应商" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} className="h-8 w-full pl-9 sm:w-36" />
           </div>
           {(filterStartDate || filterEndDate || filterSupplier !== 'all' || searchKeyword) && (
             <Button variant="ghost" size="sm" onClick={() => { setFilterStartDate(''); setFilterEndDate(''); setFilterSupplier('all'); setSearchKeyword(''); }} className="h-8" style={{ color: '#86909C' }}>
               <X className="w-4 h-4 mr-1" />清除筛选
             </Button>
           )}
-          <p className="text-sm ml-auto" style={{ color: '#86909C' }}>显示 {filteredSettlements.length} 条记录</p>
+          <p className="text-sm sm:ml-auto" style={{ color: '#86909C' }}>显示 {filteredSettlements.length} 条记录</p>
         </div>
       </div>
 
@@ -341,7 +341,8 @@ export default function SupplierSettlementsPage() {
                 <div className="loading-spinner" />
               </div>
             ) : filteredSettlements.length > 0 ? (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow style={{ background: '#F7F8FA', borderBottom: '1px solid #E5E6EB' }}>
@@ -376,6 +377,51 @@ export default function SupplierSettlementsPage() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="grid gap-3 p-3 md:hidden">
+                {filteredSettlements.map((settlement) => {
+                  const isSelected = selectedIds.has(settlement.id);
+                  return (
+                    <article
+                      key={settlement.id}
+                      className="rounded-lg border bg-white p-3"
+                      style={{
+                        borderColor: isSelected ? '#165DFF' : '#E5E6EB',
+                        background: isSelected ? '#F5F8FF' : '#fff',
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <Checkbox checked={isSelected} onCheckedChange={(checked) => handleSelectOne(settlement.id, checked as boolean)} />
+                          <div className="min-w-0">
+                            <h3 className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{settlement.supplier_name}</h3>
+                            <div className="mt-1 truncate text-xs" style={{ color: '#86909C' }}>{settlement.project_name} · {settlement.settlement_date}</div>
+                          </div>
+                        </div>
+                        <StatusTag type={settlement.settlement_type === '月度结算' ? 'info' : settlement.settlement_type === '竣工结算' ? 'completed' : settlement.settlement_type === '进度结算' ? 'pending' : 'normal'} label={settlement.settlement_type} />
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-md bg-blue-50 p-2">
+                          <div className="text-blue-700">结算金额</div>
+                          <div className="mt-1 font-semibold text-blue-800"><AmountDisplay value={parseFloat(settlement.amount)} /></div>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <div style={{ color: '#86909C' }}>开票金额</div>
+                          <div className="mt-1" style={{ color: '#1D2129' }}>{settlement.invoice_amount ? <AmountDisplay value={parseFloat(settlement.invoice_amount)} /> : '-'}</div>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <div style={{ color: '#86909C' }}>税额</div>
+                          <div className="mt-1" style={{ color: '#1D2129' }}>{settlement.tax_amount ? <AmountDisplay value={parseFloat(settlement.tax_amount)} /> : '-'}</div>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <div style={{ color: '#86909C' }}>备注</div>
+                          <div className="mt-1 truncate" style={{ color: '#1D2129' }}>{settlement.remark || '-'}</div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              </>
             ) : (
               <div className="empty-state">
                 <div className="empty-state-icon">
@@ -391,7 +437,7 @@ export default function SupplierSettlementsPage() {
 
       {/* 删除确认对话框 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle style={{ color: '#1D2129' }}>确认删除</AlertDialogTitle>
             <AlertDialogDescription>确定要删除选中的 {selectedIds.size} 条结算记录吗？此操作不可恢复。</AlertDialogDescription>

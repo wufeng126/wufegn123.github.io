@@ -334,9 +334,9 @@ export default function FundManagementDashboard() {
   }
 
   const filterSection = (
-    <div className="flex items-center gap-3 flex-wrap">
+    <div className="mobile-filter-grid sm:flex sm:flex-wrap sm:items-center sm:gap-3">
       <Select value={selectedProject} onValueChange={setSelectedProject}>
-        <SelectTrigger className="w-48">
+        <SelectTrigger className="w-full sm:w-48">
           <SelectValue placeholder="选择项目" />
         </SelectTrigger>
         <SelectContent>
@@ -348,12 +348,12 @@ export default function FundManagementDashboard() {
           ))}
         </SelectContent>
       </Select>
-      <span className="text-sm text-muted-foreground">
+      <span className="text-sm text-muted-foreground sm:w-auto">
         报量 {stats.settlementCount} 笔，付款 {stats.paymentCount} 笔
       </span>
       <button
         onClick={loadData}
-        className="ml-auto flex items-center gap-2 px-3 py-2 text-sm bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary transition-colors hover:bg-primary/20 sm:ml-auto sm:w-auto"
       >
         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         刷新
@@ -398,11 +398,11 @@ export default function FundManagementDashboard() {
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex justify-center gap-6 mt-2">
+        <div className="mt-2 flex flex-wrap justify-center gap-3 sm:gap-6">
           {pieChartData.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={index} className="flex min-w-0 items-center gap-2">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-sm text-muted-foreground">{item.name}: {formatCurrency(item.value)}</span>
+              <span className="truncate text-sm text-muted-foreground">{item.name}: {formatCurrency(item.value)}</span>
             </div>
           ))}
         </div>
@@ -444,7 +444,7 @@ export default function FundManagementDashboard() {
 
   const ledgerSection = (
     <CollapsibleSection title="项目结算付款明细" icon="file-text" defaultOpen={true}>
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b">
@@ -522,6 +522,71 @@ export default function FundManagementDashboard() {
             </tfoot>
           )}
         </table>
+      </div>
+      <div className="space-y-3 md:hidden">
+        {tableData.length === 0 ? (
+          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+            暂无数据
+          </div>
+        ) : (
+          tableData.map((row, index) => {
+            const paymentRate = row.settlement > 0 ? (row.payment / row.settlement) * 100 : 0;
+            return (
+              <div key={`mobile-fund-${index}`} className="rounded-lg border bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <LinkableCell href={`/projects/${row.projectId}`}>
+                      {row.project}
+                    </LinkableCell>
+                    <div className="mt-1 text-xs text-muted-foreground">回款率 {paymentRate.toFixed(1)}%</div>
+                  </div>
+                  {row.unpaid <= 0 ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+                      <CheckCircle className="h-3 w-3" />
+                      已结清
+                    </span>
+                  ) : (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-xs text-red-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      欠款
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded bg-purple-50 p-2">
+                    <div className="text-purple-600">开票金额</div>
+                    <div className="mt-1 font-semibold text-purple-700">{formatCurrency(row.settlement)}</div>
+                  </div>
+                  <div className="rounded bg-green-50 p-2">
+                    <div className="text-green-600">已付款</div>
+                    <div className="mt-1 font-semibold text-green-700">{formatCurrency(row.payment)}</div>
+                  </div>
+                  <div className="rounded bg-red-50 p-2">
+                    <div className="text-red-600">未付款</div>
+                    <div className="mt-1 font-semibold text-red-700">{formatCurrency(row.unpaid)}</div>
+                  </div>
+                  <div className="rounded bg-slate-50 p-2">
+                    <div className="text-gray-500">状态</div>
+                    <div className="mt-1 font-semibold">{row.unpaid <= 0 ? '已结清' : '待回款'}</div>
+                  </div>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-200">
+                  <div
+                    className={`h-full rounded-full ${paymentRate >= 100 ? 'bg-green-500' : paymentRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min(paymentRate, 100)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })
+        )}
+        {tableData.length > 0 && (
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm font-medium">
+            <div className="flex justify-between"><span>合计开票</span><span>{formatCurrency(stats.totalSettlement)}</span></div>
+            <div className="mt-2 flex justify-between text-green-600"><span>已付款</span><span>{formatCurrency(stats.totalPayment)}</span></div>
+            <div className="mt-2 flex justify-between text-red-600"><span>未付款</span><span>{formatCurrency(stats.totalUnpaid)}</span></div>
+          </div>
+        )}
       </div>
     </CollapsibleSection>
   );

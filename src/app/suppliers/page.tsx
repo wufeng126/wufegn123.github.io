@@ -468,10 +468,10 @@ export default function SuppliersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50/50 p-3 sm:p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* 标题 */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Building2 className="h-6 w-6 text-blue-600" />
             <div>
@@ -560,12 +560,12 @@ export default function SuppliersPage() {
 
         {/* 标签页 - 与数据看板风格统一 */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex items-center justify-between mb-4">
-            <TabsList className="bg-gray-100">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-100 sm:w-auto">
               <TabsTrigger value="suppliers" className="data-[state=active]:bg-white">供应商台账</TabsTrigger>
               <TabsTrigger value="contracts" className="data-[state=active]:bg-white">合同管理</TabsTrigger>
             </TabsList>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               {activeTab === 'suppliers' && canManage && (
                 <>
                   <Button variant="outline" size="sm" className="border-gray-300" onClick={handleExport}>
@@ -594,20 +594,20 @@ export default function SuppliersPage() {
             {/* 筛选栏 - 简洁清爽风格 */}
             <Card className="border-gray-200">
               <CardContent className="p-3">
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
                   <div className="flex items-center gap-2 text-sm text-gray-500">
                     <Filter className="w-4 h-4" />
                     <span>筛选条件</span>
                   </div>
                   <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                    <SelectTrigger className="w-36 h-9"><SelectValue placeholder="选择供应商" /></SelectTrigger>
+                    <SelectTrigger className="h-9 w-full sm:w-36"><SelectValue placeholder="选择供应商" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部供应商</SelectItem>
                       {supplierStats.map(s => <SelectItem key={s.id} value={String(s.id)}>{String(s.name || '')}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={filterSupplierType} onValueChange={setFilterSupplierType}>
-                    <SelectTrigger className="w-32 h-9"><SelectValue placeholder="供应商分类" /></SelectTrigger>
+                    <SelectTrigger className="h-9 w-full sm:w-32"><SelectValue placeholder="供应商分类" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部分类</SelectItem>
                       {supplierTypeOptions.map(([type, label]) => (
@@ -615,7 +615,7 @@ export default function SuppliersPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="relative flex-1 min-w-52 max-w-80">
+                  <div className="relative min-w-0 flex-1 sm:min-w-52 sm:max-w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
                       placeholder="搜索供应商名称" 
@@ -630,72 +630,132 @@ export default function SuppliersPage() {
 
             {/* 表格 - 统一风格 */}
             <Card className="border-gray-200 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                    <TableHead className="font-semibold text-gray-700">供应商名称</TableHead>
-                    <TableHead className="font-semibold text-gray-700">分类</TableHead>
-                    <TableHead className="font-semibold text-gray-700">联系人</TableHead>
-                    <TableHead className="font-semibold text-gray-700">电话</TableHead>
-                    <TableHead className="font-semibold text-gray-700">合作项目</TableHead>
-                    <TableHead className="text-center font-semibold text-gray-700">合同状态</TableHead>
-                    <TableHead className="text-right font-semibold text-gray-700">累计结算额</TableHead>
-                    <TableHead className="text-right font-semibold text-gray-700">累计付款</TableHead>
-                    <TableHead className="text-center font-semibold text-gray-700">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStats.length === 0 ? (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-gray-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <Building2 className="w-10 h-10 text-gray-300" />
-                        <span>暂无供应商数据</span>
-                      </div>
-                    </TableCell></TableRow>
-                  ) : filteredStats.map((supplier, index: number) => (
-                    <TableRow key={supplier.id} className="hover:bg-blue-50/30 transition-colors" style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
-                      <TableCell className="font-medium text-gray-900">
-                        <LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`}>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
+                      <TableHead className="font-semibold text-gray-700">供应商名称</TableHead>
+                      <TableHead className="font-semibold text-gray-700">分类</TableHead>
+                      <TableHead className="font-semibold text-gray-700">联系人</TableHead>
+                      <TableHead className="font-semibold text-gray-700">电话</TableHead>
+                      <TableHead className="font-semibold text-gray-700">合作项目</TableHead>
+                      <TableHead className="text-center font-semibold text-gray-700">合同状态</TableHead>
+                      <TableHead className="text-right font-semibold text-gray-700">累计结算额</TableHead>
+                      <TableHead className="text-right font-semibold text-gray-700">累计付款</TableHead>
+                      <TableHead className="text-center font-semibold text-gray-700">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStats.length === 0 ? (
+                      <TableRow><TableCell colSpan={9} className="text-center py-12 text-gray-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <Building2 className="w-10 h-10 text-gray-300" />
+                          <span>暂无供应商数据</span>
+                        </div>
+                      </TableCell></TableRow>
+                    ) : filteredStats.map((supplier, index: number) => (
+                      <TableRow key={supplier.id} className="hover:bg-blue-50/30 transition-colors" style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
+                        <TableCell className="font-medium text-gray-900">
+                          <LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`}>
+                            {String(supplier.name || '')}
+                          </LinkableCell>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
+                            {getSupplierTypeLabel(supplier.type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-gray-700">{supplier.contact_person || '-'}</TableCell>
+                        <TableCell className="text-gray-700">{supplier.phone || '-'}</TableCell>
+                        <TableCell className="max-w-[220px] truncate text-gray-700" title={(supplier.project_names || []).join('、')}>
+                          {(supplier.project_names || []).join('、') || '-'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant="outline"
+                            className={
+                              Number(supplier.pending_contract_count || 0) > 0
+                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                : Number(supplier.signed_contract_count || 0) > 0
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : 'border-gray-200 bg-gray-50 text-gray-500'
+                            }
+                          >
+                            {supplier.contract_status_label || '暂无合同'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-gray-900">{formatCurrency(supplier.total_settlement)}</TableCell>
+                        <TableCell className="text-right text-green-600">{formatCurrency(supplier.total_paid)}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center gap-1">
+                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)}><FileCheck className="w-4 h-4 text-gray-500" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)}><Pencil className="w-4 h-4 text-blue-600" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteSupplier(supplier.id)}><Trash2 className="w-4 h-4" /></Button>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="grid gap-3 p-3 md:hidden">
+                {filteredStats.length === 0 ? (
+                  <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">暂无供应商数据</div>
+                ) : filteredStats.map((supplier) => (
+                  <article key={supplier.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`} className="truncate text-sm font-semibold text-gray-900">
                           {String(supplier.name || '')}
                         </LinkableCell>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
-                          {getSupplierTypeLabel(supplier.type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-gray-700">{supplier.contact_person || '-'}</TableCell>
-                      <TableCell className="text-gray-700">{supplier.phone || '-'}</TableCell>
-                      <TableCell className="max-w-[220px] truncate text-gray-700" title={(supplier.project_names || []).join('、')}>
-                        {(supplier.project_names || []).join('、') || '-'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className={
-                            Number(supplier.pending_contract_count || 0) > 0
-                              ? 'border-amber-200 bg-amber-50 text-amber-700'
-                              : Number(supplier.signed_contract_count || 0) > 0
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : 'border-gray-200 bg-gray-50 text-gray-500'
-                          }
-                        >
-                          {supplier.contract_status_label || '暂无合同'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-gray-900">{formatCurrency(supplier.total_settlement)}</TableCell>
-                      <TableCell className="text-right text-green-600">{formatCurrency(supplier.total_paid)}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center gap-1">
-                          {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)}><FileCheck className="w-4 h-4 text-gray-500" /></Button>}
-                          {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)}><Pencil className="w-4 h-4 text-blue-600" /></Button>}
-                          {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteSupplier(supplier.id)}><Trash2 className="w-4 h-4" /></Button>}
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600">
+                            {getSupplierTypeLabel(supplier.type)}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={
+                              Number(supplier.pending_contract_count || 0) > 0
+                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                : Number(supplier.signed_contract_count || 0) > 0
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : 'border-gray-200 bg-gray-50 text-gray-500'
+                            }
+                          >
+                            {supplier.contract_status_label || '暂无合同'}
+                          </Badge>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)}><FileCheck className="w-4 h-4" /></Button>}
+                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)}><Pencil className="w-4 h-4" /></Button>}
+                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-red-600" onClick={() => handleDeleteSupplier(supplier.id)}><Trash2 className="w-4 h-4" /></Button>}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md bg-gray-50 p-2">
+                        <div className="text-gray-500">联系人</div>
+                        <div className="mt-1 truncate text-gray-900">{supplier.contact_person || '-'}</div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 p-2">
+                        <div className="text-gray-500">电话</div>
+                        <div className="mt-1 truncate text-gray-900">{supplier.phone || '-'}</div>
+                      </div>
+                      <div className="rounded-md bg-blue-50 p-2">
+                        <div className="text-blue-700">累计结算</div>
+                        <div className="mt-1 font-semibold text-blue-800">{formatCurrency(supplier.total_settlement)}</div>
+                      </div>
+                      <div className="rounded-md bg-green-50 p-2">
+                        <div className="text-green-700">累计付款</div>
+                        <div className="mt-1 font-semibold text-green-800">{formatCurrency(supplier.total_paid)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 truncate rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      {(supplier.project_names || []).join('、') || '暂无合作项目'}
+                    </div>
+                  </article>
+                ))}
+              </div>
             </Card>
           </TabsContent>
 
@@ -704,20 +764,20 @@ export default function SuppliersPage() {
             {/* 筛选栏 - 简洁清爽风格 */}
             <Card className="border-gray-200">
               <CardContent className="p-3">
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
                   <div className="flex items-center gap-2 text-sm text-gray-500">
                     <Filter className="w-4 h-4" />
                     <span>筛选条件</span>
                   </div>
                   <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                    <SelectTrigger className="w-36 h-9"><SelectValue placeholder="选择供应商" /></SelectTrigger>
+                    <SelectTrigger className="h-9 w-full sm:w-36"><SelectValue placeholder="选择供应商" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部供应商</SelectItem>
                       {suppliers.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-28 h-9"><SelectValue placeholder="状态" /></SelectTrigger>
+                    <SelectTrigger className="h-9 w-full sm:w-28"><SelectValue placeholder="状态" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部状态</SelectItem>
                       <SelectItem value="草稿">草稿</SelectItem>
@@ -726,7 +786,7 @@ export default function SuppliersPage() {
                       <SelectItem value="作废">作废</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="relative flex-1 min-w-52 max-w-80">
+                  <div className="relative min-w-0 flex-1 sm:min-w-52 sm:max-w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
                       placeholder="搜索合同名称/编号" 
@@ -741,53 +801,98 @@ export default function SuppliersPage() {
 
             {/* 表格 - 统一风格 */}
             <Card className="border-gray-200 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead>供应商</TableHead>
-                    <TableHead>合同编号</TableHead>
-                    <TableHead>合同名称</TableHead>
-                    <TableHead>签订日期</TableHead>
-                    <TableHead className="text-right">合同金额</TableHead>
-                    <TableHead className="text-right">付款比例</TableHead>
-                    <TableHead className="text-right">应付金额</TableHead>
-                    <TableHead className="text-center">状态</TableHead>
-                    <TableHead className="text-center">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredContracts.length === 0 ? (
-                    <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-500">暂无合同数据</TableCell></TableRow>
-                  ) : filteredContracts.map((contract, index: number) => (
-                    <TableRow key={contract.id} style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
-                      <TableCell className="font-medium">{String(contract.supplier_name || '')}</TableCell>
-                      <TableCell className="text-gray-500">{String(contract.contract_no || '-')}</TableCell>
-                      <TableCell>{String(contract.contract_name || '')}</TableCell>
-                      <TableCell>{formatDate(contract.sign_date)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(contract.total_amount)}</TableCell>
-                      <TableCell className="text-right">
-                        <span className={Number(contract.payment_ratio || 0) > 100 ? 'text-red-600 font-medium' : ''}>
-                          {formatPercent(contract.payment_ratio)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-blue-600">
-                        {formatCurrency(Number(contract.cumulative_amount || 0) * Number(contract.payment_ratio || 0) / 100)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={contract.contract_status === '履约中' || contract.contract_status === '生效' ? 'default' : contract.contract_status === '作废' ? 'destructive' : 'secondary'}>
-                          {String(contract.contract_status || '草稿')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center gap-1">
-                          {canManage && <Button size="sm" variant="ghost" onClick={() => handleEditContract(contract)}><Pencil className="w-4 h-4" /></Button>}
-                          {canManage && <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="w-4 h-4" /></Button>}
-                        </div>
-                      </TableCell>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead>供应商</TableHead>
+                      <TableHead>合同编号</TableHead>
+                      <TableHead>合同名称</TableHead>
+                      <TableHead>签订日期</TableHead>
+                      <TableHead className="text-right">合同金额</TableHead>
+                      <TableHead className="text-right">付款比例</TableHead>
+                      <TableHead className="text-right">应付金额</TableHead>
+                      <TableHead className="text-center">状态</TableHead>
+                      <TableHead className="text-center">操作</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredContracts.length === 0 ? (
+                      <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-500">暂无合同数据</TableCell></TableRow>
+                    ) : filteredContracts.map((contract, index: number) => (
+                      <TableRow key={contract.id} style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
+                        <TableCell className="font-medium">{String(contract.supplier_name || '')}</TableCell>
+                        <TableCell className="text-gray-500">{String(contract.contract_no || '-')}</TableCell>
+                        <TableCell>{String(contract.contract_name || '')}</TableCell>
+                        <TableCell>{formatDate(contract.sign_date)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(contract.total_amount)}</TableCell>
+                        <TableCell className="text-right">
+                          <span className={Number(contract.payment_ratio || 0) > 100 ? 'text-red-600 font-medium' : ''}>
+                            {formatPercent(contract.payment_ratio)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-blue-600">
+                          {formatCurrency(Number(contract.cumulative_amount || 0) * Number(contract.payment_ratio || 0) / 100)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={contract.contract_status === '履约中' || contract.contract_status === '生效' ? 'default' : contract.contract_status === '作废' ? 'destructive' : 'secondary'}>
+                            {String(contract.contract_status || '草稿')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center gap-1">
+                            {canManage && <Button size="sm" variant="ghost" onClick={() => handleEditContract(contract)}><Pencil className="w-4 h-4" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="w-4 h-4" /></Button>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="grid gap-3 p-3 md:hidden">
+                {filteredContracts.length === 0 ? (
+                  <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">暂无合同数据</div>
+                ) : filteredContracts.map((contract) => (
+                  <article key={contract.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold text-gray-900">{String(contract.contract_name || '')}</h3>
+                        <div className="mt-1 text-xs text-gray-500">{String(contract.supplier_name || '')} / {String(contract.contract_no || '-')}</div>
+                      </div>
+                      <Badge variant={contract.contract_status === '履约中' || contract.contract_status === '生效' ? 'default' : contract.contract_status === '作废' ? 'destructive' : 'secondary'}>
+                        {String(contract.contract_status || '草稿')}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md bg-gray-50 p-2">
+                        <div className="text-gray-500">签订日期</div>
+                        <div className="mt-1 text-gray-900">{formatDate(contract.sign_date)}</div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 p-2">
+                        <div className="text-gray-500">付款比例</div>
+                        <div className="mt-1 text-gray-900">{formatPercent(contract.payment_ratio)}</div>
+                      </div>
+                      <div className="rounded-md bg-blue-50 p-2">
+                        <div className="text-blue-700">合同金额</div>
+                        <div className="mt-1 font-semibold text-blue-800">{formatCurrency(contract.total_amount)}</div>
+                      </div>
+                      <div className="rounded-md bg-indigo-50 p-2">
+                        <div className="text-indigo-700">应付金额</div>
+                        <div className="mt-1 font-semibold text-indigo-800">
+                          {formatCurrency(Number(contract.cumulative_amount || 0) * Number(contract.payment_ratio || 0) / 100)}
+                        </div>
+                      </div>
+                    </div>
+                    {canManage && (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleEditContract(contract)}><Pencil className="w-4 h-4 mr-1" />编辑</Button>
+                        <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="w-4 h-4 mr-1" />删除</Button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
             </Card>
           </TabsContent>
         </Tabs>
@@ -795,7 +900,7 @@ export default function SuppliersPage() {
 
       {/* 合同编辑对话框 - 卡片式布局 */}
       <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-blue-50">
@@ -812,7 +917,7 @@ export default function SuppliersPage() {
             {/* 供应商和项目选择 - 卡片式 */}
             <Card className="border-gray-200">
               <CardContent className="p-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-gray-700 font-medium">供应商 *</Label>
                     <Select value={selectedSupplierId?.toString() || ''} onValueChange={v => setSelectedSupplierId(parseInt(v))} disabled={!!editingContract}>
@@ -842,7 +947,7 @@ export default function SuppliersPage() {
                 <div className="flex items-center gap-2 text-gray-700 font-medium border-b pb-2">
                   <FileText className="w-4 h-4" />基本信息
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-gray-600 text-sm">合同编号</Label>
                     <Input value={contractForm.contract_no} onChange={e => setContractForm({...contractForm, contract_no: e.target.value})} className="mt-1 h-10" placeholder="HT2024001" />
@@ -853,7 +958,7 @@ export default function SuppliersPage() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-gray-600 text-sm">签订日期</Label>
                     <Input type="date" value={contractForm.sign_date} onChange={e => setContractForm({...contractForm, sign_date: e.target.value})} className="mt-1 h-10" />
@@ -864,7 +969,7 @@ export default function SuppliersPage() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-gray-600 text-sm">合同总金额</Label>
                     <Input type="number" value={contractForm.total_amount} onChange={e => setContractForm({...contractForm, total_amount: e.target.value})} className="mt-1 h-10" placeholder="0.00" />
@@ -897,7 +1002,7 @@ export default function SuppliersPage() {
                 <div className="flex items-center gap-2 text-blue-700 font-medium">
                   <DollarSign className="w-4 h-4" />财务管控字段
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <Label className="text-gray-600 text-sm">约定付款比例(%) <span className="text-red-500">*</span></Label>
                     <Input type="number" min="0" max="100" value={contractForm.payment_ratio} onChange={e => setContractForm({...contractForm, payment_ratio: e.target.value})} className="mt-1 h-10" placeholder="0-100" />
@@ -920,7 +1025,7 @@ export default function SuppliersPage() {
                 {contractForm.payment_ratio && (
                   <div className="bg-white p-3 rounded-lg border border-blue-100 text-sm">
                     <div className="text-gray-500 mb-2">自动计算预览（基于累计对账金额）</div>
-                    <div className="grid grid-cols-2 gap-2 text-gray-600">
+                    <div className="grid gap-2 text-gray-600 sm:grid-cols-2">
                       <span>应付金额 = 对账金额 × {contractForm.payment_ratio}%</span>
                       <span>质保金 = 对账金额 × {contractForm.warranty_ratio || 0}%</span>
                     </div>
@@ -939,16 +1044,16 @@ export default function SuppliersPage() {
           </div>
           
           {/* 底部按钮 */}
-          <div className="flex justify-center gap-3 pt-4 border-t">
-            <Button variant="outline" className="w-32" onClick={() => setContractDialogOpen(false)}>取消</Button>
-            <Button className="w-32 bg-blue-600 hover:bg-blue-700" onClick={handleSaveContract}>保存合同</Button>
+          <div className="grid grid-cols-2 gap-3 border-t pt-4 sm:flex sm:justify-center">
+            <Button variant="outline" className="w-full sm:w-32" onClick={() => setContractDialogOpen(false)}>取消</Button>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700 sm:w-32" onClick={handleSaveContract}>保存合同</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* 供应商编辑对话框 - 卡片式布局 */}
       <Dialog open={supplierDialogOpen} onOpenChange={(open) => { setSupplierDialogOpen(open); if (!open) { setEditingSupplier(null); setEditingSupplierId(null); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-blue-50">
@@ -996,7 +1101,7 @@ export default function SuppliersPage() {
                 <div className="flex items-center gap-2 text-gray-700 font-medium border-b pb-2">
                   <Phone className="w-4 h-4" />联系信息
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-gray-600 text-sm">联系人</Label>
                     <Input value={supplierForm.contact_person} onChange={e => setSupplierForm({...supplierForm, contact_person: e.target.value})} className="mt-1 h-10" placeholder="联系人姓名" />
@@ -1019,9 +1124,9 @@ export default function SuppliersPage() {
           </div>
           
           {/* 底部按钮 */}
-          <div className="flex justify-center gap-3 pt-4 border-t">
-            <Button variant="outline" className="w-32" onClick={() => setSupplierDialogOpen(false)}>取消</Button>
-            <Button className="w-32 bg-blue-600 hover:bg-blue-700" onClick={handleSaveSupplier}>保存</Button>
+          <div className="grid grid-cols-2 gap-3 border-t pt-4 sm:flex sm:justify-center">
+            <Button variant="outline" className="w-full sm:w-32" onClick={() => setSupplierDialogOpen(false)}>取消</Button>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700 sm:w-32" onClick={handleSaveSupplier}>保存</Button>
           </div>
         </DialogContent>
       </Dialog>

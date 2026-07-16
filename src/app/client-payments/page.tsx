@@ -321,21 +321,21 @@ export default function ClientPaymentsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 tracking-tight">甲方回款</h1>
           <p className="text-sm text-gray-500 mt-0.5">管理甲方付款记录，统计回款情况</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadTemplate}>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto">
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             下载模板
           </Button>
-          <Button variant="outline" onClick={handleExport}>
+          <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             导出
           </Button>
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing} className="w-full sm:w-auto">
             <Upload className="w-4 h-4 mr-2" />
             {importing ? '导入中...' : '导入'}
           </Button>
@@ -348,12 +348,12 @@ export default function ClientPaymentsPage() {
           />
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setAddDialogOpen(true)}>
+              <Button onClick={() => setAddDialogOpen(true)} className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 新增付款
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>新增付款记录</DialogTitle>
               </DialogHeader>
@@ -376,7 +376,7 @@ export default function ClientPaymentsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>付款金额（元）*</Label>
                   <Input
@@ -398,7 +398,7 @@ export default function ClientPaymentsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>付款方式</Label>
                   <Select
@@ -440,7 +440,7 @@ export default function ClientPaymentsPage() {
                   placeholder="备注信息"
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="grid grid-cols-2 gap-2 pt-4 sm:flex sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
                   取消
                 </Button>
@@ -578,53 +578,89 @@ export default function ClientPaymentsPage() {
           {loading ? (
             <div className="text-center py-8 text-gray-500">加载中...</div>
           ) : payments.length > 0 ? (
-            <Table className="zebra-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>项目名称</TableHead>
-                  <TableHead>付款日期</TableHead>
-                  <TableHead className="text-right">付款金额</TableHead>
-                  <TableHead>付款方式</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>备注</TableHead>
-                  <TableHead className="text-center">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <Table className="zebra-table min-w-[860px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>项目名称</TableHead>
+                      <TableHead>付款日期</TableHead>
+                      <TableHead className="text-right">付款金额</TableHead>
+                      <TableHead>付款方式</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>备注</TableHead>
+                      <TableHead className="text-center">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="font-medium">{payment.project_name}</TableCell>
+                        <TableCell>{payment.payment_date?.split('T')[0]}</TableCell>
+                        <TableCell className="text-right font-medium text-green-600">
+                          ¥{payment.amount || payment.payment_amount}
+                        </TableCell>
+                        <TableCell>{getPaymentMethodLabel(payment.payment_method)}</TableCell>
+                        <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                        <TableCell className="text-gray-500">{payment.remark || '-'}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(payment)}
+                              className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(payment)}
+                              className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
                 {payments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell className="font-medium">{payment.project_name}</TableCell>
-                    <TableCell>{payment.payment_date?.split('T')[0]}</TableCell>
-                    <TableCell className="text-right font-medium text-green-600">
-                      ¥{payment.amount || payment.payment_amount}
-                    </TableCell>
-                    <TableCell>{getPaymentMethodLabel(payment.payment_method)}</TableCell>
-                    <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                    <TableCell className="text-gray-500">{payment.remark || '-'}</TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleEdit(payment)}
-                          className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleDelete(payment)}
-                          className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                  <div key={payment.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-gray-900">{payment.project_name}</div>
+                        <div className="mt-1 text-xs text-gray-500">{payment.payment_date?.split('T')[0] || '-'}</div>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      <div className="shrink-0">{getStatusBadge(payment.status)}</div>
+                    </div>
+                    <div className="mt-3 rounded-lg bg-green-50 p-3">
+                      <div className="text-xs text-green-600">付款金额</div>
+                      <div className="mt-1 text-xl font-semibold text-green-700">¥{payment.amount || payment.payment_amount}</div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div>付款方式：<span className="font-medium text-gray-900">{getPaymentMethodLabel(payment.payment_method)}</span></div>
+                      <div>状态：<span className="font-medium text-gray-900">{payment.status === 'completed' ? '已完成' : '待确认'}</span></div>
+                    </div>
+                    {payment.remark && <div className="mt-2 text-xs text-gray-500">备注：{payment.remark}</div>}
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3 sm:flex sm:justify-end">
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(payment)} className="h-8">
+                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                        编辑
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDelete(payment)} className="h-8 text-red-600 hover:text-red-700">
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        删除
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           ) : (
             <div className="text-center py-8 text-gray-500">
               暂无付款数据
@@ -635,7 +671,7 @@ export default function ClientPaymentsPage() {
 
       {/* 批量导入对话框 */}
       <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>批量导入付款记录</DialogTitle>
           </DialogHeader>
@@ -673,12 +709,12 @@ export default function ClientPaymentsPage() {
                 状态：completed(已完成)、pending(待确认)
               </p>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={downloadTemplate}>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+              <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto">
                 <Download className="w-4 h-4 mr-2" />
                 下载模板
               </Button>
-              <Button variant="outline" onClick={() => setBatchDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setBatchDialogOpen(false)} className="w-full sm:w-auto">
                 取消
               </Button>
             </div>
@@ -688,7 +724,7 @@ export default function ClientPaymentsPage() {
 
       {/* 编辑对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑付款记录</DialogTitle>
           </DialogHeader>
@@ -753,7 +789,7 @@ export default function ClientPaymentsPage() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveEdit}>保存</Button>
           </div>
@@ -762,12 +798,12 @@ export default function ClientPaymentsPage() {
 
       {/* 删除确认对话框 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
           </DialogHeader>
           <p className="py-4">确定要删除该付款记录吗？此操作不可恢复。</p>
-          <div className="flex justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>取消</Button>
             <Button variant="destructive" onClick={handleConfirmDelete}>删除</Button>
           </div>

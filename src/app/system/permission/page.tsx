@@ -839,22 +839,22 @@ export default function PermissionCenterPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-5 p-3 sm:p-4 md:p-6">
       {/* 页面标题 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-gray-900">用户与权限</h1>
           <p className="text-gray-500 mt-1">按岗位模板分配系统权限，按项目列表控制可见范围，按项目身份承接待办提醒</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={initPermissions}>
+        <div className="grid grid-cols-1 gap-2 sm:flex">
+          <Button variant="outline" onClick={initPermissions} className="w-full sm:w-auto">
             <RefreshCw className="w-4 h-4 mr-2" />
             初始化权限
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-gray-500">系统用户</p>
@@ -883,16 +883,16 @@ export default function PermissionCenterPage() {
 
       {/* 标签页 */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="roles" className="gap-2">
+        <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+          <TabsTrigger value="roles" className="shrink-0 gap-2">
             <Shield className="w-4 h-4" />
             岗位模板
           </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2">
+          <TabsTrigger value="users" className="shrink-0 gap-2">
             <Users className="w-4 h-4" />
             用户分配
           </TabsTrigger>
-          <TabsTrigger value="config" className="gap-2">
+          <TabsTrigger value="config" className="shrink-0 gap-2">
             <Menu className="w-4 h-4" />
             菜单权限配置
           </TabsTrigger>
@@ -946,18 +946,19 @@ export default function PermissionCenterPage() {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>角色列表</CardTitle>
                 <CardDescription>模板保存后会出现在这里；如需微调某一岗位，可编辑对应角色权限</CardDescription>
               </div>
-              <Button onClick={() => openRoleDialog()}>
+              <Button onClick={() => openRoleDialog()} className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 新建角色
               </Button>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>角色名称</TableHead>
@@ -1019,7 +1020,63 @@ export default function PermissionCenterPage() {
                     ))
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {roles.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
+                    暂无角色
+                  </div>
+                ) : (
+                  roles.map((role) => (
+                    <article key={role.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-medium text-gray-900">{role.name}</h3>
+                            {role.is_super_admin && <Badge variant="destructive">超级管理员</Badge>}
+                          </div>
+                          <p className="mt-1 break-all text-xs text-gray-500">{role.code}</p>
+                        </div>
+                        <Badge variant="outline" className="shrink-0">{role.permission_count} 项</Badge>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <p className="text-xs text-gray-500">级别</p>
+                          <p className="mt-1 text-gray-900">{role.level}</p>
+                        </div>
+                        <div className="rounded-md bg-gray-50 p-2">
+                          <p className="text-xs text-gray-500">项目范围</p>
+                          <p className={role.allowed_projects?.length === 0 ? 'mt-1 text-green-600' : 'mt-1 text-orange-600'}>
+                            {role.allowed_projects?.length === 0 ? '全部项目' : `${role.allowed_projects?.length || 0} 个项目`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openRoleDialog(role)}>
+                          <Edit className="w-4 h-4 mr-1" />
+                          编辑
+                        </Button>
+                        {!role.is_super_admin ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => deleteRole(role)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            删除
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>
+                            内置
+                          </Button>
+                        )}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1034,7 +1091,8 @@ export default function PermissionCenterPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>状态</TableHead>
@@ -1120,7 +1178,74 @@ export default function PermissionCenterPage() {
                     })
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {users.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
+                    暂无用户数据
+                  </div>
+                ) : (
+                  users.map((user) => {
+                    const pending = isPendingUser(user);
+                    const canUseGlobalScope = user.role === 'super_admin' || (user.roles || []).some(isBossRole);
+                    const selectedProjectCount = user.allowed_projects?.length || 0;
+                    return (
+                      <article key={user.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="truncate font-medium text-gray-900">{user.name || user.username}</h3>
+                            <p className="mt-1 truncate text-xs text-gray-500">{user.username} · {user.phone || user.dingtalk_info?.mobile || '-'}</p>
+                          </div>
+                          {user.is_disabled ? (
+                            <Badge variant="destructive" className="shrink-0">已禁用</Badge>
+                          ) : pending ? (
+                            <Badge variant="outline" className="shrink-0 border-orange-300 bg-orange-50 text-orange-700">待分配</Badge>
+                          ) : (
+                            <Badge variant="outline" className="shrink-0 border-green-300 bg-green-50 text-green-700">已启用</Badge>
+                          )}
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm">
+                          <div>
+                            <p className="mb-1 text-xs text-gray-500">岗位模板</p>
+                            {(user.roles || []).length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {user.roles.map((role) => (
+                                  <Badge key={role.id} variant="outline">{role.name}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">未分配</span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-md bg-gray-50 p-2">
+                              <p className="text-xs text-gray-500">钉钉绑定</p>
+                              <p className="mt-1 truncate text-blue-600">
+                                {user.dingtalk_bound ? (user.dingtalk_info?.name || user.dingtalk_info?.user_id || '已绑定') : '未绑定'}
+                              </p>
+                            </div>
+                            <div className="rounded-md bg-gray-50 p-2">
+                              <p className="text-xs text-gray-500">可访问项目</p>
+                              <p className={selectedProjectCount === 0 && !canUseGlobalScope ? 'mt-1 text-red-600' : selectedProjectCount === 0 ? 'mt-1 text-green-600' : 'mt-1 text-orange-600'}>
+                                {selectedProjectCount === 0 ? (canUseGlobalScope ? '全部项目' : '未选择') : `${selectedProjectCount} 个项目`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="rounded-md bg-gray-50 p-2">
+                            <p className="text-xs text-gray-500">项目身份</p>
+                            <p className="mt-1 text-gray-700">{getUserProjectRoleSummary(user.id)}</p>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => openUserRoleDialog(user)}>
+                          <UserCog className="w-4 h-4 mr-1" />
+                          分配岗位与项目
+                        </Button>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1150,7 +1275,7 @@ export default function PermissionCenterPage() {
                       )}
                     </div>
                     {expandedModules.includes(module.code) && (
-                      <div className="p-3 bg-white grid grid-cols-3 gap-2">
+                      <div className="p-3 bg-white grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {module.children.map((perm) => (
                           <div
                             key={perm.code}
@@ -1172,7 +1297,7 @@ export default function PermissionCenterPage() {
 
       {/* 角色编辑对话框 */}
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingRole ? '编辑岗位模板' : '新建岗位模板'}</DialogTitle>
             <DialogDescription>
@@ -1182,7 +1307,7 @@ export default function PermissionCenterPage() {
           
           <div className="space-y-6">
             {/* 基本信息 */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="roleName">岗位模板名称 *</Label>
                 <Input
@@ -1222,7 +1347,7 @@ export default function PermissionCenterPage() {
                 {projects.length === 0 ? (
                   <p className="text-gray-400 text-sm">暂无可选项目</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {projects.map((project) => (
                       <div key={project.id} className="flex items-center gap-2">
                         <Checkbox
@@ -1285,7 +1410,7 @@ export default function PermissionCenterPage() {
                       />
                       <span className="font-medium text-sm">{module.icon} {module.name}</span>
                     </div>
-                    <div className="p-2 grid grid-cols-3 gap-1">
+                    <div className="p-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
                       {module.children.map((perm) => (
                         <div key={perm.code} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded">
                           <Checkbox
@@ -1305,7 +1430,7 @@ export default function PermissionCenterPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setRoleDialogOpen(false)}>
               取消
             </Button>
@@ -1319,7 +1444,7 @@ export default function PermissionCenterPage() {
 
       {/* 用户角色分配对话框 */}
       <Dialog open={userRoleDialogOpen} onOpenChange={setUserRoleDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-5xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>分配岗位与项目</DialogTitle>
             <DialogDescription>
@@ -1427,7 +1552,7 @@ export default function PermissionCenterPage() {
                       .map((project) => (
                         <div key={project.id} className="rounded-md border border-gray-100 p-3">
                           <div className="text-sm font-medium text-gray-900 mb-2">{project.name}</div>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid gap-2 sm:grid-cols-2">
                             {PROJECT_ROLE_OPTIONS.map((option) => (
                               <div key={option.code} className="flex items-center gap-2">
                                 <Checkbox
@@ -1454,7 +1579,7 @@ export default function PermissionCenterPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setUserRoleDialogOpen(false)}>
               取消
             </Button>

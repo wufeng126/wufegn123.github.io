@@ -224,7 +224,7 @@ export default function SettlementPage() {
         {/* 页面标题 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-xl font-semibold tracking-tight text-gray-900">供应商结算管理</h1>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             <Button variant="outline" onClick={openAddSettlementDialog}><Receipt className="mr-2 h-4 w-4" />办理结算</Button>
           </div>
         </div>
@@ -252,15 +252,15 @@ export default function SettlementPage() {
         )}
 
         {/* 筛选栏 */}
-        <div className="flex items-center gap-4 bg-white rounded-lg p-4">
+        <div className="flex flex-col gap-3 rounded-lg bg-white p-4 sm:flex-row sm:items-center sm:gap-4">
           <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="选择供应商" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="选择供应商" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部供应商</SelectItem>
               {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <div className="relative w-48">
+          <div className="relative w-full sm:w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input placeholder="搜索..." value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} className="pl-9" />
           </div>
@@ -269,6 +269,7 @@ export default function SettlementPage() {
         {/* 结算单列表 */}
         <Card>
           <CardContent className="p-0">
+            <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
@@ -315,13 +316,57 @@ export default function SettlementPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+            <div className="space-y-3 p-3 md:hidden">
+              {filteredSettlements.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-500">暂无数据</div>
+              ) : filteredSettlements.map(s => (
+                <div key={s.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{String(s.settlement_no || '')}</div>
+                      <LinkableCell href={`/suppliers?id=${s.supplier_id}`}>{String(s.supplier_name || '')}</LinkableCell>
+                    </div>
+                    <Badge variant={s.status === '已确认' ? 'default' : 'outline'} className="shrink-0">
+                      {String(s.status || '已提交')}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant={s.settlement_type === '履约中' ? 'default' : 'secondary'}>
+                      {String(s.settlement_type || '')}
+                    </Badge>
+                    <Badge variant="outline">履约 {Number(s.payment_ratio_active || 0)}%</Badge>
+                    <Badge variant="outline">结算 {Number(s.payment_ratio_complete || 0)}%</Badge>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500">结算金额</div>
+                      <div className="mt-1 font-medium">{formatCurrency(s.settlement_amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">应付金额</div>
+                      <div className="mt-1 font-medium text-orange-600">{formatCurrency(s.payable_amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">结算日期</div>
+                      <div className="mt-1">{formatDate(s.settlement_date)}</div>
+                    </div>
+                  </div>
+                  {canManage && (
+                    <Button size="sm" variant="outline" className="mt-4 w-full text-red-600" onClick={() => handleDeleteSettlement(s.id)}>
+                      <Trash2 className="mr-2 h-4 w-4" />删除
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
             </CardContent>
           </Card>
       </div>
 
       {/* 新增结算单对话框 */}
       <Dialog open={settlementDialogOpen} onOpenChange={setSettlementDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>办理结算</DialogTitle>
           </DialogHeader>
@@ -341,7 +386,7 @@ export default function SettlementPage() {
             </div>
             <div>
               <Label>结算类型 *</Label>
-              <div className="flex gap-4 mt-1">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Button variant={settlementForm.settlement_type === '履约中' ? 'default' : 'outline'} onClick={() => handleSettlementTypeChange('履约中')}>
                   履约中 ({contracts.find(c => c.id === parseInt(settlementForm.contract_id))?.payment_ratio_active || 80}%)
                 </Button>
@@ -375,7 +420,7 @@ export default function SettlementPage() {
               <Textarea value={settlementForm.remark} onChange={e => setSettlementForm(prev => ({ ...prev, remark: e.target.value }))} className="mt-1" rows={2} />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setSettlementDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveSettlement}>保存</Button>
           </div>

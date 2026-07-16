@@ -622,9 +622,9 @@ export default function LimitPricesPage() {
         {/* 筛选区 */}
         <Card>
           <CardContent className="pt-4">
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap">
               <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full lg:w-[180px]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -636,7 +636,7 @@ export default function LimitPricesPage() {
               </Select>
               
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-full lg:w-[140px]">
                   <SelectValue placeholder="状态" />
                 </SelectTrigger>
                 <SelectContent>
@@ -647,7 +647,7 @@ export default function LimitPricesPage() {
                 </SelectContent>
               </Select>
               
-              <div className="flex-1 min-w-[200px]">
+              <div className="min-w-0 lg:min-w-[200px] lg:flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
@@ -665,7 +665,7 @@ export default function LimitPricesPage() {
         {/* 列表 */}
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -796,13 +796,92 @@ export default function LimitPricesPage() {
                 </TableBody>
               </Table>
             </div>
+            <div className="space-y-3 p-3 md:hidden">
+              {loading ? (
+                <div className="rounded-lg border border-dashed py-8 text-center text-sm text-gray-500">
+                  加载中...
+                </div>
+              ) : data.length === 0 ? (
+                <div className="rounded-lg border border-dashed py-8 text-center text-sm text-gray-500">
+                  暂无数据
+                </div>
+              ) : (
+                data.map((item: any) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'rounded-xl border bg-white p-3 shadow-sm',
+                      isOverBudget(item) && 'border-red-100 bg-red-50/40',
+                      item.status === '浣滃簾' && 'opacity-60'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-gray-900">{String(item.subitem_name || '')}</div>
+                        <div className="mt-1 truncate text-xs text-gray-500">{String(item.project?.name || '')}</div>
+                      </div>
+                      <Badge
+                        variant={
+                          item.status === '瀹℃牳鐢熸晥' ? 'default' :
+                          item.status === '鑽夌' ? 'secondary' : 'destructive'
+                        }
+                        className="shrink-0"
+                      >
+                        {String(item.status || '')}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-lg bg-gray-50 p-2">
+                        <div className="text-gray-500">工种/班组</div>
+                        <div className="mt-1 truncate text-gray-900">{[item.work_type, item.team_name].filter(Boolean).join(' / ') || '-'}</div>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 p-2">
+                        <div className="text-gray-500">单位/工程量</div>
+                        <div className="mt-1 text-gray-900">{String(item.unit || '-')} / {Number(item.plan_quantity || 0)}</div>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 p-2">
+                        <div className="text-blue-700">限价单价</div>
+                        <div className="mt-1 font-medium text-blue-700">¥{formatMoney(item.limit_unit_price)}</div>
+                      </div>
+                      <div className="rounded-lg bg-orange-50 p-2">
+                        <div className="text-orange-700">单价差</div>
+                        <div className={cn(
+                          'mt-1 font-medium',
+                          Number(item.price_difference || 0) > 0 ? 'text-red-600' : Number(item.price_difference || 0) < 0 ? 'text-green-600' : 'text-gray-500'
+                        )}>
+                          {Number(item.price_difference || 0) !== 0 ? `${Number(item.price_difference || 0) > 0 ? '+' : ''}¥${formatMoney(item.price_difference)}` : '-'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openViewDialog(item)}>
+                        <Eye className="mr-1 h-4 w-4" />
+                        查看
+                      </Button>
+                      {canManage && item.status !== '浣滃簾' ? (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => openEditDialog(item)}>
+                            <Edit className="mr-1 h-4 w-4" />
+                            编辑
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDelete(item)} className="text-red-600">
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            删除
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* 新增对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>新增限价</DialogTitle>
           </DialogHeader>
@@ -820,7 +899,7 @@ export default function LimitPricesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>劳务子项名称 <span className="text-red-500">*</span></Label>
                 <Input
@@ -838,7 +917,7 @@ export default function LimitPricesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>归属班组</Label>
                 <Input
@@ -856,7 +935,7 @@ export default function LimitPricesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>限价单价(元) <span className="text-red-500">*</span></Label>
                 <Input
@@ -911,7 +990,7 @@ export default function LimitPricesPage() {
 
       {/* 编辑对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               编辑限价
@@ -934,7 +1013,7 @@ export default function LimitPricesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>劳务子项名称 <span className="text-red-500">*</span></Label>
                 <Input
@@ -950,7 +1029,7 @@ export default function LimitPricesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>归属班组</Label>
                 <Input
@@ -966,7 +1045,7 @@ export default function LimitPricesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>限价单价(元) <span className="text-red-500">*</span></Label>
                 <Input
@@ -1015,7 +1094,7 @@ export default function LimitPricesPage() {
 
       {/* 查看详情对话框 */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               限价详情
@@ -1031,7 +1110,7 @@ export default function LimitPricesPage() {
           </DialogHeader>
           {currentItem && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-gray-500">项目名称</Label>
                   <p className="font-medium">{currentItem.project?.name}</p>
@@ -1122,7 +1201,7 @@ export default function LimitPricesPage() {
 
       {/* 作废对话框 */}
       <Dialog open={invalidateDialogOpen} onOpenChange={setInvalidateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-orange-600">
               <XCircle className="h-5 w-5" />
@@ -1143,7 +1222,7 @@ export default function LimitPricesPage() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setInvalidateDialogOpen(false)}>取消</Button>
             <Button variant="destructive" onClick={handleInvalidate}>确认作废</Button>
           </DialogFooter>
@@ -1152,7 +1231,7 @@ export default function LimitPricesPage() {
 
       {/* 批量导入对话框 */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="h-5 w-5" />

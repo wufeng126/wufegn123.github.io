@@ -723,7 +723,7 @@ export default function CertificatesPage() {
               <span className="text-base font-semibold" style={{ color: '#1D2129' }}>证件概览</span>
             </div>
             
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
               <div>
                 <p className="text-sm mb-2" style={{ color: '#86909C' }}>证件总数</p>
                 <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{stats.totalCount}</p>
@@ -830,10 +830,10 @@ export default function CertificatesPage() {
         <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
           {/* 筛选区域 */}
           <CardContent className="pt-4 pb-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
               {/* 当前筛选状态提示 */}
               {(selectedStatus !== 'all' || selectedOwnerType !== 'all') && (
-                <div className="w-full mb-2 flex items-center gap-2">
+                <div className="mb-2 flex w-full flex-wrap items-center gap-2">
                   <span className="text-xs" style={{ color: '#86909C' }}>当前筛选：</span>
                   {selectedOwnerType !== 'all' && (
                     <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: '#165DFF', color: '#165DFF' }}>
@@ -856,18 +856,18 @@ export default function CertificatesPage() {
                   </button>
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <Search className="w-4 h-4" style={{ color: '#86909C' }} />
                 <Input
                   placeholder="搜索证件名称/编号..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-48 h-8"
+                  className="h-8 w-full sm:w-48"
                 />
               </div>
               
               <Select value={selectedOwnerType} onValueChange={setSelectedOwnerType}>
-                <SelectTrigger className="w-32 h-8">
+                <SelectTrigger className="h-8 w-full sm:w-32">
                   <SelectValue placeholder="证件类型" />
                 </SelectTrigger>
                 <SelectContent>
@@ -877,7 +877,7 @@ export default function CertificatesPage() {
                 </SelectContent>
               </Select>
 
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex sm:items-center">
                 <Button variant="ghost" size="sm" onClick={handleReset} className="h-8">
                   重置
                 </Button>
@@ -895,7 +895,8 @@ export default function CertificatesPage() {
 
           {/* 列表区域 */}
           <CardContent className="p-0">
-            <Table>
+            <div className="hidden overflow-x-auto md:block">
+            <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow style={{ background: '#F7F8FA' }}>
                   <TableHead className="font-medium h-10" style={{ color: '#86909C' }}>证件名称</TableHead>
@@ -1044,15 +1045,93 @@ export default function CertificatesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
+            <div className="space-y-3 p-3 md:hidden">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed py-8 text-sm" style={{ color: '#86909C' }}>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>加载中...</span>
+                </div>
+              ) : certificates.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-sm" style={{ color: '#86909C' }}>
+                  <CreditCard className="h-10 w-10 opacity-30" />
+                  <span>暂无证件数据</span>
+                </div>
+              ) : (
+                certificates.map((cert) => {
+                  const remainingDays = getRemainingDays(cert.expiry_date);
+                  return (
+                    <div
+                      key={cert.id}
+                      className={`rounded-xl border bg-white p-3 shadow-sm ${
+                        cert.status === 'expired' ? 'border-red-100 bg-red-50/30' :
+                        cert.status === 'expiring' ? 'border-amber-100 bg-amber-50/30' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium" style={{ color: '#1D2129' }}>{cert.name}</div>
+                          <div className="mt-1 truncate font-mono text-xs" style={{ color: '#165DFF' }}>{cert.certificate_number}</div>
+                        </div>
+                        <Badge variant="outline" className={`${getStatusStyle(cert.status)} shrink-0 font-medium`}>
+                          {getStatusText(cert.status)}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-lg bg-[#F7F8FA] p-2">
+                          <div style={{ color: '#86909C' }}>归属</div>
+                          <div className="mt-1 truncate" style={{ color: '#1D2129' }}>{cert.owner_name || '-'}</div>
+                        </div>
+                        <div className="rounded-lg bg-[#F7F8FA] p-2">
+                          <div style={{ color: '#86909C' }}>类型</div>
+                          <div className="mt-1" style={{ color: '#1D2129' }}>
+                            {cert.owner_type === 'company' ? '公司' : '人员'}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-[#F7F8FA] p-2">
+                          <div style={{ color: '#86909C' }}>发证日期</div>
+                          <div className="mt-1" style={{ color: '#1D2129' }}>{cert.issue_date || '-'}</div>
+                        </div>
+                        <div className="rounded-lg bg-[#F7F8FA] p-2">
+                          <div style={{ color: '#86909C' }}>到期日期</div>
+                          <div className="mt-1" style={{ color: cert.status === 'expired' ? '#F53F3F' : cert.status === 'expiring' ? '#FF7D00' : '#1D2129' }}>
+                            {cert.expiry_date || '-'}
+                            {cert.status !== 'normal' && (
+                              <span className="ml-1">
+                                {remainingDays < 0 ? `过期${Math.abs(remainingDays)}天` : `剩${remainingDays}天`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleView(cert)}>
+                          <Eye className="mr-1 h-3.5 w-3.5" />
+                          查看
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(cert)}>
+                          <Pencil className="mr-1 h-3.5 w-3.5" />
+                          编辑
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteConfirm(cert)} className="text-red-600">
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          删除
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </CardContent>
 
           {/* 分页 */}
           {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+            <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
               <div className="text-sm" style={{ color: '#86909C' }}>
                 共 {pagination.total} 条记录，第 {pagination.page} / {pagination.totalPages} 页
               </div>
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1081,12 +1160,12 @@ export default function CertificatesPage() {
 
       {/* 新增证件对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle style={{ color: '#1D2129' }}>新增证件</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="required">证件名称</Label>
                 <Input
@@ -1104,7 +1183,7 @@ export default function CertificatesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="required">归属类型</Label>
                 <Select value={form.ownerType} onValueChange={(v) => setForm({ ...form, ownerType: v })}>
@@ -1126,7 +1205,7 @@ export default function CertificatesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="required">发证日期</Label>
                 <Input
@@ -1175,7 +1254,7 @@ export default function CertificatesPage() {
                 <div className="space-y-2">
                   {/* 图片附件缩略图网格 */}
                   {formAttachments.filter(att => isImageFile(att.name)).length > 0 && (
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {formAttachments.filter(att => isImageFile(att.name)).map((att) => (
                         <div key={att.key} className="relative group rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors">
                           {thumbnailUrls[att.key] ? (
@@ -1228,7 +1307,7 @@ export default function CertificatesPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveAdd} disabled={saving} className="gap-1.5" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
@@ -1240,12 +1319,12 @@ export default function CertificatesPage() {
 
       {/* 编辑证件对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle style={{ color: '#1D2129' }}>编辑证件</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="required">证件名称</Label>
                 <Input
@@ -1263,7 +1342,7 @@ export default function CertificatesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="required">归属类型</Label>
                 <Select value={form.ownerType} onValueChange={(v) => setForm({ ...form, ownerType: v })}>
@@ -1285,7 +1364,7 @@ export default function CertificatesPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="required">发证日期</Label>
                 <Input
@@ -1334,7 +1413,7 @@ export default function CertificatesPage() {
                 <div className="space-y-2">
                   {/* 图片附件缩略图网格 */}
                   {formAttachments.filter(att => isImageFile(att.name)).length > 0 && (
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {formAttachments.filter(att => isImageFile(att.name)).map((att) => (
                         <div key={att.key} className="relative group rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors">
                           {thumbnailUrls[att.key] ? (
@@ -1393,7 +1472,7 @@ export default function CertificatesPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveEdit} disabled={saving} className="gap-1.5" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
@@ -1405,13 +1484,13 @@ export default function CertificatesPage() {
 
       {/* 查看证件对话框 */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle style={{ color: '#1D2129' }}>证件详情</DialogTitle>
           </DialogHeader>
           {currentCertificate && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm mb-1" style={{ color: '#86909C' }}>证件名称</p>
                   <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.name}</p>
@@ -1421,7 +1500,7 @@ export default function CertificatesPage() {
                   <p className="font-mono font-medium" style={{ color: '#165DFF' }}>{currentCertificate.certificate_number}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm mb-1" style={{ color: '#86909C' }}>归属类型</p>
                   <div className="flex items-center gap-1">
@@ -1440,7 +1519,7 @@ export default function CertificatesPage() {
                   <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.owner_name}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm mb-1" style={{ color: '#86909C' }}>发证日期</p>
                   <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.issue_date}</p>
@@ -1484,7 +1563,7 @@ export default function CertificatesPage() {
                   <div className="space-y-2">
                     {/* 图片附件缩略图网格 */}
                     {currentCertificate.attachments.filter((att: Attachment) => isImageFile(att.name)).length > 0 && (
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {currentCertificate.attachments.filter((att: Attachment) => isImageFile(att.name)).map((att: Attachment) => (
                           <div
                             key={att.key}
@@ -1533,7 +1612,7 @@ export default function CertificatesPage() {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setViewDialogOpen(false)}>关闭</Button>
             <Button onClick={() => { setViewDialogOpen(false); handleEdit(currentCertificate!); }} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
               编辑
@@ -1544,7 +1623,7 @@ export default function CertificatesPage() {
 
       {/* 删除确认对话框 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5" style={{ color: '#F53F3F' }} />
@@ -1569,7 +1648,7 @@ export default function CertificatesPage() {
 
       {/* 图片预览对话框 */}
       <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) { setPreviewUrl(null); setPreviewName(''); } }}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle style={{ color: '#1D2129' }}>{previewName}</DialogTitle>
           </DialogHeader>

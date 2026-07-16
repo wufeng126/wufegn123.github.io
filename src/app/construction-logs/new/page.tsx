@@ -346,7 +346,7 @@ export default function NewConstructionLogPage() {
 
             return (
               <section key={draft.id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                   <h2 className="text-base font-semibold text-[#1D2129]">项目明细 {index + 1}</h2>
                   <button
                     type="button"
@@ -404,7 +404,7 @@ export default function NewConstructionLogPage() {
                       <button
                         type="button"
                         onClick={() => addSelectedTemporaryToScope(draft.id, pendingScopeIds)}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]"
+                        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF] sm:w-auto"
                       >
                         <UserPlus className="h-3.5 w-3.5" />
                         加入我的负责范围
@@ -476,8 +476,8 @@ export default function NewConstructionLogPage() {
                                   {selectedSet.has(worker.id) ? '✓' : ''}
                                 </span>
                                 <span className="min-w-0">
-                                  <span className="block text-sm font-medium text-[#1D2129]">{worker.name}</span>
-                                  <span className="mt-1 block text-xs text-[#86909C]">
+                                  <span className="block truncate text-sm font-medium text-[#1D2129]">{worker.name}</span>
+                                  <span className="mt-1 block truncate text-xs text-[#86909C]">
                                     {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未填写工种/班组'}
                                   </span>
                                 </span>
@@ -509,8 +509,8 @@ export default function NewConstructionLogPage() {
                                     {selectedSet.has(worker.id) ? '✓' : ''}
                                   </span>
                                   <span className="min-w-0">
-                                    <span className="block text-sm font-medium text-[#1D2129]">{worker.name}</span>
-                                    <span className="mt-1 block text-xs text-[#86909C]">
+                                    <span className="block truncate text-sm font-medium text-[#1D2129]">{worker.name}</span>
+                                    <span className="mt-1 block truncate text-xs text-[#86909C]">
                                       {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未填写工种/班组'}
                                     </span>
                                   </span>
@@ -556,7 +556,7 @@ export default function NewConstructionLogPage() {
             <button
               type="submit"
               disabled={saving || !submissionWindow.allowed}
-              className="inline-flex h-11 min-w-[160px] items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:w-auto sm:min-w-[160px]"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {saving ? '提交中...' : '提交日志'}

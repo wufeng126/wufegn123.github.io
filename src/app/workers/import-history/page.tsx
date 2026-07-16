@@ -200,7 +200,8 @@ export default function ImportHistoryPage() {
                 <div className="loading-spinner" />
               </div>
             ) : history.length > 0 ? (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow style={{ background: '#F7F8FA', borderBottom: '1px solid #E5E6EB' }}>
@@ -295,6 +296,57 @@ export default function ImportHistoryPage() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="grid gap-3 p-3 md:hidden">
+                {history.map((record) => (
+                  <article key={record.id} className="rounded-lg border bg-white p-3" style={{ borderColor: '#E5E6EB' }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 shrink-0" style={{ color: '#165DFF' }} />
+                          <h3 className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{record.file_name || '未知文件'}</h3>
+                        </div>
+                        <div className="mt-1 text-xs" style={{ color: '#86909C' }}>{formatDateTime(record.import_time)} · {record.operator || '-'}</div>
+                      </div>
+                      <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
+                        record.import_mode === 'upsert'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {getModeLabel(record.import_mode)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                      <div className="rounded-md bg-gray-50 p-2">
+                        <div style={{ color: '#86909C' }}>总数</div>
+                        <div className="mt-1 font-semibold" style={{ color: '#1D2129' }}>{record.total_count}</div>
+                      </div>
+                      <div className="rounded-md bg-green-50 p-2">
+                        <div className="text-green-700">新增</div>
+                        <div className="mt-1 font-semibold text-green-700">{record.success_count}</div>
+                      </div>
+                      <div className="rounded-md bg-orange-50 p-2">
+                        <div className="text-orange-700">更新</div>
+                        <div className="mt-1 font-semibold text-orange-700">{record.update_count}</div>
+                      </div>
+                      <div className="rounded-md bg-red-50 p-2">
+                        <div className="text-red-700">错误</div>
+                        <div className="mt-1 font-semibold text-red-700">{record.error_count}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {record.error_details && record.error_details.length > 0 && (
+                        <Button size="sm" variant="outline" onClick={() => exportErrorDetails(record)}>
+                          <Download className="mr-1 h-4 w-4" />错误明细
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(record.id)} className="text-red-600">
+                        <Trash2 className="mr-1 h-4 w-4" />删除
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              </>
             ) : (
               <div className="empty-state">
                 <div className="empty-state-icon">

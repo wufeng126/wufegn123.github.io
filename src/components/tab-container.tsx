@@ -71,7 +71,7 @@ export function TabContainer({ tabs, defaultTab }: TabContainerProps) {
     <div className="flex flex-col h-full">
       {/* Tab 栏 */}
       <div
-        className="flex items-center gap-1 px-4 pt-3 pb-0 border-b overflow-x-auto flex-shrink-0"
+        className="flex items-center gap-1 px-3 pt-3 pb-0 border-b overflow-x-auto flex-shrink-0 sm:px-4"
         style={{ borderBottom: '1px solid var(--border)' }}
       >
         {visibleTabs.map((tab) => {
@@ -81,7 +81,7 @@ export function TabContainer({ tabs, defaultTab }: TabContainerProps) {
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
               className={cn(
-                'relative flex items-center px-4 py-2.5 text-[13px] rounded-t-lg transition-all duration-200 whitespace-nowrap bg-transparent border-none cursor-pointer',
+                'relative flex items-center px-3 py-2.5 text-[13px] rounded-t-lg transition-all duration-200 whitespace-nowrap bg-transparent border-none cursor-pointer sm:px-4',
               )}
               style={{
                 color: isActive ? 'var(--primary)' : 'var(--color-text-2)',

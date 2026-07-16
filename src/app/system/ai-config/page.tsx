@@ -366,8 +366,8 @@ export default function AIConfigPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold tracking-tight">AI劳务助手配置</h1>
         <Badge variant={config.enabled ? 'default' : 'secondary'}>
           {config.enabled ? '已启用' : '已禁用'}
@@ -375,7 +375,7 @@ export default function AIConfigPage() {
       </div>
 
       <Tabs defaultValue="config" className="space-y-4">
-        <TabsList>
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:flex sm:w-auto">
           <TabsTrigger value="config">模型配置</TabsTrigger>
           <TabsTrigger value="modules">功能模块</TabsTrigger>
           <TabsTrigger value="knowledge">知识库</TabsTrigger>
@@ -440,7 +440,7 @@ export default function AIConfigPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-4 pt-4 border-t">
+              <div className="grid gap-3 pt-4 border-t sm:grid-cols-3">
                 <div className="flex items-center gap-2">
                   <Switch checked={config.content_filter_enabled} onCheckedChange={v => setConfig({ ...config, content_filter_enabled: v })} />
                   <Label>内容安全过滤</Label>
@@ -495,7 +495,7 @@ export default function AIConfigPage() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle>业务数据同步</CardTitle>
                   <Button variant="outline" size="sm" onClick={refreshAllKnowledge} disabled={syncing === 'all'}>
                     {syncing === 'all' ? '刷新中...' : '全量刷新'}
@@ -503,7 +503,7 @@ export default function AIConfigPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                   {[
                     { key: 'salary', label: '工人工资台账', icon: '💰' },
                     { key: 'supplier', label: '供应商台账', icon: '📋' },
@@ -528,13 +528,13 @@ export default function AIConfigPage() {
 
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle>文档管理</CardTitle>
                   <Button size="sm" onClick={() => { setDocInputMode('manual'); setUploadFile(null); setShowAddDoc(true); }}>
                     <Plus className="h-4 w-4 mr-1" />添加文档
                   </Button>
                   <Dialog open={showAddDoc} onOpenChange={setShowAddDoc}>
-                    <DialogContent className="max-w-lg">
+                    <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
                       <DialogHeader><DialogTitle>添加知识库文档</DialogTitle></DialogHeader>
                       <div className="space-y-4">
                         <div className="space-y-2">
@@ -610,7 +610,9 @@ export default function AIConfigPage() {
                 {docs.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">暂无知识库文档</div>
                 ) : (
-                  <Table>
+                  <>
+                  <div className="hidden overflow-x-auto md:block">
+                    <Table className="min-w-[760px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>标题</TableHead>
@@ -647,7 +649,45 @@ export default function AIConfigPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
+                  <div className="space-y-3 md:hidden">
+                    {docs.map(doc => (
+                      <div key={doc.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{doc.title}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {categoryLabels[doc.category] || doc.category}
+                            </div>
+                          </div>
+                          <Badge variant={doc.status === 'active' ? 'default' : 'destructive'} className="shrink-0">
+                            {doc.status === 'active' ? '正常' : doc.status === 'error' ? '错误' : doc.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <div className="text-xs text-muted-foreground">来源</div>
+                            <div className="mt-1">
+                              <Badge variant="outline">
+                                {doc.source_type === 'manual' ? '手动上传' : doc.source_type === 'business_sync' ? '业务同步' : '文件上传'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">同步时间</div>
+                            <div className="mt-1 text-xs">
+                              {doc.last_sync_at ? new Date(doc.last_sync_at).toLocaleString() : '-'}
+                            </div>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" className="mt-4 w-full text-destructive" onClick={() => deleteDoc(doc.id)}>
+                          删除
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -658,11 +698,11 @@ export default function AIConfigPage() {
         <TabsContent value="audit">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>AI操作审计日志</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Select value={auditFilter.action} onValueChange={v => setAuditFilter({ ...auditFilter, action: v })}>
-                    <SelectTrigger className="w-32"><SelectValue placeholder="全部操作" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-32"><SelectValue placeholder="全部操作" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部</SelectItem>
                       <SelectItem value="chat">对话</SelectItem>
@@ -678,7 +718,9 @@ export default function AIConfigPage() {
               {auditLogs.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">暂无审计日志</div>
               ) : (
-                <Table>
+                <>
+                <div className="hidden overflow-x-auto md:block">
+                  <Table className="min-w-[840px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>时间</TableHead>
@@ -711,7 +753,42 @@ export default function AIConfigPage() {
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
+                <div className="space-y-3 md:hidden">
+                  {auditLogs.map(log => (
+                    <div key={log.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(log.created_at).toLocaleString()}
+                          </div>
+                          <div className="mt-1 font-medium">{log.username || '-'}</div>
+                        </div>
+                        <Badge variant={log.is_success ? 'default' : 'destructive'} className="shrink-0">
+                          {log.is_success ? '成功' : '失败'}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Badge variant={log.action === 'chat_blocked' ? 'destructive' : 'outline'}>
+                          {log.action === 'chat' ? '对话' : log.action === 'chat_blocked' ? '拦截' : log.action}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">{log.response_time_ms}ms</span>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div>
+                          <div className="text-xs text-muted-foreground">输入摘要</div>
+                          <div className="mt-1 line-clamp-2">{log.input_summary || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">页面</div>
+                          <div className="mt-1">{log.page_context || '-'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

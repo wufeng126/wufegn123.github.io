@@ -16,7 +16,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
   return (
-    <div className={cn('flex items-start justify-between gap-4', className)}>
+    <div className={cn('flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4', className)}>
       <div className="min-w-0">
         <h1 className="text-xl font-semibold text-gray-900 tracking-tight">{title}</h1>
         {description && (
@@ -24,7 +24,7 @@ export function PageHeader({ title, description, actions, className }: PageHeade
         )}
       </div>
       {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
+        <div className="mobile-action-grid shrink-0 sm:flex sm:w-auto sm:items-center sm:gap-2">{actions}</div>
       )}
     </div>
   );
@@ -41,7 +41,7 @@ interface FilterBarProps {
 export function FilterBar({ children, className }: FilterBarProps) {
   return (
     <div className={cn(
-      'flex flex-wrap items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg',
+      'mobile-filter-grid px-4 py-3 bg-white border border-gray-200 rounded-lg sm:flex sm:flex-wrap sm:items-center sm:gap-3',
       className
     )}>
       {children}
@@ -59,7 +59,7 @@ interface FilterItemProps {
 
 export function FilterItem({ label, children }: FilterItemProps) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex min-w-0 items-center gap-1.5">
       <span className="text-xs text-gray-500 shrink-0">{label}</span>
       {children}
     </div>
@@ -122,7 +122,7 @@ interface ActionGroupProps {
 
 export function ActionGroup({ children, className }: ActionGroupProps) {
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('mobile-action-grid sm:flex sm:w-auto sm:items-center sm:gap-2', className)}>
       {children}
     </div>
   );

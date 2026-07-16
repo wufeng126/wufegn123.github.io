@@ -520,21 +520,21 @@ function SupplierCostDashboard() {
           filters={
             <>
               <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="全部项目" /></SelectTrigger>
+                <SelectTrigger className="h-9 w-full sm:w-[160px]"><SelectValue placeholder="全部项目" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部项目</SelectItem>
                   {projects.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="全部供应商" /></SelectTrigger>
+                <SelectTrigger className="h-9 w-full sm:w-[160px]"><SelectValue placeholder="全部供应商" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部供应商</SelectItem>
                   {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={selectedContractStatus} onValueChange={setSelectedContractStatus}>
-                <SelectTrigger className="h-9 w-[120px]"><SelectValue placeholder="全部状态" /></SelectTrigger>
+                <SelectTrigger className="h-9 w-full sm:w-[120px]"><SelectValue placeholder="全部状态" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部状态</SelectItem>
                   <SelectItem value="settled">已决算</SelectItem>
@@ -620,7 +620,7 @@ function SupplierCostDashboard() {
           title="明细台账"
           summary={`共 ${filteredData.length} 条合同，${groupedData.length} 个项目`}
         >
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm" style={{ minWidth: 900 }}>
               <thead>
                 <tr className="border-b bg-muted/50 text-xs">
@@ -642,7 +642,7 @@ function SupplierCostDashboard() {
                   if (item.type === 'group' && item.group) {
                     const g = item.group;
                     const isCollapsed = collapsedGroups.has(g.name);
-                    const totalPayable = g.summary.progressPayable + g.summary.finalPayable;
+                    const totalPayable = g.summary.progressPayable;
                     return (
                       <tr key={`group-${g.name}`}
                         className="border-b bg-blue-50/60 cursor-pointer hover:bg-blue-100/50"
@@ -711,13 +711,106 @@ function SupplierCostDashboard() {
               </tbody>
             </table>
           </div>
+          <div className="space-y-3 p-3 md:hidden">
+            {paginatedGroups.length === 0 ? (
+              <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+                暂无数据
+              </div>
+            ) : paginatedGroups.map((item) => {
+              if (item.type === 'group' && item.group) {
+                const g = item.group;
+                const isCollapsed = collapsedGroups.has(g.name);
+                const rate = g.summary.progressPayable > 0 ? ((g.summary.paid / g.summary.progressPayable) * 100).toFixed(0) : '-';
+                return (
+                  <button
+                    key={`mobile-group-${g.name}`}
+                    type="button"
+                    onClick={() => toggleGroup(g.name)}
+                    className="w-full rounded-lg border border-blue-100 bg-blue-50/80 p-3 text-left"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-blue-900">{g.name}</div>
+                        <div className="mt-1 text-xs text-blue-600">{g.summary.count} 个合同 · 付款率 {rate}%</div>
+                      </div>
+                      {isCollapsed ? <ChevronRight className="h-4 w-4 shrink-0 text-blue-600" /> : <ChevronDown className="h-4 w-4 shrink-0 text-blue-600" />}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-white/80 p-2">
+                        <div className="text-blue-600">履约应付</div>
+                        <div className="mt-1 font-semibold text-blue-900">{formatCurrency(g.summary.progressPayable)}</div>
+                      </div>
+                      <div className="rounded bg-white/80 p-2">
+                        <div className="text-green-600">已付</div>
+                        <div className="mt-1 font-semibold text-green-700">{formatCurrency(g.summary.paid)}</div>
+                      </div>
+                      <div className="rounded bg-white/80 p-2">
+                        <div className="text-amber-600">进度未付</div>
+                        <div className="mt-1 font-semibold text-amber-700">{formatCurrency(g.summary.progressUnpaid)}</div>
+                      </div>
+                      <div className="rounded bg-white/80 p-2">
+                        <div className="text-red-600">决算未付</div>
+                        <div className="mt-1 font-semibold text-red-700">{formatCurrency(g.summary.finalUnpaid)}</div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              }
+
+              if (item.type === 'row' && item.row) {
+                const r = item.row;
+                return (
+                  <div key={`mobile-row-${r.id}`} className="rounded-lg border bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-gray-900">{r.supplierName}</div>
+                        <div className="mt-1 truncate text-xs text-gray-500">{r.contract_name}</div>
+                      </div>
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${getStatusStyle(r)}`}>
+                        {getStatusLabel(r)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-slate-50 p-2">
+                        <div className="text-gray-500">履约应付</div>
+                        <div className="mt-1 font-semibold">{formatCurrency(r.progressPayable)}</div>
+                      </div>
+                      <div className="rounded bg-slate-50 p-2">
+                        <div className="text-gray-500">决算应付</div>
+                        <div className="mt-1 font-semibold">{formatCurrency(r.finalPayable)}</div>
+                      </div>
+                      <div className="rounded bg-green-50 p-2">
+                        <div className="text-green-600">已付</div>
+                        <div className="mt-1 font-semibold text-green-700">{formatCurrency(r.paidAmount)}</div>
+                      </div>
+                      <div className="rounded bg-red-50 p-2">
+                        <div className="text-red-600">决算未付</div>
+                        <div className="mt-1 font-semibold text-red-700">{formatCurrency(r.finalUnpaid)}</div>
+                      </div>
+                    </div>
+                    {r.progressUnpaid > 0 && (
+                      <div className="mt-2 text-xs text-amber-600">进度未付：{formatCurrency(r.progressUnpaid)}</div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })}
+            {paginatedGroups.length > 0 && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm font-medium">
+                <div className="flex justify-between"><span>合计履约应付</span><span>{formatCurrency(stats.totalProgressPayable)}</span></div>
+                <div className="mt-2 flex justify-between text-green-600"><span>已付</span><span>{formatCurrency(stats.totalPaid)}</span></div>
+                <div className="mt-2 flex justify-between text-red-600"><span>决算未付</span><span>{formatCurrency(stats.totalFinalUnpaid)}</span></div>
+              </div>
+            )}
+          </div>
 
           {/* 分页 */}
-          <div className="flex items-center justify-between px-4 py-3 border-t text-sm">
+          <div className="flex flex-col gap-3 px-4 py-3 border-t text-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="text-muted-foreground text-xs">
               第 {currentPage}/{totalPages} 页，共 {totalRows} 行
             </div>
-            <div className="flex items-center gap-1">
+            <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center">
               <Button variant="outline" size="sm" disabled={currentPage <= 1}
                 onClick={() => setCurrentPage(1)} className="h-7 px-2 text-xs">首页</Button>
               <Button variant="outline" size="sm" disabled={currentPage <= 1}

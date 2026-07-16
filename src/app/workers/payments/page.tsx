@@ -419,7 +419,7 @@ export default function WorkerPaymentsPage() {
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>工资发放</h1>
           <p className="text-sm mt-1" style={{ color: '#86909C' }}>按项目、批次管理工人工资发放记录</p>
         </div>
-        <div className="flex gap-2">
+        <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
           <Button variant="outline" onClick={fetchPayments} className="btn-secondary h-9">
             <RefreshCw className="w-4 h-4 mr-1.5" />刷新
           </Button>
@@ -444,10 +444,10 @@ export default function WorkerPaymentsPage() {
                 <Plus className="w-4 h-4 mr-1.5" />新增发放记录
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg z-50">
+            <DialogContent className="z-50 max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
               <DialogHeader><DialogTitle className="dialog-header">新增发放记录</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm" style={{ color: '#1D2129' }}>工人 *</Label>
                     <Popover open={workerSearchOpen} onOpenChange={setWorkerSearchOpen}>
@@ -507,11 +507,11 @@ export default function WorkerPaymentsPage() {
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>付款日期 *</Label><Input type="date" value={formData.payment_date} onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })} className="mt-1.5" required /></div>
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>金额 *</Label><Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} className="mt-1.5" required /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: '#1D2129' }}>付款类型</Label>
                     <Select value={formData.payment_type} onValueChange={(v) => setFormData({ ...formData, payment_type: v })}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -537,7 +537,7 @@ export default function WorkerPaymentsPage() {
                 </div>
                 <div><Label className="text-sm" style={{ color: '#1D2129' }}>年月</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" placeholder="2025-01" /></div>
                 <div><Label className="text-sm" style={{ color: '#1D2129' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
-                <div className="flex justify-end gap-3 pt-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
                   <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)} className="border-gray-300">取消</Button>
                   <Button type="submit" className="btn-primary">保存</Button>
                 </div>
@@ -548,7 +548,7 @@ export default function WorkerPaymentsPage() {
       </div>
 
       {/* 统计卡片 */}
-      <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <Card className="stat-card stat-card-blue">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
@@ -608,17 +608,17 @@ export default function WorkerPaymentsPage() {
 
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <div className="filter-bar">
+        <div className="filter-bar mobile-filter-grid sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           <Filter className="w-4 h-4" style={{ color: '#86909C' }} />
           <Select value={filterProject} onValueChange={setFilterProject}>
-            <SelectTrigger className="w-36 h-8"><SelectValue placeholder="全部项目" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-36 h-9 sm:h-8"><SelectValue placeholder="全部项目" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部项目</SelectItem>
               {projects.map(p => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}
             </SelectContent>
           </Select>
           <Select value={filterYearMonth} onValueChange={setFilterYearMonth}>
-            <SelectTrigger className="w-32 h-8"><SelectValue placeholder="全部年月" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-32 h-9 sm:h-8"><SelectValue placeholder="全部年月" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部年月</SelectItem>
               {yearMonthOptions.map(ym => (<SelectItem key={ym} value={ym}>{ym}</SelectItem>))}
@@ -626,14 +626,14 @@ export default function WorkerPaymentsPage() {
           </Select>
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#C9CDD4' }} />
-            <Input placeholder="搜索工人" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} className="w-36 pl-9 h-8" />
+            <Input placeholder="搜索工人" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} className="w-full sm:w-36 pl-9 h-9 sm:h-8" />
           </div>
           {(filterProject !== 'all' || filterYearMonth !== 'all' || searchKeyword) && (
             <Button variant="ghost" size="sm" onClick={() => { setFilterProject('all'); setFilterYearMonth('all'); setSearchKeyword(''); }} className="h-8" style={{ color: '#86909C' }}>
               <X className="w-4 h-4 mr-1" />清除筛选
             </Button>
           )}
-          <p className="text-sm ml-auto" style={{ color: '#86909C' }}>共 {filteredPayments.length} 条记录</p>
+          <p className="text-sm sm:ml-auto" style={{ color: '#86909C' }}>共 {filteredPayments.length} 条记录</p>
         </div>
       </div>
 
@@ -659,7 +659,7 @@ export default function WorkerPaymentsPage() {
                   <CardContent className="p-0">
                     {/* 项目汇总行 */}
                     <div
-                      className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-blue-50/50 transition-colors"
+                      className="flex flex-wrap items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-blue-50/50 transition-colors"
                       onClick={() => toggleProject(projectKey)}
                       style={{ background: projectExpanded ? '#F0F5FF' : 'transparent', borderBottom: projectExpanded ? '1px solid #E5E6EB' : 'none' }}
                     >
@@ -667,12 +667,14 @@ export default function WorkerPaymentsPage() {
                         ? <ChevronDown className="w-5 h-5 shrink-0" style={{ color: '#165DFF' }} />
                         : <ChevronRight className="w-5 h-5 shrink-0" style={{ color: '#86909C' }} />
                       }
-                      <FolderOpen className="w-5 h-5 shrink-0" style={{ color: '#165DFF' }} />
-                      <span className="font-semibold text-base" style={{ color: '#1D2129' }}>{group.projectName}</span>
-                      <div className="flex items-center gap-4 ml-auto">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <FolderOpen className="w-5 h-5 shrink-0" style={{ color: '#165DFF' }} />
+                        <span className="truncate font-semibold text-base" style={{ color: '#1D2129' }}>{group.projectName}</span>
+                      </div>
+                      <div className="ml-8 grid w-full grid-cols-3 gap-2 sm:ml-auto sm:w-auto sm:flex sm:items-center sm:gap-4">
                         <span className="text-sm" style={{ color: '#86909C' }}>{group.batches.length} 个批次</span>
                         <span className="text-sm" style={{ color: '#86909C' }}>{group.count} 笔</span>
-                        <span className="font-bold text-base" style={{ color: '#165DFF' }}>{formatCurrencyFull(group.totalAmount)}</span>
+                        <span className="font-bold text-base sm:text-right" style={{ color: '#165DFF' }}>{formatCurrencyFull(group.totalAmount)}</span>
                       </div>
                     </div>
 
@@ -688,7 +690,7 @@ export default function WorkerPaymentsPage() {
                             <div key={batchKey}>
                               {/* 批次汇总行 */}
                               <div
-                                className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
+                                className="flex flex-wrap items-center gap-2 px-4 py-3 cursor-pointer transition-colors sm:gap-3"
                                 onClick={() => toggleBatch(batchKey)}
                                 style={{ background: batchExpanded ? '#FAFBFD' : 'transparent', borderBottom: batchExpanded ? '1px solid #E5E6EB' : '1px solid #F2F3F5' }}
                               >
@@ -696,17 +698,20 @@ export default function WorkerPaymentsPage() {
                                   ? <ChevronDown className="w-4 h-4 shrink-0 ml-4" style={{ color: '#4E5969' }} />
                                   : <ChevronRight className="w-4 h-4 shrink-0 ml-4" style={{ color: '#C9CDD4' }} />
                                 }
-                                <span className="font-medium text-sm" style={{ color: '#4E5969' }}>{batch.label}</span>
-                                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#F2F3F5', color: '#86909C' }}>{batch.count} 笔</span>
-                                {batchSelectedCount > 0 && (
-                                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: '#165DFF' }}>已选 {batchSelectedCount}</span>
-                                )}
-                                <span className="font-semibold text-sm ml-auto" style={{ color: '#165DFF' }}>{formatCurrencyFull(batch.totalAmount)}</span>
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
+                                  <span className="font-medium text-sm" style={{ color: '#4E5969' }}>{batch.label}</span>
+                                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#F2F3F5', color: '#86909C' }}>{batch.count} 笔</span>
+                                  {batchSelectedCount > 0 && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: '#165DFF' }}>已选 {batchSelectedCount}</span>
+                                  )}
+                                </div>
+                                <span className="ml-8 w-full font-semibold text-sm sm:ml-auto sm:w-auto" style={{ color: '#165DFF' }}>{formatCurrencyFull(batch.totalAmount)}</span>
                               </div>
 
                               {/* 展开的明细表格 */}
                               {batchExpanded && (
-                                <div className="overflow-x-auto" style={{ background: '#FAFBFD' }}>
+                                <div style={{ background: '#FAFBFD' }}>
+                                  <div className="hidden overflow-x-auto md:block">
                                   <Table>
                                     <TableHeader>
                                       <TableRow style={{ background: '#F7F8FA', borderBottom: '1px solid #E5E6EB' }}>
@@ -747,6 +752,51 @@ export default function WorkerPaymentsPage() {
                                       </TableRow>
                                     </TableBody>
                                   </Table>
+                                  </div>
+                                  <div className="space-y-2 p-3 md:hidden">
+                                    <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2">
+                                      <span className="text-sm font-medium" style={{ color: '#1D2129' }}>本批次</span>
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox
+                                          checked={batch.payments.length > 0 && batch.payments.every(p => selectedIds.has(p.id))}
+                                          onCheckedChange={(checked) => handleSelectAll(checked as boolean, batch.payments)}
+                                        />
+                                        <span className="text-sm font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(batch.totalAmount)}</span>
+                                      </div>
+                                    </div>
+                                    {batch.payments.map((payment) => {
+                                      const isSelected = selectedIds.has(payment.id);
+                                      return (
+                                        <div key={payment.id} className="rounded-lg border border-gray-100 bg-white p-3" style={{ background: isSelected ? '#E8F3FF' : '#FFFFFF' }}>
+                                          <div className="flex items-start gap-3">
+                                            <Checkbox checked={isSelected} onCheckedChange={(checked) => handleSelectOne(payment.id, checked as boolean)} className="mt-1" />
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                  <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{payment.worker_name}</p>
+                                                  <p className="mt-0.5 text-xs" style={{ color: '#86909C' }}>{payment.payment_date} · {payment.payment_type}</p>
+                                                </div>
+                                                <p className="shrink-0 text-base font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(parseFloat(payment.amount))}</p>
+                                              </div>
+                                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                  <p style={{ color: '#86909C' }}>付款方式</p>
+                                                  <p style={{ color: '#4E5969' }}>{payment.payment_method}</p>
+                                                </div>
+                                                <div>
+                                                  <p style={{ color: '#86909C' }}>所属月份</p>
+                                                  <p style={{ color: '#4E5969' }}>{payment.year_month || '-'}</p>
+                                                </div>
+                                              </div>
+                                              {payment.remark && (
+                                                <p className="mt-2 rounded bg-gray-50 px-2 py-1 text-xs" style={{ color: '#4E5969' }}>{payment.remark}</p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -754,9 +804,9 @@ export default function WorkerPaymentsPage() {
                         })}
 
                         {/* 项目合计行 */}
-                        <div className="flex items-center px-4 py-3" style={{ background: '#F0F5FF', borderTop: '1px solid #E5E6EB' }}>
-                          <span className="text-sm font-semibold ml-9" style={{ color: '#1D2129' }}>{group.projectName} 合计</span>
-                          <div className="flex items-center gap-4 ml-auto">
+                        <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center" style={{ background: '#F0F5FF', borderTop: '1px solid #E5E6EB' }}>
+                          <span className="text-sm font-semibold sm:ml-9" style={{ color: '#1D2129' }}>{group.projectName} 合计</span>
+                          <div className="flex items-center gap-4 sm:ml-auto">
                             <span className="text-sm" style={{ color: '#86909C' }}>{group.count} 笔</span>
                             {projectSelectedCount > 0 && (
                               <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: '#165DFF' }}>已选 {projectSelectedCount}</span>
@@ -774,9 +824,9 @@ export default function WorkerPaymentsPage() {
             {/* 全局合计 */}
             <Card className="overflow-hidden border" style={{ borderColor: '#165DFF', background: 'linear-gradient(135deg, #F0F5FF 0%, #E8F3FF 100%)' }}>
               <CardContent className="py-4 px-5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="font-bold" style={{ color: '#1D2129' }}>全部项目合计</span>
-                  <div className="flex items-center gap-6">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
                     <span className="text-sm" style={{ color: '#86909C' }}>{projectGroups.length} 个项目 · {filteredPayments.length} 笔</span>
                     <span className="text-xl font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(stats.totalAmount)}</span>
                   </div>
@@ -801,7 +851,7 @@ export default function WorkerPaymentsPage() {
 
       {/* 删除确认对话框 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle style={{ color: '#1D2129' }}>确认删除</AlertDialogTitle>
             <AlertDialogDescription>确定要删除选中的 {selectedIds.size} 条付款记录吗？此操作不可恢复。</AlertDialogDescription>
@@ -815,7 +865,7 @@ export default function WorkerPaymentsPage() {
 
       {/* 导入结果对话框 */}
       <Dialog open={importResult.show} onOpenChange={(open) => { if (!open) setImportResult(prev => ({ ...prev, show: false })); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {importResult.success ? (

@@ -22,8 +22,8 @@ interface FilterBarProps {
 export function FilterBar({ title, filters, actions, className }: FilterBarProps) {
   return (
     <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between', className)}>
-      <h1 className="text-xl font-semibold tracking-tight whitespace-nowrap">{title}</h1>
-      <div className="flex flex-wrap items-center gap-2">
+      <h1 className="text-lg font-semibold tracking-tight sm:text-xl">{title}</h1>
+      <div className="mobile-filter-grid sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-2">
         {filters}
         {actions}
       </div>
@@ -119,7 +119,7 @@ export function StandardDashboardLayout({
   className,
 }: StandardDashboardLayoutProps) {
   return (
-    <div className={cn('space-y-4 p-4 md:p-6', className)}>
+    <div className={cn('w-full max-w-full space-y-4 overflow-x-hidden p-3 sm:p-4 md:p-6', className)}>
       {/* 加载骨架 */}
       {loading && <DashboardSkeleton />}
 
@@ -156,15 +156,15 @@ interface DashboardChartCardProps {
 
 export function DashboardChartCard({ title, unit, children, className, extra }: DashboardChartCardProps) {
   return (
-    <Card className={cn('', className)}>
+    <Card className={cn('max-w-full overflow-hidden', className)}>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-sm font-medium leading-5">{title}</CardTitle>
           {extra}
         </div>
         {unit && <span className="text-xs text-muted-foreground">单位：{unit}</span>}
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-hidden">
         {children}
       </CardContent>
     </Card>

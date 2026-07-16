@@ -351,13 +351,13 @@ export default function WpsConfigPage() {
   const getDedicatedWebhookUrl = (binding: WpsBinding) => `${webhookUrl}?bindingId=${binding.id}&token=YOUR_SYNC_TOKEN`;
 
   return (
-    <div className="space-y-5 p-4 md:p-6">
+    <div className="space-y-5 p-3 sm:p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">WPS 花名册同步配置</h1>
           <p className="mt-1 text-sm text-gray-500">绑定系统项目与 WPS 表单、多维表格或可下载文档链接，扫码填报后进入工人档案。</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
           <Button variant="outline" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -447,6 +447,8 @@ export default function WpsConfigPage() {
                 {!loading && <p className="mt-1 text-sm">新增后，系统会按绑定关系识别项目并写入工人档案。</p>}
               </div>
             ) : (
+              <>
+              <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -527,6 +529,64 @@ export default function WpsConfigPage() {
                   })}
                 </TableBody>
               </Table>
+              </div>
+              <div className="grid gap-3 md:hidden">
+                {filteredBindings.map((binding) => {
+                  const project = getProject(binding);
+                  return (
+                    <article key={binding.id} className="rounded-lg border bg-white p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold text-gray-900">{project?.name || `项目 #${binding.project_id}`}</h3>
+                          <div className="mt-1 text-xs text-gray-500">{binding.wps_project_name || binding.worksheet_name || '未配置 WPS 名称'}</div>
+                        </div>
+                        {binding.is_active === false ? <Badge variant="secondary">已停用</Badge> : <Badge className="bg-blue-600">启用中</Badge>}
+                      </div>
+                      <div className="mt-3 space-y-2 rounded-md bg-gray-50 p-3 text-xs text-gray-600">
+                        <div className="truncate">表单：{binding.wps_form_id || '-'}</div>
+                        <div className="truncate">工作表ID：{binding.wps_sheet_id || '-'}</div>
+                        <div className="truncate">多维表格：{binding.wps_table_id || '-'}</div>
+                        {binding.wps_document_url ? (
+                          <a className="flex items-center gap-1 truncate text-blue-600" href={binding.wps_document_url} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            {binding.wps_document_url}
+                          </a>
+                        ) : null}
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-gray-500">
+                        <div>
+                          <div className="flex items-center gap-2">{statusBadge(binding.last_sync_status)}</div>
+                          <div className="mt-1">{formatDateTime(binding.last_sync_at)}</div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm" onClick={() => testBinding(binding)} disabled={testingBindingId === binding.id}>
+                            {testingBindingId === binding.id ? '测试中' : '测试'}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => openEditDialog(binding)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyText(getDedicatedWebhookUrl(binding), '专属 Webhook 地址已复制')}
+                        >
+                          <Copy className="mr-1 h-4 w-4" />地址
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => toggleActive(binding)}>
+                          {binding.is_active === false ? '启用' : '停用'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-red-600" onClick={() => deleteBinding(binding)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -637,7 +697,7 @@ export default function WpsConfigPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{form.id ? '编辑 WPS 绑定' : '新增 WPS 绑定'}</DialogTitle>
             <DialogDescription>一个系统项目可以绑定一个 WPS 项目二维码、工作表或文档链接。</DialogDescription>
@@ -692,7 +752,7 @@ export default function WpsConfigPage() {
               <Textarea value={form.remark} onChange={(event) => setForm((prev) => ({ ...prev, remark: event.target.value }))} placeholder="例如：二维码负责人、WPS 表单用途、字段口径等" rows={3} />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
             <Button onClick={saveBinding} disabled={saving}>{saving ? '保存中...' : '保存配置'}</Button>
           </DialogFooter>

@@ -175,18 +175,18 @@ export default function ApprovalConfigPage() {
   };
 
   if (loading) return (
-    <div className="min-h-full bg-[#F5F6FA] p-6 flex items-center justify-center text-sm text-[#86909C]">加载中...</div>
+    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6 flex items-center justify-center text-sm text-[#86909C]">加载中...</div>
   );
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Link href="/system-management" className="inline-flex items-center gap-1 text-sm text-[#86909C] hover:text-[#165DFF] mb-2">
               <ArrowLeft className="h-4 w-4" /> 返回系统管理
             </Link>
-            <h1 className="text-2xl font-bold text-[#1D2129]">审批流程配置</h1>
+            <h1 className="text-xl font-bold text-[#1D2129] sm:text-2xl">审批流程配置</h1>
             <p className="text-sm text-[#86909C] mt-0.5">自定义月度分析等业务流程的审批节点和责任人</p>
           </div>
           <span className="inline-flex h-9 items-center rounded-full bg-[#E8F3FF] px-3 text-xs font-medium text-[#165DFF]">当前启用 3 类流程</span>
@@ -235,12 +235,12 @@ export default function ApprovalConfigPage() {
         {/* 编辑弹窗 */}
         {editing && (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E6EB]">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-[#E5E6EB] sm:px-5">
                 <h2 className="font-semibold text-[#1D2129]">编辑：{editing.name}</h2>
                 <button onClick={() => setEditing(null)} className="text-[#86909C] hover:text-[#1D2129]">✕</button>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="space-y-4 p-4 sm:p-5">
                 {/* 流程名称 */}
                 <div>
                   <label className="block text-sm font-medium text-[#1D2129] mb-1">流程名称</label>
@@ -258,9 +258,9 @@ export default function ApprovalConfigPage() {
                   </div>
                   <div className="space-y-3">
                     {editing.steps.filter(s => s.label).map((step, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-[#E5E6EB] bg-[#FAFBFC]">
+                      <div key={i} className="flex flex-col gap-3 rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-3 sm:flex-row sm:items-center">
                         <span className="text-xs text-[#86909C] w-5 shrink-0">{i + 1}</span>
-                        <div className="flex-1 grid grid-cols-3 gap-2">
+                        <div className="grid w-full flex-1 gap-2 sm:grid-cols-3">
                           <div>
                             <label className="text-[10px] text-[#86909C]">节点名称</label>
                             <input value={step.label} onChange={e => updateStep(i, 'label', e.target.value)}
@@ -295,7 +295,7 @@ export default function ApprovalConfigPage() {
                   </div>
                 </div>
 
-                <div className="pt-3 flex items-center gap-3 justify-end border-t border-[#E5E6EB]">
+                <div className="grid grid-cols-2 gap-2 border-t border-[#E5E6EB] pt-3 sm:flex sm:items-center sm:justify-end sm:gap-3">
                   <button onClick={() => setEditing(null)} className="h-9 px-4 rounded-lg border border-[#E5E6EB] text-sm text-[#4E5969]">取消</button>
                   <button onClick={save} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#165DFF] px-4 text-sm text-white">
                     <Save className="h-4 w-4" /> 保存

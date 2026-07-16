@@ -1077,7 +1077,7 @@ function MiscMaterialsContent() {
               
               {/* 分页 */}
               {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t" style={{ borderColor: '#E5E6EB' }}>
+                <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
                   <div className="text-sm" style={{ color: '#86909C' }}>
                     第 {(pagination.page - 1) * pagination.pageSize + 1} - {Math.min(pagination.page * pagination.pageSize, pagination.total)} 条，共 {pagination.total} 条
                   </div>
@@ -1119,7 +1119,7 @@ function MiscMaterialsContent() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               <Button variant={assistMode === 'image' ? 'default' : 'outline'} onClick={() => resetAssist('image')} className="gap-2">
                 <Camera className="h-4 w-4" />拍照
               </Button>
@@ -1195,7 +1195,7 @@ function MiscMaterialsContent() {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAssistDialogOpen(false)}>取消</Button>
             <Button onClick={handleRecognizeMaterial} disabled={recognizing} className="gap-2" style={{ backgroundColor: '#165DFF' }}>
               {recognizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -1303,7 +1303,7 @@ function MiscMaterialsContent() {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
             <Button onClick={handleAdd} disabled={saving} style={{ backgroundColor: '#165DFF' }}>
               {saving ? '保存中...' : '保存'}
@@ -1410,7 +1410,7 @@ function MiscMaterialsContent() {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
             <Button onClick={handleEdit} disabled={saving} style={{ backgroundColor: '#165DFF' }}>
               {saving ? '保存中...' : '保存'}
@@ -1421,7 +1421,7 @@ function MiscMaterialsContent() {
 
       {/* 删除确认对话框 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1493,7 +1493,7 @@ function MiscMaterialsContent() {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setImportDialogOpen(false)}>关闭</Button>
             <Button onClick={handleImport} disabled={importing || !importFile} style={{ backgroundColor: '#165DFF' }}>
               {importing ? (

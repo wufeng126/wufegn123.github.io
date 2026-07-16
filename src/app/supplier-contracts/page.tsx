@@ -227,13 +227,13 @@ export default function SupplierContractsPage() {
 
   // ============ 渲染 ============
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 px-3 py-4 sm:p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* 页面标题 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-xl font-semibold tracking-tight text-gray-900">合同管理</h1>
           {canManage && (
-            <Button onClick={openAddContractDialog}><Plus className="mr-2 h-4 w-4" />新增合同</Button>
+            <Button onClick={openAddContractDialog} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />新增合同</Button>
           )}
         </div>
 
@@ -260,15 +260,15 @@ export default function SupplierContractsPage() {
         )}
 
         {/* 筛选栏 */}
-        <div className="flex items-center gap-4 bg-white rounded-lg p-4">
+        <div className="mobile-filter-grid rounded-lg bg-white p-4 sm:flex sm:items-center sm:gap-4">
           <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="选择供应商" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="选择供应商" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部供应商</SelectItem>
               {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative w-full sm:max-w-sm sm:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input placeholder="搜索供应商或合同名称..." value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} className="pl-9" />
           </div>
@@ -277,7 +277,7 @@ export default function SupplierContractsPage() {
         {/* 合同列表 */}
         <Card>
           <CardContent className="p-0">
-            <Table>
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow className="bg-gray-50">
                   <TableHead>供应商</TableHead>
@@ -326,18 +326,64 @@ export default function SupplierContractsPage() {
                 ))}
               </TableBody>
             </Table>
+            <div className="space-y-3 p-3 md:hidden">
+              {filteredContracts.length === 0 ? (
+                <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-gray-500">暂无数据</div>
+              ) : filteredContracts.map(contract => (
+                <div key={contract.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900">{String(contract.contract_name || '')}</p>
+                      <p className="mt-1 truncate text-xs text-gray-500">{String(contract.supplier?.name || '')} · {contract.contract_no || '-'}</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0">
+                      {String(contract.contract_status || '')}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-gray-500">合同金额</p>
+                      <p className="mt-0.5 font-semibold text-gray-900">{formatCurrency(contract.total_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">累计结算</p>
+                      <p className="mt-0.5 font-semibold text-blue-600">{formatCurrency(contract.total_settlement)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">应付</p>
+                      <p className="mt-0.5 font-semibold text-orange-600">{formatCurrency(contract.total_payable)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">已付</p>
+                      <p className="mt-0.5 font-semibold text-green-600">{formatCurrency(contract.total_paid)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+                    <span>履约 {Number(contract.payment_ratio_active || 0)}%</span>
+                    <span>结算 {Number(contract.payment_ratio_complete || 0)}%</span>
+                    <span>质保 {Number(contract.warranty_ratio || 0)}%</span>
+                  </div>
+                  {canManage && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-gray-100 pt-3">
+                      <Button size="sm" variant="outline" onClick={() => handleEditContract(contract)}><Pencil className="mr-1 h-4 w-4" />编辑</Button>
+                      <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="mr-1 h-4 w-4" />删除</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* 新增/编辑合同对话框 */}
       <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingContract ? '编辑合同' : '新增合同'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>供应商 *</Label>
                 <Select value={contractForm.supplier_id} onValueChange={v => setContractForm(prev => ({ ...prev, supplier_id: v }))}>
@@ -358,7 +404,7 @@ export default function SupplierContractsPage() {
               <Input value={contractForm.contract_name} onChange={e => setContractForm(prev => ({ ...prev, contract_name: e.target.value }))} className="mt-1" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>签订日期</Label>
                 <Input type="date" value={contractForm.sign_date} onChange={e => setContractForm(prev => ({ ...prev, sign_date: e.target.value }))} className="mt-1" />
@@ -379,7 +425,7 @@ export default function SupplierContractsPage() {
               <Textarea value={contractForm.supply_content} onChange={e => setContractForm(prev => ({ ...prev, supply_content: e.target.value }))} className="mt-1" rows={2} />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <Label>履约中付款比例 (%)</Label>
                 <Input type="number" value={contractForm.payment_ratio_active} onChange={e => setContractForm(prev => ({ ...prev, payment_ratio_active: e.target.value }))} className="mt-1" />
@@ -399,7 +445,7 @@ export default function SupplierContractsPage() {
               <Textarea value={contractForm.remark} onChange={e => setContractForm(prev => ({ ...prev, remark: e.target.value }))} className="mt-1" rows={2} />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setContractDialogOpen(false)}>取消</Button>
             <Button onClick={handleSaveContract}>保存</Button>
           </DialogFooter>

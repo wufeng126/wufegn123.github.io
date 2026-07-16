@@ -509,9 +509,9 @@ export default function SettlementsPage() {
       {/* 筛选 */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:items-center">
             <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full lg:w-48">
                 <SelectValue placeholder="选择供应商" />
               </SelectTrigger>
               <SelectContent>
@@ -525,9 +525,9 @@ export default function SettlementsPage() {
               type="month"
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-40"
+              className="w-full lg:w-40"
             />
-            <div className="relative flex-1 max-w-xs">
+            <div className="relative sm:col-span-2 lg:col-span-1 lg:max-w-xs lg:flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <Input
                 placeholder="搜索供应商/内容"
@@ -536,7 +536,7 @@ export default function SettlementsPage() {
                 className="w-full pl-9"
               />
             </div>
-            <p className="text-sm text-gray-500">显示 {filteredSettlements.length} 条记录</p>
+            <p className="text-sm text-gray-500 sm:col-span-2 lg:col-span-1">显示 {filteredSettlements.length} 条记录</p>
           </div>
         </CardContent>
       </Card>
@@ -550,6 +550,8 @@ export default function SettlementsPage() {
           {loading ? (
             <div className="text-center py-8 text-gray-500">加载中...</div>
           ) : filteredSettlements.length > 0 ? (
+            <>
+            <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -597,6 +599,51 @@ export default function SettlementsPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            <div className="space-y-3 md:hidden">
+              {filteredSettlements.map((settlement) => (
+                <div key={settlement.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedIds.has(settlement.id)}
+                      onCheckedChange={(checked) => handleSelect(settlement.id, checked as boolean)}
+                      className="mt-1"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{settlement.supplier_name}</div>
+                      <div className="mt-1 text-xs text-gray-500">{settlement.project_name || '-'}</div>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => openEditDialog(settlement)}>
+                      <Pencil className="mr-1 h-4 w-4" />
+                      编辑
+                    </Button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="outline">{settlement.settlement_type || '未分类'}</Badge>
+                    <Badge variant="secondary">{settlement.settlement_month}</Badge>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500">结算金额</div>
+                      <div className="mt-1 font-semibold text-green-600">{formatCurrency(settlement.settlement_amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">工程量</div>
+                      <div className="mt-1">
+                        {settlement.settlement_quantity
+                          ? `${settlement.settlement_quantity}${settlement.settlement_unit || ''}`
+                          : '-'}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <div className="text-xs text-gray-500">结算内容</div>
+                      <div className="mt-1 line-clamp-2">{settlement.settlement_content || '-'}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
           ) : (
             <div className="text-center py-12 text-gray-500">
               <p>暂无结算数据</p>
@@ -608,13 +655,13 @@ export default function SettlementsPage() {
 
       {/* 新增对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>新增结算记录</DialogTitle>
             <DialogDescription>添加供应商/班组结算记录</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>供应商 *</Label>
                 <Select value={form.supplier_id} onValueChange={(v) => setForm({ ...form, supplier_id: v })}>
@@ -638,7 +685,7 @@ export default function SettlementsPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>供应类型</Label>
                 <Select value={form.settlement_type} onValueChange={(v) => setForm({ ...form, settlement_type: v })}>
@@ -660,7 +707,7 @@ export default function SettlementsPage() {
               <Label>结算内容</Label>
               <Input value={form.settlement_content} onChange={(e) => setForm({ ...form, settlement_content: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>工程量</Label>
                 <Input type="number" step="0.01" value={form.settlement_quantity} 
@@ -671,7 +718,7 @@ export default function SettlementsPage() {
                 <Input value={form.settlement_unit} onChange={(e) => setForm({ ...form, settlement_unit: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>结算月份 *</Label>
                 <Input type="month" value={form.settlement_month} 
@@ -687,7 +734,7 @@ export default function SettlementsPage() {
               <Label>备注</Label>
               <Textarea value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
               <Button type="submit">添加</Button>
             </div>
@@ -697,13 +744,13 @@ export default function SettlementsPage() {
 
       {/* 编辑对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑结算记录</DialogTitle>
             <DialogDescription>修改结算信息</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>供应商 *</Label>
                 <Select value={form.supplier_id} onValueChange={(v) => setForm({ ...form, supplier_id: v })}>
@@ -727,7 +774,7 @@ export default function SettlementsPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>供应类型</Label>
                 <Select value={form.settlement_type} onValueChange={(v) => setForm({ ...form, settlement_type: v })}>
@@ -749,7 +796,7 @@ export default function SettlementsPage() {
               <Label>结算内容</Label>
               <Input value={form.settlement_content} onChange={(e) => setForm({ ...form, settlement_content: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>工程量</Label>
                 <Input type="number" step="0.01" value={form.settlement_quantity} 
@@ -760,7 +807,7 @@ export default function SettlementsPage() {
                 <Input value={form.settlement_unit} onChange={(e) => setForm({ ...form, settlement_unit: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>结算月份 *</Label>
                 <Input type="month" value={form.settlement_month} 
@@ -776,7 +823,7 @@ export default function SettlementsPage() {
               <Label>备注</Label>
               <Textarea value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存</Button>
             </div>
@@ -786,14 +833,14 @@ export default function SettlementsPage() {
 
       {/* 删除确认 */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
               确定要删除选中的 {selectedIds.size} 条结算记录吗？此操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleBatchDelete}>
               删除
