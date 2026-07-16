@@ -52,8 +52,10 @@ interface SalaryRecord {
   fine: string;
   net_pay: string;
   remark: string | null;
-  payment_status?: string; // unpaid: 未发放, partial: 部分发放, paid: 已发放
+  payment_status?: string; // unpaid: 未发放, partial: 部分发放, paid: 已发清, overpaid: 超额发放
   paid_amount?: number;
+  unpaid_amount?: number;
+  payment_warning?: string | null;
   paid?: number;
 }
 
@@ -931,12 +933,16 @@ export default function WorkerSalariesPage() {
                                   <TableCell className="text-right font-medium" style={{ color: '#00B42A' }}>{formatCurrency(salary.net_pay)}</TableCell>
                                   <TableCell className="text-center">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                      salary.payment_status === 'overpaid' ? 'bg-red-50 text-red-700' :
                                       salary.payment_status === 'paid' ? 'bg-green-50 text-green-700' :
                                       salary.payment_status === 'partial' ? 'bg-orange-50 text-orange-700' :
                                       'bg-gray-50 text-gray-500'
                                     }`}>
-                                      {salary.payment_status === 'paid' ? '已发放' : salary.payment_status === 'partial' ? '部分发放' : '未发放'}
+                                      {salary.payment_status === 'overpaid' ? '超额发放' : salary.payment_status === 'paid' ? '已发清' : salary.payment_status === 'partial' ? '部分发放' : '未发放'}
                                     </span>
+                                    {salary.payment_warning && (
+                                      <p className="mt-1 text-xs text-red-600">{salary.payment_warning}</p>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-right" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : '#86909C' }}>
                                     {formatCurrency(salary.paid || 0)}

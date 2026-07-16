@@ -83,33 +83,6 @@ export async function POST(request: NextRequest) {
 
     const client = getSupabaseClient();
 
-    // 超额检查：发放金额不能超过实发工资
-    if (salary_id) {
-      const { data: salaryRecord } = await client
-        .from('worker_salaries')
-        .select('id, net_pay, payment_status')
-        .eq('id', parseInt(String(salary_id)))
-        .single();
-
-      if (salaryRecord) {
-        const netPay = Number(salaryRecord.net_pay || 0);
-        
-        // 查询已发放金额
-        const { data: existingPayments } = await client
-          .from('salary_payments')
-          .select('payment_amount')
-          .eq('salary_id', parseInt(String(salary_id)));
-        
-        const totalPaid = (existingPayments || []).reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
-        
-        if (totalPaid + Number(payment_amount) > netPay) {
-          return NextResponse.json({ 
-            error: `发放超额：实发工资 ¥${netPay.toLocaleString()}，已发放 ¥${totalPaid.toLocaleString()}，本次 ¥${Number(payment_amount).toLocaleString()} 超出余额` 
-          }, { status: 400 });
-        }
-      }
-    }
-    
     const { data: salData, error: salError } = await insertWithSequenceFix('salary_payments', {
         salary_id: salary_id || null,
         worker_id: parseInt(worker_id),

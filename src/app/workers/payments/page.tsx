@@ -142,8 +142,8 @@ export default function WorkerPaymentsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.worker_id || !formData.amount) {
-      toast({ title: '请填写必填项', variant: 'error' });
+    if (!formData.worker_id || !formData.project_id || !formData.year_month || !formData.amount || !formData.payment_date) {
+      toast({ title: '请填写工人、项目、工资所属月份、实发金额和发放日期', variant: 'error' });
       return;
     }
 
@@ -165,9 +165,13 @@ export default function WorkerPaymentsPage() {
       });
 
       if (res.ok) {
+        const result = await res.json();
         setAddDialogOpen(false);
         resetForm();
         fetchPayments();
+        if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+          toast({ title: result.warnings.join('；'), variant: 'warning' });
+        }
       } else {
         const data = await res.json();
         toast({ title: data.error || '保存失败', variant: 'error' });

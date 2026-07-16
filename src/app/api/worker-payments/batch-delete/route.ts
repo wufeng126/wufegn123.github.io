@@ -31,6 +31,9 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    const { syncAllSalaryPaymentStatus } = await import('@/lib/business-logic');
+    await syncAllSalaryPaymentStatus();
+
     return NextResponse.json({ success: true, count: ids.length });
   } catch (error: any) {
     console.error('API Error:', error);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { syncAllSalaryPaymentStatus } from '@/lib/business-logic';
 import * as XLSX from 'xlsx';
 
 // 将各种日期格式统一为 YYYY-MM
@@ -499,6 +500,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[Salaries Batch] Successfully inserted', data?.length || 0, 'records');
+
+    await syncAllSalaryPaymentStatus();
 
     const result: any = {
       salaries: data,

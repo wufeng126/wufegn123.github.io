@@ -84,7 +84,16 @@ export function calculateSalary(params: {
  * 同步工资发放状态
  * 根据 salary_payments 汇总已付金额，更新 worker_salaries.payment_status
  */
-export async function syncSalaryPaymentStatus(salaryId: number): Promise<'unpaid' | 'partial' | 'paid'> {
+export type SalaryPaymentStatus = 'unpaid' | 'partial' | 'paid' | 'overpaid';
+
+export function calculateSalaryPaymentStatus(netPay: number, paidAmount: number): SalaryPaymentStatus {
+  if (paidAmount <= 0) return 'unpaid';
+  if (paidAmount > netPay) return 'overpaid';
+  if (paidAmount === netPay) return 'paid';
+  return 'partial';
+}
+
+export async function syncSalaryPaymentStatus(salaryId: number): Promise<SalaryPaymentStatus> {
   const client = getSupabaseClient();
 
   // 获取工资记录
@@ -121,14 +130,7 @@ export async function syncSalaryPaymentStatus(salaryId: number): Promise<'unpaid
     );
   }
 
-  let newStatus: 'unpaid' | 'partial' | 'paid';
-  if (totalPaid <= 0) {
-    newStatus = 'unpaid';
-  } else if (totalPaid >= netPay) {
-    newStatus = 'paid';
-  } else {
-    newStatus = 'partial';
-  }
+  const newStatus = calculateSalaryPaymentStatus(netPay, totalPaid);
 
   // 更新状态
   await client
@@ -179,14 +181,7 @@ export async function syncAllSalaryPaymentStatus(): Promise<void> {
     const netPay = parseNumeric(salary.net_pay);
     const totalPaid = (paidMap.get(salary.id) || 0) + (unlinkedPaidMap.get(salaryPaymentMatchKey(salary)) || 0);
 
-    let newStatus: string;
-    if (totalPaid <= 0) {
-      newStatus = 'unpaid';
-    } else if (totalPaid >= netPay) {
-      newStatus = 'paid';
-    } else {
-      newStatus = 'partial';
-    }
+    const newStatus = calculateSalaryPaymentStatus(netPay, totalPaid);
 
     await client
       .from('worker_salaries')

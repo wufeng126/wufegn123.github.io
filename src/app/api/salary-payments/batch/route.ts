@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { syncAllSalaryPaymentStatus, parseNumeric } from '@/lib/business-logic';
+import { syncAllSalaryPaymentStatus } from '@/lib/business-logic';
 import { auditLog } from '@/lib/audit-log';
 import { logSecurityEvent } from '@/lib/security-log';
 
@@ -15,55 +15,6 @@ export async function POST(request: NextRequest) {
 
     const client = getSupabaseClient();
 
-    // 批量超额检查：每个 salary_id 的累计发放不能超过实发工资
-    const salaryIds = [...new Set(payments.map((p: any) => p.salary_id).filter(Boolean))];
-    if (salaryIds.length > 0) {
-      // 获取工资记录
-      const { data: salaryRecords } = await client
-        .from('worker_salaries')
-        .select('id, net_pay')
-        .in('id', salaryIds.map((id: any) => parseInt(String(id))));
-
-      // 获取已有发放
-      const { data: existingPayments } = await client
-        .from('salary_payments')
-        .select('salary_id, payment_amount')
-        .in('salary_id', salaryIds.map((id: any) => parseInt(String(id))));
-
-      // 汇总已有发放
-      const paidMap = new Map<number, number>();
-      (existingPayments || []).forEach((p: any) => {
-        const current = paidMap.get(p.salary_id) || 0;
-        paidMap.set(p.salary_id, current + parseNumeric(p.payment_amount));
-      });
-
-      // 汇总本次发放
-      const newPayMap = new Map<number, number>();
-      payments.forEach((p: any) => {
-        if (p.salary_id) {
-          const sid = parseInt(String(p.salary_id));
-          const current = newPayMap.get(sid) || 0;
-          newPayMap.set(sid, current + Number(p.payment_amount || 0));
-        }
-      });
-
-      // 校验
-      const salaryMap = new Map<number, number>();
-      (salaryRecords || []).forEach((s: any) => {
-        salaryMap.set(s.id, parseNumeric(s.net_pay));
-      });
-
-      for (const [sid, newAmount] of newPayMap) {
-        const netPay = salaryMap.get(sid) || 0;
-        const alreadyPaid = paidMap.get(sid) || 0;
-        if (alreadyPaid + newAmount > netPay) {
-          return NextResponse.json({
-            error: `发放超额：工资记录#${sid} 实发 ¥${netPay.toLocaleString()}，已发 ¥${alreadyPaid.toLocaleString()}，本次 ¥${newAmount.toLocaleString()} 超出余额`
-          }, { status: 400 });
-        }
-      }
-    }
-    
     const { data, error } = await client
       .from('salary_payments')
       .insert(payments.map(p => ({

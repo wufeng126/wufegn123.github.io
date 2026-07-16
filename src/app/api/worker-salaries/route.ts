@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { calculateSalaryPaymentStatus, syncSalaryPaymentStatus } from '@/lib/business-logic';
 
 type RelatedNameEntity = {
   name?: string | null;
@@ -215,26 +216,32 @@ export async function GET(request: NextRequest) {
     };
 
     // 格式化返回数据，关联已付金额，确保所有金额字段为数字类型
-    const salaries = filteredData.map(record => ({
-      id: record.id,
-      worker_id: record.worker_id,
-      project_id: record.project_id,
-      worker_name: getRelatedName(record.workers, '未知工人'),
-      project_name: getRelatedName(record.projects, '未知项目'),
-      year_month: record.year_month,
-      work_hours: parseNumeric(record.work_hours),
-      hourly_rate: parseNumeric(record.hourly_rate),
-      contract_work_pay: parseNumeric(record.contract_work_pay),
-      gross_pay: parseNumeric(record.gross_pay),
-      income_tax: parseNumeric(record.income_tax),
-      advance_pay: parseNumeric(record.advance_pay),
-      labor_insurance: parseNumeric(record.labor_insurance),
-      fine: parseNumeric(record.fine),
-      net_pay: parseNumeric(record.net_pay),
-      paid_amount: getPaidAmount(record),
-      payment_status: record.payment_status || 'unpaid',
-      remark: record.remark,
-    }));
+    const salaries = filteredData.map(record => {
+      const netPay = parseNumeric(record.net_pay);
+      const paidAmount = getPaidAmount(record);
+      return {
+        id: record.id,
+        worker_id: record.worker_id,
+        project_id: record.project_id,
+        worker_name: getRelatedName(record.workers, '未知工人'),
+        project_name: getRelatedName(record.projects, '未知项目'),
+        year_month: record.year_month,
+        work_hours: parseNumeric(record.work_hours),
+        hourly_rate: parseNumeric(record.hourly_rate),
+        contract_work_pay: parseNumeric(record.contract_work_pay),
+        gross_pay: parseNumeric(record.gross_pay),
+        income_tax: parseNumeric(record.income_tax),
+        advance_pay: parseNumeric(record.advance_pay),
+        labor_insurance: parseNumeric(record.labor_insurance),
+        fine: parseNumeric(record.fine),
+        net_pay: netPay,
+        paid_amount: paidAmount,
+        unpaid_amount: Math.max(0, netPay - paidAmount),
+        payment_status: calculateSalaryPaymentStatus(netPay, paidAmount),
+        payment_warning: paidAmount > netPay ? '已发金额超过当月实发工资，请核实工资发放记录' : null,
+        remark: record.remark,
+      };
+    });
 
     // 计算总金额
     const totalGrossPay = filteredData.reduce((sum: number, record) => {
@@ -397,6 +404,10 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       throw new Error(`创建工资记录失败: ${error.message}`);
+    }
+
+    if (salaryData?.id) {
+      await syncSalaryPaymentStatus(Number(salaryData.id));
     }
 
     await auditLog({

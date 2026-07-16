@@ -13,6 +13,64 @@ function isStandalonePaymentType(paymentType?: string | null) {
   return ['预支款', '借支款', '其他'].includes(paymentType || '');
 }
 
+function normalizeText(value?: string | null) {
+  return String(value || '').trim().replace(/\s+/g, '');
+}
+
+function duplicatePaymentKey(params: {
+  workerName?: string | null;
+  projectName?: string | null;
+  yearMonth?: string | null;
+  amount?: number | string | null;
+}) {
+  return [
+    normalizeText(params.workerName),
+    normalizeText(params.projectName),
+    normalizeText(params.yearMonth),
+    parseAmount(params.amount).toFixed(2),
+  ].join('|');
+}
+
+async function ensurePaymentIsNotDuplicate(
+  client: ReturnType<typeof getSupabaseClient>,
+  params: { worker_id: number; project_id: number; year_month: string; amount: number }
+) {
+  const [{ data: worker }, { data: project }] = await Promise.all([
+    client.from('workers').select('name').eq('id', params.worker_id).single(),
+    client.from('projects').select('name').eq('id', params.project_id).single(),
+  ]);
+
+  const currentKey = duplicatePaymentKey({
+    workerName: (worker as any)?.name,
+    projectName: (project as any)?.name,
+    yearMonth: params.year_month,
+    amount: params.amount,
+  });
+
+  const { data: existingPayments, error } = await client
+    .from('salary_payments')
+    .select('payment_amount, year_month, workers(name), projects(name)')
+    .eq('project_id', params.project_id)
+    .eq('year_month', params.year_month);
+
+  if (error) {
+    throw new Error(`检查重复工资发放失败: ${error.message}`);
+  }
+
+  const duplicated = (existingPayments || []).some((payment: any) => (
+    duplicatePaymentKey({
+      workerName: payment.workers?.name,
+      projectName: payment.projects?.name,
+      yearMonth: payment.year_month,
+      amount: payment.payment_amount,
+    }) === currentKey
+  ));
+
+  if (duplicated) {
+    throw new Error('该工资发放记录已存在（姓名、项目、工资所属月份、实发金额相同），已拦截重复导入');
+  }
+}
+
 async function resolveSalaryForPayment(
   client: ReturnType<typeof getSupabaseClient>,
   params: {
@@ -26,6 +84,7 @@ async function resolveSalaryForPayment(
 ) {
   let salaryId = params.salary_id ? parseInt(String(params.salary_id)) : null;
   let yearMonth = params.year_month || null;
+  let warning: string | null = null;
 
   if (!salaryId && yearMonth) {
     const { data: salaryRows, error } = await client
@@ -49,12 +108,11 @@ async function resolveSalaryForPayment(
     }
   }
 
-  if (!salaryId && !isStandalonePaymentType(params.payment_type)) {
-    throw new Error('月度工资发放必须先有对应的工资核算单，请确认工人、项目和年月是否正确');
-  }
-
   if (!salaryId) {
-    return { salaryId: null, yearMonth };
+    if (!isStandalonePaymentType(params.payment_type)) {
+      warning = '该人员当月无工资，请核实';
+    }
+    return { salaryId: null, yearMonth, warning };
   }
 
   const { data: salaryRecord, error: salaryError } = await client
@@ -91,12 +149,10 @@ async function resolveSalaryForPayment(
   const netPay = parseAmount(salaryRecord.net_pay);
 
   if (paidAmount + params.amount > netPay) {
-    throw new Error(
-      `发放超额：实发工资 ¥${netPay.toLocaleString()}，已发放 ¥${paidAmount.toLocaleString()}，本次 ¥${params.amount.toLocaleString()} 超出余额`
-    );
+    warning = `发放超额：实发工资 ¥${netPay.toLocaleString()}，已发放 ¥${paidAmount.toLocaleString()}，本次 ¥${params.amount.toLocaleString()}，请核实`;
   }
 
-  return { salaryId, yearMonth: salaryRecord.year_month };
+  return { salaryId, yearMonth: salaryRecord.year_month, warning };
 }
 
 export async function GET(request: NextRequest) {
@@ -189,8 +245,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { salary_id, worker_id, project_id, year_month, amount, payment_date, payment_type, remark } = body;
 
-    if (worker_id == null || project_id == null || amount == null || !payment_date) {
-      return NextResponse.json({ error: '请填写完整信息' }, { status: 400 });
+    if (worker_id == null || project_id == null || amount == null || !payment_date || !year_month) {
+      return NextResponse.json({ error: '请填写完整信息：工人、项目、工资所属月份、实发金额和发放日期均为必填' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
@@ -201,6 +257,13 @@ export async function POST(request: NextRequest) {
     if (paymentAmount <= 0) {
       return NextResponse.json({ error: '发放金额必须大于0' }, { status: 400 });
     }
+
+    await ensurePaymentIsNotDuplicate(client, {
+      worker_id: workerId,
+      project_id: projectId,
+      year_month,
+      amount: paymentAmount,
+    });
 
     const matchedSalary = await resolveSalaryForPayment(client, {
       salary_id,
@@ -254,7 +317,7 @@ export async function POST(request: NextRequest) {
       metadata: { worker_id, project_id, amount, payment_date, payment_type },
     });
 
-    return NextResponse.json({ payment });
+    return NextResponse.json({ payment, warnings: matchedSalary.warning ? [matchedSalary.warning] : [] });
   } catch (error: any) {
     console.error('API Error:', error);
     return NextResponse.json(
@@ -275,13 +338,6 @@ export async function DELETE(request: NextRequest) {
 
     const client = getSupabaseClient();
 
-    // 删除前获取关联的 salary_id，用于后续同步状态
-    const { data: recordToDelete } = await client
-      .from('salary_payments')
-      .select('id, salary_id')
-      .eq('id', parseInt(id))
-      .single();
-
     const { error } = await client
       .from('salary_payments')
       .delete()
@@ -291,11 +347,9 @@ export async function DELETE(request: NextRequest) {
       throw new Error(`删除发放记录失败: ${error.message}`);
     }
 
-    // 同步关联工资记录的发放状态
-    if (recordToDelete?.salary_id) {
-      const { syncSalaryPaymentStatus } = await import('@/lib/business-logic');
-      await syncSalaryPaymentStatus(recordToDelete.salary_id);
-    }
+    // 删除后全量重算，覆盖未直接挂 salary_id 但按工人/项目/月匹配的发放记录
+    const { syncAllSalaryPaymentStatus } = await import('@/lib/business-logic');
+    await syncAllSalaryPaymentStatus();
 
     await auditLog({
       operationType: 'delete',

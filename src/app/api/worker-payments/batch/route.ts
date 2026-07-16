@@ -9,12 +9,50 @@ function parseAmount(value: any): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function isStandalonePaymentType(paymentType?: string | null) {
-  return ['预支款', '借支款', '其他'].includes(paymentType || '');
-}
-
 function paymentKey(payment: { worker_id: number; project_id: number | null; year_month: string | null }) {
   return `${payment.worker_id}:${payment.project_id || ''}:${payment.year_month || ''}`;
+}
+
+function normalizeText(value?: string | null) {
+  return String(value || '').trim().replace(/\s+/g, '');
+}
+
+function normalizeIdCard(value?: string | null) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function normalizeYearMonth(value?: string | null) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  let match = text.match(/^(\d{4})-(\d{1,2})$/);
+  if (match) return `${match[1]}-${match[2].padStart(2, '0')}`;
+  match = text.match(/^(\d{4})[年/\.](\d{1,2})月?$/);
+  if (match) return `${match[1]}-${match[2].padStart(2, '0')}`;
+  match = text.match(/^(\d{4})(\d{2})$/);
+  if (match) return `${match[1]}-${match[2]}`;
+  if (/^\d+$/.test(text)) {
+    const num = Number(text);
+    if (num > 40000) {
+      const excelEpoch = new Date(1899, 11, 30);
+      const jsDate = new Date(excelEpoch.getTime() + num * 86400000);
+      return jsDate.toISOString().slice(0, 7);
+    }
+  }
+  return text;
+}
+
+function duplicatePaymentKey(params: {
+  workerName?: string | null;
+  projectName?: string | null;
+  yearMonth?: string | null;
+  amount?: number | string | null;
+}) {
+  return [
+    normalizeText(params.workerName),
+    normalizeText(params.projectName),
+    normalizeText(params.yearMonth),
+    parseAmount(params.amount).toFixed(2),
+  ].join('|');
 }
 
 async function bindPaymentsToSalaries(
@@ -74,11 +112,7 @@ async function bindPaymentsToSalaries(
     const rowLabel = `第${index + 1}条`;
 
     if (!payment.project_id || !payment.year_month) {
-      if (isStandalonePaymentType(payment.payment_type)) {
-        validPayments.push(payment);
-      } else {
-        errors.push(`${rowLabel}：月度工资发放必须提供项目和年月，用于匹配工资核算单`);
-      }
+      errors.push(`${rowLabel}：工资发放必须提供项目名称和工资所属月份`);
       return;
     }
 
@@ -90,11 +124,8 @@ async function bindPaymentsToSalaries(
 
     const salary = salaryMap.get(key);
     if (!salary) {
-      if (isStandalonePaymentType(payment.payment_type)) {
-        validPayments.push(payment);
-      } else {
-        errors.push(`${rowLabel}：未找到对应工资核算单，月度工资发放未导入`);
-      }
+      errors.push(`${rowLabel}：该人员当月无工资，请核实`);
+      validPayments.push(payment);
       return;
     }
 
@@ -104,8 +135,7 @@ async function bindPaymentsToSalaries(
     const netPay = parseAmount(salary.net_pay);
 
     if (alreadyPaid + importingPaid + amount > netPay) {
-      errors.push(`${rowLabel}：发放超额，实发工资${netPay}，已发${alreadyPaid}，本批次已排队${importingPaid}，本次${amount}`);
-      return;
+      errors.push(`${rowLabel}：发放超额，实发工资${netPay}，已发${alreadyPaid}，本批次已排队${importingPaid}，本次${amount}，请核实`);
     }
 
     importPaidMap.set(salary.id, importingPaid + amount);
@@ -124,15 +154,15 @@ async function bindPaymentsToSalaries(
 export async function GET() {
   try {
     const XLSX = require('xlsx');
-    const headers = ['工人姓名', '项目名称', '付款金额', '付款方式', '年月', '付款日期', '备注'];
-    const sampleRow1 = ['张三', '测试项目', 5000, '银行转账', '2025-01', '2025-01-15', '1月份工资'];
-    const sampleRow2 = ['李四', '测试项目', 3000, '现金', '2025-01', '', '预支款'];
+    const headers = ['工人姓名', '身份证号', '项目名称', '工资所属月份', '实发金额', '付款方式', '付款日期', '备注'];
+    const sampleRow1 = ['张三', '110101199001010011', '测试项目', '2025-01', 5000, '银行转账', '2025-05-15', '发放1月份工资'];
+    const sampleRow2 = ['李四', '110101199002020022', '测试项目', '2025-01', 3000, '现金', '', '发放1月份工资'];
     const data = [headers, sampleRow1, sampleRow2];
     const ws = XLSX.utils.aoa_to_sheet(data);
     // 设置列宽
     ws['!cols'] = [
-      { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 14 }, { wch: 16 },
+      { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 14 },
+      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '工资发放导入');
@@ -266,17 +296,21 @@ export async function POST(request: NextRequest) {
       };
 
       const workerNameIdx = findIndex(['工人姓名', '姓名', '工人', '员工姓名', '员工']);
+      const idCardIdx = findIndex(['身份证号', '身份证号码', '身份证', '证件号码']);
       const projectNameIdx = findIndex(['项目名称', '项目', '所属项目']);
       const paymentDateIdx = findIndex(['付款日期', '发放日期', '日期', '支付日期', '发放时间', '付款时间']);
       const amountIdx = findIndex(['付款金额', '金额', '发放金额', '支付金额', '实发金额', '发放额', '付款额']);
       const paymentTypeIdx = findIndex(['付款类型', '发放类型', '类型', '付款方式', '支付方式']);
-      const yearMonthIdx = findIndex(['年月', '核算月份', '月份', '核算周期', '工资月份', '所属月份']);
+      const yearMonthIdx = findIndex(['工资所属月份', '年月', '核算月份', '月份', '核算周期', '工资月份', '所属月份']);
       const remarkIdx = findIndex(['备注', '说明', '备注说明']);
 
-      // 必填列：工人姓名和付款金额；付款日期可由年月推导
+      // 必填列：项目名称、身份证号、工资所属月份、实发金额；付款日期可由所属月份推导
       const missingCols: string[] = [];
       if (workerNameIdx === -1) missingCols.push('工人姓名');
-      if (amountIdx === -1) missingCols.push('付款金额');
+      if (idCardIdx === -1) missingCols.push('身份证号');
+      if (projectNameIdx === -1) missingCols.push('项目名称');
+      if (yearMonthIdx === -1) missingCols.push('工资所属月份');
+      if (amountIdx === -1) missingCols.push('实发金额');
 
       if (missingCols.length > 0) {
         return NextResponse.json({
@@ -286,11 +320,16 @@ export async function POST(request: NextRequest) {
 
       // 获取工人和项目映射
       const client = getSupabaseClient();
-      const { data: workersData } = await client.from('workers').select('id, name');
+      const { data: workersData } = await client.from('workers').select('id, name, id_card');
       const { data: projectsData } = await client.from('projects').select('id, name');
 
-      const workerMap = new Map((workersData || []).map(w => [w.name, w.id]));
+      const workerMap = new Map((workersData || [])
+        .filter(w => normalizeIdCard(w.id_card))
+        .map(w => [normalizeIdCard(w.id_card), w]));
       const projectMap = new Map((projectsData || []).map(p => [p.name, p.id]));
+      const projectNameById = new Map((projectsData || []).map(p => [p.id, p.name]));
+      const batchDuplicateKeys = new Set<string>();
+      const existingDuplicateKeys = new Set<string>();
 
       for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const row = rows[i];
@@ -299,26 +338,37 @@ export async function POST(request: NextRequest) {
         const getCell = (idx: number) => idx >= 0 && idx < row.length ? String(row[idx] ?? '').trim() : '';
 
         const workerName = getCell(workerNameIdx);
+        const idCard = normalizeIdCard(getCell(idCardIdx));
         const projectName = getCell(projectNameIdx);
         const paymentDate = getCell(paymentDateIdx);
         const amountStr = getCell(amountIdx);
         const paymentType = getCell(paymentTypeIdx);
-        const yearMonth = getCell(yearMonthIdx);
+        const rawYearMonth = getCell(yearMonthIdx);
+        const yearMonth = normalizeYearMonth(rawYearMonth);
         const remark = getCell(remarkIdx);
 
-        if (!workerName || !amountStr) {
-          errors.push(`第${i + 1}行：缺少必填字段（工人姓名、付款金额）`);
+        if (!workerName || !idCard || !projectName || !yearMonth || !amountStr) {
+          errors.push(`第${i + 1}行：缺少必填字段（工人姓名、身份证号、项目名称、工资所属月份、实发金额）`);
           continue;
         }
 
-        const worker_id = workerMap.get(workerName);
-        if (!worker_id) {
+        if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+          errors.push(`第${i + 1}行：工资所属月份"${rawYearMonth}"格式错误，应为YYYY-MM`);
+          continue;
+        }
+
+        const worker = workerMap.get(idCard);
+        if (!worker) {
           notInRoster.push({ row: i + 1, name: workerName });
-          errors.push(`第${i + 1}行：未找到工人"${workerName}"（不在花名册中）`);
+          errors.push(`第${i + 1}行：未找到身份证号"${idCard}"对应的工人"${workerName}"（不在花名册中）`);
           continue;
         }
 
-        const project_id = projectName ? (projectMap.get(projectName) || null) : null;
+        const project_id = projectMap.get(projectName) || null;
+        if (!project_id) {
+          errors.push(`第${i + 1}行：项目名称"${projectName}"不存在`);
+          continue;
+        }
 
         // 金额解析：处理数字、字符串、科学计数法
         const amount = parseFloat(amountStr) || 0;
@@ -326,6 +376,13 @@ export async function POST(request: NextRequest) {
           errors.push(`第${i + 1}行：付款金额无效"${amountStr}"`);
           continue;
         }
+
+        const duplicateKey = duplicatePaymentKey({ workerName, projectName, yearMonth, amount });
+        if (batchDuplicateKeys.has(duplicateKey)) {
+          errors.push(`第${i + 1}行：本次导入中存在重复工资发放（姓名、项目、工资所属月份、实发金额相同），已跳过`);
+          continue;
+        }
+        batchDuplicateKeys.add(duplicateKey);
 
         // 日期解析：Excel 可能返回数字序列号
         let finalPaymentDate = paymentDate;
@@ -363,13 +420,52 @@ export async function POST(request: NextRequest) {
         }
 
         paymentsToInsert.push({
-          worker_id,
+          worker_id: worker.id,
           project_id,
           payment_amount: amount,
           payment_date: finalPaymentDate,
           payment_type: paymentType || '月度工资',
           year_month: finalYearMonth || null,
           remark: remark || null,
+          worker_name: workerName,
+          project_name: projectNameById.get(project_id) || projectName,
+        });
+      }
+
+      const projectIdsForDuplicateCheck = [...new Set(paymentsToInsert.map(p => p.project_id).filter(Boolean))];
+      const yearMonthsForDuplicateCheck = [...new Set(paymentsToInsert.map(p => p.year_month).filter(Boolean))];
+      if (projectIdsForDuplicateCheck.length > 0 && yearMonthsForDuplicateCheck.length > 0) {
+        const { data: existingPayments, error: existingPaymentError } = await client
+          .from('salary_payments')
+          .select('payment_amount, year_month, project_id, workers(name), projects(name)')
+          .in('project_id', projectIdsForDuplicateCheck)
+          .in('year_month', yearMonthsForDuplicateCheck);
+
+        if (existingPaymentError) {
+          return NextResponse.json({ error: `检查重复工资发放失败: ${existingPaymentError.message}` }, { status: 500 });
+        }
+
+        (existingPayments || []).forEach((payment: any) => {
+          existingDuplicateKeys.add(duplicatePaymentKey({
+            workerName: payment.workers?.name,
+            projectName: payment.projects?.name,
+            yearMonth: payment.year_month,
+            amount: payment.payment_amount,
+          }));
+        });
+
+        paymentsToInsert = paymentsToInsert.filter((payment: any, index: number) => {
+          const key = duplicatePaymentKey({
+            workerName: payment.worker_name,
+            projectName: payment.project_name,
+            yearMonth: payment.year_month,
+            amount: payment.payment_amount,
+          });
+          if (existingDuplicateKeys.has(key)) {
+            errors.push(`第${index + 1}条：该工资发放记录已存在（姓名、项目、工资所属月份、实发金额相同），已拦截`);
+            return false;
+          }
+          return true;
         });
       }
     } else {
@@ -419,8 +515,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const insertRows = paymentsToInsert.map(({ worker_name, project_name, ...payment }) => payment);
+
     // 批量插入
-    const { data, error } = await insertWithSequenceFix('salary_payments', paymentsToInsert, client);
+    const { data, error } = await insertWithSequenceFix('salary_payments', insertRows, client);
 
     if (error) {
       console.error('[Worker Payments Batch] Insert error:', error);
@@ -441,7 +539,7 @@ export async function POST(request: NextRequest) {
       result.notInRoster = notInRoster;
     }
 
-    const affectedSalaryIds = [...new Set(paymentsToInsert.map(p => p.salary_id).filter(Boolean))];
+    const affectedSalaryIds = [...new Set(insertRows.map(p => p.salary_id).filter(Boolean))];
     for (const salaryId of affectedSalaryIds) {
       await syncSalaryPaymentStatus(Number(salaryId));
     }
@@ -489,12 +587,6 @@ export async function DELETE(request: NextRequest) {
 
     const client = getSupabaseClient();
 
-    // 删除前获取关联的 salary_id，用于后续同步状态
-    const { data: recordsToDelete } = await client
-      .from('salary_payments')
-      .select('id, salary_id')
-      .in('id', ids);
-
     const { error } = await client
       .from('salary_payments')
       .delete()
@@ -504,17 +596,9 @@ export async function DELETE(request: NextRequest) {
       throw new Error(`批量删除失败: ${error.message}`);
     }
 
-    // 同步关联工资记录的发放状态
-    const affectedSalaryIds = new Set<number>();
-    (recordsToDelete || []).forEach((r: any) => {
-      if (r.salary_id) affectedSalaryIds.add(r.salary_id);
-    });
-    if (affectedSalaryIds.size > 0) {
-      const { syncSalaryPaymentStatus } = await import('@/lib/business-logic');
-      for (const salaryId of affectedSalaryIds) {
-        await syncSalaryPaymentStatus(salaryId);
-      }
-    }
+    // 删除后全量重算，覆盖未直接挂 salary_id 但按工人/项目/月匹配的发放记录
+    const { syncAllSalaryPaymentStatus } = await import('@/lib/business-logic');
+    await syncAllSalaryPaymentStatus();
 
     return NextResponse.json({ success: true, count: ids.length });
   } catch (error: any) {

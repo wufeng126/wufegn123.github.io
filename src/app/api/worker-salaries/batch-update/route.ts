@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { syncSalaryPaymentStatus } from '@/lib/business-logic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,6 +59,10 @@ export async function POST(request: NextRequest) {
     }) || [];
 
     await Promise.all(updatePromises);
+
+    for (const id of ids) {
+      await syncSalaryPaymentStatus(Number(id));
+    }
 
     return NextResponse.json({ success: true, count: ids.length });
   } catch (error: any) {

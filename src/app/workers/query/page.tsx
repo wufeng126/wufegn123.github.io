@@ -260,7 +260,7 @@ export default function WorkerSalaryQueryPage() {
     
     // 计算未付：已发金额使用工资核算接口按 salary_id 汇总后的 paid_amount，避免独立预支款混入正式工资发放
     workerMap.forEach(w => {
-      w.unpaid = w.total_net_pay - w.paid;
+      w.unpaid = Math.max(0, w.total_net_pay - w.paid);
     });
     
     return Array.from(workerMap.values()).sort((a, b) => a.worker_name.localeCompare(b.worker_name));
