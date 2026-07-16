@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isVoidedStatus } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+
+const emptySummary = {
+  totalContracts: 0,
+  totalAmount: 0,
+  totalSettlement: 0,
+  totalPayable: 0,
+  totalPaid: 0,
+  totalPending: 0,
+  totalWarranty: 0,
+  totalFinalPayment: 0,
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +24,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('supplier_contracts')
       .select(`
-        id, contract_name, contract_no, total_amount, status, locked,
+        id, contract_name, contract_no, total_amount, contract_status, locked,
         supplier:supplier_id(id, name, type),
         project:project_id(id, name)
       `);
@@ -25,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (contractError) throw contractError;
 
     if (!contracts || contracts.length === 0) {
-      return NextResponse.json({ items: [], summary: {} });
+      return NextResponse.json({ items: [], summary: emptySummary });
     }
 
     // 获取所有结算记录
@@ -48,7 +59,9 @@ export async function GET(request: NextRequest) {
       const contractSettlements = (settlements || []).filter((s: any) => (
         s.contract_id === contract.id && !isVoidedStatus(s.status)
       ));
-      const contractPayments = (payments || []).filter((p: any) => p.contract_id === contract.id);
+      const contractPayments = (payments || []).filter((p: any) => (
+        p.contract_id === contract.id && isEffectiveSupplierPaymentStatus(p.status)
+      ));
 
       // 统计结算
       const totalSettlement = contractSettlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
@@ -82,7 +95,7 @@ export async function GET(request: NextRequest) {
         pending_amount: pendingAmount,
         warranty_amount: totalWarranty,
         final_payment: finalPayment,
-        contract_status: contract.locked ? '已完结' : '履约中',
+        contract_status: contract.locked ? '已完结' : (contract.contract_status || '履约中'),
       };
     });
 
