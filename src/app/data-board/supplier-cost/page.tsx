@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { KpiCard, formatAmountSmart, formatPercent, RiskBadge } from '@/components/business/common';
 import { StandardDashboardLayout, FilterBar, KpiSection, ChartSection, LedgerSection, DashboardChartCard, DashboardSkeleton } from '@/components/dashboard/standard-layout';
 import { CollapsibleSection } from '@/components/dashboard/collapsible-section';
+import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/review-status';
 import * as XLSX from 'xlsx';
 
 // 错误边界组件
@@ -64,16 +65,6 @@ function toNumber(val: unknown): number {
   return isNaN(num) ? 0 : num;
 }
 
-function isVoidedStatus(status?: string | null) {
-  const normalized = String(status || '').trim().toLowerCase();
-  return normalized === 'voided' || normalized === 'cancelled' || normalized === 'deleted';
-}
-
-function isEffectivePaymentStatus(status?: string | null) {
-  const normalized = String(status || '').trim().toLowerCase();
-  return !normalized || normalized === 'completed' || normalized === 'reviewed';
-}
-
 function isFinalSettlementType(type?: string | null) {
   const normalized = String(type || '').trim().toLowerCase();
   return (
@@ -113,6 +104,7 @@ interface Settlement {
   settlement_type: string;
   settlement_amount: number;
   payable_amount: number;
+  warranty_amount?: number;
   settlement_date?: string;
   status?: string;
 }
@@ -123,6 +115,7 @@ interface Payment {
   payment_amount?: number;
   amount?: number;
   payment_date: string;
+  payment_type?: string;
   status?: string;
 }
 
@@ -148,6 +141,8 @@ interface DashboardStats {
   totalFinalPayable: number;
   totalProgressUnpaid: number;
   totalFinalUnpaid: number;
+  effectiveSettlementCount: number;
+  effectivePaymentCount: number;
 }
 
 interface RowData extends Contract {
@@ -165,6 +160,8 @@ interface RowData extends Contract {
   finalPayable: number;
   progressUnpaid: number;
   finalUnpaid: number;
+  settlementCount: number;
+  paymentCount: number;
 }
 
 
@@ -238,40 +235,23 @@ function SupplierCostDashboard() {
   // 构建行数据（含计算字段）
   const buildRowData = useCallback((contract: Contract): RowData => {
     const contractSettlements = settlements.filter(s => toNumber(s.contract_id) === contract.id && !isVoidedStatus(s.status));
-    const contractPayments = payments.filter(p => toNumber(p.contract_id) === contract.id && isEffectivePaymentStatus(p.status));
+    const contractPayments = payments.filter(p => toNumber(p.contract_id) === contract.id && isEffectiveSupplierPaymentStatus(p.status));
 
-    const hasSettlementRows = contractSettlements.length > 0;
-    const totalSettlement = hasSettlementRows
-      ? contractSettlements.reduce((sum, s) => sum + toNumber(s.settlement_amount), 0)
-      : toNumber(contract.total_settlement);
-    const payableAmount = hasSettlementRows
-      ? contractSettlements.reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
-      : toNumber(contract.total_payable);
-    const paidAmount = contractPayments.length > 0
-      ? contractPayments.reduce((sum, p) => sum + (toNumber(p.payment_amount) || toNumber(p.amount)), 0)
-      : toNumber(contract.total_paid);
+    const totalSettlement = contractSettlements.reduce((sum, s) => sum + toNumber(s.settlement_amount), 0);
+    const payableAmount = contractSettlements.reduce((sum, s) => sum + toNumber(s.payable_amount), 0);
+    const paidAmount = contractPayments.reduce((sum, p) => sum + (toNumber(p.payment_amount) || toNumber(p.amount)), 0);
     const finalPayableAmount = totalSettlement;
-    const hasFinalSettlement = hasSettlementRows
-      ? contractSettlements.some(s => isFinalSettlementType(s.settlement_type))
-      : Boolean(contract.has_complete_settlement);
+    const hasFinalSettlement = contractSettlements.some(s => isFinalSettlementType(s.settlement_type));
     const paymentRate = payableAmount > 0 ? (paidAmount / payableAmount) * 100 : 0;
 
-    // 按结算类型拆分：进度结算 vs 决算
-    const progressPayable = hasSettlementRows
-      ? contractSettlements
-        .filter(s => !isFinalSettlementType(s.settlement_type))
-        .reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
-      : (hasFinalSettlement ? 0 : payableAmount);
-    const finalPayable = hasSettlementRows
-      ? contractSettlements
-        .filter(s => isFinalSettlementType(s.settlement_type))
-        .reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
-      : (hasFinalSettlement ? payableAmount : 0);
+    // Align with settlement management: payable_amount is current payable, settlement_amount is final payable base.
+    const progressPayable = payableAmount;
+    const finalPayable = totalSettlement;
 
-    // 付款分配：先抵扣进度应付，再抵扣决算应付
+    // Payments are taken from supplier payment records and offset both payable views.
     const progressUnpaid = Math.max(0, progressPayable - paidAmount);
-    const totalUnpaid = Math.max(0, payableAmount - paidAmount);
-    const finalUnpaid = Math.max(0, totalUnpaid - progressUnpaid);
+    const totalUnpaid = progressUnpaid;
+    const finalUnpaid = Math.max(0, finalPayable - paidAmount);
     const finalUnpaidAmount = Math.max(0, finalPayableAmount - paidAmount);
 
     return {
@@ -290,6 +270,8 @@ function SupplierCostDashboard() {
       finalPayable,
       progressUnpaid,
       finalUnpaid,
+      settlementCount: contractSettlements.length,
+      paymentCount: contractPayments.length,
     };
   }, [settlements, payments, suppliers, projects]);
 
@@ -329,9 +311,11 @@ function SupplierCostDashboard() {
     const pendingCount = totalContracts - settledCount;
     const totalProgressPayable = filteredData.reduce((sum, c) => sum + (c.progressPayable || 0), 0);
     const totalFinalPayable = filteredData.reduce((sum, c) => sum + (c.finalPayable || 0), 0);
-    const totalProgressUnpaid = filteredData.reduce((sum, c) => sum + (c.progressUnpaid || 0), 0);
-    const totalFinalUnpaid = filteredData.reduce((sum, c) => sum + (c.finalUnpaid || 0), 0);
-    return { totalContracts, totalSettlement, totalPayable, totalPaid, totalUnpaid, settledCount, pendingCount, totalProgressPayable, totalFinalPayable, totalProgressUnpaid, totalFinalUnpaid };
+    const totalProgressUnpaid = Math.max(0, totalProgressPayable - totalPaid);
+    const totalFinalUnpaid = Math.max(0, totalFinalPayable - totalPaid);
+    const effectiveSettlementCount = filteredData.reduce((sum, c) => sum + c.settlementCount, 0);
+    const effectivePaymentCount = filteredData.reduce((sum, c) => sum + c.paymentCount, 0);
+    return { totalContracts, totalSettlement, totalPayable, totalPaid, totalUnpaid, settledCount, pendingCount, totalProgressPayable, totalFinalPayable, totalProgressUnpaid, totalFinalUnpaid, effectiveSettlementCount, effectivePaymentCount };
   }, [filteredData]);
 
   // 图表数据 - 项目占比条形图
@@ -352,11 +336,12 @@ function SupplierCostDashboard() {
 
   // 图表数据 - 供应商付款进度
   const supplierPaymentData = useMemo(() => {
-    const supplierMap = new Map<string, { settlement: number; paid: number; unpaid: number; rate: number }>();
+    const supplierMap = new Map<string, { settlement: number; payable: number; paid: number; unpaid: number; rate: number }>();
     filteredData.forEach(c => {
       const key = c.supplierName;
-      const existing = supplierMap.get(key) || { settlement: 0, paid: 0, unpaid: 0, rate: 0 };
+      const existing = supplierMap.get(key) || { settlement: 0, payable: 0, paid: 0, unpaid: 0, rate: 0 };
       existing.settlement += c.totalSettlement || 0;
+      existing.payable += c.payableAmount || 0;
       existing.paid += c.paidAmount || 0;
       existing.unpaid += c.unpaidAmount || 0;
       supplierMap.set(key, existing);
@@ -366,7 +351,7 @@ function SupplierCostDashboard() {
         name: name.length > 6 ? name.substring(0, 6) + '...' : name,
         fullName: name,
         ...data,
-        rate: data.settlement > 0 ? Math.round((data.paid / data.settlement) * 100) : 0,
+        rate: data.payable > 0 ? Math.round((data.paid / data.payable) * 100) : 0,
       }))
       .sort((a, b) => b.settlement - a.settlement)
       .slice(0, 10);
