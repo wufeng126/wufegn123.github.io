@@ -15,3 +15,5 @@ ALTER TABLE visas ADD COLUMN IF NOT EXISTS workflow_comment TEXT;
 CREATE INDEX IF NOT EXISTS visas_current_responsible_user_id_idx ON visas(current_responsible_user_id);
 CREATE INDEX IF NOT EXISTS visas_workflow_step_updated_at_idx ON visas(workflow_step_updated_at);
 CREATE INDEX IF NOT EXISTS visas_status_workflow_step_idx ON visas(status, workflow_step_updated_at);
+
+NOTIFY pgrst, 'reload schema';

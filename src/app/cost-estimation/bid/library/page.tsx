@@ -50,6 +50,17 @@ interface ImportReviewRow {
   ignored: boolean;
 }
 
+interface StandardImportRow {
+  code: string;
+  name: string;
+  unit: string;
+  category: string;
+  material_included: boolean;
+  material_scope_note: string;
+  sort_order: number;
+  status: string;
+}
+
 interface StandardInsight {
   bidCount: number;
   costCount: number;
@@ -96,6 +107,7 @@ function boolFromCell(value: unknown) {
 
 export default function BidLibraryPage() {
   const importRef = useRef<HTMLInputElement>(null);
+  const standardImportRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>('standard');
   const [standards, setStandards] = useState<StandardItem[]>([]);
   const [bidPrices, setBidPrices] = useState<PriceRow[]>([]);
@@ -243,10 +255,52 @@ export default function BidLibraryPage() {
     XLSX.writeFile(workbook, `${priceTypeLabel}_导入模板.xlsx`);
   }
 
+  function downloadStandardTemplate() {
+    const rows = [
+      {
+        '标准编码*': 'MB-001',
+        '标准清单名称*': '模板安装拆除',
+        单位: 'm2',
+        分类: '模板工程',
+        是否含材料: '否',
+        材料范围说明: '',
+        排序: 1,
+        状态: 'active',
+      },
+      {
+        '标准编码*': 'GT-001',
+        '标准清单名称*': '钢筋制作安装',
+        单位: 't',
+        分类: '钢筋工程',
+        是否含材料: '否',
+        材料范围说明: '',
+        排序: 2,
+        状态: 'active',
+      },
+    ];
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, '标准清单导入模板');
+    XLSX.writeFile(workbook, '标准清单库_导入模板.xlsx');
+  }
+
   function cell(row: Record<string, unknown>, keys: string[]) {
     for (const key of keys) {
       const value = row[key];
       if (value !== undefined && value !== null && String(value).trim()) return value;
+    }
+    return '';
+  }
+
+  function cellLoose(row: Record<string, unknown>, keys: string[]) {
+    const exact = cell(row, keys);
+    if (exact) return exact;
+
+    const normalizedKeys = new Set(keys.map(key => normalize(key)));
+    for (const [key, value] of Object.entries(row)) {
+      if (value !== undefined && value !== null && String(value).trim() && normalizedKeys.has(normalize(key))) {
+        return value;
+      }
     }
     return '';
   }
@@ -275,6 +329,79 @@ export default function BidLibraryPage() {
       })
       .sort((a, b) => b.score - a.score)[0];
     return scored && scored.score >= 55 ? scored : null;
+  }
+
+  function importStandardFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = async event => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+        const invalidRows: number[] = [];
+        const duplicatedCodes = new Set<string>();
+        const rowMap = new Map<string, StandardImportRow>();
+
+        rows.forEach((row, index) => {
+          const code = String(cellLoose(row, ['标准编码*', '标准编码', '编码', '清单编码', 'code']) || '').trim();
+          const name = String(cellLoose(row, ['标准清单名称*', '标准清单名称', '清单名称', '名称', 'name']) || '').trim();
+          const hasAnyValue = Object.values(row).some(value => String(value ?? '').trim());
+          if (!hasAnyValue) return;
+          if (!code || !name) {
+            invalidRows.push(index + 2);
+            return;
+          }
+
+          const normalizedCode = normalize(code);
+          if (rowMap.has(normalizedCode)) duplicatedCodes.add(code);
+          rowMap.set(normalizedCode, {
+            code,
+            name,
+            unit: String(cellLoose(row, ['单位', 'unit']) || '').trim(),
+            category: String(cellLoose(row, ['分类', '类别', 'category']) || '').trim(),
+            material_included: boolFromCell(cellLoose(row, ['是否含材料', '含材料', 'material_included'])),
+            material_scope_note: String(cellLoose(row, ['材料范围说明', '含材说明', '备注', 'material_scope_note']) || '').trim(),
+            sort_order: toNumber(cellLoose(row, ['排序', '排序号', 'sort_order'])),
+            status: String(cellLoose(row, ['状态', 'status']) || 'active').trim() || 'active',
+          });
+        });
+
+        const items = Array.from(rowMap.values());
+        if (invalidRows.length) {
+          alert(`第 ${invalidRows.join('、')} 行缺少标准编码或标准清单名称，请补充后再导入`);
+          return;
+        }
+        if (!items.length) {
+          alert('未识别到可导入的标准清单，请检查模板内容');
+          return;
+        }
+
+        const existingCodes = new Set(standards.map(item => normalize(item.code)));
+        const updateCount = items.filter(item => existingCodes.has(normalize(item.code))).length;
+        const duplicateTip = duplicatedCodes.size ? `\n同一文件中有 ${duplicatedCodes.size} 个重复编码，系统将保留最后一条。` : '';
+        const confirmed = window.confirm(`识别到 ${items.length} 条标准清单，其中 ${updateCount} 条会更新现有编码，${items.length - updateCount} 条会新增。${duplicateTip}\n确认导入吗？`);
+        if (!confirmed) return;
+
+        setSaving(true);
+        const res = await fetch('/api/bid-estimations/library', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'standardBatch', items }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+
+        await load();
+        alert(`标准清单导入完成：新增 ${json.data?.created || 0} 条，更新 ${json.data?.updated || 0} 条`);
+      } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : '标准清单批量导入失败');
+      } finally {
+        setSaving(false);
+        if (standardImportRef.current) standardImportRef.current.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   function importPriceFile(file: File) {
@@ -471,7 +598,26 @@ export default function BidLibraryPage() {
                 </div>
               </section>
 
-              <StandardTable standards={standards} insights={standardInsights} />
+              <section className="space-y-3">
+                <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[#1D2129]">标准清单库台账</p>
+                      <p className="mt-1 text-xs text-[#86909C]">支持 Excel/CSV 批量导入；标准编码重复时自动更新，不重复建档。</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={downloadStandardTemplate} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#1D2129] hover:bg-[#F7F8FA]">
+                        <Download className="h-4 w-4" />模板
+                      </button>
+                      <input ref={standardImportRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) importStandardFile(e.target.files[0]); }} />
+                      <button disabled={saving} onClick={() => standardImportRef.current?.click()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">
+                        <Upload className="h-4 w-4" />批量导入
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <StandardTable standards={standards} insights={standardInsights} />
+              </section>
             </div>
           ) : (
             <div className="grid gap-5 p-4 lg:grid-cols-[380px_minmax(0,1fr)]">
