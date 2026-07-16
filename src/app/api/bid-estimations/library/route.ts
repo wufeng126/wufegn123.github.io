@@ -50,6 +50,46 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const type = body.type as string | null;
+    if (type === 'standardBatch') {
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (!items.length) {
+        return NextResponse.json({ success: false, error: '缺少标准清单导入数据' }, { status: 400 });
+      }
+
+      const rowMap = new Map<string, Record<string, unknown>>();
+      for (const item of items) {
+        const payload = buildStandardPayload(item as Record<string, unknown>);
+        if (!payload.code || !payload.name) continue;
+        rowMap.set(String(payload.code).toLowerCase(), payload);
+      }
+
+      const payloads = Array.from(rowMap.values());
+      if (!payloads.length) {
+        return NextResponse.json({ success: false, error: '没有可导入的有效标准清单' }, { status: 400 });
+      }
+
+      const supabase = getSupabaseClient();
+      const codes = payloads.map(item => String(item.code));
+      const existingResult = await supabase.from('bid_standard_items').select('code').in('code', codes);
+      if (existingResult.error) throw new Error(existingResult.error.message);
+
+      const existingCodes = new Set((existingResult.data || []).map(item => String(item.code).toLowerCase()));
+      const updated = payloads.filter(item => existingCodes.has(String(item.code).toLowerCase())).length;
+      const { data, error } = await supabase
+        .from('bid_standard_items')
+        .upsert(payloads, { onConflict: 'code' })
+        .select();
+      if (error) throw new Error(error.message);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          imported: data?.length || payloads.length,
+          created: payloads.length - updated,
+          updated,
+        },
+      });
+    }
     if (!isLibraryType(type)) {
       return NextResponse.json({ success: false, error: '资料类型不正确' }, { status: 400 });
     }
@@ -85,15 +125,7 @@ export async function PUT(request: NextRequest) {
 
 function buildPayload(type: LibraryType, body: Record<string, unknown>) {
   if (type === 'standard') {
-    return {
-      code: String(body.code || '').trim(),
-      name: String(body.name || '').trim(),
-      unit: String(body.unit || '').trim(),
-      category: String(body.category || '').trim(),
-      material_included: Boolean(body.material_included),
-      material_scope_note: String(body.material_scope_note || '').trim(),
-      status: String(body.status || 'active'),
-    };
+    return buildStandardPayload(body);
   }
 
   if (type === 'alias') {
@@ -128,4 +160,22 @@ function buildPayload(type: LibraryType, body: Record<string, unknown>) {
     ...common,
     cost_year: toNumber(body.cost_year, new Date().getFullYear()),
   };
+}
+
+function buildStandardPayload(body: Record<string, unknown>) {
+  const payload: Record<string, unknown> = {
+    code: String(body.code || '').trim(),
+    name: String(body.name || '').trim(),
+    unit: String(body.unit || '').trim(),
+    category: String(body.category || '').trim(),
+    material_included: Boolean(body.material_included),
+    material_scope_note: String(body.material_scope_note || '').trim(),
+    status: String(body.status || 'active').trim() || 'active',
+  };
+
+  if (body.sort_order !== undefined && body.sort_order !== '') {
+    payload.sort_order = toNumber(body.sort_order);
+  }
+
+  return payload;
 }
