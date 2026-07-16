@@ -10,7 +10,7 @@
 /** 超级管理员角色标识（可通过环境变量覆盖） */
 const SUPER_ADMIN_ROLE = process.env.SUPER_ADMIN_ROLE || 'super_admin';
 /** 超级管理员角色ID（可通过环境变量覆盖） */
-const SUPER_ADMIN_ROLE_ID = Number(process.env.SUPER_ADMIN_ROLE_ID || 1);
+const SUPER_ADMIN_ROLE_ID = Number(process.env.SUPER_ADMIN_ROLE_ID || 14);
 
 /**
  * 统一超级管理员判定函数
