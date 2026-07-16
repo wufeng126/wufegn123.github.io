@@ -376,6 +376,79 @@ export default function WorkerImportDialog({
 
   // ==================== 文件选择与校验 ====================
 
+  /** 表头校验 + 数据转换（共用于 CSV 和 XLSX） */
+  const validateAndConvert = useCallback((headerRow: string[], rows: string[][]): WorkerImportData[] => {
+    const { mapped, missing, extra, aliasMap } = mapHeaders(headerRow);
+
+    // ★ 必填表头缺失 → 报错，不继续
+    if (missing.length > 0) {
+      const errMsg = `缺少必填列：${missing.join('、')}。请对照模板调整表头`;
+      setValidationError(errMsg);
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    }
+
+    // 非必填表头缺失 → 警告
+    const nonRequiredMissing = STANDARD_HEADERS.filter(h => !REQUIRED_HEADERS.includes(h) && !mapped.includes(h));
+    if (nonRequiredMissing.length > 0) {
+      const warn = `可选列未找到：${nonRequiredMissing.join('、')}，对应数据将为空`;
+      setHeaderWarning(warn);
+      toast.warning(warn);
+    }
+
+    // 多余列提示
+    if (extra.length > 2) {
+      const warn = `表头存在无法识别的列：${extra.slice(0, 5).join('、')}，这些列将被忽略`;
+      setHeaderWarning(prev => prev ? prev + '；' + warn : warn);
+    }
+
+    // 别名提示
+    const aliasEntries = Object.entries(aliasMap);
+    if (aliasEntries.length > 0) {
+      const aliasInfo = aliasEntries.map(([, alias]) => alias).join('、');
+      const warn = `已自动识别别名：${aliasInfo}`;
+      setHeaderWarning(prev => prev ? prev + '；' + warn : warn);
+    }
+
+    const workers = rowsToWorkers(rows, headerRow);
+    return workers;
+  }, []);
+
+  /** 解析文件内容（CSV 或 XLSX） */
+  const parseFile = useCallback(async (file: File): Promise<WorkerImportData[]> => {
+    const ext = getFileExtension(file.name);
+
+    if (ext === '.csv') {
+      // 使用 readCsvText 自动检测编码
+      const text = await readCsvText(file);
+      if (!text?.trim()) {
+        throw new Error('文件内容为空');
+      }
+      const rows = parseCSVText(text);
+      if (rows.length < 2) {
+        throw new Error('CSV 文件至少需要包含表头和一行数据');
+      }
+      const headerRow = rows[0].map(h => h.trim());
+      return validateAndConvert(headerRow, rows);
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      const arrayBuffer = await file.arrayBuffer();
+      const XLSX = await getXLSX();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!firstSheet) {
+        throw new Error('Excel 文件中没有工作表');
+      }
+      const rows: string[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+      if (rows.length < 2) {
+        throw new Error('Excel 文件至少需要包含表头和一行数据');
+      }
+      const headerRow = rows[0].map((h: unknown) => String(h).trim());
+      return validateAndConvert(headerRow, rows);
+    } else {
+      throw new Error('不支持的文件格式');
+    }
+  }, [validateAndConvert]);
+
   const processSelectedFile = useCallback(async (file: File) => {
     devLog('processSelectedFile 触发, file=', file.name, 'size=', file.size);
 
@@ -425,7 +498,7 @@ export default function WorkerImportDialog({
     } finally {
       setIsParsing(false);
     }
-  }, [resetState, setSelectedFile, setValidationError, setParsedWorkers]);
+  }, [parseFile, resetState, setSelectedFile, setParsedWorkers]);
 
   const handleFileSelect = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -435,79 +508,6 @@ export default function WorkerImportDialog({
     // 清空 input value 以允许再次选择同一文件
     setTimeout(() => { try { e.target.value = ''; } catch { /* ignore */ } }, 500);
   }, [processSelectedFile]);
-
-  /** 解析文件内容（CSV 或 XLSX） */
-  const parseFile = useCallback(async (file: File): Promise<WorkerImportData[]> => {
-    const ext = getFileExtension(file.name);
-
-    if (ext === '.csv') {
-      // 使用 readCsvText 自动检测编码
-      const text = await readCsvText(file);
-      if (!text?.trim()) {
-        throw new Error('文件内容为空');
-      }
-      const rows = parseCSVText(text);
-      if (rows.length < 2) {
-        throw new Error('CSV 文件至少需要包含表头和一行数据');
-      }
-      const headerRow = rows[0].map(h => h.trim());
-      return validateAndConvert(headerRow, rows);
-    } else if (ext === '.xlsx' || ext === '.xls') {
-      const arrayBuffer = await file.arrayBuffer();
-      const XLSX = await getXLSX();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      if (!firstSheet) {
-        throw new Error('Excel 文件中没有工作表');
-      }
-      const rows: string[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-      if (rows.length < 2) {
-        throw new Error('Excel 文件至少需要包含表头和一行数据');
-      }
-      const headerRow = rows[0].map((h: unknown) => String(h).trim());
-      return validateAndConvert(headerRow, rows);
-    } else {
-      throw new Error('不支持的文件格式');
-    }
-  }, []);
-
-  /** 表头校验 + 数据转换（共用于 CSV 和 XLSX） */
-  function validateAndConvert(headerRow: string[], rows: string[][]): WorkerImportData[] {
-    const { mapped, missing, extra, aliasMap } = mapHeaders(headerRow);
-
-    // ★ 必填表头缺失 → 报错，不继续
-    if (missing.length > 0) {
-      const errMsg = `缺少必填列：${missing.join('、')}。请对照模板调整表头`;
-      setValidationError(errMsg);
-      toast.error(errMsg);
-      throw new Error(errMsg);
-    }
-
-    // 非必填表头缺失 → 警告
-    const nonRequiredMissing = STANDARD_HEADERS.filter(h => !REQUIRED_HEADERS.includes(h) && !mapped.includes(h));
-    if (nonRequiredMissing.length > 0) {
-      const warn = `可选列未找到：${nonRequiredMissing.join('、')}，对应数据将为空`;
-      setHeaderWarning(warn);
-      toast.warning(warn);
-    }
-
-    // 多余列提示
-    if (extra.length > 2) {
-      const warn = `表头存在无法识别的列：${extra.slice(0, 5).join('、')}，这些列将被忽略`;
-      setHeaderWarning(prev => prev ? prev + '；' + warn : warn);
-    }
-
-    // 别名提示
-    const aliasEntries = Object.entries(aliasMap);
-    if (aliasEntries.length > 0) {
-      const aliasInfo = aliasEntries.map(([, alias]) => alias).join('、');
-      const warn = `已自动识别别名：${aliasInfo}`;
-      setHeaderWarning(prev => prev ? prev + '；' + warn : warn);
-    }
-
-    const workers = rowsToWorkers(rows, headerRow);
-    return workers;
-  }
 
   // ==================== 查重检测 ====================
 
@@ -728,7 +728,7 @@ export default function WorkerImportDialog({
               onChange={(e) => setSelectedProjectId(e.target.value)}
               disabled={isBusy}
             >
-              <option value="">不指定（以文件中"所属项目"列为准）</option>
+              <option value="">不指定（以文件中&quot;所属项目&quot;列为准）</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}

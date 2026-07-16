@@ -35,9 +35,12 @@ type ProjectLogDraft = {
   content: string;
   attendance_worker_ids: number[];
   scope_worker_ids: number[];
+  worker_work_type: string;
   worker_search: string;
   issues: string;
 };
+
+const EMPTY_WORK_TYPE = '__empty_work_type__';
 
 const emptyAttendanceOptions: AttendanceOptions = {
   workers: [],
@@ -55,15 +58,30 @@ function createDraft(projectId = ''): ProjectLogDraft {
     content: '',
     attendance_worker_ids: [],
     scope_worker_ids: [],
+    worker_work_type: '',
     worker_search: '',
     issues: '',
   };
 }
 
-function filterWorkers(workers: AttendanceWorker[], keyword: string) {
+function getWorkerWorkType(worker: AttendanceWorker) {
+  return (worker.work_type || '').trim();
+}
+
+function getWorkerTypeLabel(value: string) {
+  return value === EMPTY_WORK_TYPE ? '未填写工种' : value;
+}
+
+function filterWorkers(workers: AttendanceWorker[], keyword: string, workType: string) {
+  const workTypeFiltered = workType
+    ? workers.filter((worker) => {
+      const workerType = getWorkerWorkType(worker);
+      return workType === EMPTY_WORK_TYPE ? !workerType : workerType === workType;
+    })
+    : workers;
   const value = keyword.trim().toLowerCase();
-  if (!value) return workers;
-  return workers.filter((worker) => (
+  if (!value) return workTypeFiltered;
+  return workTypeFiltered.filter((worker) => (
     worker.name.toLowerCase().includes(value)
     || (worker.work_type || '').toLowerCase().includes(value)
     || (worker.team_name || '').toLowerCase().includes(value)
@@ -138,6 +156,7 @@ export default function NewConstructionLogPage() {
       project_id: projectId,
       attendance_worker_ids: [],
       scope_worker_ids: [],
+      worker_work_type: '',
       worker_search: '',
     });
   }
@@ -309,8 +328,19 @@ export default function NewConstructionLogPage() {
             const visibleSet = new Set(options.visible_worker_ids);
             const scopedSet = new Set(options.scoped_worker_ids);
             const selectedSet = new Set(draft.attendance_worker_ids);
-            const visibleWorkers = filterWorkers(options.workers.filter(worker => visibleSet.has(worker.id)), draft.worker_search);
-            const otherWorkers = filterWorkers(options.workers.filter(worker => !visibleSet.has(worker.id)), draft.worker_search);
+            const workTypeOptions = Array.from(new Set(
+              options.workers.map((worker) => getWorkerWorkType(worker) || EMPTY_WORK_TYPE),
+            )).sort((a, b) => getWorkerTypeLabel(a).localeCompare(getWorkerTypeLabel(b), 'zh-Hans-CN'));
+            const visibleWorkers = filterWorkers(
+              options.workers.filter(worker => visibleSet.has(worker.id)),
+              draft.worker_search,
+              draft.worker_work_type,
+            );
+            const otherWorkers = filterWorkers(
+              options.workers.filter(worker => !visibleSet.has(worker.id)),
+              draft.worker_search,
+              draft.worker_work_type,
+            );
             const selectedTemporaryIds = draft.attendance_worker_ids.filter(workerId => !scopedSet.has(workerId));
             const pendingScopeIds = selectedTemporaryIds.filter(workerId => !draft.scope_worker_ids.includes(workerId));
 
@@ -383,14 +413,27 @@ export default function NewConstructionLogPage() {
                   </div>
 
                   <div className="rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
-                      <input
-                        value={draft.worker_search}
-                        onChange={e => updateDraft(draft.id, { worker_search: e.target.value })}
-                        placeholder="搜索姓名、工种、班组"
-                        className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
-                      />
+                    <div className="grid gap-2 md:grid-cols-[180px_1fr]">
+                      <select
+                        value={draft.worker_work_type}
+                        onChange={e => updateDraft(draft.id, { worker_work_type: e.target.value })}
+                        disabled={loadingWorkers || options.workers.length === 0}
+                        className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF] disabled:bg-[#F2F3F5] disabled:text-[#C9CDD4]"
+                      >
+                        <option value="">全部工种</option>
+                        {workTypeOptions.map((workType) => (
+                          <option key={workType} value={workType}>{getWorkerTypeLabel(workType)}</option>
+                        ))}
+                      </select>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                        <input
+                          value={draft.worker_search}
+                          onChange={e => updateDraft(draft.id, { worker_search: e.target.value })}
+                          placeholder="搜索姓名、工种、班组"
+                          className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
+                        />
+                      </div>
                     </div>
 
                     {loadingWorkers ? (

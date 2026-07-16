@@ -2,7 +2,7 @@
 import { useToast } from '@/hooks/use-toast';
 import { isSuperAdminUser, isSystemAdminUser } from '@/lib/route-permissions';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Shield,
@@ -63,12 +63,7 @@ export default function AdminPage() {
   const [deletingAdmin, setDeletingAdmin] = useState<Admin | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 获取当前用户和管理员列表
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       // 获取当前用户
@@ -117,7 +112,14 @@ export default function AdminPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router, toast]);
+
+  // 获取当前用户和管理员列表
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchData();
+    });
+  }, [fetchData]);
 
   // 新增管理员
   const handleAddAdmin = async () => {

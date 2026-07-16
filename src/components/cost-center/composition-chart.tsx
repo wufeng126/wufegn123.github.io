@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -121,11 +121,7 @@ export function IncomeCompositionChart({ projectId }: CompositionChartProps) {
   const [data, setData] = useState<CompositionData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [viewType, year, month, projectId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -146,7 +142,13 @@ export function IncomeCompositionChart({ projectId }: CompositionChartProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [month, projectId, viewType, year]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchData();
+    });
+  }, [fetchData]);
 
   const pieData = data ? [
     { name: '开票金额', value: data.income.invoice.amount, color: '#165DFF' },
@@ -338,11 +340,7 @@ export function CostCompositionChart({ projectId }: CompositionChartProps) {
   const [data, setData] = useState<CompositionData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [viewType, year, month, projectId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -363,7 +361,13 @@ export function CostCompositionChart({ projectId }: CompositionChartProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [month, projectId, viewType, year]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchData();
+    });
+  }, [fetchData]);
 
   const pieData = data ? [
     { name: '人工费', value: data.cost.salary?.amount || 0, color: '#722ED1' },

@@ -33,7 +33,7 @@ function uniquePositiveIds(ids: number[]) {
 
 function mergeActiveWorkers(target: Map<number, ProjectWorkerRow>, rows: ProjectWorkerRow[]) {
   rows
-    .filter((worker) => (worker.status || 'in_service') !== 'left')
+    .filter((worker) => (worker.status || 'in_service') === 'in_service')
     .forEach((worker) => target.set(Number(worker.id), worker));
 }
 
