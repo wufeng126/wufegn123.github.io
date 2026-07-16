@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, DollarSign, Calendar, TrendingUp, FileSpreadsheet } from 'lucide-react';
@@ -25,6 +25,8 @@ interface MiscMaterialStats {
   materials: MiscMaterial[];
 }
 
+type MiscMaterialApiItem = Partial<MiscMaterial>;
+
 interface ProjectMiscMaterialsProps {
   projectId: number;
 }
@@ -44,17 +46,13 @@ export function ProjectMiscMaterials({ projectId }: ProjectMiscMaterialsProps) {
   const [stats, setStats] = useState<MiscMaterialStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-  }, [projectId]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/miscellaneous-materials?projectId=${projectId}&pageSize=100`);
       const data = await res.json();
       
-      const materials = (data.materials || []).map((item: any) => ({
+      const materials = (data.materials || []).map((item: MiscMaterialApiItem) => ({
         id: item.id,
         material_name: item.material_name,
         unit: item.unit,
@@ -84,7 +82,13 @@ export function ProjectMiscMaterials({ projectId }: ProjectMiscMaterialsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchStats();
+    });
+  }, [fetchStats]);
 
   if (loading) {
     return (

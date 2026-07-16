@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -66,13 +66,7 @@ export function WorkerDataManageDialog({
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  useEffect(() => {
-    if (open) {
-      fetchBackupData();
-    }
-  }, [open, page]);
-
-  const fetchBackupData = async () => {
+  const fetchBackupData = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/workers/backup?page=${page}&pageSize=${pageSize}`);
@@ -87,7 +81,15 @@ export function WorkerDataManageDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    queueMicrotask(() => {
+      fetchBackupData();
+    });
+  }, [open, fetchBackupData]);
 
   // 备份并清空数据
   const handleBackupAndClear = async () => {

@@ -67,7 +67,9 @@ export function PermissionProvider({ children, userId }: { children: ReactNode; 
   }, [userId]);
 
   useEffect(() => {
-    refreshPermissions();
+    queueMicrotask(() => {
+      refreshPermissions();
+    });
   }, [refreshPermissions]);
 
   const hasPermission = useCallback(

@@ -1894,12 +1894,12 @@ function WorkItemsContent() {
 
   if (loading) {
     return (
-      <div className="space-y-6 min-h-screen">
-        <div className="flex items-center justify-between">
+      <div className="min-h-screen space-y-4 sm:space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><Skeleton className="w-48 h-7 mb-1" /><Skeleton className="w-64 h-4" /></div>
           <Skeleton className="w-40 h-9 rounded-lg" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
           {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
         <Skeleton className="h-10 rounded-lg w-64" />
@@ -1909,21 +1909,21 @@ function WorkItemsContent() {
   }
 
   return (
-    <div className="space-y-6 min-h-screen">
+    <div className="min-h-screen space-y-4 sm:space-y-6">
       {/* 顶部区域 */}
-      <div className={`flex items-center justify-between transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <div>
+      <div className={`flex flex-col gap-3 transition-all duration-500 sm:flex-row sm:items-center sm:justify-between ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-gray-900">报量管理</h1>
           <p className="text-gray-500 mt-1 text-sm">以预算工程量为统一基准，管理对上报量、对下结算和差异提醒</p>
         </div>
-        <Button variant="outline" onClick={fetchData} className="gap-2">
+        <Button variant="outline" onClick={fetchData} className="w-full gap-2 sm:w-auto">
           <RefreshCw className="w-4 h-4" />
           刷新
         </Button>
       </div>
 
       {/* 总体统计卡片 */}
-      <div className={`grid grid-cols-2 md:grid-cols-5 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+      <div className={`grid grid-cols-2 gap-3 transition-all duration-500 delay-100 md:grid-cols-5 md:gap-4 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <Card className="group bg-gradient-to-br from-[#1A58B3]/5 to-[#1A58B3]/10 border-[#1A58B3]/20 hover:shadow-lg hover:shadow-[#1A58B3]/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
@@ -1999,13 +1999,13 @@ function WorkItemsContent() {
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <Card className="border-[#1A58B3]/20">
           <CardContent className="py-4">
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-[#1A58B3]" />
                 <span className="font-medium text-gray-700">选择项目：</span>
               </div>
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="w-64">
+                <SelectTrigger className="w-full sm:w-64">
                   <SelectValue placeholder="请选择项目进行数据录入" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2022,7 +2022,7 @@ function WorkItemsContent() {
                 </SelectContent>
               </Select>
               {selectedProject && (
-                <div className="flex items-center gap-3 text-sm text-gray-500">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 sm:gap-3">
                   <span>{selectedProject.year}年度</span>
                   <span>·</span>
                   <span>{subitems.length} 个分项工程</span>
@@ -2080,7 +2080,8 @@ function WorkItemsContent() {
           </Card>
         ) : (
           <Tabs defaultValue="subitems" className="space-y-4">
-            <TabsList className="bg-white border">
+            <div className="overflow-x-auto pb-1">
+              <TabsList className="min-w-max bg-white border">
               <TabsTrigger value="subitems" className="gap-2">
                 <ListTree className="w-4 h-4" />
                 预算工程量
@@ -2101,20 +2102,21 @@ function WorkItemsContent() {
                 <AlertTriangle className="w-4 h-4" />
                 差异分析
               </TabsTrigger>
-            </TabsList>
+              </TabsList>
+            </div>
 
             {/* 预算工程量标签页 */}
             <TabsContent value="subitems" className="space-y-4">
               {/* 工具栏 */}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2 items-center">
-                  <div className="relative">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <Input
                       placeholder="搜索分项名称"
                       value={searchKeyword}
                       onChange={(e) => setSearchKeyword(e.target.value)}
-                      className="w-48 pl-9"
+                      className="w-full pl-9 sm:w-48"
                     />
                   </div>
                   {searchKeyword && (
@@ -2146,7 +2148,7 @@ function WorkItemsContent() {
               </div>
 
               {/* 统计卡片 */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="py-3">
                     <div className="flex items-center justify-between">
@@ -2194,9 +2196,54 @@ function WorkItemsContent() {
 
               {/* 表格 */}
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="p-3 sm:pt-6">
                   {filteredSubitems.length > 0 ? (
-                    <Table className="zebra-table">
+                    <>
+                      <div className="space-y-3 md:hidden">
+                        {filteredSubitems.map(item => {
+                          const budgetQty = parseFloat(item.budget_quantity) || 0;
+                          const contractPrice = parseFloat(item.contract_price || '0') || 0;
+                          const budgetAmount = budgetQty * contractPrice;
+                          return (
+                            <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{item.subitem_name}</p>
+                                  <p className="mt-1 text-xs text-slate-500">单位：{item.unit || '-'}</p>
+                                </div>
+                                <Checkbox
+                                  checked={selectedIds.has(item.id)}
+                                  onCheckedChange={(checked) => handleSelect(item.id, checked as boolean)}
+                                />
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-lg bg-blue-50 px-2 py-2">
+                                  <p className="text-blue-600">预算量</p>
+                                  <p className="mt-1 font-semibold text-blue-700">{item.budget_quantity || '0'}</p>
+                                </div>
+                                <div className="rounded-lg bg-slate-50 px-2 py-2">
+                                  <p className="text-slate-500">合同单价</p>
+                                  <p className="mt-1 font-semibold text-slate-800">{item.contract_price || '-'}</p>
+                                </div>
+                                <div className="col-span-2 rounded-lg bg-indigo-50 px-2 py-2">
+                                  <p className="text-indigo-600">预算金额</p>
+                                  <p className="mt-1 font-semibold text-indigo-700">{formatCurrency(budgetAmount)}</p>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex justify-end gap-2">
+                                <Button size="sm" variant="outline" onClick={() => openEditDialog(item)}>
+                                  <Pencil className="w-3 h-3 mr-1" />编辑
+                                </Button>
+                                <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(item.id)}>
+                                  <Trash2 className="w-3 h-3 mr-1" />删除
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="hidden overflow-x-auto md:block">
+                        <Table className="zebra-table min-w-[900px]">
               <TableHeader>
                         <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
                           <TableHead className="w-10">
@@ -2262,11 +2309,13 @@ function WorkItemsContent() {
                           );
                         })}
                       </TableBody>
-                    </Table>
+                        </Table>
+                      </div>
+                    </>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
                       <p>暂无分项工程数据</p>
-                      <p className="text-sm mt-2">点击"新增"添加分项工程</p>
+                      <p className="text-sm mt-2">点击“新增”添加分项工程</p>
                     </div>
                   )}
                 </CardContent>
@@ -2275,9 +2324,9 @@ function WorkItemsContent() {
 
             {/* 对上报量标签页 */}
             <TabsContent value="budget" className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-lg font-semibold">对上报量</h3>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <Button onClick={openMonthlyReportDialog} className="gap-2">
                     <Calendar className="w-4 h-4" />
                     月度报量
@@ -2288,7 +2337,7 @@ function WorkItemsContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="py-3">
                     <div className="flex items-center justify-between">
@@ -2324,9 +2373,58 @@ function WorkItemsContent() {
               </div>
 
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="p-3 sm:pt-6">
                   {subitems.length > 0 ? (
-                    <Table className="zebra-table">
+                    <>
+                      <div className="space-y-3 md:hidden">
+                        {subitems.map(item => {
+                          const budgetQty = parseFloat(item.budget_quantity) || 0;
+                          const reportedQty = parseFloat(item.completed_quantity) || 0;
+                          const remainingQty = budgetQty - reportedQty;
+                          const contractPrice = parseFloat(item.contract_price || '0') || 0;
+                          const progress = budgetQty > 0 ? (reportedQty / budgetQty * 100) : 0;
+                          const reportAmount = reportedQty * contractPrice;
+                          return (
+                            <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{item.subitem_name}</p>
+                                  <p className="mt-1 text-xs text-slate-500">单位：{item.unit || '-'}</p>
+                                </div>
+                                {getProgressBadge(progress)}
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-lg bg-slate-50 px-2 py-2">
+                                  <p className="text-slate-500">预算量</p>
+                                  <p className="mt-1 font-semibold text-slate-800">{item.budget_quantity || '0'}</p>
+                                </div>
+                                <div className="rounded-lg bg-blue-50 px-2 py-2">
+                                  <p className="text-blue-600">累计上报</p>
+                                  <p className="mt-1 font-semibold text-blue-700">{item.completed_quantity || '0'}</p>
+                                </div>
+                                <div className="rounded-lg bg-orange-50 px-2 py-2">
+                                  <p className="text-orange-600">剩余量</p>
+                                  <p className="mt-1 font-semibold text-orange-700">{remainingQty.toFixed(2)}</p>
+                                </div>
+                                <div className="rounded-lg bg-indigo-50 px-2 py-2">
+                                  <p className="text-indigo-600">上报金额</p>
+                                  <p className="mt-1 font-semibold text-indigo-700">{formatCurrency(reportAmount)}</p>
+                                </div>
+                              </div>
+                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div className={`h-full ${progress >= 100 ? 'bg-green-500' : progress >= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(progress, 100)}%` }} />
+                              </div>
+                              <div className="mt-3 flex justify-end">
+                                <Button size="sm" variant="outline" onClick={() => openReportHistory(item)}>
+                                  <FileText className="w-3 h-3 mr-1" />历史
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="hidden overflow-x-auto md:block">
+                        <Table className="zebra-table min-w-[980px]">
               <TableHeader>
                         <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
                           <TableHead>分项名称</TableHead>
@@ -2379,7 +2477,9 @@ function WorkItemsContent() {
                           );
                         })}
                       </TableBody>
-                    </Table>
+                        </Table>
+                      </div>
+                    </>
                   ) : (
                     <div className="text-center py-8 text-gray-500">暂无数据</div>
                   )}
@@ -2389,9 +2489,9 @@ function WorkItemsContent() {
 
             {/* 对下结算量标签页 */}
             <TabsContent value="completed" className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-lg font-semibold">对下结算量</h3>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <Button onClick={openMonthlySettlementDialog} className="gap-2">
                     <Calendar className="w-4 h-4" />
                     月度结算
@@ -2402,7 +2502,7 @@ function WorkItemsContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="py-3">
                     <div className="flex items-center justify-between">
@@ -2438,9 +2538,58 @@ function WorkItemsContent() {
               </div>
 
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="p-3 sm:pt-6">
                   {subitems.length > 0 ? (
-                    <Table className="zebra-table">
+                    <>
+                      <div className="space-y-3 md:hidden">
+                        {subitems.map(item => {
+                          const budgetQty = parseFloat(item.budget_quantity) || 0;
+                          const settlementQty = parseFloat(item.settlement_quantity || '0') || 0;
+                          const remainingQty = budgetQty - settlementQty;
+                          const settlementPrice = parseFloat(item.limit_price || item.contract_price || '0') || 0;
+                          const progress = budgetQty > 0 ? (settlementQty / budgetQty) * 100 : 0;
+                          const settlementAmount = settlementQty * settlementPrice;
+                          return (
+                            <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{item.subitem_name}</p>
+                                  <p className="mt-1 text-xs text-slate-500">单位：{item.unit || '-'}</p>
+                                </div>
+                                {getProgressBadge(progress)}
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-lg bg-slate-50 px-2 py-2">
+                                  <p className="text-slate-500">预算量</p>
+                                  <p className="mt-1 font-semibold text-slate-800">{item.budget_quantity || '0'}</p>
+                                </div>
+                                <div className="rounded-lg bg-blue-50 px-2 py-2">
+                                  <p className="text-blue-600">累计结算</p>
+                                  <p className="mt-1 font-semibold text-blue-700">{item.settlement_quantity || '0'}</p>
+                                </div>
+                                <div className="rounded-lg bg-orange-50 px-2 py-2">
+                                  <p className="text-orange-600">剩余量</p>
+                                  <p className="mt-1 font-semibold text-orange-700">{remainingQty.toFixed(2)}</p>
+                                </div>
+                                <div className="rounded-lg bg-indigo-50 px-2 py-2">
+                                  <p className="text-indigo-600">结算金额</p>
+                                  <p className="mt-1 font-semibold text-indigo-700">{formatCurrency(settlementAmount)}</p>
+                                </div>
+                              </div>
+                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div className={`h-full ${progress >= 100 ? 'bg-green-500' : progress >= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(progress, 100)}%` }} />
+                              </div>
+                              <div className="mt-3 flex justify-end">
+                                <Button size="sm" variant="outline" onClick={() => openSettleHistory(item)}>
+                                  <FileText className="w-3 h-3 mr-1" />历史
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="hidden overflow-x-auto md:block">
+                        <Table className="zebra-table min-w-[980px]">
               <TableHeader>
                         <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
                           <TableHead>分项名称</TableHead>
@@ -2493,7 +2642,9 @@ function WorkItemsContent() {
                           );
                         })}
                       </TableBody>
-                    </Table>
+                        </Table>
+                      </div>
+                    </>
                   ) : (
                     <div className="text-center py-8 text-gray-500">暂无数据</div>
                   )}
@@ -2503,12 +2654,12 @@ function WorkItemsContent() {
 
             {/* 内部附加清单标签页 */}
             <TabsContent value="addons" className="space-y-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="text-lg font-semibold">内部附加清单</h3>
                   <p className="text-sm text-gray-500 mt-1">维护对下结算中的内部附加成本，只参与金额分析，不参与工程量差异对比</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                   <Button variant="outline" onClick={() => openTemplateDialog()}>
                     <Plus className="w-4 h-4 mr-2" />新增公司模板
                   </Button>
@@ -2524,7 +2675,7 @@ function WorkItemsContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="py-3">
                     <p className="text-sm text-blue-600">项目附加清单</p>
@@ -2547,97 +2698,163 @@ function WorkItemsContent() {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <Card>
-                  <CardContent className="pt-6 space-y-4">
+                  <CardContent className="p-3 sm:pt-6 space-y-4">
                     <div>
                       <h4 className="font-semibold">公司通用模板</h4>
                       <p className="text-sm text-gray-500 mt-1">常用内部附加项，可导入到每个项目后单独调整项目单价</p>
                     </div>
-                    <Table className="zebra-table">
-                      <TableHeader>
-                        <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
-                          <TableHead>清单名称</TableHead>
-                          <TableHead>单位</TableHead>
-                          <TableHead className="text-right">默认单价</TableHead>
-                          <TableHead>备注</TableHead>
-                          <TableHead className="text-center">操作</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {addonTemplates.length > 0 ? addonTemplates.map(template => (
-                          <TableRow key={template.id}>
-                            <TableCell className="font-medium">{template.name}</TableCell>
-                            <TableCell>{template.unit}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(parseFloat(template.default_price || '0') || 0)}</TableCell>
-                            <TableCell className="text-sm text-gray-500 max-w-40 truncate">{template.remark || '-'}</TableCell>
-                            <TableCell>
-                              <div className="flex justify-center gap-1">
-                                <Button size="sm" variant="ghost" onClick={() => openTemplateDialog(template)}>
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                                <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteTemplate(template.id)}>
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                    {addonTemplates.length > 0 ? (
+                      <div className="space-y-3 md:hidden">
+                        {addonTemplates.map(template => (
+                          <div key={template.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">{template.name}</p>
+                                <p className="mt-1 text-xs text-slate-500">单位：{template.unit || '-'}</p>
                               </div>
-                            </TableCell>
+                              <p className="shrink-0 text-sm font-semibold text-[#1A58B3]">{formatCurrency(parseFloat(template.default_price || '0') || 0)}</p>
+                            </div>
+                            {template.remark && <p className="mt-2 line-clamp-2 text-xs text-slate-500">{template.remark}</p>}
+                            <div className="mt-3 flex justify-end gap-2">
+                              <Button size="sm" variant="outline" onClick={() => openTemplateDialog(template)}>
+                                <Pencil className="w-3 h-3 mr-1" />编辑
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteTemplate(template.id)}>
+                                <Trash2 className="w-3 h-3 mr-1" />删除
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-sm text-gray-500 md:hidden">暂无公司通用模板</div>
+                    )}
+                    <div className="hidden overflow-x-auto md:block">
+                      <Table className="zebra-table min-w-[720px]">
+                        <TableHeader>
+                          <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
+                            <TableHead>清单名称</TableHead>
+                            <TableHead>单位</TableHead>
+                            <TableHead className="text-right">默认单价</TableHead>
+                            <TableHead>备注</TableHead>
+                            <TableHead className="text-center">操作</TableHead>
                           </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">暂无公司通用模板</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {addonTemplates.length > 0 ? addonTemplates.map(template => (
+                            <TableRow key={template.id}>
+                              <TableCell className="font-medium">{template.name}</TableCell>
+                              <TableCell>{template.unit}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(parseFloat(template.default_price || '0') || 0)}</TableCell>
+                              <TableCell className="text-sm text-gray-500 max-w-40 truncate">{template.remark || '-'}</TableCell>
+                              <TableCell>
+                                <div className="flex justify-center gap-1">
+                                  <Button size="sm" variant="ghost" onClick={() => openTemplateDialog(template)}>
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteTemplate(template.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center py-8 text-gray-500">暂无公司通用模板</TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
 
                 <Card>
-                  <CardContent className="pt-6 space-y-4">
+                  <CardContent className="p-3 sm:pt-6 space-y-4">
                     <div>
                       <h4 className="font-semibold">当前项目清单</h4>
                       <p className="text-sm text-gray-500 mt-1">这里的项目单价用于月度对下结算和差异金额分析</p>
                     </div>
-                    <Table className="zebra-table">
-                      <TableHeader>
-                        <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
-                          <TableHead>清单名称</TableHead>
-                          <TableHead>单位</TableHead>
-                          <TableHead className="text-right">项目单价</TableHead>
-                          <TableHead className="text-right">累计数量</TableHead>
-                          <TableHead className="text-right">累计金额</TableHead>
-                          <TableHead className="text-center">操作</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {projectAddons.length > 0 ? projectAddons.map(addon => (
-                          <TableRow key={addon.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{addon.name}</p>
-                                {addon.remark && <p className="text-xs text-gray-500 truncate max-w-44">{addon.remark}</p>}
+                    {projectAddons.length > 0 ? (
+                      <div className="space-y-3 md:hidden">
+                        {projectAddons.map(addon => (
+                          <div key={addon.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">{addon.name}</p>
+                                <p className="mt-1 text-xs text-slate-500">单位：{addon.unit || '-'}</p>
                               </div>
-                            </TableCell>
-                            <TableCell>{addon.unit}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(parseFloat(addon.unit_price || '0') || 0)}</TableCell>
-                            <TableCell className="text-right">{(parseFloat(addon.total_quantity || '0') || 0).toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-semibold text-orange-600">{formatCurrency(parseFloat(addon.total_amount || '0') || 0)}</TableCell>
-                            <TableCell>
-                              <div className="flex justify-center gap-1">
-                                <Button size="sm" variant="ghost" onClick={() => openProjectAddonDialog(addon)}>
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                                <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProjectAddon(addon.id)}>
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                              <p className="shrink-0 text-sm font-semibold text-orange-600">{formatCurrency(parseFloat(addon.total_amount || '0') || 0)}</p>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div className="rounded-lg bg-slate-50 px-2 py-2">
+                                <p className="text-slate-500">项目单价</p>
+                                <p className="mt-1 font-semibold text-slate-800">{formatCurrency(parseFloat(addon.unit_price || '0') || 0)}</p>
                               </div>
-                            </TableCell>
+                              <div className="rounded-lg bg-blue-50 px-2 py-2">
+                                <p className="text-blue-600">累计数量</p>
+                                <p className="mt-1 font-semibold text-blue-700">{(parseFloat(addon.total_quantity || '0') || 0).toFixed(2)}</p>
+                              </div>
+                            </div>
+                            {addon.remark && <p className="mt-2 line-clamp-2 text-xs text-slate-500">{addon.remark}</p>}
+                            <div className="mt-3 flex justify-end gap-2">
+                              <Button size="sm" variant="outline" onClick={() => openProjectAddonDialog(addon)}>
+                                <Pencil className="w-3 h-3 mr-1" />编辑
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProjectAddon(addon.id)}>
+                                <Trash2 className="w-3 h-3 mr-1" />删除
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-sm text-gray-500 md:hidden">暂无项目内部附加清单，可从公司模板导入或手动新增</div>
+                    )}
+                    <div className="hidden overflow-x-auto md:block">
+                      <Table className="zebra-table min-w-[820px]">
+                        <TableHeader>
+                          <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
+                            <TableHead>清单名称</TableHead>
+                            <TableHead>单位</TableHead>
+                            <TableHead className="text-right">项目单价</TableHead>
+                            <TableHead className="text-right">累计数量</TableHead>
+                            <TableHead className="text-right">累计金额</TableHead>
+                            <TableHead className="text-center">操作</TableHead>
                           </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8 text-gray-500">暂无项目内部附加清单，可从公司模板导入或手动新增</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {projectAddons.length > 0 ? projectAddons.map(addon => (
+                            <TableRow key={addon.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{addon.name}</p>
+                                  {addon.remark && <p className="text-xs text-gray-500 truncate max-w-44">{addon.remark}</p>}
+                                </div>
+                              </TableCell>
+                              <TableCell>{addon.unit}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(parseFloat(addon.unit_price || '0') || 0)}</TableCell>
+                              <TableCell className="text-right">{(parseFloat(addon.total_quantity || '0') || 0).toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-semibold text-orange-600">{formatCurrency(parseFloat(addon.total_amount || '0') || 0)}</TableCell>
+                              <TableCell>
+                                <div className="flex justify-center gap-1">
+                                  <Button size="sm" variant="ghost" onClick={() => openProjectAddonDialog(addon)}>
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProjectAddon(addon.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )) : (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-gray-500">暂无项目内部附加清单，可从公司模板导入或手动新增</TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -2645,14 +2862,14 @@ function WorkItemsContent() {
 
             {/* 差异分析标签页 */}
             <TabsContent value="difference" className="space-y-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="text-lg font-semibold">差异分析</h3>
                   <p className="text-sm text-gray-500 mt-1">按预算工程量统一维度，对比对上报量与对下结算；内部附加清单只参与金额差异，不参与工程量差异</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                   <Select value={analysisYearMonth} onValueChange={setAnalysisYearMonth}>
-                    <SelectTrigger className="w-36">
+                    <SelectTrigger className="w-full sm:w-36">
                       <SelectValue placeholder="选择月份" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2667,7 +2884,7 @@ function WorkItemsContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-4">
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="py-3">
                     <p className="text-sm text-blue-600">预算总金额</p>
@@ -2712,8 +2929,8 @@ function WorkItemsContent() {
 
               <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] gap-4">
                 <Card>
-                  <CardContent className="pt-6">
-                    <div className="mb-4 flex items-start justify-between gap-3">
+                  <CardContent className="p-3 sm:pt-6">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h4 className="font-semibold text-gray-900">项目整体汇总对比</h4>
                         <p className="mt-1 text-sm text-gray-500">先看项目总盘子，再下钻到清单项定位问题</p>
@@ -2722,7 +2939,7 @@ function WorkItemsContent() {
                         {projectComparisonSummary.amountGap < 0 ? '需要关注' : '整体正常'}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                         <p className="text-xs text-gray-500">对上剩余未报</p>
                         <p className={projectComparisonSummary.reportRemainingAmount < 0 ? 'mt-1 text-base font-semibold text-red-600' : 'mt-1 text-base font-semibold text-gray-900'}>
@@ -2759,7 +2976,7 @@ function WorkItemsContent() {
                 </Card>
 
                 <Card className={projectComparisonSummary.riskCount > 0 ? 'border-orange-200' : ''}>
-                  <CardContent className="pt-6">
+                  <CardContent className="p-3 sm:pt-6">
                     <div className="mb-4">
                       <h4 className="font-semibold text-gray-900">风险提醒</h4>
                       <p className="mt-1 text-sm text-gray-500">只做提醒，帮助预算员优先核查</p>
@@ -2783,7 +3000,7 @@ function WorkItemsContent() {
               </div>
 
               <Card>
-                <CardContent className="pt-6">
+                  <CardContent className="p-3 sm:pt-6">
                   <div className="mb-4">
                     <h4 className="font-semibold text-gray-900">清单项下钻明细</h4>
                     <p className="mt-1 text-sm text-gray-500">预算清单参与工程量和金额对比，内部附加清单只参与金额差异</p>
@@ -2865,7 +3082,7 @@ function WorkItemsContent() {
 
       {/* 新增预算工程量对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>新增预算工程量</DialogTitle>
             <DialogDescription>添加分项工程预算</DialogDescription>
@@ -2875,7 +3092,7 @@ function WorkItemsContent() {
               <Label>分项名称 *</Label>
               <Input value={form.subitem_name} onChange={(e) => setForm({ ...form, subitem_name: e.target.value })} required placeholder="请输入分项名称" />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <Label>单位 *</Label>
                 <Input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="如：㎡、m³、t" />
@@ -2893,7 +3110,7 @@ function WorkItemsContent() {
               <Label>备注</Label>
               <Input value={form.remark || ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} placeholder="备注信息" />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={adding}>{adding ? '添加中...' : '添加'}</Button>
             </div>
@@ -2903,7 +3120,7 @@ function WorkItemsContent() {
 
       {/* 编辑预算工程量对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑预算工程量</DialogTitle>
             <DialogDescription>修改分项工程信息</DialogDescription>
@@ -2913,7 +3130,7 @@ function WorkItemsContent() {
               <Label>分项名称 *</Label>
               <Input value={form.subitem_name} onChange={(e) => setForm({ ...form, subitem_name: e.target.value })} required placeholder="请输入分项名称" />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <Label>单位 *</Label>
                 <Input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="如：㎡、m³、t" />
@@ -2931,7 +3148,7 @@ function WorkItemsContent() {
               <Label>备注</Label>
               <Input value={form.remark || ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} placeholder="备注信息" />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存</Button>
             </div>
@@ -2941,7 +3158,7 @@ function WorkItemsContent() {
 
       {/* 批量导入对话框 */}
       <Dialog open={batchDialogOpen} onOpenChange={(open) => { setBatchDialogOpen(open); if (!open) { setBatchText(''); setUploadFileName(''); }}}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>批量导入预算工程量</DialogTitle>
             <DialogDescription>上传文件或直接粘贴数据</DialogDescription>
@@ -2950,7 +3167,7 @@ function WorkItemsContent() {
             <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
             <div className="space-y-2">
               <Label>上传文件（可选）</Label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
                   <FileSpreadsheet className="w-4 h-4 mr-2" />选择文件
                 </Button>
@@ -2972,7 +3189,7 @@ function WorkItemsContent() {
                 onChange={(e) => setBatchText(e.target.value)}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setBatchDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={!batchText.trim()}>导入</Button>
             </div>
@@ -2996,7 +3213,7 @@ function WorkItemsContent() {
 
       {/* 内部附加清单公司模板对话框 */}
       <Dialog open={templateDialogOpen} onOpenChange={(open) => { setTemplateDialogOpen(open); if (!open) resetTemplateForm(); }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTemplate ? '编辑公司通用模板' : '新增公司通用模板'}</DialogTitle>
             <DialogDescription>维护公司常用内部附加清单，可导入到具体项目中使用</DialogDescription>
@@ -3006,7 +3223,7 @@ function WorkItemsContent() {
               <Label>清单名称 *</Label>
               <Input value={templateForm.name} onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })} required placeholder="如：修补打磨" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>单位 *</Label>
                 <Input value={templateForm.unit} onChange={(e) => setTemplateForm({ ...templateForm, unit: e.target.value })} required placeholder="如：㎡、工日、项" />
@@ -3020,7 +3237,7 @@ function WorkItemsContent() {
               <Label>备注</Label>
               <Input value={templateForm.remark} onChange={(e) => setTemplateForm({ ...templateForm, remark: e.target.value })} placeholder="适用说明" />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setTemplateDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={addonSaving}>{addonSaving ? '保存中...' : '保存'}</Button>
             </div>
@@ -3030,7 +3247,7 @@ function WorkItemsContent() {
 
       {/* 项目内部附加清单对话框 */}
       <Dialog open={projectAddonDialogOpen} onOpenChange={(open) => { setProjectAddonDialogOpen(open); if (!open) resetProjectAddonForm(); }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingProjectAddon ? '编辑项目内部附加清单' : '新增项目内部附加清单'}</DialogTitle>
             <DialogDescription>项目单价会用于月度对下结算和差异金额分析</DialogDescription>
@@ -3040,7 +3257,7 @@ function WorkItemsContent() {
               <Label>清单名称 *</Label>
               <Input value={projectAddonForm.name} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, name: e.target.value })} required placeholder="请输入清单名称" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>单位 *</Label>
                 <Input value={projectAddonForm.unit} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, unit: e.target.value })} required placeholder="如：㎡、工日、项" />
@@ -3054,7 +3271,7 @@ function WorkItemsContent() {
               <Label>备注</Label>
               <Input value={projectAddonForm.remark} onChange={(e) => setProjectAddonForm({ ...projectAddonForm, remark: e.target.value })} placeholder="项目适用说明" />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setProjectAddonDialogOpen(false)}>取消</Button>
               <Button type="submit" disabled={addonSaving}>{addonSaving ? '保存中...' : '保存'}</Button>
             </div>
@@ -3064,13 +3281,13 @@ function WorkItemsContent() {
 
       {/* 编辑对上报量对话框 */}
       <Dialog open={budgetEditDialogOpen} onOpenChange={setBudgetEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>编辑对上报量</DialogTitle>
             <DialogDescription>修改上报量和价格信息</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleBudgetEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>分项名称</Label>
                 <Input value={budgetEditItem?.subitem_name || ''} disabled />
@@ -3084,7 +3301,7 @@ function WorkItemsContent() {
               <Label>对上报量 *</Label>
               <Input type="number" step="0.01" value={budgetForm.budget_quantity} onChange={(e) => setBudgetForm({ ...budgetForm, budget_quantity: e.target.value })} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>合同价</Label>
                 <Input type="number" step="0.01" value={budgetForm.contract_price} onChange={(e) => setBudgetForm({ ...budgetForm, contract_price: e.target.value })} />
@@ -3094,7 +3311,7 @@ function WorkItemsContent() {
                 <Input type="number" step="0.01" value={budgetForm.limit_price} onChange={(e) => setBudgetForm({ ...budgetForm, limit_price: e.target.value })} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setBudgetEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存</Button>
             </div>
@@ -3104,7 +3321,7 @@ function WorkItemsContent() {
 
       {/* 月度对上报量对话框 */}
       <Dialog open={monthlyReportDialogOpen} onOpenChange={setMonthlyReportDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
@@ -3113,13 +3330,13 @@ function WorkItemsContent() {
             <DialogDescription>按月录入各分项工程的对上报量，系统自动累计总上报量</DialogDescription>
           </DialogHeader>
           
-          <div className="flex items-center gap-4 py-2 border-b">
+          <div className="flex flex-col gap-2 py-2 border-b sm:flex-row sm:items-center sm:gap-4">
             <Label className="text-sm">选择月份：</Label>
             <Select value={selectedYearMonth} onValueChange={(value) => {
               setSelectedYearMonth(value);
               fetchMonthlyReportRecords(value);
             }}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="选择月份" />
               </SelectTrigger>
               <SelectContent>
@@ -3128,7 +3345,7 @@ function WorkItemsContent() {
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-sm text-gray-500 ml-auto">
+            <span className="text-sm text-gray-500 sm:ml-auto">
               项目：{selectedProject?.name || ''}
             </span>
           </div>
@@ -3139,7 +3356,7 @@ function WorkItemsContent() {
             </div>
           ) : (
             <div className="flex-1 overflow-auto">
-              <Table className="zebra-table">
+              <Table className="zebra-table min-w-[820px]">
               <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">序号</TableHead>
@@ -3197,8 +3414,8 @@ function WorkItemsContent() {
             </div>
           )}
 
-          <div className="flex justify-between items-center pt-4 border-t">
-            <div className="flex gap-2">
+          <div className="flex flex-col gap-3 pt-4 border-t lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <input
                 type="file"
                 ref={monthlyReportFileRef}
@@ -3227,10 +3444,10 @@ function WorkItemsContent() {
                 查看历史记录
               </Button>
             </div>
-            <p className="text-sm text-gray-500 flex-1 text-center">
+            <p className="text-sm text-gray-500 lg:flex-1 lg:text-center">
               提示：输入当月上报量后点击保存，系统会自动累计到总上报量
             </p>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <Button variant="outline" onClick={() => setMonthlyReportDialogOpen(false)}>取消</Button>
               <Button onClick={handleSaveMonthlyReport}>保存</Button>
             </div>
@@ -3240,7 +3457,7 @@ function WorkItemsContent() {
 
       {/* 月度报量历史记录对话框 */}
       <Dialog open={monthlyReportHistoryOpen} onOpenChange={setMonthlyReportHistoryOpen}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -3252,7 +3469,7 @@ function WorkItemsContent() {
           </DialogHeader>
           
           <div className="flex-1 overflow-auto">
-            <Table className="zebra-table">
+            <Table className="zebra-table min-w-[880px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>序号</TableHead>
@@ -3315,7 +3532,7 @@ function WorkItemsContent() {
 
       {/* 月度报量编辑对话框 */}
       <Dialog open={monthlyReportEditDialogOpen} onOpenChange={setMonthlyReportEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5" />
@@ -3324,7 +3541,7 @@ function WorkItemsContent() {
             <DialogDescription>修改月度对上报量数据</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); handleSaveMonthlyReportEdit(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>年月</Label>
                 <Input value={monthlyReportEditRecord?.year_month || ''} disabled />
@@ -3352,7 +3569,7 @@ function WorkItemsContent() {
                 placeholder="可填写备注信息"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex flex-col-reverse gap-2 pt-4 border-t sm:flex-row sm:justify-end">
               <Button variant="outline" type="button" onClick={() => setMonthlyReportEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存修改</Button>
             </div>
@@ -3362,7 +3579,7 @@ function WorkItemsContent() {
 
       {/* 月度对下结算量对话框 */}
       <Dialog open={monthlySettlementDialogOpen} onOpenChange={setMonthlySettlementDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
@@ -3371,13 +3588,13 @@ function WorkItemsContent() {
             <DialogDescription>按月录入各分项工程的对下结算量，系统自动累计总结算量</DialogDescription>
           </DialogHeader>
           
-          <div className="flex items-center gap-4 py-2 border-b">
+          <div className="flex flex-col gap-2 py-2 border-b sm:flex-row sm:items-center sm:gap-4">
             <Label className="text-sm">选择月份：</Label>
             <Select value={settlementYearMonth} onValueChange={(value) => {
               setSettlementYearMonth(value);
               fetchMonthlySettlementRecords(value);
             }}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="选择月份" />
               </SelectTrigger>
               <SelectContent>
@@ -3386,7 +3603,7 @@ function WorkItemsContent() {
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-sm text-gray-500 ml-auto">
+            <span className="text-sm text-gray-500 sm:ml-auto">
               项目：{selectedProject?.name || ''}
             </span>
           </div>
@@ -3397,7 +3614,7 @@ function WorkItemsContent() {
             </div>
           ) : (
             <div className="flex-1 overflow-auto space-y-6">
-              <Table className="zebra-table">
+              <Table className="zebra-table min-w-[820px]">
               <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">序号</TableHead>
@@ -3461,7 +3678,7 @@ function WorkItemsContent() {
                     </h4>
                     <p className="text-sm text-gray-500 mt-1">附加项只计入对下成本金额，不参与预算工程量、剩余工程量和结算率对比</p>
                   </div>
-                  <Table className="zebra-table">
+                  <Table className="zebra-table min-w-[900px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12">序号</TableHead>
@@ -3508,8 +3725,8 @@ function WorkItemsContent() {
             </div>
           )}
 
-          <div className="flex justify-between items-center pt-4 border-t">
-            <div className="flex gap-2">
+          <div className="flex flex-col gap-3 pt-4 border-t lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button 
                 variant="outline" 
                 onClick={openSettlementHistory}
@@ -3517,11 +3734,11 @@ function WorkItemsContent() {
                 <FileText className="w-4 h-4 mr-2" />
                 查看历史记录
               </Button>
-              <p className="text-sm text-gray-500 flex items-center">
+              <p className="text-sm text-gray-500 sm:flex sm:items-center">
                 提示：分项工程累计到总结算量；内部附加清单只累计到对下成本金额
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <Button variant="outline" onClick={() => setMonthlySettlementDialogOpen(false)}>取消</Button>
               <Button onClick={handleSaveMonthlySettlement}>保存</Button>
             </div>
@@ -3531,7 +3748,7 @@ function WorkItemsContent() {
 
       {/* 对下结算量历史记录对话框 */}
       <Dialog open={settlementHistoryOpen} onOpenChange={setSettlementHistoryOpen}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -3548,7 +3765,7 @@ function WorkItemsContent() {
             </div>
           ) : (
             <div className="flex-1 overflow-auto">
-              <Table className="zebra-table">
+              <Table className="zebra-table min-w-[820px]">
               <TableHeader>
                   <TableRow>
                     <TableHead>序号</TableHead>
@@ -3610,7 +3827,7 @@ function WorkItemsContent() {
 
       {/* 对下结算量编辑对话框 */}
       <Dialog open={settlementEditDialogOpen} onOpenChange={setSettlementEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5" />
@@ -3619,7 +3836,7 @@ function WorkItemsContent() {
             <DialogDescription>修改月度对下结算量数据</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); handleSaveSettlementEdit(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>年月</Label>
                 <Input value={settlementEditRecord?.year_month || ''} disabled />
@@ -3647,7 +3864,7 @@ function WorkItemsContent() {
                 placeholder="可填写备注信息"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex flex-col-reverse gap-2 pt-4 border-t sm:flex-row sm:justify-end">
               <Button variant="outline" type="button" onClick={() => setSettlementEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存修改</Button>
             </div>
@@ -3657,7 +3874,7 @@ function WorkItemsContent() {
 
       {/* ========== 对上报量历史记录（独立） ========== */}
       <Dialog open={reportHistoryOpen} onOpenChange={setReportHistoryOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -3674,7 +3891,7 @@ function WorkItemsContent() {
             </div>
           ) : (
             <div className="flex-1 overflow-auto">
-              <Table className="zebra-table">
+              <Table className="zebra-table min-w-[760px]">
               <TableHeader>
                   <TableRow>
                     <TableHead>序号</TableHead>
@@ -3726,7 +3943,7 @@ function WorkItemsContent() {
 
       {/* 对上报量历史编辑对话框 */}
       <Dialog open={reportHistoryEditDialogOpen} onOpenChange={setReportHistoryEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5" />
@@ -3735,7 +3952,7 @@ function WorkItemsContent() {
             <DialogDescription>修改月度对上报量数据</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); handleSaveReportHistoryEdit(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>年月</Label>
                 <Input value={reportHistoryEditRecord?.year_month || ''} disabled />
@@ -3753,7 +3970,7 @@ function WorkItemsContent() {
               <Label>备注</Label>
               <Input value={reportHistoryEditForm.remark} onChange={(e) => setReportHistoryEditForm({ ...reportHistoryEditForm, remark: e.target.value })} placeholder="可填写备注信息" />
             </div>
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex flex-col-reverse gap-2 pt-4 border-t sm:flex-row sm:justify-end">
               <Button variant="outline" type="button" onClick={() => setReportHistoryEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存修改</Button>
             </div>
@@ -3763,7 +3980,7 @@ function WorkItemsContent() {
 
       {/* ========== 对下结算量历史记录（独立） ========== */}
       <Dialog open={settleHistoryOpen} onOpenChange={setSettleHistoryOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -3780,7 +3997,7 @@ function WorkItemsContent() {
             </div>
           ) : (
             <div className="flex-1 overflow-auto">
-              <Table className="zebra-table">
+              <Table className="zebra-table min-w-[760px]">
               <TableHeader>
                   <TableRow>
                     <TableHead>序号</TableHead>
@@ -3832,7 +4049,7 @@ function WorkItemsContent() {
 
       {/* 对下结算量历史编辑对话框 */}
       <Dialog open={settleHistoryEditDialogOpen} onOpenChange={setSettleHistoryEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5" />
@@ -3841,7 +4058,7 @@ function WorkItemsContent() {
             <DialogDescription>修改月度对下结算量数据</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); handleSaveSettleHistoryEdit(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>年月</Label>
                 <Input value={settleHistoryEditRecord?.year_month || ''} disabled />
@@ -3859,7 +4076,7 @@ function WorkItemsContent() {
               <Label>备注</Label>
               <Input value={settleHistoryEditForm.remark} onChange={(e) => setSettleHistoryEditForm({ ...settleHistoryEditForm, remark: e.target.value })} placeholder="可填写备注信息" />
             </div>
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex flex-col-reverse gap-2 pt-4 border-t sm:flex-row sm:justify-end">
               <Button variant="outline" type="button" onClick={() => setSettleHistoryEditDialogOpen(false)}>取消</Button>
               <Button type="submit">保存修改</Button>
             </div>

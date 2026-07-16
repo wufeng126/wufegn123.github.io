@@ -402,12 +402,12 @@ export default function ProjectsPage() {
               新增项目
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="dialog-header">{editingProject ? '编辑项目' : '新增项目'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-sm" style={{ color: '#1D2129' }}>项目名称 *</Label>
                   <Input
@@ -438,7 +438,7 @@ export default function ProjectsPage() {
                   className="mt-1.5"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-sm" style={{ color: '#1D2129' }}>合作单位</Label>
                   <Input
@@ -460,7 +460,7 @@ export default function ProjectsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-sm" style={{ color: '#1D2129' }}>状态</Label>
                   <Select
@@ -489,7 +489,7 @@ export default function ProjectsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-sm" style={{ color: '#1D2129' }}>适用税率（%）</Label>
                   <Input
@@ -514,7 +514,7 @@ export default function ProjectsPage() {
               </div>
               <div>
                 <Label className="text-sm" style={{ color: '#1D2129' }}>项目图标</Label>
-                <div className="mt-1.5 grid grid-cols-6 gap-2 p-3 border rounded-lg" style={{ borderColor: '#E5E6EB', background: '#FAFAFA' }}>
+                <div className="mt-1.5 grid grid-cols-3 gap-2 border p-3 sm:grid-cols-6 rounded-lg" style={{ borderColor: '#E5E6EB', background: '#FAFAFA' }}>
                   {ICON_OPTIONS.map((option) => {
                     const IconComponent = option.icon;
                     const isSelected = formData.icon === option.value;
@@ -542,7 +542,7 @@ export default function ProjectsPage() {
                   })}
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-3 border-t" style={{ borderColor: '#E5E6EB' }}>
+              <div className="flex flex-col-reverse gap-3 border-t pt-3 sm:flex-row sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">
                   取消
                 </Button>
@@ -613,8 +613,8 @@ export default function ProjectsPage() {
       </div>
 
       {/* 搜索与筛选栏 */}
-      <div className={`flex flex-wrap items-center gap-3 mb-4 transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+      <div className={`grid gap-3 mb-4 sm:flex sm:flex-wrap sm:items-center transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="relative min-w-0 flex-1 sm:min-w-[200px] sm:max-w-[320px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#86909C' }} />
           <input
             type="text"
@@ -628,7 +628,7 @@ export default function ProjectsPage() {
         <select
           value={filterYear}
           onChange={e => setFilterYear(e.target.value)}
-          className="px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          className="w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 sm:w-auto"
           style={{ borderColor: '#E5E6EB' }}
         >
           <option value="all">全部年度</option>
@@ -637,7 +637,7 @@ export default function ProjectsPage() {
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          className="px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          className="w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 sm:w-auto"
           style={{ borderColor: '#E5E6EB' }}
         >
           <option value="all">全部状态</option>
@@ -659,7 +659,75 @@ export default function ProjectsPage() {
                 <div className="loading-spinner" />
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="space-y-3 p-3 md:hidden">
+                {filteredAndSortedProjects.length === 0 && (
+                  <div className="rounded-xl border border-dashed bg-white px-4 py-10 text-center" style={{ borderColor: '#E5E6EB' }}>
+                    <FolderOpen className="mx-auto h-8 w-8" style={{ color: '#C9CDD4' }} />
+                    <p className="mt-3 text-sm font-medium" style={{ color: '#1D2129' }}>暂无项目</p>
+                    <p className="mt-1 text-xs" style={{ color: '#86909C' }}>点击新增项目按钮添加第一个项目</p>
+                  </div>
+                )}
+                {filteredAndSortedProjects.map((project) => {
+                  const projectIcon = getProjectIcon(project.name, project.icon);
+                  const IconComponent = projectIcon.icon;
+                  const statusStyle = getStatusStyle(project.status);
+
+                  return (
+                    <div key={project.id} className="rounded-xl border bg-white p-3" style={{ borderColor: '#E5E6EB' }}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: projectIcon.bg }}>
+                          <IconComponent className="h-5 w-5" style={{ color: projectIcon.color }} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <Link href={`/projects/${project.id}`} className="line-clamp-2 text-sm font-semibold text-[#1D2129]">
+                            {project.name}
+                          </Link>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                              style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}` }}
+                            >
+                              {project.status}
+                            </span>
+                            <span className="text-xs" style={{ color: '#86909C' }}>{project.year}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-xs">
+                        <div className="flex justify-between gap-3">
+                          <span className="shrink-0" style={{ color: '#86909C' }}>甲方</span>
+                          <span className="truncate font-medium" style={{ color: '#1D2129' }}>{project.partner || '-'}</span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="shrink-0" style={{ color: '#86909C' }}>地址</span>
+                          <span className="truncate font-medium" style={{ color: '#1D2129' }}>{project.address || '-'}</span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="shrink-0" style={{ color: '#86909C' }}>合同金额</span>
+                          <span className="font-semibold" style={{ color: '#165DFF' }}>{formatCurrency(project.contract_amount)}</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex justify-end gap-2 border-t pt-3" style={{ borderColor: '#F2F3F5' }}>
+                        <Link href={`/projects/${project.id}`}>
+                          <Button size="sm" variant="outline" className="h-8 px-3" title="查看详情">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(project)} className="h-8 px-3" title="编辑">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {isSuperAdminUser(user?.role) && (
+                          <Button size="sm" variant="outline" onClick={() => handleDeleteClick(project.id, project.name)} className="h-8 px-3 text-red-500" title="删除">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 {/* 表格容器 - 使用 grid 布局确保对齐 */}
                 <div className="min-w-[980px]">
                   {/* 表头 */}
@@ -803,6 +871,7 @@ export default function ProjectsPage() {
                   </div>
                 </div>
               </div>
+              </>
             )}
           </CardContent>
         </Card>

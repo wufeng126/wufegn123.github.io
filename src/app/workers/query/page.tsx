@@ -360,7 +360,7 @@ export default function WorkerSalaryQueryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 md:p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
@@ -372,10 +372,10 @@ export default function WorkerSalaryQueryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
-      <div className={`max-w-[2000px] mx-auto space-y-6 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 md:p-6">
+      <div className={`max-w-[2000px] mx-auto space-y-5 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {/* 页面标题 */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
               <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
@@ -385,7 +385,7 @@ export default function WorkerSalaryQueryPage() {
             </h1>
             <p className="text-gray-500 mt-1 ml-11">按人按月汇总工人工资，显示已发、未付及详细工资项</p>
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <Button variant="outline" onClick={fetchData} className="gap-2">
               <RefreshCw className="w-4 h-4" />刷新
             </Button>
@@ -404,12 +404,12 @@ export default function WorkerSalaryQueryPage() {
         {/* 筛选条件 */}
         <Card className="border-0 shadow-sm">
           <CardContent className="py-4">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-gray-400" />
                 <span className="text-sm text-gray-500">年份</span>
                 <Select value={filterYear} onValueChange={setFilterYear}>
-                  <SelectTrigger className="w-28">
+                  <SelectTrigger className="w-full sm:w-28">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -423,7 +423,7 @@ export default function WorkerSalaryQueryPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">项目</span>
                 <Select value={filterProject} onValueChange={setFilterProject}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full sm:w-40">
                     <SelectValue placeholder="全部项目" />
                   </SelectTrigger>
                   <SelectContent>
@@ -438,7 +438,7 @@ export default function WorkerSalaryQueryPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">工人</span>
                 <Select value={filterWorker} onValueChange={setFilterWorker}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full sm:w-40">
                     <SelectValue placeholder="全部工人" />
                   </SelectTrigger>
                   <SelectContent>
@@ -450,7 +450,7 @@ export default function WorkerSalaryQueryPage() {
                 </Select>
               </div>
 
-              <div className="flex items-center gap-2 flex-1 max-w-xs">
+              <div className="flex items-center gap-2 lg:flex-1 lg:max-w-xs">
                 <Search className="w-4 h-4 text-gray-400" />
                 <input
                   type="text"
@@ -465,7 +465,7 @@ export default function WorkerSalaryQueryPage() {
         </Card>
 
         {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
           <Card className="border-blue-200 bg-blue-50">
             <CardContent className="py-3">
               <div className="flex items-center justify-between">
@@ -515,7 +515,61 @@ export default function WorkerSalaryQueryPage() {
         {/* 工资汇总表 */}
         <Card className="border-0 shadow-sm overflow-hidden">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-3 md:hidden">
+              {workerSummary.length > 0 ? (
+                workerSummary.map(worker => {
+                  const isExpanded = expandedWorkers.has(worker.summary_key);
+                  return (
+                    <div key={worker.summary_key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <button type="button" onClick={() => toggleExpand(worker.summary_key)} className="flex w-full items-start justify-between gap-3 text-left">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{worker.worker_name}</p>
+                          <p className="mt-1 truncate text-xs text-slate-500">{worker.project_name} · {worker.work_type || '-'}</p>
+                        </div>
+                        {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+                      </button>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                        <div className="rounded-lg bg-blue-50 px-2 py-2">
+                          <p className="text-blue-600">应发</p>
+                          <p className="mt-1 font-semibold text-blue-700">¥{formatCurrency(worker.total_gross_pay)}</p>
+                        </div>
+                        <div className="rounded-lg bg-purple-50 px-2 py-2">
+                          <p className="text-purple-600">已发</p>
+                          <p className="mt-1 font-semibold text-purple-700">¥{formatCurrency(worker.paid)}</p>
+                        </div>
+                        <div className={worker.unpaid > 0 ? 'rounded-lg bg-red-50 px-2 py-2' : 'rounded-lg bg-slate-50 px-2 py-2'}>
+                          <p className={worker.unpaid > 0 ? 'text-red-600' : 'text-slate-500'}>未付</p>
+                          <p className={worker.unpaid > 0 ? 'mt-1 font-semibold text-red-700' : 'mt-1 font-semibold text-slate-700'}>¥{formatCurrency(worker.unpaid)}</p>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                          {worker.records.map(record => (
+                            <div key={record.id} className="rounded-lg bg-amber-50/70 p-2 text-xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium text-amber-700">{record.year_month}</span>
+                                <span className="font-semibold text-green-700">实发 ¥{formatCurrency(record.net_pay)}</span>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-slate-600">
+                                <span>工时 {formatNumber(record.work_hours)}</span>
+                                <span>工价 {formatNumber(record.hourly_rate)}</span>
+                                <span>包活 {formatNumber(record.contract_work_pay)}</span>
+                                <span>应发 {formatNumber(record.gross_pay)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
+                  请先在&quot;月度工资&quot;中录入工资数据
+                </div>
+              )}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gradient-to-r from-slate-100 to-blue-50">

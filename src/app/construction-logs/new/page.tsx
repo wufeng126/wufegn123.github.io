@@ -278,10 +278,10 @@ export default function NewConstructionLogPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
             <Link href="/construction-logs" className="rounded-lg p-2 hover:bg-[#F2F3F5]">
               <ArrowLeft className="h-5 w-5 text-[#4E5969]" />
             </Link>
@@ -290,13 +290,13 @@ export default function NewConstructionLogPage() {
               <p className="text-xs text-[#86909C]">按项目填写施工内容，并从项目花名册勾选当天实际出勤人员</p>
             </div>
           </div>
-          <Link href="/construction-logs/scan" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#165DFF] px-3 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+          <Link href="/construction-logs/scan" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF] sm:h-9 sm:w-auto">
             <Camera className="h-4 w-4" />拍照识别
           </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <section className="rounded-xl border border-[#E5E6EB] bg-white p-5 shadow-sm">
+          <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
             <div className="grid gap-3 md:grid-cols-[220px_1fr]">
               <div>
                 <label className="mb-1 block text-sm font-medium text-[#1D2129]">日志日期 <span className="text-[#F53F3F]">*</span></label>
@@ -345,7 +345,7 @@ export default function NewConstructionLogPage() {
             const pendingScopeIds = selectedTemporaryIds.filter(workerId => !draft.scope_worker_ids.includes(workerId));
 
             return (
-              <section key={draft.id} className="rounded-xl border border-[#E5E6EB] bg-white p-5 shadow-sm">
+              <section key={draft.id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h2 className="text-base font-semibold text-[#1D2129]">项目明细 {index + 1}</h2>
                   <button
@@ -456,7 +456,7 @@ export default function NewConstructionLogPage() {
                             <UsersRound className="h-3.5 w-3.5 text-[#165DFF]" />
                             {options.has_scope ? '我的负责人员' : '项目在场人员'}
                           </div>
-                          <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                          <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 md:max-h-56 md:grid-cols-2">
                             {visibleWorkers.length === 0 ? (
                               <div className="rounded-lg bg-white p-3 text-sm text-[#86909C] md:col-span-2">没有匹配的人员</div>
                             ) : visibleWorkers.map(worker => (
@@ -464,7 +464,7 @@ export default function NewConstructionLogPage() {
                                 type="button"
                                 key={worker.id}
                                 onClick={() => toggleAttendance(draft.id, worker.id)}
-                                className={`flex items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
+                                className={`flex min-h-[68px] items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
                                   selectedSet.has(worker.id)
                                     ? 'border-[#165DFF] ring-2 ring-[#E8F3FF]'
                                     : 'border-[#E5E6EB] hover:border-[#165DFF]/40'
@@ -489,7 +489,7 @@ export default function NewConstructionLogPage() {
                         {options.has_scope && (
                           <div>
                             <div className="mb-2 text-xs font-medium text-[#4E5969]">项目花名册临时补选</div>
-                            <div className="grid max-h-44 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                            <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 md:max-h-44 md:grid-cols-2">
                               {otherWorkers.length === 0 ? (
                                 <div className="rounded-lg bg-white p-3 text-sm text-[#86909C] md:col-span-2">没有更多可补选人员</div>
                               ) : otherWorkers.map(worker => (
@@ -497,7 +497,7 @@ export default function NewConstructionLogPage() {
                                   type="button"
                                   key={worker.id}
                                   onClick={() => toggleAttendance(draft.id, worker.id)}
-                                  className={`flex items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
+                                  className={`flex min-h-[68px] items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
                                     selectedSet.has(worker.id)
                                       ? 'border-[#165DFF] ring-2 ring-[#E8F3FF]'
                                       : 'border-[#E5E6EB] hover:border-[#165DFF]/40'
@@ -545,11 +545,11 @@ export default function NewConstructionLogPage() {
 
           {error && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#B91C1C]">{error}</div>}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm">
+          <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={addDraft}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#165DFF] px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#165DFF] px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]"
             >
               <Plus className="h-4 w-4" />添加项目明细
             </button>

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Bell, AlertTriangle, FileText, TrendingDown, CreditCard, Users, CheckCircle } from 'lucide-react';
+import { Bell, AlertTriangle, FileText, CreditCard, type LucideIcon } from 'lucide-react';
 
 interface NotifItem {
   id: number; title: string; content: string; type: string;
   severity: string; is_read: boolean; created_at: string; related_type: string; related_id: number;
 }
 
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, LucideIcon> = {
   construction_log_alert: AlertTriangle,
   monthly_analysis_workflow: FileText,
   salary_alert: CreditCard,
@@ -43,7 +43,9 @@ export default function NotificationBell() {
   }
 
   useEffect(() => {
-    fetchUnread();
+    queueMicrotask(() => {
+      fetchUnread();
+    });
     const timer = setInterval(fetchUnread, 30000); // 每30秒刷新
     return () => clearInterval(timer);
   }, []);
@@ -69,7 +71,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 w-[320px] sm:w-[380px] bg-white rounded-xl shadow-xl border border-[rgba(0,0,0,0.06)] z-50 overflow-hidden">
+        <div className="fixed left-3 right-3 top-14 z-50 overflow-hidden rounded-xl border border-[rgba(0,0,0,0.06)] bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-[380px]">
           {/* 头部 */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(0,0,0,0.06)]">
             <span className="text-sm font-semibold text-[#1D2129]">消息通知</span>
@@ -83,7 +85,7 @@ export default function NotificationBell() {
           </div>
 
           {/* 列表 */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[70vh] overflow-y-auto sm:max-h-[400px]">
             {notifs.length === 0 ? (
               <div className="py-10 text-center text-sm text-[#8A8F98]">暂无未读消息</div>
             ) : (

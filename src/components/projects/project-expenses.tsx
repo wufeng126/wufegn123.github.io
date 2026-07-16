@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -79,11 +79,7 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
     remark: '',
   });
 
-  useEffect(() => {
-    fetchExpenses();
-  }, [projectId]);
-
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/comprehensive-expenses?projectId=${projectId}&pageSize=100`);
@@ -99,7 +95,13 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchExpenses();
+    });
+  }, [fetchExpenses]);
 
   const handleAdd = async () => {
     if (!form.expense_type || !form.amount || !form.expense_date) {
@@ -131,8 +133,8 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
         const data = await res.json();
         throw new Error(data.error);
       }
-    } catch (error: any) {
-      toast({ title: '添加失败', description: error.message, variant: 'error' });
+    } catch (error: unknown) {
+      toast({ title: '添加失败', description: error instanceof Error ? error.message : undefined, variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -175,8 +177,8 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
         const data = await res.json();
         throw new Error(data.error);
       }
-    } catch (error: any) {
-      toast({ title: '修改失败', description: error.message, variant: 'error' });
+    } catch (error: unknown) {
+      toast({ title: '修改失败', description: error instanceof Error ? error.message : undefined, variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -203,8 +205,8 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
         const data = await res.json();
         throw new Error(data.error);
       }
-    } catch (error: any) {
-      toast({ title: '删除失败', description: error.message, variant: 'error' });
+    } catch (error: unknown) {
+      toast({ title: '删除失败', description: error instanceof Error ? error.message : undefined, variant: 'error' });
     }
   };
 

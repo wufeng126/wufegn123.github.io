@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Building2, CheckCircle, AlertTriangle, DollarSign, TrendingUp } from 'lucide-react';
@@ -42,11 +42,7 @@ export function ProjectSupplierPayments({ projectId }: ProjectSupplierPaymentsPr
   const [summary, setSummary] = useState<StatsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-  }, [projectId]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/payments/stats?project_id=${projectId}`);
@@ -58,7 +54,13 @@ export function ProjectSupplierPayments({ projectId }: ProjectSupplierPaymentsPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchStats();
+    });
+  }, [fetchStats]);
 
   if (loading) {
     return (

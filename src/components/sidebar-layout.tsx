@@ -138,7 +138,9 @@ export default function SidebarLayout({
   }, []);
 
   useEffect(() => {
-    setSidebarOpen(false);
+    queueMicrotask(() => {
+      setSidebarOpen(false);
+    });
   }, [pathname]);
 
   const hasAnyPermission = (perms?: string[]) => {

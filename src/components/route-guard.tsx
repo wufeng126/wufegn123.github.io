@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, ReactNode, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useState, ReactNode, useRef, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { hasRoutePermission, PUBLIC_PAGES, isSuperAdminUser } from '@/lib/route-permissions';
 import { getStoredToken, isDingTalkClient, getRedirectCount, incrementRedirectCount, resetRedirectCount } from '@/lib/auth-client';
@@ -55,14 +55,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
   const [hasPermission, setHasPermission] = useState(initialCheck.permitted);
   const [errorMessage, setErrorMessage] = useState(initialCheck.error);
 
-  useEffect(() => {
-    // 如果同步初始化已经确定结果，跳过异步检查
-    if (!initialCheck.checking) return;
-
-    checkAccess();
-  }, [pathname]);
-
-  async function checkAccess() {
+  const checkAccess = useCallback(async () => {
     // 防止并发检查
     if (isCheckingRef.current) return;
     isCheckingRef.current = true;
@@ -153,7 +146,15 @@ export function RouteGuard({ children }: RouteGuardProps) {
     } finally {
       isCheckingRef.current = false;
     }
-  }
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (!initialCheck.checking) return;
+
+    queueMicrotask(() => {
+      checkAccess();
+    });
+  }, [checkAccess, initialCheck.checking]);
 
   // 首次加载且无缓存时，显示最小化加载指示器
   if (isChecking) {

@@ -40,17 +40,18 @@ export function TabContainer({ tabs, defaultTab }: TabContainerProps) {
     const matchedTab = urlTab
       ? visibleTabs.find(t => t.key === urlTab || t.aliases?.includes(urlTab))
       : null;
+    let nextActiveTab = '';
     if (matchedTab) {
-      setActiveTab(matchedTab.key);
-      return;
+      nextActiveTab = matchedTab.key;
+    } else if (defaultTab && visibleTabs.some(t => t.key === defaultTab)) {
+      nextActiveTab = defaultTab;
+    } else {
+      nextActiveTab = visibleTabs[0]?.key || '';
     }
-    // defaultTab 在可见列表中 → 使用默认
-    if (defaultTab && visibleTabs.some(t => t.key === defaultTab)) {
-      setActiveTab(defaultTab);
-      return;
-    }
-    // 否则选第一个可见 Tab
-    setActiveTab(visibleTabs[0]?.key || '');
+
+    queueMicrotask(() => {
+      setActiveTab(nextActiveTab);
+    });
   }, [searchParams, defaultTab, visibleTabs]);
 
   const handleTabChange = useCallback((key: string) => {
