@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
-import { isVoidedStatus } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+
+function isFinalSettlementType(type?: string | null) {
+  const normalized = String(type || '').trim().toLowerCase();
+  return (
+    normalized === 'final' ||
+    normalized === 'complete' ||
+    normalized === 'completed' ||
+    normalized.includes('\u7ed3\u7b97\u5b8c') ||
+    normalized.includes('\u6700\u7ec8') ||
+    normalized.includes('\u603b\u7ed3') ||
+    normalized.includes('\u51b3\u7b97')
+  );
+}
 
 export async function GET(
   request: NextRequest,
@@ -38,7 +51,7 @@ export async function GET(
     const totalPayable = activeSettlements.reduce(
       (sum: number, s: any) => sum + Number(s.payable_amount || 0), 0
     );
-    const completeSettlement = activeSettlements.find((s: any) => s.settlement_type === '结算完');
+    const completeSettlement = activeSettlements.find((s) => isFinalSettlementType(s.settlement_type));
 
     // 获取付款统计
     const { data: payments } = await supabase
@@ -47,7 +60,9 @@ export async function GET(
       .eq('contract_id', id)
       .order('payment_date', { ascending: false });
 
-    const totalPaid = (payments || []).reduce(
+    const totalPaid = (payments || [])
+      .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
+      .reduce(
       (sum: number, p: any) => sum + Number(p.payment_amount || 0), 0
     );
 
@@ -63,7 +78,7 @@ export async function GET(
       total_settlement: totalSettlement,
       total_payable: totalPayable,
       total_paid: totalPaid,
-      pending_amount: totalPayable - totalPaid,
+      pending_amount: Math.max(0, totalPayable - totalPaid),
       has_complete_settlement: !!completeSettlement,
       settlements: settlements || [],
       payments: payments || [],

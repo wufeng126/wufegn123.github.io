@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
-import { isVoidedStatus } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+
+function isFinalSettlementType(type?: string | null) {
+  const normalized = String(type || '').trim().toLowerCase();
+  return (
+    normalized === 'final' ||
+    normalized === 'complete' ||
+    normalized === 'completed' ||
+    normalized.includes('\u7ed3\u7b97\u5b8c') ||
+    normalized.includes('\u6700\u7ec8') ||
+    normalized.includes('\u603b\u7ed3') ||
+    normalized.includes('\u51b3\u7b97')
+  );
+}
 
 // GET /api/supplier-contracts - 获取合同列表
 export async function GET(request: NextRequest) {
@@ -52,15 +65,17 @@ export async function GET(request: NextRequest) {
         );
 
         // 获取已完结结算单
-        const completeSettlement = activeSettlements.find((s: any) => s.settlement_type === '结算完');
+        const completeSettlement = activeSettlements.find((s) => isFinalSettlementType(s.settlement_type));
 
         // 获取付款统计
         const { data: payments } = await supabase
           .from('supplier_payments')
-          .select('payment_amount')
+          .select('payment_amount, status')
           .eq('contract_id', contract.id);
 
-        const totalPaid = (payments || []).reduce(
+        const totalPaid = (payments || [])
+          .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
+          .reduce(
           (sum: number, p: any) => sum + Number(p.payment_amount || 0), 0
         );
 
@@ -69,7 +84,7 @@ export async function GET(request: NextRequest) {
           total_settlement: totalSettlement,
           total_payable: totalPayable,
           total_paid: totalPaid,
-          pending_amount: totalPayable - totalPaid,
+          pending_amount: Math.max(0, totalPayable - totalPaid),
           has_complete_settlement: !!completeSettlement,
         };
       })

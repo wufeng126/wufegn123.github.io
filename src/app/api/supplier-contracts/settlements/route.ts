@@ -3,7 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 
 // GET /api/supplier-contracts/settlements - 获取结算单列表
 export async function GET(request: NextRequest) {
@@ -98,17 +98,19 @@ export async function GET(request: NextRequest) {
     if (settlementContractIds.length > 0) {
       const { data: payments } = await supabase
         .from('supplier_payments')
-        .select('payment_amount')
+        .select('payment_amount, status')
         .in('contract_id', settlementContractIds);
 
-      totalPaid = (payments || []).reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
+      totalPaid = (payments || [])
+        .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
+        .reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
     }
 
     const totalAmount = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
     const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
     const totalFinalPayable = totalAmount;
-    const totalProgressPending = totalPayable - totalPaid;
-    const totalFinalPending = totalFinalPayable - totalPaid;
+    const totalProgressPending = Math.max(0, totalPayable - totalPaid);
+    const totalFinalPending = Math.max(0, totalFinalPayable - totalPaid);
 
     return NextResponse.json({
       settlements: result,
