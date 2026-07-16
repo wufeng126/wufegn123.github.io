@@ -53,6 +53,24 @@ function emptyVisaResponse(page: number, pageSize: number) {
   });
 }
 
+function parseVisaAmount(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value == null) return 0;
+
+  const normalized = String(value).replace(/[,\s¥￥]/g, '');
+  const amount = Number.parseFloat(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function getVisaStepDate(visa: {
+  workflow_step_updated_at?: string | null;
+  submitted_at?: string | null;
+  occurrence_date?: string | null;
+  created_at?: string | null;
+}) {
+  return visa.workflow_step_updated_at || visa.submitted_at || visa.occurrence_date || visa.created_at || null;
+}
+
 // 获取签证列表
 export async function GET(request: NextRequest) {
   try {
@@ -88,13 +106,13 @@ export async function GET(request: NextRequest) {
     // 构建统计查询（应用相同筛选条件，但不分页）
     let statsQuery = client
       .from('visas')
-      .select('id, status, visa_amount, project_id, occurrence_date, submitted_at, workflow_step_updated_at');
+      .select('id, status, visa_amount, project_id, occurrence_date, created_at');
 
     // 项目过滤
     if (projectId && projectId !== 'all') {
       const pid = parseInt(projectId);
       if (Array.isArray(accessibleProjects) && !accessibleProjects.includes(pid)) {
-        return NextResponse.json({ data: [], total: 0, page, pageSize, stats: { total: 0, pending: 0, totalAmount: 0 }, trend: {} });
+        return emptyVisaResponse(page, pageSize);
       }
       query = query.eq('project_id', pid);
       statsQuery = statsQuery.eq('project_id', pid);
@@ -106,8 +124,8 @@ export async function GET(request: NextRequest) {
     // 应用筛选条件
     if (status && status !== 'all') {
       if (status === 'active') {
-        query = query.in('status', ['已提交', '已签字', '待预算员确认']);
-        statsQuery = statsQuery.in('status', ['已提交', '已签字', '待预算员确认']);
+        query = query.in('status', ['已提交', '已签字', '待预算员确认', '待办理']);
+        statsQuery = statsQuery.in('status', ['已提交', '已签字', '待预算员确认', '待办理']);
       } else if (status === 'done') {
         query = query.in('status', ['已完成', '已结算', '已完结']);
         statsQuery = statsQuery.in('status', ['已完成', '已结算', '已完结']);
@@ -147,7 +165,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取筛选后的签证用于统计
-    const { data: filteredVisas } = await statsQuery;
+    const { data: filteredVisas, error: statsError } = await statsQuery;
+    if (statsError) {
+      throw new Error(`统计签证失败: ${statsError.message}`);
+    }
 
     // 获取所有签证用于趋势图（应用项目过滤）
     let allVisasQuery = client
@@ -159,7 +180,10 @@ export async function GET(request: NextRequest) {
       allVisasQuery = allVisasQuery.in('project_id', accessibleProjects);
     }
     
-    const { data: allVisas } = await allVisasQuery;
+    const { data: allVisas, error: allVisasError } = await allVisasQuery;
+    if (allVisasError) {
+      throw new Error(`统计签证趋势失败: ${allVisasError.message}`);
+    }
 
     // 获取所有进行中的项目（应用项目过滤）
     let activeProjectsQuery = client
@@ -171,7 +195,10 @@ export async function GET(request: NextRequest) {
       activeProjectsQuery = activeProjectsQuery.in('id', accessibleProjects);
     }
     
-    const { data: activeProjects } = await activeProjectsQuery;
+    const { data: activeProjects, error: activeProjectsError } = await activeProjectsQuery;
+    if (activeProjectsError) {
+      throw new Error(`统计签证项目失败: ${activeProjectsError.message}`);
+    }
 
     // 计算关联项目数（基于筛选后的数据）
     const projectIds = new Set(filteredVisas?.map(v => v.project_id) || []);
@@ -182,14 +209,14 @@ export async function GET(request: NextRequest) {
     const approvedCount = filteredVisas?.filter(v => v.status === '待预算员确认').length || 0;
     const pendingCount = filteredVisas?.filter(v => isVisaActive(v.status) || v.status === '草稿').length || 0;
     const submittedCount = filteredVisas?.filter(v => v.status === '已提交').length || 0; // 待审核数量
-    const totalAmount = filteredVisas?.reduce((sum, v) => sum + (parseFloat(v.visa_amount) || 0), 0) || 0;
+    const totalAmount = filteredVisas?.reduce((sum, v) => sum + parseVisaAmount(v.visa_amount), 0) || 0;
     const completedRate = totalCount > 0 ? (completedCount / totalCount * 100) : 0;
 
     // 风险预警统计（基于筛选后的数据，待处理 = 已提交超过3天）
     const today = new Date();
     const overdueCount = filteredVisas?.filter(v => {
-      if (!['已提交', '已签字'].includes(v.status)) return false;
-      const stepDateValue = v.workflow_step_updated_at || v.submitted_at;
+      if (!['已提交', '已签字', '待办理'].includes(v.status)) return false;
+      const stepDateValue = getVisaStepDate(v);
       if (!stepDateValue) return false;
       const submitDate = new Date(stepDateValue);
       const diffDays = Math.floor((today.getTime() - submitDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -197,8 +224,8 @@ export async function GET(request: NextRequest) {
     }).length || 0;
     
     const warningCount = filteredVisas?.filter(v => {
-      if (!['已提交', '已签字'].includes(v.status)) return false;
-      const stepDateValue = v.workflow_step_updated_at || v.submitted_at;
+      if (!['已提交', '已签字', '待办理'].includes(v.status)) return false;
+      const stepDateValue = getVisaStepDate(v);
       if (!stepDateValue) return false;
       const submitDate = new Date(stepDateValue);
       const diffDays = Math.floor((today.getTime() - submitDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -236,7 +263,7 @@ export async function GET(request: NextRequest) {
       const newCount = monthVisas.length;
       // 已结算是完成状态
       const completedInMonth = monthVisas.filter(v => isVisaDone(v.status)).length;
-      const monthAmount = monthVisas.reduce((sum, v) => sum + (parseFloat(v.visa_amount) || 0), 0);
+      const monthAmount = monthVisas.reduce((sum, v) => sum + parseVisaAmount(v.visa_amount), 0);
 
       return {
         month,

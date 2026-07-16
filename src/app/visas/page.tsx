@@ -96,6 +96,7 @@ const VISA_STATUS_LABELS: Record<string, string> = {
   '已提交': '已提交',
   '已签字': '已签字',
   '待预算员确认': '待预算员确认',
+  '待办理': '待办理',
   '已完成': '已完成',
   '已结算': '已完成',
   '已完结': '已完成',
@@ -159,6 +160,32 @@ interface Attachment {
   created_at: string;
 }
 
+const DEFAULT_VISA_STATS: Stats = {
+  totalCount: 0,
+  completedCount: 0,
+  confirmedCount: 0,
+  pendingCount: 0,
+  totalAmount: 0,
+  completedRate: 0,
+  relatedProjects: 0,
+  activeProjectsCount: 0,
+  currentMonthNew: 0,
+  currentMonthCompleted: 0,
+  currentMonthAmount: 0,
+  overdueCount: 0,
+  warningCount: 0,
+  newGrowth: '0',
+  completedGrowth: '0',
+  amountGrowth: '0',
+};
+
+const DEFAULT_VISA_PAGINATION: Pagination = {
+  page: 1,
+  pageSize: 10,
+  total: 0,
+  totalPages: 0,
+};
+
 export default function VisasPage() {
   const searchParams = useSearchParams();
   const statusFromUrl = searchParams.get('status');
@@ -169,32 +196,10 @@ export default function VisasPage() {
   const [projectManagers, setProjectManagers] = useState<ProjectManager[]>([]);
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
-  const [stats, setStats] = useState<Stats>({
-    totalCount: 0,
-    completedCount: 0,
-    confirmedCount: 0,
-    pendingCount: 0,
-    totalAmount: 0,
-    completedRate: 0,
-    relatedProjects: 0,
-    activeProjectsCount: 0,
-    currentMonthNew: 0,
-    currentMonthCompleted: 0,
-    currentMonthAmount: 0,
-    overdueCount: 0,
-    warningCount: 0,
-    newGrowth: '0',
-    completedGrowth: '0',
-    amountGrowth: '0',
-  });
+  const [stats, setStats] = useState<Stats>(DEFAULT_VISA_STATS);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [activeProjectsWithVisa, setActiveProjectsWithVisa] = useState<ActiveProjectWithVisa[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    pageSize: 10,
-    total: 0,
-    totalPages: 0,
-  });
+  const [pagination, setPagination] = useState<Pagination>(DEFAULT_VISA_PAGINATION);
 
   // 筛选条件
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -326,8 +331,8 @@ export default function VisasPage() {
 
       if (res.ok) {
         setVisas(data.visas || []);
-        setPagination(data.pagination);
-        setStats(data.stats);
+        setPagination(data.pagination || DEFAULT_VISA_PAGINATION);
+        setStats(data.stats || DEFAULT_VISA_STATS);
         setMonthlyData(data.monthlyData || []);
         setActiveProjectsWithVisa(data.activeProjectsWithVisa || []);
       } else {

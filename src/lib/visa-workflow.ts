@@ -3,7 +3,7 @@ import { getUserDisplayName as formatUserDisplayName } from '@/lib/user-display-
 
 export const VISA_WORKFLOW_STATUSES = ['已提交', '已签字', '待预算员确认', '已完成'] as const;
 export const VISA_DONE_STATUSES = ['已完成', '已结算', '已完结'] as const;
-export const VISA_ACTIVE_STATUSES = ['已提交', '已签字', '待预算员确认'] as const;
+export const VISA_ACTIVE_STATUSES = ['已提交', '已签字', '待预算员确认', '待办理'] as const;
 
 type SupabaseSelectResult = {
   data: unknown;
