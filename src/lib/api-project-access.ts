@@ -4,7 +4,7 @@ type ProjectAccessClient = {
   from: (table: string) => {
     select: (columns: string) => {
       eq: (column: string, value: unknown) => {
-        single: () => PromiseLike<{ data: { managed_projects?: unknown } | null }>;
+        single: () => PromiseLike<{ data: { managed_projects?: unknown } | null; error?: { message?: string } | null }>;
       };
     };
   };
@@ -30,11 +30,16 @@ export async function getAssignedProjectIds(
   userId: number
 ): Promise<number[]> {
   const db = client as ProjectAccessClient;
-  const { data } = await db
+  const { data, error } = await db
     .from('users')
     .select('managed_projects')
     .eq('id', userId)
     .single();
+
+  if (error) {
+    console.warn(`[project-access] failed to load assigned projects for user ${userId}: ${error.message || 'unknown error'}`);
+    return [];
+  }
 
   return parseProjectIds(data?.managed_projects);
 }
@@ -46,11 +51,16 @@ export async function getAccessibleProjectIds(
   if (user.is_super_admin) return null;
 
   const db = client as ProjectAccessClient;
-  const { data } = await db
+  const { data, error } = await db
     .from('users')
     .select('managed_projects')
     .eq('id', user.id)
     .single();
+
+  if (error) {
+    console.warn(`[project-access] failed to load accessible projects for user ${user.id}: ${error.message || 'unknown error'}`);
+    return [];
+  }
 
   if (!data?.managed_projects) return [];
 

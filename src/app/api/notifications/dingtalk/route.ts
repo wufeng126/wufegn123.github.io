@@ -134,10 +134,12 @@ export async function POST(request: NextRequest) {
 
     // 获取项目名称映射
     const projectIds = [...new Set(notifications.map((n: { project_id: number }) => n.project_id).filter(Boolean))];
-    const { data: projects } = await supabase
-      .from('projects')
-      .select('id, name')
-      .in('id', projectIds);
+    const { data: projects } = projectIds.length > 0
+      ? await supabase
+        .from('projects')
+        .select('id, name')
+        .in('id', projectIds)
+      : { data: [] };
 
     const projectMap = new Map((projects || []).map((p: { id: number; name: string }) => [p.id, p.name]));
     const recipientIds = [...new Set(notifications.map((n: { recipient_user_id?: number | null }) => n.recipient_user_id).filter(Boolean))];

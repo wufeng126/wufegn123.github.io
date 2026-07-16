@@ -264,6 +264,46 @@ function buildWorkerData(input: WpsWorkerInput, projectId: number, existingEntry
   });
 }
 
+type ExistingWorkerRow = {
+  id: number;
+  name?: string | null;
+  work_type?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  id_card?: string | null;
+  phone?: string | null;
+  bank_card?: string | null;
+  project_id?: number | null;
+  entry_date?: string | null;
+  team_name?: string | null;
+};
+
+function preferInput(inputValue?: string | null, existingValue?: string | number | null) {
+  const value = inputValue?.trim();
+  if (value) return value;
+  return existingValue ?? null;
+}
+
+function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existing: ExistingWorkerRow) {
+  const idCard = sanitizeIdCard(input.idCard);
+  const age = calculateAge(idCard);
+  const entryDate = normalizeDate(input.entryDate);
+
+  return stripNullish({
+    name: preferInput(input.name, existing.name),
+    work_type: preferInput(input.workType, existing.work_type),
+    gender: preferInput(input.gender, existing.gender),
+    age: age ?? existing.age ?? null,
+    id_card: idCard || existing.id_card || null,
+    phone: preferInput(input.phone, existing.phone),
+    bank_card: preferInput(input.bankCard, existing.bank_card),
+    project_id: projectId,
+    entry_date: existing.entry_date || entryDate || null,
+    team_name: preferInput(input.teamName, existing.team_name),
+    status: 'in_service',
+  });
+}
+
 function sanitizeLogFields(input: WpsWorkerInput): Record<string, unknown> {
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -394,7 +434,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput)
   if (isValidChineseIdCard(idCard)) {
     const { data } = await client
       .from('workers')
-      .select('id, name, id_card, phone, project_id, entry_date')
+      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name')
       .eq('id_card', idCard)
       .maybeSingle();
     if (data) return data;
@@ -405,7 +445,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput)
   if (name && phone) {
     const { data } = await client
       .from('workers')
-      .select('id, name, id_card, phone, project_id, entry_date')
+      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name')
       .eq('name', name)
       .eq('phone', phone)
       .limit(1)
@@ -511,7 +551,7 @@ export async function syncWpsWorkerRecord(
       return result;
     }
 
-    const updateData = buildWorkerData(input, project.id, existing.entry_date);
+    const updateData = buildWorkerUpdateData(input, project.id, existing as ExistingWorkerRow);
     const isTransfer = existing.project_id && existing.project_id !== project.id;
 
     if (isTransfer) {

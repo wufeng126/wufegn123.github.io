@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { getCurrentUser } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 
 type ProjectOption = {
@@ -24,10 +24,9 @@ function getErrorMessage(error: unknown, fallback: string) {
 // 获取当前用户可访问的项目ID列表
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const user = auth.user;
     
     console.log('[User Projects API] Fetching accessible projects for user:', user.username);
     
@@ -48,7 +47,7 @@ export async function GET(request: NextRequest) {
     const assignedProjectIds = normalizeProjectIds(userData?.managed_projects);
 
     // 如果是超级管理员，业务访问范围为全部项目；负责项目仍保留单独勾选范围，用于待办/提醒。
-    if (isSuperAdminUser(user.role)) {
+    if (isSuperAdminUser(user.role, user.roleId)) {
       const { data: allProjects } = await supabase
         .from('projects')
         .select('id,name')

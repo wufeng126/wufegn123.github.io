@@ -58,6 +58,7 @@ export interface ProjectFinancialSummary {
   // 回款率
   paymentRate: number;
   receivableAmount: number;
+  supplierPayableBaseAmount: number;
   supplierPayableAmount: number;
   workerPayableAmount: number;
   totalPayableAmount: number;
@@ -93,6 +94,7 @@ export interface GlobalSummary {
   totalClientPaid: number;
   totalSupplierPaid: number;
   totalWorkerPaid: number;
+  totalSupplierPayableBase: number;
   // 待收/待付
   totalReceivable: number;   // 应收 = 含税收入 - 已回款
   totalSupplierPayable: number; // 供应商应付 = 结算 - 已付
@@ -218,10 +220,11 @@ export async function getProjectFinancialSummary(
   const contractIds = (contracts || []).map((c: any) => c.id);
 
   let settlementAmount = 0;
+  let supplierPayableBaseAmount = 0;
   if (contractIds.length > 0) {
     let settlementsQuery = client
       .from('supplier_settlements')
-      .select('settlement_amount, settlement_date, status')
+      .select('settlement_amount, payable_amount, settlement_date, status')
       .in('contract_id', contractIds);
 
     if (dateRange) {
@@ -230,9 +233,12 @@ export async function getProjectFinancialSummary(
 
     const { data: settlements } = await settlementsQuery;
 
-    settlementAmount = (settlements || [])
-      .filter((s: any) => !isVoidedStatus(s.status))
-      .reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+    const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+    settlementAmount = activeSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+    supplierPayableBaseAmount = activeSettlements.reduce(
+      (sum: number, s: any) => sum + parseNumeric(s.payable_amount),
+      0
+    );
   }
 
   // 4. 工人工资（应发工资总额）
@@ -333,14 +339,14 @@ export async function getProjectFinancialSummary(
   const profitRate = taxableIncome > 0 ? (profit / taxableIncome) * 100 : 0;
   const paymentRate = taxableIncome > 0 ? (clientPaidAmount / taxableIncome) * 100 : 0;
   const receivableAmount = Math.max(taxableIncome - clientPaidAmount, 0);
-  const supplierPayableAmount = Math.max(settlementAmount - supplierPaidAmount, 0);
+  const supplierPayableAmount = Math.max(supplierPayableBaseAmount - supplierPaidAmount, 0);
   const workerPayableAmount = Math.max(salaryAmount - workerPaidAmount, 0);
   const totalPayableAmount = supplierPayableAmount + workerPayableAmount;
   const cashOutAmount = supplierPaidAmount + workerPaidAmount;
   const netCashFlow = clientPaidAmount - cashOutAmount;
   const fundingGapAmount = Math.max(totalPayableAmount - receivableAmount, 0);
   const costIncomeRate = taxableIncome > 0 ? (totalCost / taxableIncome) * 100 : 0;
-  const payableBaseAmount = settlementAmount + salaryAmount;
+  const payableBaseAmount = supplierPayableBaseAmount + salaryAmount;
   const payablePaymentRate = payableBaseAmount > 0 ? (cashOutAmount / payableBaseAmount) * 100 : 0;
 
   return {
@@ -368,6 +374,7 @@ export async function getProjectFinancialSummary(
     workerPaidAmount: round2(workerPaidAmount),
     paymentRate: round2(paymentRate),
     receivableAmount: round2(receivableAmount),
+    supplierPayableBaseAmount: round2(supplierPayableBaseAmount),
     supplierPayableAmount: round2(supplierPayableAmount),
     workerPayableAmount: round2(workerPayableAmount),
     totalPayableAmount: round2(totalPayableAmount),
@@ -415,11 +422,12 @@ export async function getGlobalSummary(
   const leftWorkers = workersData?.filter(w => w.status === 'left').length || 0;
 
   // 逐项目汇总（使用统一函数）
-  let totals = {
+  const totals = {
     totalInvoice: 0, totalVisa: 0, totalTaxableIncome: 0, totalUntaxedIncome: 0,
     totalTax: 0, totalSettlement: 0, totalSalary: 0, totalExpense: 0,
     totalMiscMaterial: 0, totalCost: 0, totalProfit: 0,
     totalClientPaid: 0, totalSupplierPaid: 0, totalWorkerPaid: 0,
+    totalSupplierPayableBase: 0,
   };
 
   for (const pid of allProjectIds) {
@@ -439,6 +447,7 @@ export async function getGlobalSummary(
     totals.totalClientPaid += summary.clientPaidAmount;
     totals.totalSupplierPaid += summary.supplierPaidAmount;
     totals.totalWorkerPaid += summary.workerPaidAmount;
+    totals.totalSupplierPayableBase += summary.supplierPayableBaseAmount;
   }
 
   const profitRate = totals.totalTaxableIncome > 0
@@ -448,11 +457,11 @@ export async function getGlobalSummary(
     ? (totals.totalClientPaid / totals.totalTaxableIncome) * 100
     : 0;
   const totalReceivable = Math.max(totals.totalTaxableIncome - totals.totalClientPaid, 0);
-  const totalSupplierPayable = Math.max(totals.totalSettlement - totals.totalSupplierPaid, 0);
+  const totalSupplierPayable = Math.max(totals.totalSupplierPayableBase - totals.totalSupplierPaid, 0);
   const totalWorkerPayable = Math.max(totals.totalSalary - totals.totalWorkerPaid, 0);
   const totalPayable = totalSupplierPayable + totalWorkerPayable;
   const totalCashOut = totals.totalSupplierPaid + totals.totalWorkerPaid;
-  const payableBaseAmount = totals.totalSettlement + totals.totalSalary;
+  const payableBaseAmount = totals.totalSupplierPayableBase + totals.totalSalary;
   const payablePaymentRate = payableBaseAmount > 0 ? (totalCashOut / payableBaseAmount) * 100 : 0;
   const costIncomeRate = totals.totalTaxableIncome > 0
     ? (totals.totalCost / totals.totalTaxableIncome) * 100

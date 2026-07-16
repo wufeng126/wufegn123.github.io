@@ -291,6 +291,15 @@ export function checkApiWritePermission(
     return ['admin', 'project_manager', 'boss'].includes(userRole || '');
   }
 
+  if (pathname === '/api/notifications') {
+    if (method === 'PATCH' || method === 'PUT' || method === 'DELETE') {
+      return userPermissions.includes('notifications:view') || userPermissions.includes('notifications:settings');
+    }
+    if (method === 'POST') {
+      return userPermissions.includes('notifications:settings');
+    }
+  }
+
   // 查找匹配的 API 路由（按长度降序精确匹配）
   for (const route of SORTED_API_WRITE_KEYS) {
     if (pathname === route || pathname.startsWith(route + '/')) {

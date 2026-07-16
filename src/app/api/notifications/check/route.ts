@@ -3,6 +3,16 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { notifyVisaWorkflow } from '@/lib/visa-workflow';
 
+function isEnabled(value: unknown, fallback = false) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (['false', '0', 'off', 'no', 'disabled'].includes(normalized)) return false;
+  if (['true', '1', 'on', 'yes', 'enabled'].includes(normalized)) return true;
+  return fallback;
+}
+
 // 计算天数差
 function getDaysDiff(dateStr: string): number {
   const targetDate = new Date(dateStr);
@@ -66,7 +76,7 @@ async function createAndPushNotification(client: any, type: string, title: strin
     .eq('setting_key', 'dingtalk_secret')
     .single();
 
-  if (dingtalkSetting?.setting_value && dingtalkSetting.enabled) {
+  if (dingtalkSetting?.setting_value && isEnabled(dingtalkSetting.enabled, true)) {
     // 检查各类通知开关
     const typeSettings = await client
       .from('notification_settings')
@@ -82,7 +92,7 @@ async function createAndPushNotification(client: any, type: string, title: strin
 
     const typeEnabledMap: Record<string, boolean> = {};
     typeSettings.data?.forEach((s: any) => {
-      typeEnabledMap[s.setting_key] = s.enabled;
+      typeEnabledMap[s.setting_key] = isEnabled(s.enabled, true);
     });
 
     let shouldSend = false;
@@ -567,7 +577,7 @@ export async function GET(request: NextRequest) {
       .eq('setting_key', 'last_check_time');
 
     // 获取当前未读消息统计
-    const { data: unreadCount } = await client
+    const { count: unreadCount } = await client
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('is_read', false);

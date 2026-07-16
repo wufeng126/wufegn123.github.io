@@ -58,6 +58,7 @@ interface ProjectCostRow {
   receivableAgingDays: number | null;
   receivableRiskLabel: string;
   receivableRiskLevel: ReceivableRiskLevel;
+  supplierPayableBaseAmount: number;
   supplierPayableAmount: number;
   workerPayableAmount: number;
   totalPayableAmount: number;
@@ -221,6 +222,7 @@ export async function GET(request: NextRequest) {
         receivableAgingDays,
         receivableRiskLabel: risk.label,
         receivableRiskLevel: risk.level,
+        supplierPayableBaseAmount: s.supplierPayableBaseAmount,
         supplierPayableAmount: s.supplierPayableAmount,
         workerPayableAmount: s.workerPayableAmount,
         totalPayableAmount: s.totalPayableAmount,
@@ -249,6 +251,7 @@ export async function GET(request: NextRequest) {
       acc.totalClientPaid += p.clientPaidAmount;
       acc.totalSupplierPaid += p.supplierPaidAmount;
       acc.totalWorkerPaid += p.workerPaidAmount;
+      acc.totalSupplierPayableBase += p.supplierPayableBaseAmount;
       acc.totalReceivable += p.receivableAmount;
       acc.totalSupplierPayable += p.supplierPayableAmount;
       acc.totalWorkerPayable += p.workerPayableAmount;
@@ -265,6 +268,7 @@ export async function GET(request: NextRequest) {
       totalCost: 0, totalSalary: 0, totalSettlement: 0, totalExpense: 0,
       totalTaxAmount: 0, totalMiscMaterial: 0, totalProfit: 0,
       totalClientPaid: 0, totalSupplierPaid: 0, totalWorkerPaid: 0,
+      totalSupplierPayableBase: 0,
       totalReceivable: 0, totalSupplierPayable: 0, totalWorkerPayable: 0,
       totalPayable: 0, totalCashOut: 0, totalFundingGap: 0, totalNetCashFlow: 0,
       totalRatioReceivableAmount: 0, totalRatioUnreceivedAmount: 0, totalFullUnreceivedAmount: 0,
@@ -386,8 +390,8 @@ export async function GET(request: NextRequest) {
         avgTaxRate: totals.totalCost > 0 ? (totals.totalTaxAmount / totals.totalCost) * 100 : 0,
         avgMiscMaterialRate: totals.totalCost > 0 ? (totals.totalMiscMaterial / totals.totalCost) * 100 : 0,
         avgPaymentRate: totals.totalIncome > 0 ? (totals.totalClientPaid / totals.totalIncome) * 100 : 0,
-        avgPayablePaymentRate: (totals.totalSettlement + totals.totalSalary) > 0
-          ? ((totals.totalSupplierPaid + totals.totalWorkerPaid) / (totals.totalSettlement + totals.totalSalary)) * 100
+        avgPayablePaymentRate: (totals.totalSupplierPayableBase + totals.totalSalary) > 0
+          ? ((totals.totalSupplierPaid + totals.totalWorkerPaid) / (totals.totalSupplierPayableBase + totals.totalSalary)) * 100
           : 0,
         avgCostIncomeRate: totals.totalIncome > 0 ? (totals.totalCost / totals.totalIncome) * 100 : 0,
       },

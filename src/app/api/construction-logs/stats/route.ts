@@ -117,6 +117,9 @@ export async function GET(request: NextRequest) {
       return apiSuccess([], {
         meta: {
           total: 0,
+          log_count: 0,
+          project_count: 0,
+          submitted_project_count: 0,
           expected_days: getExpectedDays(month, dateFrom, dateTo),
           project_stats: [],
           risk_summary: { total: 0, by_type: [], by_level: { low: 0, medium: 0, high: 0 } },
@@ -128,6 +131,9 @@ export async function GET(request: NextRequest) {
       return apiSuccess([], {
         meta: {
           total: 0,
+          log_count: 0,
+          project_count: 0,
+          submitted_project_count: 0,
           expected_days: getExpectedDays(month, dateFrom, dateTo),
           project_stats: [],
           risk_summary: { total: 0, by_type: [], by_level: { low: 0, medium: 0, high: 0 } },
@@ -263,6 +269,9 @@ export async function GET(request: NextRequest) {
     return apiSuccess(list, {
       meta: {
         total: list.length,
+        log_count: rows.length,
+        project_count: projectList.length,
+        submitted_project_count: projectList.filter(project => project.count > 0).length,
         expected_days: expectedDays,
         project_stats: projectList,
         risk_summary: {

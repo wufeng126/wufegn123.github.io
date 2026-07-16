@@ -531,7 +531,7 @@ export async function GET(request: NextRequest) {
         earliestUnpaidMonth,
         cumulativeSupplierSettlement: supplierCost,
         cumulativeSupplierPayment: supplierPaid,
-        supplierPaymentRate: supplierCost > 0 ? (supplierPaid / supplierCost) * 100 : 0,
+        supplierPaymentRate: supplierPayable > 0 ? (supplierPaid / supplierPayable) * 100 : 0,
       };
     });
 
@@ -592,7 +592,7 @@ export async function GET(request: NextRequest) {
     overview.profitRate = overview.monthIncome > 0 ? (overview.profit / overview.monthIncome) * 100 : 0;
     overview.cumulativeProfitRate = overview.cumulativeIncome > 0 ? (overview.cumulativeProfit / overview.cumulativeIncome) * 100 : 0;
     overview.paymentRate = overview.totalIncome > 0 ? (overview.totalReceived / overview.totalIncome) * 100 : 0;
-    overview.supplierPaymentRate = overview.cumulativeSupplierSettlement > 0 ? (overview.cumulativeSupplierPayment / overview.cumulativeSupplierSettlement) * 100 : 0;
+    overview.supplierPaymentRate = overview.totalSupplierPayable > 0 ? (overview.totalSupplierPaid / overview.totalSupplierPayable) * 100 : 0;
     // 新口径比率
     overview.operatingProfitRate = overview.monthConfirmedOutput > 0 ? (overview.operatingProfit / overview.monthConfirmedOutput) * 100 : 0;
     overview.cashNetFlowRate = overview.monthActualReceived > 0 ? (overview.cashNetFlow / overview.monthActualReceived) * 100 : 0;
