@@ -90,7 +90,7 @@ export async function syncSalaryPaymentStatus(salaryId: number): Promise<'unpaid
   // 获取工资记录
   const { data: salary } = await client
     .from('worker_salaries')
-    .select('id, net_pay')
+    .select('id, worker_id, project_id, year_month, net_pay')
     .eq('id', salaryId)
     .single();
 
@@ -104,7 +104,22 @@ export async function syncSalaryPaymentStatus(salaryId: number): Promise<'unpaid
     .select('payment_amount')
     .eq('salary_id', salaryId);
 
-  const totalPaid = (payments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+  let totalPaid = (payments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+
+  if (salary.worker_id && salary.project_id && salary.year_month) {
+    const { data: unlinkedPayments } = await client
+      .from('salary_payments')
+      .select('payment_amount')
+      .is('salary_id', null)
+      .eq('worker_id', salary.worker_id)
+      .eq('project_id', salary.project_id)
+      .eq('year_month', salary.year_month);
+
+    totalPaid += (unlinkedPayments || []).reduce(
+      (sum: number, p: any) => sum + parseNumeric(p.payment_amount),
+      0
+    );
+  }
 
   let newStatus: 'unpaid' | 'partial' | 'paid';
   if (totalPaid <= 0) {
@@ -133,26 +148,36 @@ export async function syncAllSalaryPaymentStatus(): Promise<void> {
   // 获取所有工资记录
   const { data: salaries } = await client
     .from('worker_salaries')
-    .select('id, net_pay');
+    .select('id, worker_id, project_id, year_month, net_pay');
 
   if (!salaries || salaries.length === 0) return;
 
   // 获取所有发放记录
   const { data: payments } = await client
     .from('salary_payments')
-    .select('salary_id, payment_amount');
+    .select('salary_id, worker_id, project_id, year_month, payment_amount');
 
   // 按 salary_id 汇总已付金额
   const paidMap = new Map<number, number>();
+  const unlinkedPaidMap = new Map<string, number>();
   (payments || []).forEach((p: any) => {
-    const current = paidMap.get(p.salary_id) || 0;
-    paidMap.set(p.salary_id, current + parseNumeric(p.payment_amount));
+    const amount = parseNumeric(p.payment_amount);
+    if (p.salary_id) {
+      const current = paidMap.get(p.salary_id) || 0;
+      paidMap.set(p.salary_id, current + amount);
+      return;
+    }
+
+    if (p.worker_id && p.project_id && p.year_month) {
+      const key = salaryPaymentMatchKey(p);
+      unlinkedPaidMap.set(key, (unlinkedPaidMap.get(key) || 0) + amount);
+    }
   });
 
   // 逐条更新
   for (const salary of salaries) {
     const netPay = parseNumeric(salary.net_pay);
-    const totalPaid = paidMap.get(salary.id) || 0;
+    const totalPaid = (paidMap.get(salary.id) || 0) + (unlinkedPaidMap.get(salaryPaymentMatchKey(salary)) || 0);
 
     let newStatus: string;
     if (totalPaid <= 0) {
@@ -360,6 +385,14 @@ export async function getProjectReportedAmount(projectId: number): Promise<{
     totalSettlement: activeReports.reduce((sum: number, r: any) => sum + parseNumeric(r.settlement_amount), 0),
     totalInvoice: activeReports.reduce((sum: number, r: any) => sum + parseNumeric(r.invoice_amount), 0),
   };
+}
+
+function salaryPaymentMatchKey(record: {
+  worker_id?: number | null;
+  project_id?: number | null;
+  year_month?: string | null;
+}) {
+  return `${Number(record.worker_id || 0)}:${Number(record.project_id || 0)}:${record.year_month || ''}`;
 }
 
 /**

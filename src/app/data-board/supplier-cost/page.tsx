@@ -64,6 +64,29 @@ function toNumber(val: unknown): number {
   return isNaN(num) ? 0 : num;
 }
 
+function isVoidedStatus(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'voided' || normalized === 'cancelled' || normalized === 'deleted';
+}
+
+function isEffectivePaymentStatus(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase();
+  return !normalized || normalized === 'completed' || normalized === 'reviewed';
+}
+
+function isFinalSettlementType(type?: string | null) {
+  const normalized = String(type || '').trim().toLowerCase();
+  return (
+    normalized === 'final' ||
+    normalized === 'complete' ||
+    normalized === 'completed' ||
+    normalized.includes('\u7ed3\u7b97\u5b8c') ||
+    normalized.includes('\u6700\u7ec8') ||
+    normalized.includes('\u603b\u7ed3') ||
+    normalized.includes('\u51b3\u7b97')
+  );
+}
+
 interface Contract {
   id: number;
   supplier_id: number;
@@ -91,6 +114,7 @@ interface Settlement {
   settlement_amount: number;
   payable_amount: number;
   settlement_date?: string;
+  status?: string;
 }
 
 interface Payment {
@@ -99,6 +123,7 @@ interface Payment {
   payment_amount?: number;
   amount?: number;
   payment_date: string;
+  status?: string;
 }
 
 interface Project {
@@ -167,7 +192,7 @@ function SupplierCostDashboard() {
         fetch('/api/supplier-contracts/settlements'),
         fetch('/api/projects'),
         fetch('/api/suppliers'),
-        fetch('/api/supplier-payments'),
+        fetch('/api/supplier-contracts/payments'),
       ]);
 
       const [contractsData, settlementsData, projectsData, suppliersData, paymentsData] = await Promise.all([
@@ -212,8 +237,8 @@ function SupplierCostDashboard() {
 
   // 构建行数据（含计算字段）
   const buildRowData = useCallback((contract: Contract): RowData => {
-    const contractSettlements = settlements.filter(s => toNumber(s.contract_id) === contract.id);
-    const contractPayments = payments.filter(p => toNumber(p.contract_id) === contract.id);
+    const contractSettlements = settlements.filter(s => toNumber(s.contract_id) === contract.id && !isVoidedStatus(s.status));
+    const contractPayments = payments.filter(p => toNumber(p.contract_id) === contract.id && isEffectivePaymentStatus(p.status));
 
     const hasSettlementRows = contractSettlements.length > 0;
     const totalSettlement = hasSettlementRows
@@ -227,19 +252,19 @@ function SupplierCostDashboard() {
       : toNumber(contract.total_paid);
     const finalPayableAmount = totalSettlement;
     const hasFinalSettlement = hasSettlementRows
-      ? contractSettlements.some(s => s.settlement_type === 'final')
+      ? contractSettlements.some(s => isFinalSettlementType(s.settlement_type))
       : Boolean(contract.has_complete_settlement);
     const paymentRate = payableAmount > 0 ? (paidAmount / payableAmount) * 100 : 0;
 
     // 按结算类型拆分：进度结算 vs 决算
     const progressPayable = hasSettlementRows
       ? contractSettlements
-        .filter(s => s.settlement_type !== 'final')
+        .filter(s => !isFinalSettlementType(s.settlement_type))
         .reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
       : (hasFinalSettlement ? 0 : payableAmount);
     const finalPayable = hasSettlementRows
       ? contractSettlements
-        .filter(s => s.settlement_type === 'final')
+        .filter(s => isFinalSettlementType(s.settlement_type))
         .reduce((sum, s) => sum + toNumber(s.payable_amount), 0)
       : (hasFinalSettlement ? payableAmount : 0);
 
@@ -247,6 +272,7 @@ function SupplierCostDashboard() {
     const progressUnpaid = Math.max(0, progressPayable - paidAmount);
     const totalUnpaid = Math.max(0, payableAmount - paidAmount);
     const finalUnpaid = Math.max(0, totalUnpaid - progressUnpaid);
+    const finalUnpaidAmount = Math.max(0, finalPayableAmount - paidAmount);
 
     return {
       ...contract,
@@ -254,8 +280,8 @@ function SupplierCostDashboard() {
       payableAmount,
       paidAmount,
       finalPayableAmount,
-      unpaidAmount: payableAmount - paidAmount,
-      finalUnpaidAmount: finalPayableAmount - paidAmount,
+      unpaidAmount: totalUnpaid,
+      finalUnpaidAmount,
       hasFinalSettlement,
       supplierName: contract.supplier?.name || suppliers.find(s => String(s.id) === String(contract.supplier_id))?.name || '未知供应商',
       projectName: projects.find(p => String(p.id) === String(contract.project_id))?.name || '未知项目',
@@ -298,7 +324,7 @@ function SupplierCostDashboard() {
     const totalSettlement = filteredData.reduce((sum, c) => sum + (c.totalSettlement || 0), 0);
     const totalPayable = filteredData.reduce((sum, c) => sum + (c.payableAmount || 0), 0);
     const totalPaid = filteredData.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
-    const totalUnpaid = totalPayable - totalPaid;
+    const totalUnpaid = Math.max(0, totalPayable - totalPaid);
     const settledCount = filteredData.filter(c => c.hasFinalSettlement || c.locked).length;
     const pendingCount = totalContracts - settledCount;
     const totalProgressPayable = filteredData.reduce((sum, c) => sum + (c.progressPayable || 0), 0);

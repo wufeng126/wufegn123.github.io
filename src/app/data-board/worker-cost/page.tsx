@@ -29,16 +29,6 @@ interface WorkerSalary {
   paid_amount: number | string | { [key: string]: string | number };
 }
 
-interface SalaryPayment {
-  id: number;
-  salary_id: number;
-  worker_id: number;
-  project_id: number;
-  year_month: string;
-  payment_amount: number | string | { [key: string]: string | number };
-  amount?: number | string | { [key: string]: string | number };
-}
-
 interface Project {
   id: number;
   name: string;
@@ -96,15 +86,10 @@ function formatCurrency(amount: number): string {
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
-function getPaymentAmount(payment: SalaryPayment): number {
-  return toNumber(payment.payment_amount) || toNumber(payment.amount);
-}
-
 export default function WorkerCostDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [salaries, setSalaries] = useState<WorkerSalary[]>([]);
-  const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
@@ -112,17 +97,15 @@ export default function WorkerCostDashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectsRes, workersRes, salariesRes, paymentsRes] = await Promise.all([
+      const [projectsRes, workersRes, salariesRes] = await Promise.all([
         fetch('/api/projects', { credentials: 'include' }),
         fetch('/api/workers', { credentials: 'include' }),
         fetch('/api/worker-salaries', { credentials: 'include' }),
-        fetch('/api/salary-payments', { credentials: 'include' }),
       ]);
 
       const projectsData = await projectsRes.json();
       const workersData = await workersRes.json();
       const salariesData = await salariesRes.json();
-      const paymentsData = await paymentsRes.json();
 
       const projectsArray = Array.isArray(projectsData.projects) ? projectsData.projects
         : Array.isArray(projectsData.data) ? projectsData.data
@@ -136,14 +119,9 @@ export default function WorkerCostDashboard() {
         : Array.isArray(salariesData.data) ? salariesData.data
         : Array.isArray(salariesData) ? salariesData : [];
       
-      const paymentsArray = Array.isArray(paymentsData.payments) ? paymentsData.payments
-        : Array.isArray(paymentsData.data) ? paymentsData.data
-        : Array.isArray(paymentsData) ? paymentsData : [];
-
       setProjects(projectsArray);
       setWorkers(workersArray);
       setSalaries(salariesArray);
-      setSalaryPayments(paymentsArray);
     } catch (error) {
       console.error('加载数据失败:', error);
     } finally {
@@ -165,11 +143,6 @@ export default function WorkerCostDashboard() {
     if (selectedProject === 'all') return salaries;
     return salaries.filter(s => toNumber(s.project_id) === Number(selectedProject));
   }, [salaries, selectedProject]);
-
-  const filteredPayments = useMemo(() => {
-    if (selectedProject === 'all') return salaryPayments;
-    return salaryPayments.filter(p => toNumber(p.project_id) === Number(selectedProject));
-  }, [salaryPayments, selectedProject]);
 
   // 统计数据
   const stats = useMemo(() => {
@@ -194,16 +167,12 @@ export default function WorkerCostDashboard() {
       totalNetPay += toNumber(s.net_pay);
     });
     
-    // 优先使用工资接口按 salary_id 汇总好的已付金额，避免查看权限与付款接口权限不一致导致卡片为 0。
-    const hasSalaryPaidAmounts = filteredSalaries.some(s => s.paid_amount !== undefined && s.paid_amount !== null);
-    totalPaid = hasSalaryPaidAmounts
-      ? filteredSalaries.reduce((sum, s) => sum + toNumber(s.paid_amount), 0)
-      : filteredPayments.reduce((sum, p) => sum + getPaymentAmount(p), 0);
+    totalPaid = filteredSalaries.reduce((sum, s) => sum + toNumber(s.paid_amount), 0);
     
-    const totalUnpaid = totalNetPay - totalPaid;
+    const totalUnpaid = Math.max(0, totalNetPay - totalPaid);
     
     return { projectCount, activeWorkerCount, totalGrossPay, totalNetPay, totalPaid, totalUnpaid };
-  }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
+  }, [projects, selectedProject, filteredWorkers, filteredSalaries]);
 
   // 项目汇总表格数据 - 按项目年度汇总
   const projectSummaryData = useMemo(() => {
@@ -234,30 +203,19 @@ export default function WorkerCostDashboard() {
       }
     });
     
-    const hasSalaryPaidAmounts = filteredSalaries.some(s => s.paid_amount !== undefined && s.paid_amount !== null);
-    if (hasSalaryPaidAmounts) {
-      filteredSalaries.forEach(s => {
-        const pid = toNumber(s.project_id);
-        const data = projectMap.get(pid);
-        if (data) {
-          data.paid += toNumber(s.paid_amount);
-        }
-      });
-    } else {
-      filteredPayments.forEach(p => {
-        const pid = toNumber(p.project_id);
-        const data = projectMap.get(pid);
-        if (data) {
-          data.paid += getPaymentAmount(p);  // 已付
-        }
-      });
-    }
+    filteredSalaries.forEach(s => {
+      const pid = toNumber(s.project_id);
+      const data = projectMap.get(pid);
+      if (data) {
+        data.paid += toNumber(s.paid_amount);
+      }
+    });
     
     return Array.from(projectMap.values()).map(item => ({
       ...item,
       unpaid: Math.max(0, item.netPay - item.paid),  // 未付 = 实发 - 已付
     }));
-  }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
+  }, [projects, selectedProject, filteredWorkers, filteredSalaries]);
 
   // 饼图数据（按实发金额占比）
   const pieData = useMemo(() => {
@@ -274,27 +232,17 @@ export default function WorkerCostDashboard() {
   const monthlyTrendData = useMemo(() => {
     const monthlyMap = new Map<string, { month: string; amount: number }>();
     
-    const hasSalaryPaidAmounts = filteredSalaries.some(s => s.paid_amount !== undefined && s.paid_amount !== null);
-    if (hasSalaryPaidAmounts) {
-      filteredSalaries.forEach(s => {
-        const month = s.year_month ? s.year_month.substring(0, 7) : '未知';
-        const existing = monthlyMap.get(month) || { month, amount: 0 };
-        existing.amount += toNumber(s.paid_amount);
-        monthlyMap.set(month, existing);
-      });
-    } else {
-      filteredPayments.forEach(p => {
-        const month = p.year_month ? p.year_month.substring(0, 7) : '未知';
-        const existing = monthlyMap.get(month) || { month, amount: 0 };
-        existing.amount += getPaymentAmount(p);
-        monthlyMap.set(month, existing);
-      });
-    }
+    filteredSalaries.forEach(s => {
+      const month = s.year_month ? s.year_month.substring(0, 7) : '未知';
+      const existing = monthlyMap.get(month) || { month, amount: 0 };
+      existing.amount += toNumber(s.paid_amount);
+      monthlyMap.set(month, existing);
+    });
     
     return Array.from(monthlyMap.values())
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
-  }, [filteredSalaries, filteredPayments]);
+  }, [filteredSalaries]);
 
   if (loading) {
     return (

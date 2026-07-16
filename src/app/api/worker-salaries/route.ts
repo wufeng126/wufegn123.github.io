@@ -11,7 +11,10 @@ type RelatedNameEntity = {
 type RelatedName = RelatedNameEntity | RelatedNameEntity[] | null;
 
 type SalaryPaymentRow = {
-  salary_id: number;
+  salary_id?: number | null;
+  worker_id?: number | null;
+  project_id?: number | null;
+  year_month?: string | null;
   payment_amount?: unknown;
 };
 
@@ -51,6 +54,14 @@ function getRelatedName(value?: RelatedName, fallback = '未知') {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function paymentMatchKey(params: {
+  worker_id?: number | null;
+  project_id?: number | null;
+  year_month?: string | null;
+}) {
+  return `${Number(params.worker_id || 0)}:${Number(params.project_id || 0)}:${params.year_month || ''}`;
 }
 
 // 安全解析 numeric 类型
@@ -162,18 +173,6 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询工资记录失败: ${error.message}`);
     }
 
-    // 查询工资发放记录（salary_payments）
-    const { data: salaryPaymentsData } = await client
-      .from('salary_payments')
-      .select('salary_id, payment_amount');
-
-    // 按 salary_id 汇总已付金额
-    const paidAmountMap = new Map<number, number>();
-    ((salaryPaymentsData || []) as SalaryPaymentRow[]).forEach((payment) => {
-      const current = paidAmountMap.get(payment.salary_id) || 0;
-      paidAmountMap.set(payment.salary_id, current + parseNumeric(payment.payment_amount));
-    });
-
     // 数据权限过滤
     let filteredData = ((data || []) as WorkerSalaryRow[]);
     if (!isSuperAdmin && accessibleProjects.length === 0) {
@@ -181,6 +180,39 @@ export async function GET(request: NextRequest) {
     } else if (accessibleProjects.length > 0) {
       filteredData = filteredData.filter((record) => accessibleProjects.includes(Number(record.project_id)));
     }
+
+    // 查询工资发放记录（salary_payments）
+    const { data: salaryPaymentsData } = await client
+      .from('salary_payments')
+      .select('salary_id, worker_id, project_id, year_month, payment_amount');
+
+    const paidAmountBySalaryId = new Map<number, number>();
+    const unlinkedPaidAmountByMatchKey = new Map<string, number>();
+    ((salaryPaymentsData || []) as SalaryPaymentRow[]).forEach((payment) => {
+      const amount = parseNumeric(payment.payment_amount);
+
+      if (payment.salary_id) {
+        paidAmountBySalaryId.set(
+          payment.salary_id,
+          (paidAmountBySalaryId.get(payment.salary_id) || 0) + amount
+        );
+        return;
+      }
+
+      if (payment.worker_id && payment.project_id && payment.year_month) {
+        const key = paymentMatchKey(payment);
+        unlinkedPaidAmountByMatchKey.set(
+          key,
+          (unlinkedPaidAmountByMatchKey.get(key) || 0) + amount
+        );
+      }
+    });
+
+    const getPaidAmount = (record: WorkerSalaryRow) => {
+      const linkedPaid = paidAmountBySalaryId.get(record.id) || 0;
+      const unlinkedPaid = unlinkedPaidAmountByMatchKey.get(paymentMatchKey(record)) || 0;
+      return linkedPaid + unlinkedPaid;
+    };
 
     // 格式化返回数据，关联已付金额，确保所有金额字段为数字类型
     const salaries = filteredData.map(record => ({
@@ -199,7 +231,7 @@ export async function GET(request: NextRequest) {
       labor_insurance: parseNumeric(record.labor_insurance),
       fine: parseNumeric(record.fine),
       net_pay: parseNumeric(record.net_pay),
-      paid_amount: paidAmountMap.get(record.id) || 0,
+      paid_amount: getPaidAmount(record),
       payment_status: record.payment_status || 'unpaid',
       remark: record.remark,
     }));
@@ -214,7 +246,7 @@ export async function GET(request: NextRequest) {
     }, 0);
 
     const totalPaid = filteredData.reduce((sum: number, record) => {
-      return sum + (paidAmountMap.get(record.id) || 0);
+      return sum + getPaidAmount(record);
     }, 0);
 
     // 按项目汇总
@@ -240,7 +272,7 @@ export async function GET(request: NextRequest) {
       const laborInsurance = parseNumeric(record.labor_insurance || '0');
       const fine = parseNumeric(record.fine || '0');
       const netPay = parseNumeric(record.net_pay || '0');
-      const paidAmount = paidAmountMap.get(record.id) || 0;
+      const paidAmount = getPaidAmount(record);
 
       const key = String(projectId || 'null');
       
