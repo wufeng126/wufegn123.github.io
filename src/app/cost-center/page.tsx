@@ -177,8 +177,12 @@ function formatPercent(value: number): string {
 // 获取项目状态样式
 function getStatusTag(status: string) {
   switch (status) {
+    case '在建':
     case '进行中':
       return <StatusTag type="active" />;
+    case '竣工结算':
+    case '质保期':
+    case '质保期满':
     case '已完成':
       return <StatusTag type="completed" />;
     case '暂停':
@@ -450,8 +454,8 @@ function CostCenterContent() {
               <SelectItem key={project.id} value={project.id.toString()}>
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${
-                    project.status === '进行中' ? 'bg-blue-500' :
-                    project.status === '已完成' ? 'bg-green-500' :
+                    project.status === '进行中' || project.status === '在建' ? 'bg-blue-500' :
+                    ['已完成', '竣工结算', '质保期', '质保期满'].includes(project.status) ? 'bg-green-500' :
                     project.status === '暂停' ? 'bg-yellow-500' : 'bg-gray-400'
                   }`} />
                   <span>{project.name}</span>

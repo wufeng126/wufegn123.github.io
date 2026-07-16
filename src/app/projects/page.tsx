@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,12 @@ interface Project {
   building_area: string | null;
   tax_rate: string | number | null;
   expected_completion_date: string | null;
+  construction_payment_ratio: string | number | null;
+  completion_settlement_payment_ratio: string | number | null;
+  warranty_payment_ratio: string | number | null;
+  warranty_expired_payment_ratio: string | number | null;
+  completion_date: string | null;
+  warranty_days: string | number | null;
   created_at: string;
   budgetAmount?: number;
   reportAmount?: number;
@@ -61,6 +67,34 @@ const ICON_OPTIONS = [
   { value: 'Hammer', label: '施工', icon: Hammer, color: '#165DFF', bg: '#E8F3FF' },
   { value: 'Wrench', label: '维修', icon: Wrench, color: '#86909C', bg: '#F2F3F5' },
 ];
+
+const PROJECT_STATUS_OPTIONS = ['在建', '竣工结算', '质保期', '质保期满'] as const;
+
+const createEmptyProjectForm = () => ({
+  name: '',
+  year: new Date().getFullYear(),
+  status: '在建',
+  address: '',
+  partner: '',
+  contract_amount: '',
+  icon: 'HardHat',
+  building_area: '',
+  tax_rate: '9',
+  expected_completion_date: '',
+  construction_payment_ratio: '',
+  completion_settlement_payment_ratio: '',
+  warranty_payment_ratio: '',
+  warranty_expired_payment_ratio: '',
+  completion_date: '',
+  warranty_days: '',
+});
+
+const normalizeProjectStatus = (status?: string | null) => {
+  if (status === '进行中') return '在建';
+  if (status === '已完成') return '竣工结算';
+  if (status === '暂停') return '在建';
+  return status || '在建';
+};
 
 // 根据 icon 值获取图标配置
 const getIconByValue = (iconValue: string | null) => {
@@ -118,18 +152,7 @@ export default function ProjectsPage() {
   const [filterYear, setFilterYear] = useState<string>('all');
 
   
-  const [formData, setFormData] = useState({
-    name: '',
-    year: new Date().getFullYear(),
-    status: '进行中',
-    address: '',
-    partner: '',
-    contract_amount: '',
-    icon: 'HardHat',
-    building_area: '',
-    tax_rate: '9',
-    expected_completion_date: '',
-  });
+  const [formData, setFormData] = useState(createEmptyProjectForm);
 
   useEffect(() => {
     fetchProjects();
@@ -209,7 +232,7 @@ export default function ProjectsPage() {
           valueB = b.year;
           break;
         case 'status':
-          const statusOrder = { '进行中': 1, '暂停': 2, '已完成': 3 };
+          const statusOrder = { '在建': 1, '竣工结算': 2, '质保期': 3, '质保期满': 4, '进行中': 1, '已完成': 2, '暂停': 1 };
           valueA = statusOrder[a.status as keyof typeof statusOrder] || 99;
           valueB = statusOrder[b.status as keyof typeof statusOrder] || 99;
           break;
@@ -223,7 +246,7 @@ export default function ProjectsPage() {
         return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
       }
     });
-  }, [projects, sortField, sortOrder]);
+  }, [projects, searchQuery, filterStatus, filterYear, sortField, sortOrder]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -256,6 +279,12 @@ export default function ProjectsPage() {
         ...formData,
         contract_amount: formData.contract_amount || null,
         building_area: formData.building_area || null,
+        construction_payment_ratio: formData.construction_payment_ratio || null,
+        completion_settlement_payment_ratio: formData.completion_settlement_payment_ratio || null,
+        warranty_payment_ratio: formData.warranty_payment_ratio || null,
+        warranty_expired_payment_ratio: formData.warranty_expired_payment_ratio || null,
+        completion_date: formData.completion_date || null,
+        warranty_days: formData.warranty_days || null,
       };
 
       const res = await fetch(url, {
@@ -268,18 +297,7 @@ export default function ProjectsPage() {
       if (res.ok) {
         setDialogOpen(false);
         setEditingProject(null);
-        setFormData({ 
-          name: '', 
-          year: new Date().getFullYear(), 
-          status: '进行中',
-          address: '',
-          partner: '',
-          contract_amount: '',
-          icon: 'HardHat',
-          building_area: '',
-          tax_rate: '9',
-          expected_completion_date: '',
-        });
+        setFormData(createEmptyProjectForm());
         fetchProjects();
       } else {
         const error = await res.json();
@@ -296,7 +314,7 @@ export default function ProjectsPage() {
     setFormData({
       name: project.name,
       year: project.year,
-      status: project.status,
+      status: normalizeProjectStatus(project.status),
       address: project.address || '',
       partner: project.partner || '',
       contract_amount: project.contract_amount || '',
@@ -304,6 +322,12 @@ export default function ProjectsPage() {
       building_area: project.building_area || '',
       tax_rate: String(project.tax_rate || 9),
       expected_completion_date: project.expected_completion_date || '',
+      construction_payment_ratio: String(project.construction_payment_ratio || ''),
+      completion_settlement_payment_ratio: String(project.completion_settlement_payment_ratio || ''),
+      warranty_payment_ratio: String(project.warranty_payment_ratio || ''),
+      warranty_expired_payment_ratio: String(project.warranty_expired_payment_ratio || ''),
+      completion_date: project.completion_date || '',
+      warranty_days: String(project.warranty_days || ''),
     });
     setDialogOpen(true);
   };
@@ -348,18 +372,7 @@ export default function ProjectsPage() {
 
   const openAddDialog = () => {
     setEditingProject(null);
-    setFormData({ 
-      name: '', 
-      year: new Date().getFullYear(), 
-      status: '进行中',
-      address: '',
-      partner: '',
-      contract_amount: '',
-      icon: 'HardHat',
-      building_area: '',
-      tax_rate: '9',
-      expected_completion_date: '',
-    });
+    setFormData(createEmptyProjectForm());
     setDialogOpen(true);
   };
   const formatCurrency = (amount: string | null) => {
@@ -369,17 +382,23 @@ export default function ProjectsPage() {
 
   const stats = {
     totalCount: projects.length,
-    activeCount: projects.filter(p => p.status === '进行中').length,
+    activeCount: projects.filter(p => p.status === '在建' || p.status === '进行中').length,
     totalAmount: projects.reduce((sum, p) => sum + (parseFloat(p.contract_amount || '0') || 0), 0),
     currentYearCount: projects.filter(p => p.year === new Date().getFullYear()).length,
   };
 
   const getStatusStyle = (status: string) => {
     switch (status) {
+      case '在建':
       case '进行中':
         return { bg: '#E8F3FF', color: '#165DFF', border: '#B5D8FF' };
+      case '竣工结算':
       case '已完成':
         return { bg: '#E8FFEA', color: '#00B42A', border: '#9FD9A8' };
+      case '质保期':
+        return { bg: '#F5EEFF', color: '#722ED1', border: '#D8B9FF' };
+      case '质保期满':
+        return { bg: '#FFF7E8', color: '#D46B08', border: '#FFCF8B' };
       case '暂停':
         return { bg: '#FFF7E8', color: '#FF7D00', border: '#FFCF8B' };
       default:
@@ -397,7 +416,7 @@ export default function ProjectsPage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="btn-primary h-9">
+            <Button className="btn-primary h-9" onClick={openAddDialog}>
               <Plus className="w-4 h-4 mr-1.5" />
               新增项目
             </Button>
@@ -471,9 +490,9 @@ export default function ProjectsPage() {
                       <SelectValue placeholder="选择状态" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="进行中">进行中</SelectItem>
-                      <SelectItem value="已完成">已完成</SelectItem>
-                      <SelectItem value="暂停">暂停</SelectItem>
+                      {PROJECT_STATUS_OPTIONS.map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -510,6 +529,79 @@ export default function ProjectsPage() {
                     onChange={(e) => setFormData({ ...formData, expected_completion_date: e.target.value })}
                     className="mt-1.5"
                   />
+                </div>
+              </div>
+              <div className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FAFAFA' }}>
+                <div className="mb-3">
+                  <div className="text-sm font-medium" style={{ color: '#1D2129' }}>经营应收配置</div>
+                  <p className="mt-1 text-xs" style={{ color: '#86909C' }}>不同项目可单独维护状态付款比例，经营总览会按当前状态自动计算应收。</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-sm" style={{ color: '#1D2129' }}>在建付款比例（%）</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.construction_payment_ratio}
+                      onChange={(e) => setFormData({ ...formData, construction_payment_ratio: e.target.value })}
+                      placeholder="例如 80"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm" style={{ color: '#1D2129' }}>竣工结算付款比例（%）</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.completion_settlement_payment_ratio}
+                      onChange={(e) => setFormData({ ...formData, completion_settlement_payment_ratio: e.target.value })}
+                      placeholder="例如 95"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm" style={{ color: '#1D2129' }}>质保期付款比例（%）</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.warranty_payment_ratio}
+                      onChange={(e) => setFormData({ ...formData, warranty_payment_ratio: e.target.value })}
+                      placeholder="例如 97"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm" style={{ color: '#1D2129' }}>质保期满付款比例（%）</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.warranty_expired_payment_ratio}
+                      onChange={(e) => setFormData({ ...formData, warranty_expired_payment_ratio: e.target.value })}
+                      placeholder="例如 100"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm" style={{ color: '#1D2129' }}>完工日期</Label>
+                    <Input
+                      type="date"
+                      value={formData.completion_date || ''}
+                      onChange={(e) => setFormData({ ...formData, completion_date: e.target.value })}
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm" style={{ color: '#1D2129' }}>质保期天数</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={formData.warranty_days}
+                      onChange={(e) => setFormData({ ...formData, warranty_days: e.target.value })}
+                      placeholder="例如 730"
+                      className="mt-1.5"
+                    />
+                  </div>
                 </div>
               </div>
               <div>
@@ -641,9 +733,9 @@ export default function ProjectsPage() {
           style={{ borderColor: '#E5E6EB' }}
         >
           <option value="all">全部状态</option>
-          <option value="进行中">进行中</option>
-          <option value="已完成">已完成</option>
-          <option value="暂停">暂停</option>
+          {PROJECT_STATUS_OPTIONS.map(status => (
+            <option key={status} value={status}>{status}</option>
+          ))}
         </select>
         <span className="text-xs" style={{ color: '#86909C' }}>
           共 {filteredAndSortedProjects.length} 个项目
@@ -904,8 +996,8 @@ export default function ProjectsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-500 hover:bg-red-600">
-              确认删除
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={deleteLoading} className="bg-red-500 hover:bg-red-600">
+              {deleteLoading ? '删除中...' : '确认删除'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

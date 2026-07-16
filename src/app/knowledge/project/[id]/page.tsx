@@ -174,7 +174,7 @@ export default function ProjectKnowledgePage() {
           <div>
             <h1 className="text-2xl font-bold text-[#1D2129] flex items-center gap-2">
               {project.name}
-              {project.status === '进行中' && <span className="text-xs bg-[#E8F3FF] text-[#165DFF] px-2 py-0.5 rounded-full">进行中</span>}
+              {(project.status === '进行中' || project.status === '在建') && <span className="text-xs bg-[#E8F3FF] text-[#165DFF] px-2 py-0.5 rounded-full">在建</span>}
             </h1>
             <p className="text-sm text-[#86909C] mt-0.5">
               {project.partner || ''} · 合同额 {formatAmount(project.contract_amount)}

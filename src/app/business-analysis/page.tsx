@@ -33,6 +33,7 @@ const FundManagementPage = dynamic(() => import('@/app/data-board/fund-managemen
 
 type Summary = {
   totalIncome?: number;
+  invoiceAmount?: number;
   totalClientPaid?: number;
   totalReceivable?: number;
   totalSupplierPayable?: number;
@@ -45,15 +46,28 @@ type Summary = {
   totalFundingGap?: number;
   avgPaymentRate?: number;
   avgPayablePaymentRate?: number;
+  totalRatioReceivableAmount?: number;
+  totalRatioUnreceivedAmount?: number;
+  totalFullUnreceivedAmount?: number;
 };
 
 type ProjectRow = {
   id: number;
   name: string;
   status?: string;
+  effectiveStatus?: string;
   totalIncome?: number;
+  invoiceAmount?: number;
   clientPaidAmount?: number;
   receivableAmount?: number;
+  paymentRatio?: number | null;
+  ratioReceivableAmount?: number | null;
+  ratioUnreceivedAmount?: number | null;
+  fullUnreceivedAmount?: number;
+  warrantyExpiredDate?: string | null;
+  receivableAgingDays?: number | null;
+  receivableRiskLabel?: string;
+  receivableRiskLevel?: string;
   supplierPayableAmount?: number;
   workerPayableAmount?: number;
   totalPayableAmount?: number;
@@ -127,16 +141,17 @@ function formatPercent(value: number) {
   return `${value.toLocaleString('zh-CN', { maximumFractionDigits: 1 })}%`;
 }
 
-function inferPaymentRatio(status?: string) {
-  const text = status || '';
-  if (text.includes('质保') || text.includes('保修')) return '97%';
-  if (text.includes('结算') || text.includes('竣工')) return '95%';
-  if (text.includes('完工') || text.includes('完成')) return '90%';
-  if (text.includes('停工')) return '待确认';
-  return '80%';
-}
-
 function getRisk(row: ProjectRow) {
+  if (row.receivableRiskLabel) {
+    const toneMap: Record<string, string> = {
+      high: 'bg-rose-50 text-rose-700',
+      medium: 'bg-orange-50 text-orange-700',
+      attention: 'bg-amber-50 text-amber-700',
+      config: 'bg-slate-100 text-slate-600',
+      normal: 'bg-emerald-50 text-emerald-700',
+    };
+    return { label: row.receivableRiskLabel, tone: toneMap[row.receivableRiskLevel || 'normal'] || toneMap.normal };
+  }
   const receivable = toNumber(row.receivableAmount);
   const fundingGap = toNumber(row.fundingGapAmount);
   if (receivable >= 1000000 || fundingGap >= 1000000) {
@@ -146,6 +161,19 @@ function getRisk(row: ProjectRow) {
     return { label: '需要关注', tone: 'bg-amber-50 text-amber-700' };
   }
   return { label: '正常', tone: 'bg-emerald-50 text-emerald-700' };
+}
+
+function formatRatio(value?: number | null) {
+  if (value === null || value === undefined) return '待完善';
+  return formatPercent(value);
+}
+
+function formatAging(row: ProjectRow) {
+  if (row.receivableAgingDays === null || row.receivableAgingDays === undefined) {
+    if (row.effectiveStatus === '质保期满') return '待完善';
+    return '未到账期';
+  }
+  return `${row.receivableAgingDays} 天`;
 }
 
 function ProgressBar({
@@ -204,12 +232,13 @@ function BusinessOverviewPage() {
   }, [loadData]);
 
   const summary = data?.summary || {};
-  const projects = data?.projects || [];
+  const projects = useMemo(() => data?.projects || [], [data?.projects]);
   const warnings = data?.warnings || [];
 
-  const settlementAmount = toNumber(summary.totalIncome);
+  const settlementAmount = toNumber(summary.invoiceAmount) || toNumber(summary.totalIncome);
   const receivedAmount = toNumber(summary.totalClientPaid);
-  const receivableAmount = toNumber(summary.totalReceivable);
+  const receivableAmount = toNumber(summary.totalRatioUnreceivedAmount) || toNumber(summary.totalReceivable);
+  const fullUnreceivedAmount = toNumber(summary.totalFullUnreceivedAmount) || toNumber(summary.totalReceivable);
   const supplierPayable = toNumber(summary.totalSupplierPayable);
   const workerPayable = toNumber(summary.totalWorkerPayable);
   const totalPayable = toNumber(summary.totalPayable) || supplierPayable + workerPayable;
@@ -220,7 +249,7 @@ function BusinessOverviewPage() {
   const projectLedger = useMemo(
     () =>
       [...projects]
-        .sort((a, b) => toNumber(b.receivableAmount) - toNumber(a.receivableAmount))
+        .sort((a, b) => toNumber(b.ratioUnreceivedAmount ?? b.receivableAmount) - toNumber(a.ratioUnreceivedAmount ?? a.receivableAmount))
         .slice(0, 8),
     [projects]
   );
@@ -229,7 +258,7 @@ function BusinessOverviewPage() {
     {
       label: '累计产值结算',
       value: formatWan(settlementAmount),
-      note: '来自成本利润中心汇总口径',
+      note: '按开票金额汇总',
       icon: ReceiptText,
       tone: 'bg-blue-50 text-blue-700 ring-blue-100',
     },
@@ -243,7 +272,7 @@ function BusinessOverviewPage() {
     {
       label: '应收未收',
       value: formatWan(receivableAmount),
-      note: receivableAmount > 0 ? '需要结合账期持续跟进' : '暂无未收款',
+      note: fullUnreceivedAmount > receivableAmount ? `100%未收 ${formatWan(fullUnreceivedAmount)}` : '按当前付款比例计算',
       icon: AlertTriangle,
       tone: 'bg-amber-50 text-amber-700 ring-amber-100',
     },
@@ -378,15 +407,15 @@ function BusinessOverviewPage() {
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="whitespace-nowrap text-xs text-slate-500">结算来源</div>
-              <div className="mt-1 whitespace-nowrap font-semibold">产值结算</div>
+              <div className="mt-1 whitespace-nowrap font-semibold">开票金额</div>
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="whitespace-nowrap text-xs text-slate-500">应收口径</div>
-              <div className="mt-1 whitespace-nowrap font-semibold">结算减回款</div>
+              <div className="mt-1 whitespace-nowrap font-semibold">状态比例</div>
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="whitespace-nowrap text-xs text-slate-500">质保账期</div>
-              <div className="mt-1 whitespace-nowrap font-semibold">待档案补充</div>
+              <div className="mt-1 whitespace-nowrap font-semibold">实时判断</div>
             </div>
           </div>
         </header>
@@ -488,21 +517,21 @@ function BusinessOverviewPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div>
               <h2 className="text-base font-semibold">项目应收台账</h2>
-              <p className="mt-1 text-xs text-slate-500">先按项目看产值结算、已收、未收和资金缺口，后续项目档案补充后可接入状态付款比例和质保账期。</p>
+              <p className="mt-1 text-xs text-slate-500">按项目档案的状态付款比例，结合开票金额和回款实时计算当前应收、未收和账期。</p>
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-[1080px] w-full border-collapse text-left text-sm">
+            <table className="min-w-[1260px] w-full border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500">
                 <tr>
                   <th className="px-5 py-3 font-medium">项目名称</th>
                   <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">参考付款比例</th>
-                  <th className="px-4 py-3 text-right font-medium">产值结算</th>
-                  <th className="px-4 py-3 text-right font-medium">已收</th>
-                  <th className="px-4 py-3 text-right font-medium">未收</th>
-                  <th className="px-4 py-3 text-right font-medium">应付未付</th>
-                  <th className="px-4 py-3 text-right font-medium">资金缺口</th>
+                  <th className="px-4 py-3 font-medium">付款比例</th>
+                  <th className="px-4 py-3 text-right font-medium">结算金额</th>
+                  <th className="px-4 py-3 text-right font-medium">按比例应收</th>
+                  <th className="px-4 py-3 text-right font-medium">已收金额</th>
+                  <th className="px-4 py-3 text-right font-medium">按比例未收</th>
+                  <th className="px-4 py-3 text-right font-medium">100%未收</th>
                   <th className="px-4 py-3 font-medium">账期</th>
                   <th className="px-5 py-3 font-medium">风险</th>
                 </tr>
@@ -516,20 +545,18 @@ function BusinessOverviewPage() {
                   </tr>
                 ) : (
                   projectLedger.map(row => {
-                    const rowPayable = toNumber(row.totalPayableAmount);
-                    const rowPaid = toNumber(row.cashOutAmount);
                     const risk = getRisk(row);
                     return (
                       <tr key={row.id} className="hover:bg-slate-50">
                         <td className="px-5 py-4 font-medium text-slate-950">{row.name}</td>
-                        <td className="px-4 py-4 text-slate-600">{row.status || '-'}</td>
-                        <td className="px-4 py-4 text-slate-600">{inferPaymentRatio(row.status)}</td>
-                        <td className="px-4 py-4 text-right tabular-nums">{formatWan(toNumber(row.totalIncome))}</td>
+                        <td className="px-4 py-4 text-slate-600">{row.effectiveStatus || row.status || '-'}</td>
+                        <td className="px-4 py-4 text-slate-600">{formatRatio(row.paymentRatio)}</td>
+                        <td className="px-4 py-4 text-right tabular-nums">{formatWan(toNumber(row.invoiceAmount))}</td>
+                        <td className="px-4 py-4 text-right tabular-nums">{row.ratioReceivableAmount === null || row.ratioReceivableAmount === undefined ? '待完善' : formatWan(toNumber(row.ratioReceivableAmount))}</td>
                         <td className="px-4 py-4 text-right tabular-nums text-emerald-700">{formatWan(toNumber(row.clientPaidAmount))}</td>
-                        <td className="px-4 py-4 text-right tabular-nums text-amber-700">{formatWan(toNumber(row.receivableAmount))}</td>
-                        <td className="px-4 py-4 text-right tabular-nums">{formatWan(Math.max(rowPayable - rowPaid, 0))}</td>
-                        <td className="px-4 py-4 text-right tabular-nums text-rose-700">{formatWan(toNumber(row.fundingGapAmount))}</td>
-                        <td className="px-4 py-4 text-slate-600">待档案补充</td>
+                        <td className="px-4 py-4 text-right tabular-nums text-amber-700">{row.ratioUnreceivedAmount === null || row.ratioUnreceivedAmount === undefined ? '待完善' : formatWan(toNumber(row.ratioUnreceivedAmount))}</td>
+                        <td className="px-4 py-4 text-right tabular-nums text-rose-700">{formatWan(toNumber(row.fullUnreceivedAmount))}</td>
+                        <td className="px-4 py-4 text-slate-600">{formatAging(row)}</td>
                         <td className="px-5 py-4">
                           <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${risk.tone}`}>{risk.label}</span>
                         </td>
@@ -577,15 +604,15 @@ function BusinessOverviewPage() {
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">后续接数规则</h2>
-                <p className="mt-1 text-xs text-slate-500">等项目档案字段补齐后，总览可继续增强。</p>
+                <h2 className="text-base font-semibold">应收计算规则</h2>
+                <p className="mt-1 text-xs text-slate-500">项目档案补齐后，总览自动按状态付款比例计算。</p>
               </div>
             </div>
             <div className="space-y-3 text-sm leading-6 text-slate-600">
               <p>1. 项目档案维护不同状态下的甲方付款比例。</p>
-              <p>2. 产值结算确认后，自动计算按比例应收。</p>
+              <p>2. 开票金额确认后，自动计算按比例应收。</p>
               <p>3. 回款录入后，自动计算已收、未收和超期应收。</p>
-              <p>4. 质保金账期从质保到期日开始计算。</p>
+              <p>4. 质保金账期从完工日期加质保期天数后开始计算。</p>
             </div>
           </article>
 

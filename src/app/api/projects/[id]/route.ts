@@ -5,6 +5,10 @@ import { auditLog } from '@/lib/audit-log';
 import { getProjectFinancialSummary } from '@/lib/data-aggregation';
 import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
 
+function nullableValue(value: unknown) {
+  return value === '' || value === undefined ? null : value;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -69,7 +73,7 @@ export async function GET(
 
     let budgetCost = 0;
     let actualCost = 0;
-    let workItemCount = workItemsData?.length || 0;
+    const workItemCount = workItemsData?.length || 0;
 
     if (workItemsData && workItemsData.length > 0) {
       const workItemIds = workItemsData.map(item => item.id);
@@ -117,7 +121,7 @@ export async function GET(
       .from('supplier_contracts')
       .select('id')
       .eq('project_id', projectId);
-    const projectContractIds = (contractsForProject || []).map((c: any) => c.id);
+    const projectContractIds = (contractsForProject || []).map((c: { id: number }) => c.id);
     let totalSettlement = 0;
     if (projectContractIds.length > 0) {
       const { data: settlementsData } = await client
@@ -161,10 +165,11 @@ export async function GET(
         costIncomeRate: (financialSummary?.costIncomeRate || 0).toFixed(2),
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
+    const message = error instanceof Error ? error.message : '查询失败';
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -177,7 +182,24 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date } = body;
+    const {
+      name,
+      year,
+      status,
+      address,
+      partner,
+      contract_amount,
+      icon,
+      building_area,
+      tax_rate,
+      expected_completion_date,
+      construction_payment_ratio,
+      completion_settlement_payment_ratio,
+      warranty_payment_ratio,
+      warranty_expired_payment_ratio,
+      completion_date,
+      warranty_days,
+    } = body;
 
     const client = getSupabaseClient();
     
@@ -187,13 +209,19 @@ export async function PUT(
         name, 
         year, 
         status,
-        address: address || null,
-        partner: partner || null,
-        contract_amount: contract_amount || null,
+        address: nullableValue(address),
+        partner: nullableValue(partner),
+        contract_amount: nullableValue(contract_amount),
         icon: icon || 'HardHat',
-        building_area: building_area || null,
+        building_area: nullableValue(building_area),
         tax_rate: tax_rate || 9,
-        expected_completion_date: expected_completion_date || null,
+        expected_completion_date: nullableValue(expected_completion_date),
+        construction_payment_ratio: nullableValue(construction_payment_ratio),
+        completion_settlement_payment_ratio: nullableValue(completion_settlement_payment_ratio),
+        warranty_payment_ratio: nullableValue(warranty_payment_ratio),
+        warranty_expired_payment_ratio: nullableValue(warranty_expired_payment_ratio),
+        completion_date: nullableValue(completion_date),
+        warranty_days: nullableValue(warranty_days),
       })
       .eq('id', parseInt(id))
       .select()
@@ -213,10 +241,11 @@ export async function PUT(
     });
 
     return NextResponse.json({ project: data });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
+    const message = error instanceof Error ? error.message : '更新失败';
     return NextResponse.json(
-      { error: error.message || '更新失败' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -265,10 +294,11 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
+    const message = error instanceof Error ? error.message : '删除失败';
     return NextResponse.json(
-      { error: error.message || '删除失败' },
+      { error: message },
       { status: 500 }
     );
   }

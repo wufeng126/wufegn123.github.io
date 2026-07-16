@@ -5,6 +5,132 @@ import { formatAmountSmart, formatPercent, toWanYuan } from '@/lib/format';
 import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type ReceivableRiskLevel = 'high' | 'medium' | 'attention' | 'config' | 'normal';
+
+interface ProjectReceivableConfig {
+  id: number;
+  name: string;
+  status: string | null;
+  contract_amount: string | number | null;
+  construction_payment_ratio: string | number | null;
+  completion_settlement_payment_ratio: string | number | null;
+  warranty_payment_ratio: string | number | null;
+  warranty_expired_payment_ratio: string | number | null;
+  completion_date: string | null;
+  warranty_days: string | number | null;
+}
+
+interface ProjectCostRow {
+  id: number;
+  name: string;
+  status: string;
+  effectiveStatus: string;
+  contractAmount: number;
+  totalIncome: number;
+  invoiceAmount: number;
+  untaxedIncome: number;
+  visaAmount: number;
+  totalCost: number;
+  settlementAmount: number;
+  salaryAmount: number;
+  expenseAmount: number;
+  taxAmount: number;
+  miscMaterialAmount: number;
+  profit: number;
+  profitRate: number;
+  laborCostRate: number;
+  expenseRate: number;
+  taxRate: number;
+  miscMaterialRate: number;
+  clientPaidAmount: number;
+  supplierPaidAmount: number;
+  workerPaidAmount: number;
+  receivableAmount: number;
+  paymentRatio: number | null;
+  ratioReceivableAmount: number | null;
+  ratioUnreceivedAmount: number | null;
+  fullUnreceivedAmount: number;
+  completionDate: string | null;
+  warrantyDays: string | number | null;
+  warrantyExpiredDate: string | null;
+  receivableAgingDays: number | null;
+  receivableRiskLabel: string;
+  receivableRiskLevel: ReceivableRiskLevel;
+  supplierPayableAmount: number;
+  workerPayableAmount: number;
+  totalPayableAmount: number;
+  cashOutAmount: number;
+  netCashFlow: number;
+  fundingGapAmount: number;
+  paymentRate: number;
+  payablePaymentRate: number;
+  costIncomeRate: number;
+}
+
+function toNumber(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeProjectStatus(status?: string | null) {
+  if (status === '进行中') return '在建';
+  if (status === '已完成') return '竣工结算';
+  if (status === '暂停') return '在建';
+  return status || '待完善';
+}
+
+function addDays(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function getWarrantyExpiredDate(project: ProjectReceivableConfig) {
+  const days = toOptionalNumber(project.warranty_days);
+  if (!project.completion_date || days === null || days <= 0) return null;
+  return addDays(project.completion_date, days);
+}
+
+function getEffectiveStatus(project: ProjectReceivableConfig, today: Date) {
+  const status = normalizeProjectStatus(project.status);
+  const expiredDate = getWarrantyExpiredDate(project);
+  if ((status === '质保期' || status === '竣工结算') && expiredDate && today.getTime() >= expiredDate.getTime()) {
+    return '质保期满';
+  }
+  return status;
+}
+
+function getPaymentRatio(project: ProjectReceivableConfig, status: string) {
+  if (status === '在建') return toOptionalNumber(project.construction_payment_ratio);
+  if (status === '竣工结算') return toOptionalNumber(project.completion_settlement_payment_ratio);
+  if (status === '质保期') return toOptionalNumber(project.warranty_payment_ratio);
+  if (status === '质保期满') return toOptionalNumber(project.warranty_expired_payment_ratio);
+  return null;
+}
+
+function getReceivableRisk(params: {
+  paymentRatio: number | null;
+  ratioUnreceivedAmount: number;
+  fullUnreceivedAmount: number;
+  agingDays: number | null;
+}): { label: string; level: ReceivableRiskLevel } {
+  if (params.paymentRatio === null) return { label: '待完善', level: 'config' };
+  if ((params.agingDays || 0) >= 365 && params.fullUnreceivedAmount > 0) return { label: '高风险', level: 'high' };
+  if ((params.agingDays || 0) >= 180 && params.fullUnreceivedAmount > 0) return { label: '重点跟进', level: 'medium' };
+  if (params.ratioUnreceivedAmount > 0) return { label: '待收款', level: 'attention' };
+  return { label: '正常', level: 'normal' };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -19,7 +145,7 @@ export async function GET(request: NextRequest) {
     // ========== 1. 获取所有项目 ==========
     let projectsQuery = client
       .from('projects')
-      .select('id, name, status, contract_amount')
+      .select('id, name, status, contract_amount, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days')
       .order('created_at', { ascending: false });
     
     if (accessibleProjects !== null) {
@@ -33,20 +159,40 @@ export async function GET(request: NextRequest) {
 
     // ========== 2. 使用统一中间层获取各项目财务汇总 ==========
     const summaries = await Promise.all(
-      (projects || []).map((p: any) => getProjectFinancialSummary(p.id))
+      ((projects || []) as ProjectReceivableConfig[]).map((p) => getProjectFinancialSummary(p.id))
     );
 
     // 构建项目成本数据列表（保持前端接口兼容）
-    const projectCostList = (projects || []).map((project: any, idx: number) => {
+    const today = new Date();
+    const projectCostList: ProjectCostRow[] = ((projects || []) as ProjectReceivableConfig[]).map((project, idx) => {
       const s = summaries[idx];
       if (!s) return null;
+      const effectiveStatus = getEffectiveStatus(project, today);
+      const paymentRatio = getPaymentRatio(project, effectiveStatus);
+      const invoiceAmount = toNumber(s.invoiceAmount);
+      const clientPaidAmount = toNumber(s.clientPaidAmount);
+      const ratioReceivableAmount = paymentRatio === null ? null : Math.max((invoiceAmount * paymentRatio) / 100, 0);
+      const ratioUnreceivedAmount = ratioReceivableAmount === null ? null : Math.max(ratioReceivableAmount - clientPaidAmount, 0);
+      const fullUnreceivedAmount = Math.max(invoiceAmount - clientPaidAmount, 0);
+      const warrantyExpiredDate = getWarrantyExpiredDate(project);
+      const receivableAgingDays =
+        effectiveStatus === '质保期满' && warrantyExpiredDate
+          ? Math.max(0, Math.floor((today.getTime() - warrantyExpiredDate.getTime()) / DAY_MS))
+          : null;
+      const risk = getReceivableRisk({
+        paymentRatio,
+        ratioUnreceivedAmount: ratioUnreceivedAmount || 0,
+        fullUnreceivedAmount,
+        agingDays: receivableAgingDays,
+      });
       return {
         id: project.id,
         name: project.name,
         status: project.status || '未知',
-        contractAmount: parseFloat(project.contract_amount || '0') || 0,
+        effectiveStatus,
+        contractAmount: toNumber(project.contract_amount),
         totalIncome: s.taxableIncome,
-        invoiceAmount: s.invoiceAmount,
+        invoiceAmount,
         untaxedIncome: s.untaxedIncome,
         visaAmount: s.visaAmount,
         totalCost: s.totalCost,
@@ -61,10 +207,20 @@ export async function GET(request: NextRequest) {
         expenseRate: s.expenseRate,
         taxRate: s.taxRate,
         miscMaterialRate: s.miscMaterialRate,
-        clientPaidAmount: s.clientPaidAmount,
+        clientPaidAmount,
         supplierPaidAmount: s.supplierPaidAmount,
         workerPaidAmount: s.workerPaidAmount,
         receivableAmount: s.receivableAmount,
+        paymentRatio,
+        ratioReceivableAmount,
+        ratioUnreceivedAmount,
+        fullUnreceivedAmount,
+        completionDate: project.completion_date || null,
+        warrantyDays: project.warranty_days || null,
+        warrantyExpiredDate: warrantyExpiredDate ? warrantyExpiredDate.toISOString().slice(0, 10) : null,
+        receivableAgingDays,
+        receivableRiskLabel: risk.label,
+        receivableRiskLevel: risk.level,
         supplierPayableAmount: s.supplierPayableAmount,
         workerPayableAmount: s.workerPayableAmount,
         totalPayableAmount: s.totalPayableAmount,
@@ -75,10 +231,10 @@ export async function GET(request: NextRequest) {
         payablePaymentRate: s.payablePaymentRate,
         costIncomeRate: s.costIncomeRate,
       };
-    }).filter(Boolean);
+    }).filter((project): project is ProjectCostRow => Boolean(project));
 
     // ========== 3. 汇总计算（从统一中间层数据聚合） ==========
-    const totals = projectCostList.reduce((acc: any, p: any) => {
+    const totals = projectCostList.reduce((acc, p) => {
       acc.totalIncome += p.totalIncome;
       acc.totalInvoiceAmount += p.invoiceAmount;
       acc.totalUntaxedIncome += p.untaxedIncome;
@@ -100,6 +256,9 @@ export async function GET(request: NextRequest) {
       acc.totalCashOut += p.cashOutAmount;
       acc.totalFundingGap += p.fundingGapAmount;
       acc.totalNetCashFlow += p.netCashFlow;
+      acc.totalRatioReceivableAmount += p.ratioReceivableAmount || 0;
+      acc.totalRatioUnreceivedAmount += p.ratioUnreceivedAmount || 0;
+      acc.totalFullUnreceivedAmount += p.fullUnreceivedAmount || 0;
       return acc;
     }, {
       totalIncome: 0, totalInvoiceAmount: 0, totalUntaxedIncome: 0, totalVisaAmount: 0,
@@ -108,6 +267,7 @@ export async function GET(request: NextRequest) {
       totalClientPaid: 0, totalSupplierPaid: 0, totalWorkerPaid: 0,
       totalReceivable: 0, totalSupplierPayable: 0, totalWorkerPayable: 0,
       totalPayable: 0, totalCashOut: 0, totalFundingGap: 0, totalNetCashFlow: 0,
+      totalRatioReceivableAmount: 0, totalRatioUnreceivedAmount: 0, totalFullUnreceivedAmount: 0,
     });
 
     // ========== 4. 成本异常预警 ==========
@@ -122,7 +282,7 @@ export async function GET(request: NextRequest) {
 
     const warnings: Warning[] = [];
 
-    projectCostList.forEach((project: any) => {
+    projectCostList.forEach((project) => {
       if (project.profit < 0) {
         warnings.push({
           projectId: project.id,
@@ -217,6 +377,9 @@ export async function GET(request: NextRequest) {
         totalCashOut: totals.totalCashOut,
         totalNetCashFlow: totals.totalNetCashFlow,
         totalFundingGap: totals.totalFundingGap,
+        totalRatioReceivableAmount: totals.totalRatioReceivableAmount,
+        totalRatioUnreceivedAmount: totals.totalRatioUnreceivedAmount,
+        totalFullUnreceivedAmount: totals.totalFullUnreceivedAmount,
         avgProfitRate: totals.totalIncome > 0 ? (totals.totalProfit / totals.totalIncome) * 100 : 0,
         avgLaborCostRate: totals.totalCost > 0 ? (totals.totalSalary / totals.totalCost) * 100 : 0,
         avgExpenseRate: totals.totalCost > 0 ? (totals.totalExpense / totals.totalCost) * 100 : 0,
@@ -244,10 +407,11 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('成本利润中心API错误:', error);
+    const message = error instanceof Error ? error.message : '查询失败';
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: message },
       { status: 500 }
     );
   }

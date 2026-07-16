@@ -544,7 +544,7 @@ function WorkItemsContent() {
       const price = parseFloat(item.contract_price || '0') || 0;
       return sum + qty * price;
     }, 0),
-    activeProjects: projects.filter(p => p.status === '进行中').length,
+    activeProjects: projects.filter(p => p.status === '进行中' || p.status === '在建').length,
   }), [projects, allSubitems]);
 
   const addonStats = useMemo(() => {
@@ -1869,6 +1869,10 @@ function WorkItemsContent() {
 
   const getStatusStyle = (status: string) => {
     switch (status) {
+      case '在建': return 'bg-[#1A58B3] text-white';
+      case '竣工结算': return 'bg-emerald-500 text-white';
+      case '质保期': return 'bg-purple-500 text-white';
+      case '质保期满': return 'bg-amber-500 text-white';
       case '进行中': return 'bg-[#1A58B3] text-white';
       case '已完成': return 'bg-emerald-500 text-white';
       case '暂停': return 'bg-amber-500 text-white';

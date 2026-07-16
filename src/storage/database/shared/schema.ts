@@ -194,6 +194,12 @@ export const projects = pgTable("projects", {
 	buildingArea: numeric("building_area", { precision: 12, scale:  2 }), // 建筑面积（平方米）
 	taxRate: numeric("tax_rate", { precision: 5, scale:  2 }), // 税率（%）
 	expectedCompletionDate: date("expected_completion_date"), // 预计完工日期
+	constructionPaymentRatio: numeric("construction_payment_ratio", { precision: 5, scale: 2 }),
+	completionSettlementPaymentRatio: numeric("completion_settlement_payment_ratio", { precision: 5, scale: 2 }),
+	warrantyPaymentRatio: numeric("warranty_payment_ratio", { precision: 5, scale: 2 }),
+	warrantyExpiredPaymentRatio: numeric("warranty_expired_payment_ratio", { precision: 5, scale: 2 }),
+	completionDate: date("completion_date"),
+	warrantyDays: integer("warranty_days"),
 }, (table) => [
 	index("projects_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	index("projects_year_idx").using("btree", table.year.asc().nullsLast().op("int4_ops")),

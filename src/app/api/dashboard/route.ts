@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     }
 
     const projectCount = allProjects?.length || 0;
-    const activeProjects = allProjects?.filter(p => p.status === '进行中') || [];
+    const activeProjects = allProjects?.filter(p => p.status === '进行中' || p.status === '在建') || [];
 
     // 获取工人数量（区分在场/退场）- 支持项目筛选
     let workersQuery = client

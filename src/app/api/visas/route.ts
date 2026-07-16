@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
     let activeProjectsQuery = client
       .from('projects')
       .select('id, name, status')
-      .eq('status', '进行中');
+      .in('status', ['进行中', '在建']);
     
     if (Array.isArray(accessibleProjects)) {
       activeProjectsQuery = activeProjectsQuery.in('id', accessibleProjects);

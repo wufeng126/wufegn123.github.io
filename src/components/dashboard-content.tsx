@@ -531,7 +531,7 @@ export default function HomePage() {
               {stats.projectDetails.slice(0, 10).map((project) => (
                 <SelectItem key={project.id} value={project.id.toString()}>
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${project.status === '进行中' ? 'bg-blue-500' : project.status === '已完成' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    <span className={`w-2 h-2 rounded-full ${project.status === '进行中' || project.status === '在建' ? 'bg-blue-500' : ['已完成', '竣工结算', '质保期', '质保期满'].includes(project.status) ? 'bg-green-500' : 'bg-gray-400'}`} />
                     <span>{project.name}</span>
                   </div>
                 </SelectItem>
@@ -615,7 +615,7 @@ export default function HomePage() {
               {stats.projectDetails.slice(0, 5).map(project => (
                 <Link key={project.id} href={`/projects/${project.id}`} className="flex items-center justify-between group py-1.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${project.status === '进行中' ? 'bg-blue-500' : project.status === '已完成' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${project.status === '进行中' || project.status === '在建' ? 'bg-blue-500' : ['已完成', '竣工结算', '质保期', '质保期满'].includes(project.status) ? 'bg-green-500' : 'bg-gray-400'}`} />
                     <span className="text-sm truncate group-hover:text-blue-600 transition-colors" style={{ color: '#171717' }}>{project.name}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">

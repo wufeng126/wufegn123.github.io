@@ -400,7 +400,7 @@ export async function getGlobalSummary(
   const { data: projects } = await projectsQuery;
 
   const totalProjects = projects?.length || 0;
-  const activeProjects = projects?.filter(p => p.status === '进行中').length || 0;
+  const activeProjects = projects?.filter(p => p.status === '进行中' || p.status === '在建').length || 0;
   const allProjectIds = (projects || []).map(p => p.id);
 
   // 工人统计

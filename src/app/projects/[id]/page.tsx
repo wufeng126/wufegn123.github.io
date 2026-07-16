@@ -58,6 +58,10 @@ interface ProjectStats {
 }
 
 const statusStyles: Record<string, string> = {
+  在建: 'bg-blue-50 text-blue-700 border-blue-200',
+  竣工结算: 'bg-green-50 text-green-700 border-green-200',
+  质保期: 'bg-purple-50 text-purple-700 border-purple-200',
+  质保期满: 'bg-amber-50 text-amber-700 border-amber-200',
   进行中: 'bg-blue-50 text-blue-700 border-blue-200',
   已完成: 'bg-green-50 text-green-700 border-green-200',
   暂停: 'bg-orange-50 text-orange-700 border-orange-200',

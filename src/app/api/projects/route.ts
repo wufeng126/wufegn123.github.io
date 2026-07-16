@@ -16,7 +16,11 @@ function normalizeProjectIds(value: unknown): number[] {
   ));
 }
 
-export async function GET(request: NextRequest) {
+function nullableValue(value: unknown) {
+  return value === '' || value === undefined ? null : value;
+}
+
+export async function GET() {
   try {
     const client = getSupabaseClient();
     
@@ -26,7 +30,7 @@ export async function GET(request: NextRequest) {
     // 查询项目数据
     const query = client
       .from('projects')
-      .select('id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, created_at')
+      .select('id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, created_at')
       .order('year', { ascending: false })
       .order('created_at', { ascending: false });
     
@@ -129,7 +133,7 @@ export async function GET(request: NextRequest) {
           progress = Math.min(100, Math.round((reportAmount / budgetAmount) * 100));
         } else {
           // 如果没有预算数据，已完成的项目显示100%，其他显示0%
-          progress = project.status === '已完成' ? 100 : 0;
+          progress = ['竣工结算', '质保期', '质保期满', '已完成'].includes(project.status) ? 100 : 0;
         }
 
         // 工人统计
@@ -161,7 +165,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date } = body;
+    const {
+      name,
+      year,
+      status,
+      address,
+      partner,
+      contract_amount,
+      icon,
+      building_area,
+      tax_rate,
+      expected_completion_date,
+      construction_payment_ratio,
+      completion_settlement_payment_ratio,
+      warranty_payment_ratio,
+      warranty_expired_payment_ratio,
+      completion_date,
+      warranty_days,
+    } = body;
 
     if (!name || !year) {
       return NextResponse.json({ error: '项目名称和年度不能为空' }, { status: 400 });
@@ -172,14 +193,20 @@ export async function POST(request: NextRequest) {
     const { data, error } = await insertWithSequenceFix('projects', { 
         name, 
         year, 
-        status: status || '进行中',
-        address: address || null,
-        partner: partner || null,
-        contract_amount: contract_amount || null,
+        status: status || '在建',
+        address: nullableValue(address),
+        partner: nullableValue(partner),
+        contract_amount: nullableValue(contract_amount),
         icon: icon || 'HardHat',
-        building_area: building_area || null,
+        building_area: nullableValue(building_area),
         tax_rate: tax_rate || 9,
-        expected_completion_date: expected_completion_date || null,
+        expected_completion_date: nullableValue(expected_completion_date),
+        construction_payment_ratio: nullableValue(construction_payment_ratio),
+        completion_settlement_payment_ratio: nullableValue(completion_settlement_payment_ratio),
+        warranty_payment_ratio: nullableValue(warranty_payment_ratio),
+        warranty_expired_payment_ratio: nullableValue(warranty_expired_payment_ratio),
+        completion_date: nullableValue(completion_date),
+        warranty_days: nullableValue(warranty_days),
       }, client);
 
     // insertWithSequenceFix 返回数组，取第一个
