@@ -24,8 +24,14 @@ type ConstructionLogDraft = {
   content: string;
   headcount?: number | string | null;
   attendance_worker_ids?: number[];
+  attendance_workers?: AttendanceWorkerDraft[];
   scope_worker_ids?: number[];
   issues?: string | null;
+};
+
+type AttendanceWorkerDraft = {
+  worker_id: number;
+  work_hours: number;
 };
 
 type ConstructionLogPayload = Record<string, unknown>;
@@ -55,11 +61,33 @@ function normalizeOptionalIdList(value: unknown) {
   ));
 }
 
+function normalizeAttendanceWorkers(value: unknown, fallbackIds?: number[]) {
+  const rows = Array.isArray(value)
+    ? value.map((item) => {
+      const payload = asPayload(item);
+      return {
+        worker_id: Number(payload.worker_id ?? payload.id),
+        work_hours: Number(payload.work_hours ?? 0),
+      };
+    })
+    : (fallbackIds || []).map((workerId) => ({ worker_id: workerId, work_hours: 0 }));
+
+  const map = new Map<number, AttendanceWorkerDraft>();
+  rows.forEach((row) => {
+    if (!Number.isInteger(row.worker_id) || row.worker_id <= 0) return;
+    const hours = Number.isFinite(row.work_hours) ? Math.round(row.work_hours * 100) / 100 : 0;
+    map.set(row.worker_id, { worker_id: row.worker_id, work_hours: hours });
+  });
+  return Array.from(map.values());
+}
+
 function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[] {
   if (Array.isArray(body.project_logs)) {
     return body.project_logs
       .map((item) => {
         const payload = asPayload(item);
+        const attendanceWorkerIds = normalizeOptionalIdList(payload.attendance_worker_ids);
+        const attendanceWorkers = normalizeAttendanceWorkers(payload.attendance_workers, attendanceWorkerIds);
         return {
           project_id: Number(payload.project_id),
           location: payload.location ? String(payload.location) : null,
@@ -67,7 +95,8 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
           headcount: typeof payload.headcount === 'number' || typeof payload.headcount === 'string'
             ? payload.headcount
             : null,
-          attendance_worker_ids: normalizeOptionalIdList(payload.attendance_worker_ids),
+          attendance_worker_ids: attendanceWorkers.map(worker => worker.worker_id),
+          attendance_workers: attendanceWorkers,
           scope_worker_ids: normalizeOptionalIdList(payload.scope_worker_ids),
           issues: payload.issues ? String(payload.issues) : null,
         };
@@ -75,12 +104,15 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
       .filter((item: ConstructionLogDraft) => item.project_id && item.content);
   }
 
+  const attendanceWorkerIds = normalizeOptionalIdList(body.attendance_worker_ids);
+  const attendanceWorkers = normalizeAttendanceWorkers(body.attendance_workers, attendanceWorkerIds);
   return [{
     project_id: Number(body.project_id),
     location: body.location ? String(body.location) : null,
     content: String(body.content || '').trim(),
     headcount: typeof body.headcount === 'number' || typeof body.headcount === 'string' ? body.headcount : null,
-    attendance_worker_ids: normalizeOptionalIdList(body.attendance_worker_ids),
+    attendance_worker_ids: attendanceWorkers.map(worker => worker.worker_id),
+    attendance_workers: attendanceWorkers,
     scope_worker_ids: normalizeOptionalIdList(body.scope_worker_ids),
     issues: body.issues ? String(body.issues) : null,
   }].filter((item) => item.project_id && item.content);
@@ -274,6 +306,14 @@ export async function POST(request: NextRequest) {
 
     const attendanceWorkersByProject = new Map<number, Map<number, AttendanceWorkerRow>>();
     for (const projectId of uniqueProjectIds) {
+      const invalidHours = drafts
+        .filter((draft) => draft.project_id === projectId)
+        .flatMap((draft) => draft.attendance_workers || [])
+        .find((worker) => !Number.isFinite(worker.work_hours) || worker.work_hours < 0 || worker.work_hours > 24);
+      if (invalidHours) {
+        return apiBadRequest('出勤工时需在0到24小时之间');
+      }
+
       const draftIds = drafts
         .filter((draft) => draft.project_id === projectId)
         .flatMap((draft) => [
@@ -324,15 +364,16 @@ export async function POST(request: NextRequest) {
     const attendanceRows = insertedRows.flatMap((row, index) => {
       const draft = drafts[index];
       const workerMap = attendanceWorkersByProject.get(draft.project_id);
-      return (draft.attendance_worker_ids || []).map((workerId) => {
-        const worker = workerMap?.get(workerId);
+      return (draft.attendance_workers || []).map((attendanceWorker) => {
+        const worker = workerMap?.get(attendanceWorker.worker_id);
         return {
           log_id: row.id,
           project_id: draft.project_id,
-          worker_id: workerId,
+          worker_id: attendanceWorker.worker_id,
           worker_name: worker?.name || null,
           work_type: worker?.work_type || null,
           team_name: worker?.team_name || null,
+          work_hours: attendanceWorker.work_hours || 0,
         };
       });
     });

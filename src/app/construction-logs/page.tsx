@@ -13,6 +13,7 @@ import {
   FileText,
   Plus,
   Trash2,
+  UserRoundCheck,
   Users,
 } from 'lucide-react';
 
@@ -297,6 +298,9 @@ export default function ConstructionLogsPage() {
             <p className="mt-1 text-sm text-[#86909C]">现场记录、风险确认、知识沉淀集中处理</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <Link href="/construction-attendance" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
+              <UserRoundCheck className="h-4 w-4" />人员出勤
+            </Link>
             <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
               <Camera className="h-4 w-4" />拍照识别
             </Link>

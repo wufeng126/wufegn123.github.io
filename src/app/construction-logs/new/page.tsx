@@ -34,6 +34,7 @@ type ProjectLogDraft = {
   location: string;
   content: string;
   attendance_worker_ids: number[];
+  attendance_worker_hours: Record<string, string>;
   scope_worker_ids: number[];
   worker_work_type: string;
   worker_search: string;
@@ -57,6 +58,7 @@ function createDraft(projectId = ''): ProjectLogDraft {
     location: '',
     content: '',
     attendance_worker_ids: [],
+    attendance_worker_hours: {},
     scope_worker_ids: [],
     worker_work_type: '',
     worker_search: '',
@@ -86,6 +88,17 @@ function filterWorkers(workers: AttendanceWorker[], keyword: string, workType: s
     || (worker.work_type || '').toLowerCase().includes(value)
     || (worker.team_name || '').toLowerCase().includes(value)
   ));
+}
+
+function getWorkerHours(draft: ProjectLogDraft, workerId: number) {
+  return draft.attendance_worker_hours[String(workerId)] ?? '8';
+}
+
+function buildAttendanceWorkers(draft: ProjectLogDraft) {
+  return draft.attendance_worker_ids.map((workerId) => ({
+    worker_id: workerId,
+    work_hours: Number(getWorkerHours(draft, workerId) || 0),
+  }));
 }
 
 export default function NewConstructionLogPage() {
@@ -155,6 +168,7 @@ export default function NewConstructionLogPage() {
     updateDraft(id, {
       project_id: projectId,
       attendance_worker_ids: [],
+      attendance_worker_hours: {},
       scope_worker_ids: [],
       worker_work_type: '',
       worker_search: '',
@@ -182,12 +196,35 @@ export default function NewConstructionLogPage() {
       } else {
         selected.add(workerId);
       }
+      const nextHours = { ...draft.attendance_worker_hours };
+      if (selected.has(workerId)) {
+        nextHours[String(workerId)] = nextHours[String(workerId)] || '8';
+      } else {
+        delete nextHours[String(workerId)];
+      }
       return {
         ...draft,
         attendance_worker_ids: Array.from(selected),
+        attendance_worker_hours: nextHours,
         scope_worker_ids: Array.from(scopeSelected),
       };
     }));
+  }
+
+  function updateAttendanceHours(draftId: string, workerId: number, value: string) {
+    const cleaned = value.replace(/[^\d.]/g, '');
+    const normalized = cleaned.split('.').slice(0, 2).join('.');
+    setDrafts(current => current.map((draft) => (
+      draft.id === draftId
+        ? {
+          ...draft,
+          attendance_worker_hours: {
+            ...draft.attendance_worker_hours,
+            [String(workerId)]: normalized,
+          },
+        }
+        : draft
+    )));
   }
 
   function addSelectedTemporaryToScope(draftId: string, workerIds: number[]) {
@@ -218,6 +255,14 @@ export default function NewConstructionLogPage() {
       setError(submissionWindow.message);
       return;
     }
+    const invalidHours = validDrafts.some(draft => draft.attendance_worker_ids.some((workerId) => {
+      const hours = Number(getWorkerHours(draft, workerId));
+      return !Number.isFinite(hours) || hours <= 0 || hours > 24;
+    }));
+    if (invalidHours) {
+      setError('出勤工时需大于0且不超过24小时');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -233,6 +278,7 @@ export default function NewConstructionLogPage() {
             content: draft.content.trim(),
             headcount: draft.attendance_worker_ids.length,
             attendance_worker_ids: draft.attendance_worker_ids,
+            attendance_workers: buildAttendanceWorkers(draft),
             scope_worker_ids: draft.scope_worker_ids,
             issues: draft.issues,
           })),
@@ -343,6 +389,10 @@ export default function NewConstructionLogPage() {
             );
             const selectedTemporaryIds = draft.attendance_worker_ids.filter(workerId => !scopedSet.has(workerId));
             const pendingScopeIds = selectedTemporaryIds.filter(workerId => !draft.scope_worker_ids.includes(workerId));
+            const workerById = new Map(options.workers.map(worker => [worker.id, worker]));
+            const selectedWorkers = draft.attendance_worker_ids
+              .map(workerId => workerById.get(workerId))
+              .filter((worker): worker is AttendanceWorker => Boolean(worker));
 
             return (
               <section key={draft.id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
@@ -515,6 +565,37 @@ export default function NewConstructionLogPage() {
                                     </span>
                                   </span>
                                 </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedWorkers.length > 0 && (
+                          <div className="rounded-lg border border-[#D6E4FF] bg-white p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <p className="text-xs font-medium text-[#1D2129]">已选人员工时</p>
+                              <span className="text-xs text-[#86909C]">可录入小数，单人每日不超过24小时</span>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              {selectedWorkers.map(worker => (
+                                <label key={worker.id} className="flex items-center gap-2 rounded-lg bg-[#F7F8FA] px-3 py-2">
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium text-[#1D2129]">{worker.name}</span>
+                                    <span className="block truncate text-xs text-[#86909C]">
+                                      {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未填写工种/班组'}
+                                    </span>
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0.5"
+                                    max="24"
+                                    step="0.5"
+                                    value={getWorkerHours(draft, worker.id)}
+                                    onChange={event => updateAttendanceHours(draft.id, worker.id, event.target.value)}
+                                    className="h-9 w-20 rounded-lg border border-[#E5E6EB] bg-white px-2 text-right text-sm text-[#1D2129] outline-none focus:border-[#165DFF]"
+                                  />
+                                  <span className="text-xs text-[#4E5969]">小时</span>
+                                </label>
                               ))}
                             </div>
                           </div>

@@ -30,12 +30,15 @@ CREATE TABLE IF NOT EXISTS construction_log_attendance (
   worker_name VARCHAR(100),
   work_type VARCHAR(50),
   team_name VARCHAR(100),
+  work_hours NUMERIC(8,2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   UNIQUE(log_id, worker_id)
 );
 CREATE INDEX IF NOT EXISTS construction_log_attendance_log_id_idx ON construction_log_attendance(log_id);
 CREATE INDEX IF NOT EXISTS construction_log_attendance_project_id_idx ON construction_log_attendance(project_id);
 CREATE INDEX IF NOT EXISTS construction_log_attendance_worker_id_idx ON construction_log_attendance(worker_id);
+CREATE INDEX IF NOT EXISTS construction_log_attendance_project_worker_idx ON construction_log_attendance(project_id, worker_id);
+ALTER TABLE construction_log_attendance ADD COLUMN IF NOT EXISTS work_hours NUMERIC(8,2) DEFAULT 0;
 
 -- 现场人员在单个项目内负责的工人范围
 CREATE TABLE IF NOT EXISTS site_manager_worker_scopes (

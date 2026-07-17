@@ -23,6 +23,7 @@ type ConstructionLogDetail = {
     worker_name?: string | null;
     work_type?: string | null;
     team_name?: string | null;
+    work_hours?: number | string | null;
   }[];
   project?: {
     id: number;
@@ -189,6 +190,9 @@ export default function ConstructionLogDetailPage() {
                         <p className="text-sm font-medium text-[#1D2129]">{worker.worker_name || `工人${worker.worker_id}`}</p>
                         <p className="mt-1 text-xs text-[#86909C]">
                           {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未记录工种/班组'}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-[#165DFF]">
+                          工时：{Number(worker.work_hours || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 小时
                         </p>
                       </div>
                     ))}

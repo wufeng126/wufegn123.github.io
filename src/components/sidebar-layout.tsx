@@ -168,7 +168,7 @@ export default function SidebarLayout({
     if (['/hr-salary', '/workers', '/certificates'].some(p => pathname.startsWith(p))) return '/hr-salary';
 
     // 施工管理
-    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/reports/monthly')) return '/construction-logs';
+    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/construction-attendance') || pathname.startsWith('/reports/monthly')) return '/construction-logs';
 
     // 供应商与费用
     if (['/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/supplier-expense';
