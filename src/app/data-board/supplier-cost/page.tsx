@@ -82,8 +82,13 @@ type ContractRow = {
   contractNo: string;
   settlementAmount: number;
   payableAmount: number;
+  progressPayable: number;
+  finalPayable: number;
   paidAmount: number;
   unpaidAmount: number;
+  progressUnpaid: number;
+  finalUnpaid: number;
+  paymentRatio: number;
 };
 
 type SupplierSummary = {
@@ -92,8 +97,13 @@ type SupplierSummary = {
   contractCount: number;
   settlementAmount: number;
   payableAmount: number;
+  progressPayable: number;
+  finalPayable: number;
   paidAmount: number;
   unpaidAmount: number;
+  progressUnpaid: number;
+  finalUnpaid: number;
+  paymentRatio: number;
 };
 
 type ProjectSummary = {
@@ -104,9 +114,14 @@ type ProjectSummary = {
   contractCount: number;
   settlementAmount: number;
   payableAmount: number;
+  progressPayable: number;
+  finalPayable: number;
   paidAmount: number;
   unpaidAmount: number;
   paymentRate: number;
+  progressUnpaid: number;
+  finalUnpaid: number;
+  paymentRatio: number;
   rows: ContractRow[];
   suppliers: SupplierSummary[];
 };
@@ -251,9 +266,13 @@ function SupplierCostDashboard() {
       const supplierId = toId(contract.supplier_id || contract.supplier?.id);
       const settlementAmount = contractSettlements.reduce((sum, settlement) => sum + toNumber(settlement.settlement_amount), 0);
       const payableAmount = contractSettlements.reduce((sum, settlement) => sum + toNumber(settlement.payable_amount), 0);
+      const progressPayable = payableAmount;
+      const finalPayable = settlementAmount;
       const paidAmount = contractPayments.reduce((sum, payment) => (
         sum + (toNumber(payment.payment_amount) || toNumber(payment.amount))
       ), 0);
+      const progressUnpaid = Math.max(0, progressPayable - paidAmount);
+      const finalUnpaid = Math.max(0, finalPayable - paidAmount);
 
       return {
         id: contract.id,
@@ -265,8 +284,13 @@ function SupplierCostDashboard() {
         contractNo: contract.contract_no || '-',
         settlementAmount,
         payableAmount,
+        progressPayable,
+        finalPayable,
         paidAmount,
-        unpaidAmount: Math.max(0, payableAmount - paidAmount),
+        unpaidAmount: progressUnpaid,
+        progressUnpaid,
+        finalUnpaid,
+        paymentRatio: paymentRate(paidAmount, progressPayable),
       };
     });
   }, [contracts, settlements, payments, projectNameById, supplierNameById]);
@@ -275,8 +299,8 @@ function SupplierCostDashboard() {
     return contractRows.filter((row) => {
       if (selectedProject !== 'all' && row.projectId !== selectedProject) return false;
       if (selectedSupplier !== 'all' && row.supplierId !== selectedSupplier) return false;
-      if (selectedStatus === 'unpaid' && row.unpaidAmount <= 0) return false;
-      if (selectedStatus === 'paid' && row.payableAmount > 0 && row.unpaidAmount > 0) return false;
+      if (selectedStatus === 'unpaid' && row.progressUnpaid <= 0) return false;
+      if (selectedStatus === 'paid' && row.progressPayable > 0 && row.progressUnpaid > 0) return false;
       return true;
     });
   }, [contractRows, selectedProject, selectedSupplier, selectedStatus]);
@@ -300,21 +324,34 @@ function SupplierCostDashboard() {
           contractCount: 0,
           settlementAmount: 0,
           payableAmount: 0,
+          progressPayable: 0,
+          finalPayable: 0,
           paidAmount: 0,
           unpaidAmount: 0,
+          progressUnpaid: 0,
+          finalUnpaid: 0,
+          paymentRatio: 0,
         };
         current.contractCount += 1;
         current.settlementAmount += row.settlementAmount;
         current.payableAmount += row.payableAmount;
+        current.progressPayable += row.progressPayable;
+        current.finalPayable += row.finalPayable;
         current.paidAmount += row.paidAmount;
-        current.unpaidAmount += row.unpaidAmount;
+        current.unpaidAmount += row.progressUnpaid;
+        current.progressUnpaid += row.progressUnpaid;
+        current.finalUnpaid += row.finalUnpaid;
+        current.paymentRatio = paymentRate(current.paidAmount, current.progressPayable);
         supplierMap.set(supplierKey, current);
       });
 
       const settlementAmount = rows.reduce((sum, row) => sum + row.settlementAmount, 0);
       const payableAmount = rows.reduce((sum, row) => sum + row.payableAmount, 0);
+      const progressPayable = rows.reduce((sum, row) => sum + row.progressPayable, 0);
+      const finalPayable = rows.reduce((sum, row) => sum + row.finalPayable, 0);
       const paidAmount = rows.reduce((sum, row) => sum + row.paidAmount, 0);
-      const unpaidAmount = Math.max(0, payableAmount - paidAmount);
+      const progressUnpaid = Math.max(0, progressPayable - paidAmount);
+      const finalUnpaid = Math.max(0, finalPayable - paidAmount);
 
       return {
         key,
@@ -324,29 +361,42 @@ function SupplierCostDashboard() {
         contractCount: rows.length,
         settlementAmount,
         payableAmount,
+        progressPayable,
+        finalPayable,
         paidAmount,
-        unpaidAmount,
-        paymentRate: paymentRate(paidAmount, payableAmount),
-        rows: [...rows].sort((a, b) => b.unpaidAmount - a.unpaidAmount),
-        suppliers: Array.from(supplierMap.values()).sort((a, b) => b.unpaidAmount - a.unpaidAmount),
+        unpaidAmount: progressUnpaid,
+        progressUnpaid,
+        finalUnpaid,
+        paymentRate: paymentRate(paidAmount, progressPayable),
+        paymentRatio: paymentRate(paidAmount, progressPayable),
+        rows: [...rows].sort((a, b) => b.progressUnpaid - a.progressUnpaid),
+        suppliers: Array.from(supplierMap.values()).sort((a, b) => b.progressUnpaid - a.progressUnpaid),
       };
-    }).sort((a, b) => b.unpaidAmount - a.unpaidAmount);
+    }).sort((a, b) => b.progressUnpaid - a.progressUnpaid);
   }, [filteredRows]);
 
   const stats = useMemo(() => {
     const settlementAmount = projectSummaries.reduce((sum, project) => sum + project.settlementAmount, 0);
     const payableAmount = projectSummaries.reduce((sum, project) => sum + project.payableAmount, 0);
+    const progressPayable = projectSummaries.reduce((sum, project) => sum + project.progressPayable, 0);
+    const finalPayable = projectSummaries.reduce((sum, project) => sum + project.finalPayable, 0);
     const paidAmount = projectSummaries.reduce((sum, project) => sum + project.paidAmount, 0);
-    const unpaidAmount = Math.max(0, payableAmount - paidAmount);
+    const progressUnpaid = Math.max(0, progressPayable - paidAmount);
+    const finalUnpaid = Math.max(0, finalPayable - paidAmount);
     return {
       projectCount: projectSummaries.length,
       supplierCount: new Set(filteredRows.map((row) => row.supplierId || row.supplierName)).size,
       contractCount: filteredRows.length,
       settlementAmount,
       payableAmount,
+      progressPayable,
+      finalPayable,
       paidAmount,
-      unpaidAmount,
-      paymentRate: paymentRate(paidAmount, payableAmount),
+      unpaidAmount: progressUnpaid,
+      progressUnpaid,
+      finalUnpaid,
+      paymentRate: paymentRate(paidAmount, progressPayable),
+      paymentRatio: paymentRate(paidAmount, progressPayable),
     };
   }, [projectSummaries, filteredRows]);
 
@@ -364,22 +414,26 @@ function SupplierCostDashboard() {
       项目名称: project.projectName,
       供应商数量: project.supplierCount,
       合同数量: project.contractCount,
+      付款比例: `${project.paymentRatio.toFixed(1)}%`,
       结算金额: project.settlementAmount,
-      应付金额: project.payableAmount,
+      进度应付款: project.progressPayable,
+      决算应付款: project.finalPayable,
       已付金额: project.paidAmount,
-      未付金额: project.unpaidAmount,
-      付款率: `${project.paymentRate.toFixed(1)}%`,
+      进度未付: project.progressUnpaid,
+      决算未付: project.finalUnpaid,
     }));
 
     summaryRows.push({
       项目名称: '合计',
       供应商数量: stats.supplierCount,
       合同数量: stats.contractCount,
+      付款比例: `${stats.paymentRatio.toFixed(1)}%`,
       结算金额: stats.settlementAmount,
-      应付金额: stats.payableAmount,
+      进度应付款: stats.progressPayable,
+      决算应付款: stats.finalPayable,
       已付金额: stats.paidAmount,
-      未付金额: stats.unpaidAmount,
-      付款率: `${stats.paymentRate.toFixed(1)}%`,
+      进度未付: stats.progressUnpaid,
+      决算未付: stats.finalUnpaid,
     });
 
     const detailRows = projectSummaries.flatMap((project) => (
@@ -388,10 +442,13 @@ function SupplierCostDashboard() {
         供应商: row.supplierName,
         合同名称: row.contractName,
         合同编号: row.contractNo,
+        付款比例: `${row.paymentRatio.toFixed(1)}%`,
         结算金额: row.settlementAmount,
-        应付金额: row.payableAmount,
+        进度应付款: row.progressPayable,
+        决算应付款: row.finalPayable,
         已付金额: row.paidAmount,
-        未付金额: row.unpaidAmount,
+        进度未付: row.progressUnpaid,
+        决算未付: row.finalUnpaid,
       }))
     ));
 
@@ -468,10 +525,12 @@ function SupplierCostDashboard() {
               <KpiCard label="供应商数量" value={stats.supplierCount} />
               <KpiCard label="合同数量" value={stats.contractCount} />
               <KpiCard label="结算金额" value={stats.settlementAmount} amountMode />
-              <KpiCard label="应付金额" value={stats.payableAmount} amountMode />
+              <KpiCard label="进度应付款" value={stats.progressPayable} amountMode />
+              <KpiCard label="决算应付款" value={stats.finalPayable} amountMode />
               <KpiCard label="已付金额" value={stats.paidAmount} amountMode valueClassName="text-emerald-700" />
-              <KpiCard label="未付金额" value={stats.unpaidAmount} amountMode valueClassName="text-red-700" />
-              <KpiCard label="付款率" value={stats.paymentRate} percentMode />
+              <KpiCard label="进度未付" value={stats.progressUnpaid} amountMode valueClassName="text-amber-700" />
+              <KpiCard label="决算未付" value={stats.finalUnpaid} amountMode valueClassName="text-red-700" />
+              <KpiCard label="付款比例" value={stats.paymentRatio} percentMode />
             </>
           }
         />
@@ -483,7 +542,7 @@ function SupplierCostDashboard() {
               <div>
                 <CardTitle className="text-base">项目供应商成本台账</CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  结算金额取供应商结算记录，应付金额取结算单应付金额，已付金额取有效付款记录，未付金额=应付金额-已付金额。
+                  进度应付款取结算单应付金额，决算应付款取结算金额，已付金额取有效付款记录；付款比例=已付金额/进度应付款。
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">
@@ -493,24 +552,26 @@ function SupplierCostDashboard() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full text-sm" style={{ minWidth: 980 }}>
+              <table className="w-full text-sm" style={{ minWidth: 1240 }}>
                 <thead>
                   <tr className="border-b bg-slate-50 text-xs text-slate-600">
                     <th className="w-10 p-3 text-left"></th>
                     <th className="p-3 text-left">项目名称</th>
                     <th className="p-3 text-right">供应商数</th>
                     <th className="p-3 text-right">合同数</th>
+                    <th className="p-3 text-right">付款比例</th>
                     <th className="p-3 text-right">结算金额</th>
-                    <th className="p-3 text-right">应付金额</th>
+                    <th className="p-3 text-right">进度应付款</th>
+                    <th className="p-3 text-right">决算应付款</th>
                     <th className="p-3 text-right">已付金额</th>
-                    <th className="p-3 text-right">未付金额</th>
-                    <th className="p-3 text-right">付款率</th>
+                    <th className="p-3 text-right">进度未付</th>
+                    <th className="p-3 text-right">决算未付</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projectSummaries.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-sm text-muted-foreground">暂无供应商成本数据</td>
+                      <td colSpan={11} className="p-8 text-center text-sm text-muted-foreground">暂无供应商成本数据</td>
                     </tr>
                   ) : projectSummaries.map((project) => {
                     const expanded = expandedProjects.has(project.key);
@@ -528,11 +589,13 @@ function SupplierCostDashboard() {
                     <td className="p-3">合计</td>
                     <td className="p-3 text-right">{stats.supplierCount}</td>
                     <td className="p-3 text-right">{stats.contractCount}</td>
+                    <td className="p-3 text-right">{stats.paymentRatio.toFixed(1)}%</td>
                     <td className="p-3 text-right"><AmountCell value={stats.settlementAmount} /></td>
-                    <td className="p-3 text-right"><AmountCell value={stats.payableAmount} /></td>
+                    <td className="p-3 text-right"><AmountCell value={stats.progressPayable} /></td>
+                    <td className="p-3 text-right"><AmountCell value={stats.finalPayable} /></td>
                     <td className="p-3 text-right"><AmountCell value={stats.paidAmount} tone="success" /></td>
-                    <td className="p-3 text-right"><AmountCell value={stats.unpaidAmount} tone="danger" /></td>
-                    <td className="p-3 text-right">{stats.paymentRate.toFixed(1)}%</td>
+                    <td className="p-3 text-right"><AmountCell value={stats.progressUnpaid} tone="warning" /></td>
+                    <td className="p-3 text-right"><AmountCell value={stats.finalUnpaid} tone="danger" /></td>
                   </tr>
                 </tbody>
               </table>
@@ -553,27 +616,33 @@ function SupplierCostDashboard() {
                       <div className="min-w-0">
                         <div className="truncate font-medium text-slate-900">{project.projectName}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
-                          {project.supplierCount} 个供应商 · {project.contractCount} 份合同 · 付款率 {project.paymentRate.toFixed(1)}%
+                          {project.supplierCount} 个供应商 · {project.contractCount} 份合同 · 付款比例 {project.paymentRatio.toFixed(1)}%
                         </div>
                       </div>
                       {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                     </button>
                     <div className="grid grid-cols-2 gap-2 border-t bg-slate-50/70 p-3 text-xs">
                       <MobileAmount label="结算" value={project.settlementAmount} />
-                      <MobileAmount label="应付" value={project.payableAmount} />
+                      <MobileAmount label="进度应付" value={project.progressPayable} />
+                      <MobileAmount label="决算应付" value={project.finalPayable} />
                       <MobileAmount label="已付" value={project.paidAmount} tone="success" />
-                      <MobileAmount label="未付" value={project.unpaidAmount} tone="danger" />
+                      <MobileAmount label="进度未付" value={project.progressUnpaid} tone="warning" />
+                      <MobileAmount label="决算未付" value={project.finalUnpaid} tone="danger" />
                     </div>
                     {expanded && (
                       <div className="space-y-2 border-t p-3">
                         {project.suppliers.map((supplier) => (
                           <div key={supplier.key} className="rounded-md bg-slate-50 p-2 text-xs">
-                            <div className="font-medium text-slate-800">{supplier.supplierName}</div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium text-slate-800">{supplier.supplierName}</div>
+                              <div className="text-muted-foreground">{supplier.paymentRatio.toFixed(1)}%</div>
+                            </div>
                             <div className="mt-2 grid grid-cols-2 gap-2">
-                              <MobileAmount label="应付" value={supplier.payableAmount} />
+                              <MobileAmount label="进度应付" value={supplier.progressPayable} />
+                              <MobileAmount label="决算应付" value={supplier.finalPayable} />
                               <MobileAmount label="已付" value={supplier.paidAmount} tone="success" />
-                              <MobileAmount label="未付" value={supplier.unpaidAmount} tone="danger" />
-                              <MobileAmount label="结算" value={supplier.settlementAmount} />
+                              <MobileAmount label="进度未付" value={supplier.progressUnpaid} tone="warning" />
+                              <MobileAmount label="决算未付" value={supplier.finalUnpaid} tone="danger" />
                             </div>
                           </div>
                         ))}
@@ -610,27 +679,32 @@ function FragmentRows({
         <td className="p-3 font-medium text-slate-900">{project.projectName}</td>
         <td className="p-3 text-right">{project.supplierCount}</td>
         <td className="p-3 text-right">{project.contractCount}</td>
+        <td className="p-3 text-right tabular-nums">{project.paymentRatio.toFixed(1)}%</td>
         <td className="p-3 text-right"><AmountCell value={project.settlementAmount} /></td>
-        <td className="p-3 text-right"><AmountCell value={project.payableAmount} /></td>
+        <td className="p-3 text-right"><AmountCell value={project.progressPayable} /></td>
+        <td className="p-3 text-right"><AmountCell value={project.finalPayable} /></td>
         <td className="p-3 text-right"><AmountCell value={project.paidAmount} tone="success" /></td>
-        <td className="p-3 text-right"><AmountCell value={project.unpaidAmount} tone={project.unpaidAmount > 0 ? 'danger' : 'success'} /></td>
-        <td className="p-3 text-right tabular-nums">{project.paymentRate.toFixed(1)}%</td>
+        <td className="p-3 text-right"><AmountCell value={project.progressUnpaid} tone={project.progressUnpaid > 0 ? 'warning' : 'success'} /></td>
+        <td className="p-3 text-right"><AmountCell value={project.finalUnpaid} tone={project.finalUnpaid > 0 ? 'danger' : 'success'} /></td>
       </tr>
       {expanded && (
         <tr className="border-b bg-slate-50/60">
           <td className="p-0"></td>
-          <td colSpan={8} className="p-3">
+          <td colSpan={10} className="p-3">
             <div className="overflow-hidden rounded-md border bg-white">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs" style={{ minWidth: 980 }}>
                 <thead>
                   <tr className="border-b bg-slate-50 text-slate-500">
                     <th className="p-2 text-left">供应商</th>
                     <th className="p-2 text-left">合同名称</th>
                     <th className="p-2 text-left">合同编号</th>
+                    <th className="p-2 text-right">付款比例</th>
                     <th className="p-2 text-right">结算金额</th>
-                    <th className="p-2 text-right">应付金额</th>
+                    <th className="p-2 text-right">进度应付款</th>
+                    <th className="p-2 text-right">决算应付款</th>
                     <th className="p-2 text-right">已付金额</th>
-                    <th className="p-2 text-right">未付金额</th>
+                    <th className="p-2 text-right">进度未付</th>
+                    <th className="p-2 text-right">决算未付</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -639,10 +713,13 @@ function FragmentRows({
                       <td className="p-2">{row.supplierName}</td>
                       <td className="p-2">{row.contractName}</td>
                       <td className="p-2">{row.contractNo}</td>
+                      <td className="p-2 text-right tabular-nums">{row.paymentRatio.toFixed(1)}%</td>
                       <td className="p-2 text-right">{formatMoney(row.settlementAmount)}</td>
-                      <td className="p-2 text-right">{formatMoney(row.payableAmount)}</td>
+                      <td className="p-2 text-right">{formatMoney(row.progressPayable)}</td>
+                      <td className="p-2 text-right">{formatMoney(row.finalPayable)}</td>
                       <td className="p-2 text-right text-emerald-700">{formatMoney(row.paidAmount)}</td>
-                      <td className="p-2 text-right text-red-700">{formatMoney(row.unpaidAmount)}</td>
+                      <td className="p-2 text-right text-amber-700">{formatMoney(row.progressUnpaid)}</td>
+                      <td className="p-2 text-right text-red-700">{formatMoney(row.finalUnpaid)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -655,8 +732,14 @@ function FragmentRows({
   );
 }
 
-function MobileAmount({ label, value, tone }: { label: string; value: number; tone?: 'success' | 'danger' }) {
-  const toneClass = tone === 'success' ? 'text-emerald-700' : tone === 'danger' ? 'text-red-700' : 'text-slate-900';
+function MobileAmount({ label, value, tone }: { label: string; value: number; tone?: 'success' | 'warning' | 'danger' }) {
+  const toneClass = tone === 'success'
+    ? 'text-emerald-700'
+    : tone === 'warning'
+      ? 'text-amber-700'
+      : tone === 'danger'
+        ? 'text-red-700'
+        : 'text-slate-900';
   return (
     <div className="rounded bg-white p-2">
       <div className="text-muted-foreground">{label}</div>
