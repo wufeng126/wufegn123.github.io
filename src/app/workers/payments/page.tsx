@@ -59,6 +59,49 @@ interface BatchGroup {
   payments: Payment[];
 }
 
+interface ImportIssue {
+  row: number;
+  type: 'blocked' | 'confirm' | 'warning';
+  code: string;
+  message: string;
+}
+
+interface ImportSummary {
+  totalRows: number;
+  importable: number;
+  blocked: number;
+  confirm: number;
+  warning: number;
+  missingRoster: number;
+  missingSalary: number;
+}
+
+interface ImportResult {
+  show: boolean;
+  mode: 'idle' | 'preview' | 'done' | 'error';
+  count: number;
+  readyRows?: Record<string, unknown>[];
+  issues?: ImportIssue[];
+  summary?: ImportSummary;
+  message?: string;
+  confirming?: boolean;
+  autoCreatedWorkers?: number;
+  unmatchedSalary?: number;
+  success?: boolean;
+  warnings: string[];
+  notInRoster: { row: number; name: string }[];
+}
+
+const emptyImportSummary: ImportSummary = {
+  totalRows: 0,
+  importable: 0,
+  blocked: 0,
+  confirm: 0,
+  warning: 0,
+  missingRoster: 0,
+  missingSalary: 0,
+};
+
 export default function WorkerPaymentsPage() {
   const { toast } = useToast();
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -239,13 +282,17 @@ export default function WorkerPaymentsPage() {
     }
   };
 
-  const [importResult, setImportResult] = useState<{
-    show: boolean;
-    success: boolean;
-    count: number;
-    warnings: string[];
-    notInRoster: { row: number; name: string }[];
-  }>({ show: false, success: false, count: 0, warnings: [], notInRoster: [] });
+  const [importResult, setImportResult] = useState<ImportResult>({
+    show: false,
+    mode: 'idle',
+    count: 0,
+    readyRows: [],
+    issues: [],
+    summary: emptyImportSummary,
+    confirming: false,
+    warnings: [],
+    notInRoster: [],
+  });
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -266,16 +313,19 @@ export default function WorkerPaymentsPage() {
       if (res.ok) {
         setImportResult({
           show: true,
-          success: true,
-          count: result.count || 0,
-          warnings: result.warnings || [],
-          notInRoster: result.notInRoster || [],
+          mode: 'preview',
+          count: 0,
+          readyRows: result.readyRows || [],
+          issues: result.issues || [],
+          summary: result.summary || emptyImportSummary,
+          confirming: false,
+          warnings: [],
+          notInRoster: [],
         });
-        fetchPayments();
       } else {
         setImportResult({
           show: true,
-          success: false,
+          mode: 'error',
           count: 0,
           warnings: [result.error || '导入失败'],
           notInRoster: [],
@@ -285,7 +335,7 @@ export default function WorkerPaymentsPage() {
       console.error('导入失败:', error);
       setImportResult({
         show: true,
-        success: false,
+        mode: 'error',
         count: 0,
         warnings: ['导入失败，请检查文件格式'],
         notInRoster: [],
@@ -293,6 +343,50 @@ export default function WorkerPaymentsPage() {
     }
 
     e.target.value = '';
+  };
+
+  const handleConfirmImport = async () => {
+    const rows = importResult.readyRows || [];
+    if (rows.length === 0) return;
+
+    setImportResult(prev => ({ ...prev, confirming: true }));
+    try {
+      const res = await fetch('/api/worker-payments/batch', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'confirm', rows }),
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        setImportResult(prev => ({
+          ...prev,
+          mode: 'error',
+          message: result.error || '确认导入失败',
+          confirming: false,
+        }));
+        return;
+      }
+
+      setImportResult(prev => ({
+        ...prev,
+        mode: 'done',
+        count: result.count || 0,
+        autoCreatedWorkers: result.autoCreatedWorkers || 0,
+        unmatchedSalary: result.unmatchedSalary || 0,
+        confirming: false,
+      }));
+      fetchPayments();
+    } catch (error) {
+      console.error('确认导入失败:', error);
+      setImportResult(prev => ({
+        ...prev,
+        mode: 'error',
+        message: '确认导入失败，请稍后重试',
+        confirming: false,
+      }));
+    }
   };
 
   const handleExport = () => {
@@ -410,6 +504,11 @@ export default function WorkerPaymentsPage() {
 
   const isProjectExpanded = (projectKey: string) => expandedProjects.has(projectKey);
   const isBatchExpanded = (batchKey: string) => expandedBatches.has(batchKey);
+  const importSummary = importResult.summary || emptyImportSummary;
+  const importIssues = importResult.issues || [];
+  const blockedIssues = importIssues.filter(issue => issue.type === 'blocked');
+  const confirmIssues = importIssues.filter(issue => issue.type === 'confirm');
+  const warningIssues = importIssues.filter(issue => issue.type === 'warning');
 
   return (
     <div className="space-y-5">
@@ -864,7 +963,131 @@ export default function WorkerPaymentsPage() {
       </AlertDialog>
 
       {/* 导入结果对话框 */}
+      {/* 工资发放导入预检与确认 */}
       <Dialog open={importResult.show} onOpenChange={(open) => { if (!open) setImportResult(prev => ({ ...prev, show: false })); }}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {importResult.mode === 'done' ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : importResult.mode === 'error' ? (
+                <X className="h-5 w-5 text-red-500" />
+              ) : (
+                <FileText className="h-5 w-5 text-blue-500" />
+              )}
+              {importResult.mode === 'preview' && '工资发放导入预检'}
+              {importResult.mode === 'done' && '工资发放导入完成'}
+              {importResult.mode === 'error' && '工资发放导入失败'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {importResult.mode === 'preview' && (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">总行数</p>
+                    <p className="mt-1 text-xl font-semibold text-gray-900">{importSummary.totalRows}</p>
+                  </div>
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="text-xs text-green-700">可导入</p>
+                    <p className="mt-1 text-xl font-semibold text-green-700">{importSummary.importable}</p>
+                  </div>
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-xs text-red-700">已拦截</p>
+                    <p className="mt-1 text-xl font-semibold text-red-700">{importSummary.blocked}</p>
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs text-amber-700">需确认</p>
+                    <p className="mt-1 text-xl font-semibold text-amber-700">{importSummary.confirm}</p>
+                  </div>
+                </div>
+
+                {blockedIssues.length > 0 && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <p className="mb-2 text-sm font-medium text-red-800">以下记录不会导入</p>
+                    <div className="max-h-40 space-y-1 overflow-y-auto">
+                      {blockedIssues.slice(0, 30).map((issue, idx) => (
+                        <p key={`${issue.row}-${issue.code}-${idx}`} className="text-xs text-red-700">
+                          第{issue.row}行：{issue.message}
+                        </p>
+                      ))}
+                      {blockedIssues.length > 30 && <p className="text-xs text-red-500">还有 {blockedIssues.length - 30} 条未展示</p>}
+                    </div>
+                  </div>
+                )}
+
+                {confirmIssues.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Users className="h-4 w-4 text-amber-600" />
+                      <p className="text-sm font-medium text-amber-800">以下记录需要你确认后导入</p>
+                    </div>
+                    <div className="max-h-40 space-y-1 overflow-y-auto">
+                      {confirmIssues.slice(0, 30).map((issue, idx) => (
+                        <p key={`${issue.row}-${issue.code}-${idx}`} className="text-xs text-amber-700">
+                          第{issue.row}行：{issue.message}
+                        </p>
+                      ))}
+                      {confirmIssues.length > 30 && <p className="text-xs text-amber-600">还有 {confirmIssues.length - 30} 条未展示</p>}
+                    </div>
+                  </div>
+                )}
+
+                {warningIssues.length > 0 && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <p className="mb-2 text-sm font-medium text-blue-800">导入提醒</p>
+                    <div className="max-h-32 space-y-1 overflow-y-auto">
+                      {warningIssues.slice(0, 20).map((issue, idx) => (
+                        <p key={`${issue.row}-${issue.code}-${idx}`} className="text-xs text-blue-700">
+                          第{issue.row}行：{issue.message}
+                        </p>
+                      ))}
+                      {warningIssues.length > 20 && <p className="text-xs text-blue-600">还有 {warningIssues.length - 20} 条未展示</p>}
+                    </div>
+                  </div>
+                )}
+
+                {importSummary.importable === 0 && (
+                  <p className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    本次没有可导入记录，请根据上方拦截原因调整表格后重新上传。
+                  </p>
+                )}
+              </>
+            )}
+
+            {importResult.mode === 'done' && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                <p className="text-sm font-medium text-green-800">
+                  成功导入 <span className="text-lg font-bold">{importResult.count}</span> 条工资发放记录。
+                </p>
+                <p className="mt-2 text-xs text-green-700">
+                  自动新增工人档案 {importResult.autoCreatedWorkers || 0} 人；未匹配工资核算记录 {importResult.unmatchedSalary || 0} 条。
+                </p>
+              </div>
+            )}
+
+            {importResult.mode === 'error' && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{importResult.message || importResult.warnings[0] || '导入失败'}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setImportResult(prev => ({ ...prev, show: false }))}>
+              关闭
+            </Button>
+            {importResult.mode === 'preview' && (importResult.readyRows || []).length > 0 && (
+              <Button onClick={handleConfirmImport} disabled={importResult.confirming} className="bg-blue-600 hover:bg-blue-700">
+                {importResult.confirming ? '正在导入...' : `确认导入 ${importSummary.importable} 条`}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={false} onOpenChange={(open) => { if (!open) setImportResult(prev => ({ ...prev, show: false })); }}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
