@@ -14,8 +14,6 @@ import {
   HandCoins,
   Landmark,
   ReceiptText,
-  ShieldCheck,
-  TrendingUp,
   Users,
   WalletCards,
 } from 'lucide-react';
@@ -290,6 +288,55 @@ export default function BusinessAnalysisPreviewPage() {
           })}
         </section>
 
+        <section className="mt-5 rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold">项目应收台账</h2>
+              <p className="mt-1 text-xs text-slate-500">老板先看项目整体，再点进项目查看产值结算、回款记录、质保金和账期明细。</p>
+            </div>
+            <button className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm">
+              查看全部项目
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-[1080px] w-full border-collapse text-left text-sm">
+              <thead className="bg-slate-50 text-xs text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-medium">项目名称</th>
+                  <th className="px-4 py-3 font-medium">状态</th>
+                  <th className="px-4 py-3 font-medium">付款比例</th>
+                  <th className="px-4 py-3 text-right font-medium">产值结算</th>
+                  <th className="px-4 py-3 text-right font-medium">按比例应收</th>
+                  <th className="px-4 py-3 text-right font-medium">已收</th>
+                  <th className="px-4 py-3 text-right font-medium">未收</th>
+                  <th className="px-4 py-3 text-right font-medium">质保金</th>
+                  <th className="px-4 py-3 font-medium">应收账期</th>
+                  <th className="px-5 py-3 font-medium">风险</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {projectRows.map(row => (
+                  <tr key={row.name} className="hover:bg-slate-50">
+                    <td className="px-5 py-4 font-medium text-slate-950">{row.name}</td>
+                    <td className="px-4 py-4 text-slate-600">{row.status}</td>
+                    <td className="px-4 py-4 text-slate-600">{row.ratio}</td>
+                    <td className="px-4 py-4 text-right tabular-nums">{currency(row.settlement)}</td>
+                    <td className="px-4 py-4 text-right tabular-nums">{currency(row.receivable)}</td>
+                    <td className="px-4 py-4 text-right tabular-nums text-emerald-700">{currency(row.received)}</td>
+                    <td className="px-4 py-4 text-right tabular-nums text-amber-700">{currency(row.unpaid)}</td>
+                    <td className="px-4 py-4 text-right tabular-nums">{currency(row.retention)}</td>
+                    <td className="px-4 py-4 text-slate-600">{row.aging}</td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${row.riskTone}`}>{row.risk}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
           <article className="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
@@ -355,55 +402,6 @@ export default function BusinessAnalysisPreviewPage() {
           </article>
         </section>
 
-        <section className="mt-5 rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-            <div>
-              <h2 className="text-base font-semibold">项目应收台账</h2>
-              <p className="mt-1 text-xs text-slate-500">老板先看项目整体，再点进项目查看产值结算、回款记录、质保金和账期明细。</p>
-            </div>
-            <button className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm">
-              查看全部项目
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[1080px] w-full border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500">
-                <tr>
-                  <th className="px-5 py-3 font-medium">项目名称</th>
-                  <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">付款比例</th>
-                  <th className="px-4 py-3 text-right font-medium">产值结算</th>
-                  <th className="px-4 py-3 text-right font-medium">按比例应收</th>
-                  <th className="px-4 py-3 text-right font-medium">已收</th>
-                  <th className="px-4 py-3 text-right font-medium">未收</th>
-                  <th className="px-4 py-3 text-right font-medium">质保金</th>
-                  <th className="px-4 py-3 font-medium">应收账期</th>
-                  <th className="px-5 py-3 font-medium">风险</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {projectRows.map(row => (
-                  <tr key={row.name} className="hover:bg-slate-50">
-                    <td className="px-5 py-4 font-medium text-slate-950">{row.name}</td>
-                    <td className="px-4 py-4 text-slate-600">{row.status}</td>
-                    <td className="px-4 py-4 text-slate-600">{row.ratio}</td>
-                    <td className="px-4 py-4 text-right tabular-nums">{currency(row.settlement)}</td>
-                    <td className="px-4 py-4 text-right tabular-nums">{currency(row.receivable)}</td>
-                    <td className="px-4 py-4 text-right tabular-nums text-emerald-700">{currency(row.received)}</td>
-                    <td className="px-4 py-4 text-right tabular-nums text-amber-700">{currency(row.unpaid)}</td>
-                    <td className="px-4 py-4 text-right tabular-nums">{currency(row.retention)}</td>
-                    <td className="px-4 py-4 text-slate-600">{row.aging}</td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${row.riskTone}`}>{row.risk}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
         <section className="mt-5 grid gap-4 lg:grid-cols-4">
           {detailCards.map(card => {
             const Icon = card.icon;
@@ -432,76 +430,6 @@ export default function BusinessAnalysisPreviewPage() {
           })}
         </section>
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold">落地规则预览</h2>
-                <p className="mt-1 text-xs text-slate-500">后续真正改业务时按这套规则接数据。</p>
-              </div>
-            </div>
-            <div className="space-y-3 text-sm leading-6 text-slate-600">
-              <p>1. 项目档案维护不同状态下的甲方付款比例。</p>
-              <p>2. 产值结算确认后，自动计算按比例应收。</p>
-              <p>3. 回款录入后，自动计算已收、未收和超期应收。</p>
-              <p>4. 质保金账期从质保到期日开始计算。</p>
-            </div>
-          </article>
-
-          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">12 个月资金趋势</h2>
-                <p className="mt-1 text-xs text-slate-500">预览用简化曲线展示，正式页面可接真实月度汇总。</p>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
-                <TrendingUp className="h-4 w-4" />
-                回款与付款对比
-              </div>
-            </div>
-            <div className="h-[220px] rounded-lg border border-slate-100 bg-slate-50 p-4">
-              <svg viewBox="0 0 720 180" className="h-full w-full" role="img" aria-label="资金趋势预览图">
-                <path d="M20 150H700" stroke="#cbd5e1" strokeWidth="1" />
-                <path d="M20 105H700" stroke="#e2e8f0" strokeWidth="1" />
-                <path d="M20 60H700" stroke="#e2e8f0" strokeWidth="1" />
-                <path
-                  d="M20 126 C80 108, 112 92, 155 98 C210 106, 240 62, 300 72 C362 82, 390 44, 450 50 C520 58, 560 38, 700 42"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeLinecap="round"
-                  strokeWidth="4"
-                />
-                <path
-                  d="M20 142 C82 132, 120 128, 170 116 C230 102, 260 118, 320 106 C380 94, 418 112, 478 96 C548 78, 590 84, 700 70"
-                  fill="none"
-                  stroke="#6366f1"
-                  strokeLinecap="round"
-                  strokeWidth="4"
-                />
-                <g className="text-[13px] fill-slate-500">
-                  <text x="20" y="174">1月</text>
-                  <text x="190" y="174">4月</text>
-                  <text x="360" y="174">7月</text>
-                  <text x="530" y="174">10月</text>
-                  <text x="680" y="174">12月</text>
-                </g>
-              </svg>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-5 rounded-full bg-emerald-500" />
-                甲方回款
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-5 rounded-full bg-indigo-500" />
-                对外付款
-              </span>
-            </div>
-          </article>
-        </section>
       </div>
     </main>
   );

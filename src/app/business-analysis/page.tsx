@@ -17,8 +17,6 @@ import {
   Loader2,
   ReceiptText,
   RefreshCw,
-  ShieldCheck,
-  TrendingUp,
   Users,
   WalletCards,
 } from 'lucide-react';
@@ -436,83 +434,6 @@ function BusinessOverviewPage() {
           })}
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-          <article className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-              <div>
-                <h2 className="text-base font-semibold">收付款结构</h2>
-                <p className="mt-1 text-xs text-slate-500">用同一个口径看公司应该收多少、已经收多少，以及还要对外支付多少。</p>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-                <CalendarClock className="h-4 w-4" />
-                应收未收 {formatWan(receivableAmount)}
-              </div>
-            </div>
-            <div className="grid gap-6 p-5 lg:grid-cols-2">
-              <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="font-semibold">甲方应收</div>
-                  <div className="text-xs text-slate-500">产值结算 / 回款</div>
-                </div>
-                <div className="space-y-4">
-                  <ProgressBar label="累计产值结算" value={settlementAmount} total={Math.max(settlementAmount, receivedAmount + receivableAmount)} color="bg-cyan-500" />
-                  <ProgressBar label="已收回款" value={receivedAmount} total={Math.max(settlementAmount, receivedAmount + receivableAmount)} color="bg-emerald-500" />
-                  <ProgressBar label="应收未收" value={receivableAmount} total={Math.max(settlementAmount, receivedAmount + receivableAmount)} color="bg-amber-500" />
-                </div>
-              </div>
-              <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="font-semibold">对外应付</div>
-                  <div className="text-xs text-slate-500">供应商 + 工资</div>
-                </div>
-                <div className="space-y-4">
-                  <ProgressBar label="累计应付" value={totalPayable} total={totalPayable} color="bg-violet-500" />
-                  <ProgressBar label="已付款项" value={paidAmount} total={totalPayable} color="bg-blue-500" />
-                  <ProgressBar label="应付未付" value={payableUnpaid} total={totalPayable} color="bg-rose-500" />
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-base font-semibold">经营状态提醒</h2>
-              <p className="mt-1 text-xs text-slate-500">总览只负责告诉老板哪里需要看，细节仍回到原模块处理。</p>
-            </div>
-            <div className="grid gap-3 p-5 sm:grid-cols-2">
-              {trendItems.map(item => (
-                <div key={item.name} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-                  <div className="text-xs text-slate-500">{item.name}</div>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <div className="text-xl font-semibold tabular-nums">{item.value}</div>
-                    <div
-                      className={[
-                        'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
-                        item.positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
-                      ].join(' ')}
-                    >
-                      {item.positive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                      {item.delta}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {warnings.length > 0 && (
-              <div className="border-t border-slate-100 px-5 pb-5 pt-2">
-                <div className="mb-2 text-xs font-medium text-slate-500">成本利润中心预警</div>
-                <div className="space-y-2">
-                  {warnings.slice(0, 3).map(item => (
-                    <div key={`${item.projectId}-${item.message}`} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      {item.projectName}：{item.message}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </article>
-        </section>
-
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div>
@@ -623,6 +544,83 @@ function BusinessOverviewPage() {
           </div>
         </section>
 
+        <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+          <article className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold">收付款结构</h2>
+                <p className="mt-1 text-xs text-slate-500">用同一个口径看公司应该收多少、已经收多少，以及还要对外支付多少。</p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                <CalendarClock className="h-4 w-4" />
+                应收未收 {formatWan(receivableAmount)}
+              </div>
+            </div>
+            <div className="grid gap-6 p-5 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="font-semibold">甲方应收</div>
+                  <div className="text-xs text-slate-500">产值结算 / 回款</div>
+                </div>
+                <div className="space-y-4">
+                  <ProgressBar label="累计产值结算" value={settlementAmount} total={Math.max(settlementAmount, receivedAmount + receivableAmount)} color="bg-cyan-500" />
+                  <ProgressBar label="已收回款" value={receivedAmount} total={Math.max(settlementAmount, receivedAmount + receivableAmount)} color="bg-emerald-500" />
+                  <ProgressBar label="应收未收" value={receivableAmount} total={Math.max(settlementAmount, receivedAmount + receivableAmount)} color="bg-amber-500" />
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="font-semibold">对外应付</div>
+                  <div className="text-xs text-slate-500">供应商 + 工资</div>
+                </div>
+                <div className="space-y-4">
+                  <ProgressBar label="累计应付" value={totalPayable} total={totalPayable} color="bg-violet-500" />
+                  <ProgressBar label="已付款项" value={paidAmount} total={totalPayable} color="bg-blue-500" />
+                  <ProgressBar label="应付未付" value={payableUnpaid} total={totalPayable} color="bg-rose-500" />
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-semibold">经营状态提醒</h2>
+              <p className="mt-1 text-xs text-slate-500">总览只负责告诉老板哪里需要看，细节仍回到原模块处理。</p>
+            </div>
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              {trendItems.map(item => (
+                <div key={item.name} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                  <div className="text-xs text-slate-500">{item.name}</div>
+                  <div className="mt-2 flex items-end justify-between gap-3">
+                    <div className="text-xl font-semibold tabular-nums">{item.value}</div>
+                    <div
+                      className={[
+                        'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
+                        item.positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
+                      ].join(' ')}
+                    >
+                      {item.positive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                      {item.delta}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {warnings.length > 0 && (
+              <div className="border-t border-slate-100 px-5 pb-5 pt-2">
+                <div className="mb-2 text-xs font-medium text-slate-500">成本利润中心预警</div>
+                <div className="space-y-2">
+                  {warnings.slice(0, 3).map(item => (
+                    <div key={`${item.projectId}-${item.message}`} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      {item.projectName}：{item.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </article>
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-4">
           {detailCards.map(card => {
             const Icon = card.icon;
@@ -651,64 +649,6 @@ function BusinessOverviewPage() {
           })}
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold">应收计算规则</h2>
-                <p className="mt-1 text-xs text-slate-500">项目档案补齐后，总览自动按状态付款比例计算。</p>
-              </div>
-            </div>
-            <div className="space-y-3 text-sm leading-6 text-slate-600">
-              <p>1. 项目档案维护不同状态下的甲方付款比例。</p>
-              <p>2. 开票金额确认后，自动计算按比例应收。</p>
-              <p>3. 回款录入后，自动计算已收、未收和超期应收。</p>
-              <p>4. 质保金账期从完工日期加质保期天数后开始计算。</p>
-            </div>
-          </article>
-
-          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">资金趋势占位</h2>
-                <p className="mt-1 text-xs text-slate-500">正式趋势图后续可接月度产值结算、回款和付款记录。</p>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
-                <TrendingUp className="h-4 w-4" />
-                回款与付款对比
-              </div>
-            </div>
-            <div className="h-[220px] rounded-lg border border-slate-100 bg-slate-50 p-4">
-              <svg viewBox="0 0 720 180" className="h-full w-full" role="img" aria-label="资金趋势预览图">
-                <path d="M20 150H700" stroke="#cbd5e1" strokeWidth="1" />
-                <path d="M20 105H700" stroke="#e2e8f0" strokeWidth="1" />
-                <path d="M20 60H700" stroke="#e2e8f0" strokeWidth="1" />
-                <path d="M20 126 C80 108, 112 92, 155 98 C210 106, 240 62, 300 72 C362 82, 390 44, 450 50 C520 58, 560 38, 700 42" fill="none" stroke="#10b981" strokeLinecap="round" strokeWidth="4" />
-                <path d="M20 142 C82 132, 120 128, 170 116 C230 102, 260 118, 320 106 C380 94, 418 112, 478 96 C548 78, 590 84, 700 70" fill="none" stroke="#6366f1" strokeLinecap="round" strokeWidth="4" />
-                <g className="text-[13px] fill-slate-500">
-                  <text x="20" y="174">1月</text>
-                  <text x="190" y="174">4月</text>
-                  <text x="360" y="174">7月</text>
-                  <text x="530" y="174">10月</text>
-                  <text x="680" y="174">12月</text>
-                </g>
-              </svg>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-5 rounded-full bg-emerald-500" />
-                甲方回款
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-5 rounded-full bg-indigo-500" />
-                对外付款
-              </span>
-            </div>
-          </article>
-        </section>
       </div>
     </main>
   );
