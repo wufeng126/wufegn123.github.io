@@ -1,43 +1,33 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, Component, type ReactNode } from 'react';
-import {
-  Building, RefreshCw, Database, TrendingUp, Wallet, CheckCircle,
-  Clock, AlertCircle, ChevronDown, ChevronRight, Download,
-  FileSpreadsheet, Filter
-} from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ComposedChart, Line
-} from 'recharts';
+import { Component, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ChevronDown, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { KpiCard, formatAmountSmart, formatPercent, RiskBadge } from '@/components/business/common';
-import { StandardDashboardLayout, FilterBar, KpiSection, ChartSection, LedgerSection, DashboardChartCard, DashboardSkeleton } from '@/components/dashboard/standard-layout';
-import { CollapsibleSection } from '@/components/dashboard/collapsible-section';
+import { KpiCard } from '@/components/business/common';
+import { DashboardSkeleton, FilterBar, KpiSection, StandardDashboardLayout } from '@/components/dashboard/standard-layout';
 import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/review-status';
-import * as XLSX from 'xlsx';
 
-// 错误边界组件
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: '' };
   }
+
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error: error.message };
   }
+
   render() {
     if (this.state.hasError) {
       return (
         <div className="p-8 text-center">
           <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <h2 className="text-lg font-semibold mb-2">页面加载出错</h2>
-          <p className="text-sm text-muted-foreground mb-4">{this.state.error}</p>
-          <Button onClick={() => { this.setState({ hasError: false, error: '' }); window.location.reload(); }}>
-            重新加载
-          </Button>
+          <h2 className="mb-2 text-lg font-semibold">页面加载出错</h2>
+          <p className="mb-4 text-sm text-muted-foreground">{this.state.error}</p>
+          <Button onClick={() => window.location.reload()}>重新加载</Button>
         </div>
       );
     }
@@ -45,126 +35,129 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
+type Contract = {
+  id: number;
+  supplier_id?: number | string | null;
+  project_id?: number | string | null;
+  contract_name?: string | null;
+  contract_no?: string | null;
+  contract_status?: string | null;
+  locked?: boolean | null;
+  supplier?: { id?: number | string | null; name?: string | null } | null;
+};
+
+type Settlement = {
+  id: number;
+  contract_id?: number | string | null;
+  settlement_amount?: number | string | null;
+  payable_amount?: number | string | null;
+  status?: string | null;
+};
+
+type Payment = {
+  id: number;
+  contract_id?: number | string | null;
+  payment_amount?: number | string | null;
+  amount?: number | string | null;
+  status?: string | null;
+};
+
+type Project = {
+  id: number;
+  name: string;
+};
+
+type Supplier = {
+  id: number;
+  name: string;
+};
+
+type ContractRow = {
+  id: number;
+  projectId: string;
+  projectName: string;
+  supplierId: string;
+  supplierName: string;
+  contractName: string;
+  contractNo: string;
+  settlementAmount: number;
+  payableAmount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+};
+
+type SupplierSummary = {
+  key: string;
+  supplierName: string;
+  contractCount: number;
+  settlementAmount: number;
+  payableAmount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+};
+
+type ProjectSummary = {
+  key: string;
+  projectId: string;
+  projectName: string;
+  supplierCount: number;
+  contractCount: number;
+  settlementAmount: number;
+  payableAmount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+  paymentRate: number;
+  rows: ContractRow[];
+  suppliers: SupplierSummary[];
+};
+
+function toNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return 0;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function toId(value: unknown) {
+  if (value === null || value === undefined || value === '') return '';
+  return String(value);
+}
+
+function formatMoney(value: number) {
+  return value.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatMoneyShort(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 100000000) return `${(value / 100000000).toFixed(2)}亿`;
+  if (abs >= 10000) return `${(value / 10000).toFixed(2)}万`;
+  return formatMoney(value);
+}
+
+function paymentRate(paidAmount: number, payableAmount: number) {
+  if (payableAmount <= 0) return 0;
+  return (paidAmount / payableAmount) * 100;
+}
+
+function AmountCell({ value, tone }: { value: number; tone?: 'success' | 'warning' | 'danger' }) {
+  const toneClass =
+    tone === 'success' ? 'text-emerald-700' :
+      tone === 'warning' ? 'text-amber-700' :
+        tone === 'danger' ? 'text-red-700' :
+          'text-gray-900';
+
+  return <span className={`tabular-nums font-medium ${toneClass}`}>{formatMoney(value)}</span>;
+}
+
 export default function SupplierCostBoardPage() {
   return (
     <ErrorBoundary>
-      <SupplierCostBoard />
+      <SupplierCostDashboard />
     </ErrorBoundary>
   );
 }
-
-function SupplierCostBoard() {
-  return <SupplierCostDashboard />;
-}
-
-// 辅助函数：确保数值类型
-function toNumber(val: unknown): number {
-  if (val === null || val === undefined) return 0;
-  if (typeof val === 'number') return val;
-  const num = Number(val);
-  return isNaN(num) ? 0 : num;
-}
-
-function isFinalSettlementType(type?: string | null) {
-  const normalized = String(type || '').trim().toLowerCase();
-  return (
-    normalized === 'final' ||
-    normalized === 'complete' ||
-    normalized === 'completed' ||
-    normalized.includes('\u7ed3\u7b97\u5b8c') ||
-    normalized.includes('\u6700\u7ec8') ||
-    normalized.includes('\u603b\u7ed3') ||
-    normalized.includes('\u51b3\u7b97')
-  );
-}
-
-interface Contract {
-  id: number;
-  supplier_id: number;
-  project_id: number;
-  contract_name: string;
-  contract_no?: string;
-  total_amount?: number;
-  payment_ratio_active?: number;
-  payment_ratio_complete?: number;
-  warranty_ratio?: number;
-  contract_status?: string;
-  locked?: boolean;
-  supplier?: { id: number; name: string };
-  total_settlement?: number | string;
-  total_payable?: number | string;
-  total_paid?: number | string;
-  has_complete_settlement?: boolean;
-}
-
-interface Settlement {
-  id: number;
-  contract_id: number;
-  settlement_no?: string;
-  settlement_type: string;
-  settlement_amount: number;
-  payable_amount: number;
-  warranty_amount?: number;
-  settlement_date?: string;
-  status?: string;
-}
-
-interface Payment {
-  id: number;
-  contract_id: number;
-  payment_amount?: number;
-  amount?: number;
-  payment_date: string;
-  payment_type?: string;
-  status?: string;
-}
-
-interface Project {
-  id: number;
-  name: string;
-}
-
-interface Supplier {
-  id: number;
-  name: string;
-}
-
-interface DashboardStats {
-  totalContracts: number;
-  totalSettlement: number;
-  totalPayable: number;
-  totalPaid: number;
-  totalUnpaid: number;
-  settledCount: number;
-  pendingCount: number;
-  totalProgressPayable: number;
-  totalFinalPayable: number;
-  totalProgressUnpaid: number;
-  totalFinalUnpaid: number;
-  effectiveSettlementCount: number;
-  effectivePaymentCount: number;
-}
-
-interface RowData extends Contract {
-  totalSettlement: number;
-  payableAmount: number;
-  paidAmount: number;
-  finalPayableAmount: number;
-  unpaidAmount: number;
-  finalUnpaidAmount: number;
-  hasFinalSettlement: boolean;
-  supplierName: string;
-  projectName: string;
-  paymentRate: number;
-  progressPayable: number;
-  finalPayable: number;
-  progressUnpaid: number;
-  finalUnpaid: number;
-  settlementCount: number;
-  paymentCount: number;
-}
-
-
 
 function SupplierCostDashboard() {
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -172,340 +165,240 @@ function SupplierCostDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('all');
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
-  const [selectedContractStatus, setSelectedContractStatus] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState('all');
+  const [selectedSupplier, setSelectedSupplier] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  // 加载数据
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [contractsRes, settlementsRes, projectsRes, suppliersRes, paymentsRes] = await Promise.all([
+      const [contractsRes, settlementsRes, paymentsRes, projectsRes, suppliersRes] = await Promise.all([
         fetch('/api/supplier-contracts'),
         fetch('/api/supplier-contracts/settlements'),
+        fetch('/api/supplier-contracts/payments'),
         fetch('/api/projects'),
         fetch('/api/suppliers'),
-        fetch('/api/supplier-contracts/payments'),
       ]);
 
-      const [contractsData, settlementsData, projectsData, suppliersData, paymentsData] = await Promise.all([
+      const [contractsData, settlementsData, paymentsData, projectsData, suppliersData] = await Promise.all([
         contractsRes.json(),
         settlementsRes.json(),
+        paymentsRes.json(),
         projectsRes.json(),
         suppliersRes.json(),
-        paymentsRes.json(),
       ]);
 
-      const contractsArray = Array.isArray(contractsData.contracts) ? contractsData.contracts
-        : Array.isArray(contractsData.data) ? contractsData.data
-        : Array.isArray(contractsData) ? contractsData : [];
-      const settlementsArray = Array.isArray(settlementsData.settlements) ? settlementsData.settlements
-        : Array.isArray(settlementsData.data) ? settlementsData.data
-        : Array.isArray(settlementsData) ? settlementsData : [];
-      const projectsArray = Array.isArray(projectsData.projects) ? projectsData.projects
-        : Array.isArray(projectsData.data) ? projectsData.data
-        : Array.isArray(projectsData) ? projectsData : [];
-      const suppliersArray = Array.isArray(suppliersData.suppliers) ? suppliersData.suppliers
-        : Array.isArray(suppliersData.data) ? suppliersData.data
-        : Array.isArray(suppliersData) ? suppliersData : [];
-      const paymentsArray = Array.isArray(paymentsData.payments) ? paymentsData.payments
-        : Array.isArray(paymentsData.data) ? paymentsData.data
-        : Array.isArray(paymentsData) ? paymentsData : [];
-
-      setContracts(contractsArray);
-      setSettlements(settlementsArray);
-      setProjects(projectsArray);
-      setSuppliers(suppliersArray);
-      setPayments(paymentsArray);
+      setContracts(
+        Array.isArray(contractsData.contracts) ? contractsData.contracts :
+          Array.isArray(contractsData.data) ? contractsData.data :
+            Array.isArray(contractsData) ? contractsData : [],
+      );
+      setSettlements(
+        Array.isArray(settlementsData.settlements) ? settlementsData.settlements :
+          Array.isArray(settlementsData.data) ? settlementsData.data :
+            Array.isArray(settlementsData) ? settlementsData : [],
+      );
+      setPayments(
+        Array.isArray(paymentsData.payments) ? paymentsData.payments :
+          Array.isArray(paymentsData.data) ? paymentsData.data :
+            Array.isArray(paymentsData) ? paymentsData : [],
+      );
+      setProjects(
+        Array.isArray(projectsData.projects) ? projectsData.projects :
+          Array.isArray(projectsData.data) ? projectsData.data :
+            Array.isArray(projectsData) ? projectsData : [],
+      );
+      setSuppliers(
+        Array.isArray(suppliersData.suppliers) ? suppliersData.suppliers :
+          Array.isArray(suppliersData.data) ? suppliersData.data :
+            Array.isArray(suppliersData) ? suppliersData : [],
+      );
     } catch (error) {
-      console.error('加载数据失败:', error);
+      console.error('加载供应商成本数据失败:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    const timer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadData]);
 
-  // 构建行数据（含计算字段）
-  const buildRowData = useCallback((contract: Contract): RowData => {
-    const contractSettlements = settlements.filter(s => toNumber(s.contract_id) === contract.id && !isVoidedStatus(s.status));
-    const contractPayments = payments.filter(p => toNumber(p.contract_id) === contract.id && isEffectiveSupplierPaymentStatus(p.status));
+  const projectNameById = useMemo(() => {
+    return new Map(projects.map((project) => [String(project.id), project.name]));
+  }, [projects]);
 
-    const totalSettlement = contractSettlements.reduce((sum, s) => sum + toNumber(s.settlement_amount), 0);
-    const payableAmount = contractSettlements.reduce((sum, s) => sum + toNumber(s.payable_amount), 0);
-    const paidAmount = contractPayments.reduce((sum, p) => sum + (toNumber(p.payment_amount) || toNumber(p.amount)), 0);
-    const finalPayableAmount = totalSettlement;
-    const hasFinalSettlement = contractSettlements.some(s => isFinalSettlementType(s.settlement_type));
-    const paymentRate = payableAmount > 0 ? (paidAmount / payableAmount) * 100 : 0;
+  const supplierNameById = useMemo(() => {
+    return new Map(suppliers.map((supplier) => [String(supplier.id), supplier.name]));
+  }, [suppliers]);
 
-    // Align with settlement management: payable_amount is current payable, settlement_amount is final payable base.
-    const progressPayable = payableAmount;
-    const finalPayable = totalSettlement;
+  const contractRows = useMemo<ContractRow[]>(() => {
+    return contracts.map((contract) => {
+      const contractId = Number(contract.id);
+      const contractSettlements = settlements.filter((settlement) => (
+        Number(settlement.contract_id) === contractId && !isVoidedStatus(settlement.status)
+      ));
+      const contractPayments = payments.filter((payment) => (
+        Number(payment.contract_id) === contractId && isEffectiveSupplierPaymentStatus(payment.status)
+      ));
 
-    // Payments are taken from supplier payment records and offset both payable views.
-    const progressUnpaid = Math.max(0, progressPayable - paidAmount);
-    const totalUnpaid = progressUnpaid;
-    const finalUnpaid = Math.max(0, finalPayable - paidAmount);
-    const finalUnpaidAmount = Math.max(0, finalPayableAmount - paidAmount);
+      const projectId = toId(contract.project_id);
+      const supplierId = toId(contract.supplier_id || contract.supplier?.id);
+      const settlementAmount = contractSettlements.reduce((sum, settlement) => sum + toNumber(settlement.settlement_amount), 0);
+      const payableAmount = contractSettlements.reduce((sum, settlement) => sum + toNumber(settlement.payable_amount), 0);
+      const paidAmount = contractPayments.reduce((sum, payment) => (
+        sum + (toNumber(payment.payment_amount) || toNumber(payment.amount))
+      ), 0);
 
+      return {
+        id: contract.id,
+        projectId,
+        projectName: projectNameById.get(projectId) || '未关联项目',
+        supplierId,
+        supplierName: contract.supplier?.name || supplierNameById.get(supplierId) || '未知供应商',
+        contractName: contract.contract_name || '未命名合同',
+        contractNo: contract.contract_no || '-',
+        settlementAmount,
+        payableAmount,
+        paidAmount,
+        unpaidAmount: Math.max(0, payableAmount - paidAmount),
+      };
+    });
+  }, [contracts, settlements, payments, projectNameById, supplierNameById]);
+
+  const filteredRows = useMemo(() => {
+    return contractRows.filter((row) => {
+      if (selectedProject !== 'all' && row.projectId !== selectedProject) return false;
+      if (selectedSupplier !== 'all' && row.supplierId !== selectedSupplier) return false;
+      if (selectedStatus === 'unpaid' && row.unpaidAmount <= 0) return false;
+      if (selectedStatus === 'paid' && row.payableAmount > 0 && row.unpaidAmount > 0) return false;
+      return true;
+    });
+  }, [contractRows, selectedProject, selectedSupplier, selectedStatus]);
+
+  const projectSummaries = useMemo<ProjectSummary[]>(() => {
+    const groupMap = new Map<string, ContractRow[]>();
+    filteredRows.forEach((row) => {
+      const key = row.projectId || `unknown-${row.projectName}`;
+      const rows = groupMap.get(key) || [];
+      rows.push(row);
+      groupMap.set(key, rows);
+    });
+
+    return Array.from(groupMap.entries()).map(([key, rows]) => {
+      const supplierMap = new Map<string, SupplierSummary>();
+      rows.forEach((row) => {
+        const supplierKey = row.supplierId || row.supplierName;
+        const current = supplierMap.get(supplierKey) || {
+          key: supplierKey,
+          supplierName: row.supplierName,
+          contractCount: 0,
+          settlementAmount: 0,
+          payableAmount: 0,
+          paidAmount: 0,
+          unpaidAmount: 0,
+        };
+        current.contractCount += 1;
+        current.settlementAmount += row.settlementAmount;
+        current.payableAmount += row.payableAmount;
+        current.paidAmount += row.paidAmount;
+        current.unpaidAmount += row.unpaidAmount;
+        supplierMap.set(supplierKey, current);
+      });
+
+      const settlementAmount = rows.reduce((sum, row) => sum + row.settlementAmount, 0);
+      const payableAmount = rows.reduce((sum, row) => sum + row.payableAmount, 0);
+      const paidAmount = rows.reduce((sum, row) => sum + row.paidAmount, 0);
+      const unpaidAmount = Math.max(0, payableAmount - paidAmount);
+
+      return {
+        key,
+        projectId: rows[0]?.projectId || '',
+        projectName: rows[0]?.projectName || '未关联项目',
+        supplierCount: supplierMap.size,
+        contractCount: rows.length,
+        settlementAmount,
+        payableAmount,
+        paidAmount,
+        unpaidAmount,
+        paymentRate: paymentRate(paidAmount, payableAmount),
+        rows: [...rows].sort((a, b) => b.unpaidAmount - a.unpaidAmount),
+        suppliers: Array.from(supplierMap.values()).sort((a, b) => b.unpaidAmount - a.unpaidAmount),
+      };
+    }).sort((a, b) => b.unpaidAmount - a.unpaidAmount);
+  }, [filteredRows]);
+
+  const stats = useMemo(() => {
+    const settlementAmount = projectSummaries.reduce((sum, project) => sum + project.settlementAmount, 0);
+    const payableAmount = projectSummaries.reduce((sum, project) => sum + project.payableAmount, 0);
+    const paidAmount = projectSummaries.reduce((sum, project) => sum + project.paidAmount, 0);
+    const unpaidAmount = Math.max(0, payableAmount - paidAmount);
     return {
-      ...contract,
-      totalSettlement,
+      projectCount: projectSummaries.length,
+      supplierCount: new Set(filteredRows.map((row) => row.supplierId || row.supplierName)).size,
+      contractCount: filteredRows.length,
+      settlementAmount,
       payableAmount,
       paidAmount,
-      finalPayableAmount,
-      unpaidAmount: totalUnpaid,
-      finalUnpaidAmount,
-      hasFinalSettlement,
-      supplierName: contract.supplier?.name || suppliers.find(s => String(s.id) === String(contract.supplier_id))?.name || '未知供应商',
-      projectName: projects.find(p => String(p.id) === String(contract.project_id))?.name || '未知项目',
-      paymentRate,
-      progressPayable,
-      finalPayable,
-      progressUnpaid,
-      finalUnpaid,
-      settlementCount: contractSettlements.length,
-      paymentCount: contractPayments.length,
+      unpaidAmount,
+      paymentRate: paymentRate(paidAmount, payableAmount),
     };
-  }, [settlements, payments, suppliers, projects]);
+  }, [projectSummaries, filteredRows]);
 
-  // 过滤后的数据
-  const filteredData = useMemo(() => {
-    let data = contracts.map(buildRowData);
-
-    if (selectedProject !== 'all') {
-      data = data.filter(c => toNumber(c.project_id) === Number(selectedProject));
-    }
-    if (selectedSupplier !== 'all') {
-      data = data.filter(c => toNumber(c.supplier_id) === Number(selectedSupplier));
-    }
-    if (selectedContractStatus !== 'all') {
-      if (selectedContractStatus === 'settled') {
-        data = data.filter(c => c.hasFinalSettlement || c.locked);
-      } else if (selectedContractStatus === 'ongoing') {
-        data = data.filter(c => !c.hasFinalSettlement && !c.locked);
-      } else if (selectedContractStatus === 'overdue') {
-        data = data.filter(c => c.unpaidAmount > 0);
-      }
-    }
-
-    // 默认按未付金额降序
-    data.sort((a, b) => b.unpaidAmount - a.unpaidAmount);
-    return data;
-  }, [contracts, buildRowData, selectedProject, selectedSupplier, selectedContractStatus]);
-
-  // 统计数据
-  const stats = useMemo<DashboardStats>(() => {
-    const totalContracts = filteredData.length;
-    const totalSettlement = filteredData.reduce((sum, c) => sum + (c.totalSettlement || 0), 0);
-    const totalPayable = filteredData.reduce((sum, c) => sum + (c.payableAmount || 0), 0);
-    const totalPaid = filteredData.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
-    const totalUnpaid = Math.max(0, totalPayable - totalPaid);
-    const settledCount = filteredData.filter(c => c.hasFinalSettlement || c.locked).length;
-    const pendingCount = totalContracts - settledCount;
-    const totalProgressPayable = filteredData.reduce((sum, c) => sum + (c.progressPayable || 0), 0);
-    const totalFinalPayable = filteredData.reduce((sum, c) => sum + (c.finalPayable || 0), 0);
-    const totalProgressUnpaid = Math.max(0, totalProgressPayable - totalPaid);
-    const totalFinalUnpaid = Math.max(0, totalFinalPayable - totalPaid);
-    const effectiveSettlementCount = filteredData.reduce((sum, c) => sum + c.settlementCount, 0);
-    const effectivePaymentCount = filteredData.reduce((sum, c) => sum + c.paymentCount, 0);
-    return { totalContracts, totalSettlement, totalPayable, totalPaid, totalUnpaid, settledCount, pendingCount, totalProgressPayable, totalFinalPayable, totalProgressUnpaid, totalFinalUnpaid, effectiveSettlementCount, effectivePaymentCount };
-  }, [filteredData]);
-
-  // 图表数据 - 项目占比条形图
-  const projectBarData = useMemo(() => {
-    const projectMap = new Map<string, { payable: number; paid: number; unpaid: number }>();
-    filteredData.forEach(c => {
-      const key = c.projectName;
-      const existing = projectMap.get(key) || { payable: 0, paid: 0, unpaid: 0 };
-      existing.payable += c.payableAmount || 0;
-      existing.paid += c.paidAmount || 0;
-      existing.unpaid += c.unpaidAmount || 0;
-      projectMap.set(key, existing);
-    });
-    return Array.from(projectMap.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.payable - a.payable);
-  }, [filteredData]);
-
-  // 图表数据 - 供应商付款进度
-  const supplierPaymentData = useMemo(() => {
-    const supplierMap = new Map<string, { settlement: number; payable: number; paid: number; unpaid: number; rate: number }>();
-    filteredData.forEach(c => {
-      const key = c.supplierName;
-      const existing = supplierMap.get(key) || { settlement: 0, payable: 0, paid: 0, unpaid: 0, rate: 0 };
-      existing.settlement += c.totalSettlement || 0;
-      existing.payable += c.payableAmount || 0;
-      existing.paid += c.paidAmount || 0;
-      existing.unpaid += c.unpaidAmount || 0;
-      supplierMap.set(key, existing);
-    });
-    return Array.from(supplierMap.entries())
-      .map(([name, data]) => ({
-        name: name.length > 6 ? name.substring(0, 6) + '...' : name,
-        fullName: name,
-        ...data,
-        rate: data.payable > 0 ? Math.round((data.paid / data.payable) * 100) : 0,
-      }))
-      .sort((a, b) => b.settlement - a.settlement)
-      .slice(0, 10);
-  }, [filteredData]);
-
-  // 分组数据 - 按项目分组
-  const groupedData = useMemo(() => {
-    const groups = new Map<string, RowData[]>();
-
-    filteredData.forEach(row => {
-      const key = row.projectName;
-      const existing = groups.get(key) || [];
-      existing.push(row);
-      groups.set(key, existing);
-    });
-
-    // 排序：按组内未付金额合计降序
-    const sorted = Array.from(groups.entries()).sort((a, b) => {
-      const sumA = a[1].reduce((s, r) => s + r.unpaidAmount, 0);
-      const sumB = b[1].reduce((s, r) => s + r.unpaidAmount, 0);
-      return sumB - sumA;
-    });
-
-    return sorted.map(([name, rows]) => ({
-      name,
-      rows,
-      summary: {
-        progressPayable: rows.reduce((s, r) => s + r.progressPayable, 0),
-        finalPayable: rows.reduce((s, r) => s + r.finalPayable, 0),
-        paid: rows.reduce((s, r) => s + r.paidAmount, 0),
-        progressUnpaid: rows.reduce((s, r) => s + r.progressUnpaid, 0),
-        finalUnpaid: rows.reduce((s, r) => s + r.finalUnpaid, 0),
-        count: rows.length,
-      },
-    }));
-  }, [filteredData]);
-
-  // 分页 - 基于扁平化后的行
-  const paginatedGroups = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    const end = start + pageSize;
-    let rowCount = 0;
-    const result: Array<{ type: 'group' | 'row'; group?: typeof groupedData[0]; row?: RowData }> = [];
-
-    for (const group of groupedData) {
-      if (rowCount >= end) break;
-      if (rowCount >= start) {
-        result.push({ type: 'group', group });
-      }
-      rowCount++;
-
-      const isCollapsed = collapsedGroups.has(group.name);
-      if (!isCollapsed) {
-        for (const row of group.rows) {
-          if (rowCount >= start && rowCount < end) {
-            result.push({ type: 'row', row });
-          }
-          rowCount++;
-        }
-      }
-    }
-
-    return result;
-  }, [groupedData, currentPage, pageSize, collapsedGroups]);
-
-  // 总行数（用于分页）
-  const totalRows = useMemo(() => {
-    let count = 0;
-    for (const group of groupedData) {
-      count++;
-      if (!collapsedGroups.has(group.name)) {
-        count += group.rows.length;
-      }
-    }
-    return count;
-  }, [groupedData, collapsedGroups]);
-
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-
-  // 重置页码
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedProject, selectedSupplier, selectedContractStatus]);
-
-  const toggleGroup = (name: string) => {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+  const toggleProject = (key: string) => {
+    setExpandedProjects((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
-  const formatCurrency = (value: number | undefined | null) => {
-    const v = Number(value) || 0;
-    if (v >= 10000) return `¥${(v / 10000).toFixed(2)}万`;
-    return `¥${v.toFixed(2)}`;
-  };
-
-  const formatCurrencyFull = (value: number | undefined | null) => {
-    const v = Number(value) || 0;
-    return `¥${v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  // 导出Excel
   const exportExcel = () => {
-    const exportData = filteredData.map(c => ({
-      '项目': c.projectName,
-      '供应商': c.supplierName,
-      '合同名称': c.contract_name,
-      '履约应付': c.progressPayable,
-      '决算应付': c.finalPayable,
-      '已付金额': c.paidAmount,
-      '进度未付': c.progressUnpaid,
-      '决算未付': c.finalUnpaid,
-      '合同状态': c.hasFinalSettlement || c.locked ? '已决算' : '履约中',
+    const summaryRows = projectSummaries.map((project) => ({
+      项目名称: project.projectName,
+      供应商数量: project.supplierCount,
+      合同数量: project.contractCount,
+      结算金额: project.settlementAmount,
+      应付金额: project.payableAmount,
+      已付金额: project.paidAmount,
+      未付金额: project.unpaidAmount,
+      付款率: `${project.paymentRate.toFixed(1)}%`,
     }));
 
-    // 添加合计行
-    exportData.push({
-      '项目': '合计',
-      '供应商': '',
-      '合同名称': '',
-      '履约应付': filteredData.reduce((s, c) => s + c.progressPayable, 0),
-      '决算应付': filteredData.reduce((s, c) => s + c.finalPayable, 0),
-      '已付金额': filteredData.reduce((s, c) => s + c.paidAmount, 0),
-      '进度未付': filteredData.reduce((s, c) => s + c.progressUnpaid, 0),
-      '决算未付': filteredData.reduce((s, c) => s + c.finalUnpaid, 0),
-      '合同状态': '',
+    summaryRows.push({
+      项目名称: '合计',
+      供应商数量: stats.supplierCount,
+      合同数量: stats.contractCount,
+      结算金额: stats.settlementAmount,
+      应付金额: stats.payableAmount,
+      已付金额: stats.paidAmount,
+      未付金额: stats.unpaidAmount,
+      付款率: `${stats.paymentRate.toFixed(1)}%`,
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    // 设置列宽
-    ws['!cols'] = [
-      { wch: 16 }, { wch: 16 }, { wch: 20 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-      { wch: 10 },
-    ];
+    const detailRows = projectSummaries.flatMap((project) => (
+      project.rows.map((row) => ({
+        项目名称: project.projectName,
+        供应商: row.supplierName,
+        合同名称: row.contractName,
+        合同编号: row.contractNo,
+        结算金额: row.settlementAmount,
+        应付金额: row.payableAmount,
+        已付金额: row.paidAmount,
+        未付金额: row.unpaidAmount,
+      }))
+    ));
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '供应商成本应付');
-    XLSX.writeFile(wb, `供应商成本应付台账_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  // 获取状态颜色
-  const getStatusStyle = (row: RowData) => {
-    if (row.finalUnpaidAmount > 0 && row.hasFinalSettlement) return 'bg-red-100 text-red-700';
-    if (row.unpaidAmount > 0) return 'bg-orange-100 text-orange-700';
-    return 'bg-green-100 text-green-700';
-  };
-
-  const getStatusLabel = (row: RowData) => {
-    if (row.finalUnpaidAmount > 0 && row.hasFinalSettlement) return '欠款';
-    if (row.unpaidAmount > 0) return '未付清';
-    return '已付清';
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), '项目汇总');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailRows), '合同明细');
+    XLSX.writeFile(wb, `供应商成本项目汇总_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   if (loading) {
@@ -516,30 +409,39 @@ function SupplierCostDashboard() {
     <StandardDashboardLayout
       filterBar={
         <FilterBar
-          title="供应商成本应付看板"
+          title="供应商成本项目汇总"
           filters={
             <>
               <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="h-9 w-full sm:w-[160px]"><SelectValue placeholder="全部项目" /></SelectTrigger>
+                <SelectTrigger className="h-9 w-full sm:w-[180px]">
+                  <SelectValue placeholder="全部项目" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部项目</SelectItem>
-                  {projects.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>{project.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                <SelectTrigger className="h-9 w-full sm:w-[160px]"><SelectValue placeholder="全部供应商" /></SelectTrigger>
+                <SelectTrigger className="h-9 w-full sm:w-[180px]">
+                  <SelectValue placeholder="全部供应商" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部供应商</SelectItem>
-                  {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={String(supplier.id)}>{supplier.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <Select value={selectedContractStatus} onValueChange={setSelectedContractStatus}>
-                <SelectTrigger className="h-9 w-full sm:w-[120px]"><SelectValue placeholder="全部状态" /></SelectTrigger>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="h-9 w-full sm:w-[140px]">
+                  <SelectValue placeholder="全部状态" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="settled">已决算</SelectItem>
-                  <SelectItem value="ongoing">履约中</SelectItem>
-                  <SelectItem value="overdue">有未付款</SelectItem>
+                  <SelectItem value="unpaid">存在未付</SelectItem>
+                  <SelectItem value="paid">已付清</SelectItem>
                 </SelectContent>
               </Select>
             </>
@@ -551,7 +453,7 @@ function SupplierCostDashboard() {
                 <span className="hidden sm:inline">导出</span>
               </Button>
               <Button variant="outline" size="sm" onClick={loadData} className="gap-1">
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className="h-4 w-4" />
                 <span className="hidden sm:inline">刷新</span>
               </Button>
             </>
@@ -559,270 +461,206 @@ function SupplierCostDashboard() {
         />
       }
       kpiSection={
-        <KpiSection cards={
-          <>
-            <KpiCard label="合同数" value={stats.totalContracts} />
-            <KpiCard label="累计结算" value={formatCurrency(stats.totalSettlement)} />
-            <KpiCard label="履约应付" value={formatCurrency(stats.totalProgressPayable)} />
-            <KpiCard label="决算应付" value={formatCurrency(stats.totalFinalPayable)} />
-            <KpiCard label="已付" value={formatCurrency(stats.totalPaid)} valueClassName="text-green-600" />
-            <KpiCard label="进度未付" value={formatCurrency(stats.totalProgressUnpaid)} valueClassName="text-amber-600" />
-            <KpiCard label="决算未付" value={formatCurrency(stats.totalFinalUnpaid)} valueClassName="text-red-600" />
-            <KpiCard label="付款率" value={`${stats.totalPayable > 0 ? ((stats.totalPaid / stats.totalPayable) * 100).toFixed(1) : 0}%`} />
-          </>
-        } />
-      }
-      chartSection={
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <DashboardChartCard title="成本构成（按项目）">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={projectBarData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" fontSize={11} tickFormatter={(v) => formatCurrency(v as number)} />
-                <YAxis type="category" dataKey="name" fontSize={11} width={80} />
-                <Tooltip formatter={(value) => formatCurrency(typeof value === 'number' ? value : Number(value))} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="paid" name="已付" fill="#10b981" stackId="a" />
-                <Bar dataKey="unpaid" name="未付" fill="#f59e0b" stackId="a" />
-              </BarChart>
-            </ResponsiveContainer>
-          </DashboardChartCard>
-          <DashboardChartCard title="供应商付款进度">
-            <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart data={supplierPaymentData} margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" fontSize={11} />
-                <YAxis yAxisId="left" fontSize={11} tickFormatter={(v) => formatCurrency(v as number)} />
-                <YAxis yAxisId="right" orientation="right" fontSize={11} domain={[0, 100]} unit="%" />
-                <Tooltip
-                  formatter={(value, name) => {
-                    const numVal = typeof value === 'number' ? value : Number(value);
-                    if (name === '付款率') return `${numVal}%`;
-                    return formatCurrency(numVal);
-                  }}
-                  labelFormatter={(label) => {
-                    const item = supplierPaymentData?.find(d => d.name === label);
-                    return item?.fullName || String(label || '');
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar yAxisId="left" dataKey="paid" name="已付" fill="#10b981" stackId="bar" />
-                <Bar yAxisId="left" dataKey="unpaid" name="未付" fill="#f59e0b" stackId="bar" />
-                <Line yAxisId="right" dataKey="rate" name="付款率" stroke="#3b82f6" strokeWidth={2}
-                  dot={{ fill: '#3b82f6', r: 3 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </DashboardChartCard>
-        </div>
+        <KpiSection
+          cards={
+            <>
+              <KpiCard label="项目数量" value={stats.projectCount} />
+              <KpiCard label="供应商数量" value={stats.supplierCount} />
+              <KpiCard label="合同数量" value={stats.contractCount} />
+              <KpiCard label="结算金额" value={stats.settlementAmount} amountMode />
+              <KpiCard label="应付金额" value={stats.payableAmount} amountMode />
+              <KpiCard label="已付金额" value={stats.paidAmount} amountMode valueClassName="text-emerald-700" />
+              <KpiCard label="未付金额" value={stats.unpaidAmount} amountMode valueClassName="text-red-700" />
+              <KpiCard label="付款率" value={stats.paymentRate} percentMode />
+            </>
+          }
+        />
       }
       ledgerSection={
-        <CollapsibleSection
-          title="明细台账"
-          summary={`共 ${filteredData.length} 条合同，${groupedData.length} 个项目`}
-        >
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-sm" style={{ minWidth: 900 }}>
-              <thead>
-                <tr className="border-b bg-muted/50 text-xs">
-                  <th className="p-2 text-left w-8"></th>
-                  <th className="p-2 text-left whitespace-nowrap" style={{ position: 'sticky', left: 0, background: 'inherit', zIndex: 1 }}>项目/供应商</th>
-                  <th className="p-2 text-left whitespace-nowrap">合同名称</th>
-                  <th className="p-2 text-right whitespace-nowrap">履约应付</th>
-                  <th className="p-2 text-right whitespace-nowrap">决算应付</th>
-                  <th className="p-2 text-right whitespace-nowrap">已付</th>
-                  <th className="p-2 text-right whitespace-nowrap">进度未付</th>
-                  <th className="p-2 text-right whitespace-nowrap">决算未付</th>
-                  <th className="p-2 text-center whitespace-nowrap">状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedGroups.length === 0 ? (
-                  <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">暂无数据</td></tr>
-                ) : paginatedGroups.map((item) => {
-                  if (item.type === 'group' && item.group) {
-                    const g = item.group;
-                    const isCollapsed = collapsedGroups.has(g.name);
-                    const totalPayable = g.summary.progressPayable;
-                    return (
-                      <tr key={`group-${g.name}`}
-                        className="border-b bg-blue-50/60 cursor-pointer hover:bg-blue-100/50"
-                        onClick={() => toggleGroup(g.name)}>
-                        <td className="p-2 text-center">
-                          {isCollapsed ? <ChevronRight className="h-4 w-4 text-blue-600" /> : <ChevronDown className="h-4 w-4 text-blue-600" />}
-                        </td>
-                        <td colSpan={2} className="p-2 font-medium text-blue-800">
-                          {g.name}
-                          <span className="ml-2 text-xs text-blue-500">({g.summary.count}个合同)</span>
-                        </td>
-                        <td className="p-2 text-right font-medium text-blue-800">{formatCurrency(g.summary.progressPayable)}</td>
-                        <td className="p-2 text-right font-medium text-blue-800">{formatCurrency(g.summary.finalPayable)}</td>
-                        <td className="p-2 text-right font-medium text-green-700">{formatCurrency(g.summary.paid)}</td>
-                        <td className="p-2 text-right font-medium text-amber-700">{formatCurrency(g.summary.progressUnpaid)}</td>
-                        <td className="p-2 text-right font-medium text-red-700">{formatCurrency(g.summary.finalUnpaid)}</td>
-                        <td className="p-2 text-center">
-                          <span className="text-xs text-blue-600">
-                            {totalPayable > 0 ? `${((g.summary.paid / totalPayable) * 100).toFixed(0)}%` : '-'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  if (item.type === 'row' && item.row) {
-                    const r = item.row;
-                    return (
-                      <tr key={`row-${r.id}`} className="border-b hover:bg-muted/30">
-                        <td className="p-2"></td>
-                        <td className="p-2 whitespace-nowrap text-sm" style={{ position: 'sticky', left: 0, background: 'white', zIndex: 1 }}>{r.supplierName}</td>
-                        <td className="p-2 whitespace-nowrap text-sm">{r.contract_name}</td>
-                        <td className="p-2 text-right whitespace-nowrap text-sm">{formatCurrency(r.progressPayable)}</td>
-                        <td className="p-2 text-right whitespace-nowrap text-sm">{formatCurrency(r.finalPayable)}</td>
-                        <td className="p-2 text-right whitespace-nowrap text-sm text-green-600 font-medium">{formatCurrency(r.paidAmount)}</td>
-                        <td className={`p-2 text-right whitespace-nowrap text-sm font-medium ${r.progressUnpaid > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                          {formatCurrency(r.progressUnpaid)}
-                        </td>
-                        <td className={`p-2 text-right whitespace-nowrap text-sm font-medium ${r.finalUnpaid > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {formatCurrency(r.finalUnpaid)}
-                        </td>
-                        <td className="p-2 text-center whitespace-nowrap">
-                          <span className={`px-1.5 py-0.5 rounded text-xs ${getStatusStyle(r)}`}>
-                            {getStatusLabel(r)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  }
-                  return null;
-                })}
-
-                {/* 合计行 */}
-                <tr className="border-t-2 border-muted bg-muted/30 font-bold">
-                  <td className="p-2"></td>
-                  <td colSpan={2} className="p-2">合计</td>
-                  <td className="p-2 text-right">{formatCurrency(stats.totalProgressPayable)}</td>
-                  <td className="p-2 text-right">{formatCurrency(stats.totalFinalPayable)}</td>
-                  <td className="p-2 text-right text-green-600">{formatCurrency(stats.totalPaid)}</td>
-                  <td className="p-2 text-right text-amber-600">{formatCurrency(stats.totalProgressUnpaid)}</td>
-                  <td className="p-2 text-right text-red-600">{formatCurrency(stats.totalFinalUnpaid)}</td>
-                  <td className="p-2 text-center text-xs">
-                    {stats.totalPayable > 0 ? `${((stats.totalPaid / stats.totalPayable) * 100).toFixed(1)}%` : '-'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="space-y-3 p-3 md:hidden">
-            {paginatedGroups.length === 0 ? (
-              <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
-                暂无数据
+        <Card>
+          <CardHeader className="border-b py-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <CardTitle className="text-base">项目供应商成本台账</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  结算金额取供应商结算记录，应付金额取结算单应付金额，已付金额取有效付款记录，未付金额=应付金额-已付金额。
+                </p>
               </div>
-            ) : paginatedGroups.map((item) => {
-              if (item.type === 'group' && item.group) {
-                const g = item.group;
-                const isCollapsed = collapsedGroups.has(g.name);
-                const rate = g.summary.progressPayable > 0 ? ((g.summary.paid / g.summary.progressPayable) * 100).toFixed(0) : '-';
-                return (
-                  <button
-                    key={`mobile-group-${g.name}`}
-                    type="button"
-                    onClick={() => toggleGroup(g.name)}
-                    className="w-full rounded-lg border border-blue-100 bg-blue-50/80 p-3 text-left"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-blue-900">{g.name}</div>
-                        <div className="mt-1 text-xs text-blue-600">{g.summary.count} 个合同 · 付款率 {rate}%</div>
-                      </div>
-                      {isCollapsed ? <ChevronRight className="h-4 w-4 shrink-0 text-blue-600" /> : <ChevronDown className="h-4 w-4 shrink-0 text-blue-600" />}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-white/80 p-2">
-                        <div className="text-blue-600">履约应付</div>
-                        <div className="mt-1 font-semibold text-blue-900">{formatCurrency(g.summary.progressPayable)}</div>
-                      </div>
-                      <div className="rounded bg-white/80 p-2">
-                        <div className="text-green-600">已付</div>
-                        <div className="mt-1 font-semibold text-green-700">{formatCurrency(g.summary.paid)}</div>
-                      </div>
-                      <div className="rounded bg-white/80 p-2">
-                        <div className="text-amber-600">进度未付</div>
-                        <div className="mt-1 font-semibold text-amber-700">{formatCurrency(g.summary.progressUnpaid)}</div>
-                      </div>
-                      <div className="rounded bg-white/80 p-2">
-                        <div className="text-red-600">决算未付</div>
-                        <div className="mt-1 font-semibold text-red-700">{formatCurrency(g.summary.finalUnpaid)}</div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              }
+              <div className="text-xs text-muted-foreground">
+                共 {projectSummaries.length} 个项目，{filteredRows.length} 份供应商合同
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-sm" style={{ minWidth: 980 }}>
+                <thead>
+                  <tr className="border-b bg-slate-50 text-xs text-slate-600">
+                    <th className="w-10 p-3 text-left"></th>
+                    <th className="p-3 text-left">项目名称</th>
+                    <th className="p-3 text-right">供应商数</th>
+                    <th className="p-3 text-right">合同数</th>
+                    <th className="p-3 text-right">结算金额</th>
+                    <th className="p-3 text-right">应付金额</th>
+                    <th className="p-3 text-right">已付金额</th>
+                    <th className="p-3 text-right">未付金额</th>
+                    <th className="p-3 text-right">付款率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectSummaries.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-sm text-muted-foreground">暂无供应商成本数据</td>
+                    </tr>
+                  ) : projectSummaries.map((project) => {
+                    const expanded = expandedProjects.has(project.key);
+                    return (
+                      <FragmentRows
+                        key={project.key}
+                        project={project}
+                        expanded={expanded}
+                        onToggle={() => toggleProject(project.key)}
+                      />
+                    );
+                  })}
+                  <tr className="border-t-2 bg-slate-50 font-semibold">
+                    <td className="p-3"></td>
+                    <td className="p-3">合计</td>
+                    <td className="p-3 text-right">{stats.supplierCount}</td>
+                    <td className="p-3 text-right">{stats.contractCount}</td>
+                    <td className="p-3 text-right"><AmountCell value={stats.settlementAmount} /></td>
+                    <td className="p-3 text-right"><AmountCell value={stats.payableAmount} /></td>
+                    <td className="p-3 text-right"><AmountCell value={stats.paidAmount} tone="success" /></td>
+                    <td className="p-3 text-right"><AmountCell value={stats.unpaidAmount} tone="danger" /></td>
+                    <td className="p-3 text-right">{stats.paymentRate.toFixed(1)}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-              if (item.type === 'row' && item.row) {
-                const r = item.row;
+            <div className="space-y-3 p-3 md:hidden">
+              {projectSummaries.length === 0 ? (
+                <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">暂无供应商成本数据</div>
+              ) : projectSummaries.map((project) => {
+                const expanded = expandedProjects.has(project.key);
                 return (
-                  <div key={`mobile-row-${r.id}`} className="rounded-lg border bg-white p-3 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={project.key} className="rounded-lg border bg-white shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleProject(project.key)}
+                      className="flex w-full items-start justify-between gap-3 p-3 text-left"
+                    >
                       <div className="min-w-0">
-                        <div className="truncate font-medium text-gray-900">{r.supplierName}</div>
-                        <div className="mt-1 truncate text-xs text-gray-500">{r.contract_name}</div>
+                        <div className="truncate font-medium text-slate-900">{project.projectName}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {project.supplierCount} 个供应商 · {project.contractCount} 份合同 · 付款率 {project.paymentRate.toFixed(1)}%
+                        </div>
                       </div>
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${getStatusStyle(r)}`}>
-                        {getStatusLabel(r)}
-                      </span>
+                      {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                    </button>
+                    <div className="grid grid-cols-2 gap-2 border-t bg-slate-50/70 p-3 text-xs">
+                      <MobileAmount label="结算" value={project.settlementAmount} />
+                      <MobileAmount label="应付" value={project.payableAmount} />
+                      <MobileAmount label="已付" value={project.paidAmount} tone="success" />
+                      <MobileAmount label="未付" value={project.unpaidAmount} tone="danger" />
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-slate-50 p-2">
-                        <div className="text-gray-500">履约应付</div>
-                        <div className="mt-1 font-semibold">{formatCurrency(r.progressPayable)}</div>
+                    {expanded && (
+                      <div className="space-y-2 border-t p-3">
+                        {project.suppliers.map((supplier) => (
+                          <div key={supplier.key} className="rounded-md bg-slate-50 p-2 text-xs">
+                            <div className="font-medium text-slate-800">{supplier.supplierName}</div>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              <MobileAmount label="应付" value={supplier.payableAmount} />
+                              <MobileAmount label="已付" value={supplier.paidAmount} tone="success" />
+                              <MobileAmount label="未付" value={supplier.unpaidAmount} tone="danger" />
+                              <MobileAmount label="结算" value={supplier.settlementAmount} />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="rounded bg-slate-50 p-2">
-                        <div className="text-gray-500">决算应付</div>
-                        <div className="mt-1 font-semibold">{formatCurrency(r.finalPayable)}</div>
-                      </div>
-                      <div className="rounded bg-green-50 p-2">
-                        <div className="text-green-600">已付</div>
-                        <div className="mt-1 font-semibold text-green-700">{formatCurrency(r.paidAmount)}</div>
-                      </div>
-                      <div className="rounded bg-red-50 p-2">
-                        <div className="text-red-600">决算未付</div>
-                        <div className="mt-1 font-semibold text-red-700">{formatCurrency(r.finalUnpaid)}</div>
-                      </div>
-                    </div>
-                    {r.progressUnpaid > 0 && (
-                      <div className="mt-2 text-xs text-amber-600">进度未付：{formatCurrency(r.progressUnpaid)}</div>
                     )}
                   </div>
                 );
-              }
-              return null;
-            })}
-            {paginatedGroups.length > 0 && (
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm font-medium">
-                <div className="flex justify-between"><span>合计履约应付</span><span>{formatCurrency(stats.totalProgressPayable)}</span></div>
-                <div className="mt-2 flex justify-between text-green-600"><span>已付</span><span>{formatCurrency(stats.totalPaid)}</span></div>
-                <div className="mt-2 flex justify-between text-red-600"><span>决算未付</span><span>{formatCurrency(stats.totalFinalUnpaid)}</span></div>
-              </div>
-            )}
-          </div>
-
-          {/* 分页 */}
-          <div className="flex flex-col gap-3 px-4 py-3 border-t text-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-muted-foreground text-xs">
-              第 {currentPage}/{totalPages} 页，共 {totalRows} 行
+              })}
             </div>
-            <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center">
-              <Button variant="outline" size="sm" disabled={currentPage <= 1}
-                onClick={() => setCurrentPage(1)} className="h-7 px-2 text-xs">首页</Button>
-              <Button variant="outline" size="sm" disabled={currentPage <= 1}
-                onClick={() => setCurrentPage(p => p - 1)} className="h-7 px-2 text-xs">上一页</Button>
-              <Button variant="outline" size="sm" disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage(p => p + 1)} className="h-7 px-2 text-xs">下一页</Button>
-              <Button variant="outline" size="sm" disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage(totalPages)} className="h-7 px-2 text-xs">末页</Button>
-            </div>
-          </div>
-        </CollapsibleSection>
+          </CardContent>
+        </Card>
       }
     />
+  );
+}
+
+function FragmentRows({
+  project,
+  expanded,
+  onToggle,
+}: {
+  project: ProjectSummary;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr className="border-b bg-white hover:bg-slate-50">
+        <td className="p-3">
+          <button type="button" onClick={onToggle} className="rounded p-1 hover:bg-slate-100" aria-label="展开项目明细">
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </td>
+        <td className="p-3 font-medium text-slate-900">{project.projectName}</td>
+        <td className="p-3 text-right">{project.supplierCount}</td>
+        <td className="p-3 text-right">{project.contractCount}</td>
+        <td className="p-3 text-right"><AmountCell value={project.settlementAmount} /></td>
+        <td className="p-3 text-right"><AmountCell value={project.payableAmount} /></td>
+        <td className="p-3 text-right"><AmountCell value={project.paidAmount} tone="success" /></td>
+        <td className="p-3 text-right"><AmountCell value={project.unpaidAmount} tone={project.unpaidAmount > 0 ? 'danger' : 'success'} /></td>
+        <td className="p-3 text-right tabular-nums">{project.paymentRate.toFixed(1)}%</td>
+      </tr>
+      {expanded && (
+        <tr className="border-b bg-slate-50/60">
+          <td className="p-0"></td>
+          <td colSpan={8} className="p-3">
+            <div className="overflow-hidden rounded-md border bg-white">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-slate-50 text-slate-500">
+                    <th className="p-2 text-left">供应商</th>
+                    <th className="p-2 text-left">合同名称</th>
+                    <th className="p-2 text-left">合同编号</th>
+                    <th className="p-2 text-right">结算金额</th>
+                    <th className="p-2 text-right">应付金额</th>
+                    <th className="p-2 text-right">已付金额</th>
+                    <th className="p-2 text-right">未付金额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {project.rows.map((row) => (
+                    <tr key={row.id} className="border-b last:border-b-0">
+                      <td className="p-2">{row.supplierName}</td>
+                      <td className="p-2">{row.contractName}</td>
+                      <td className="p-2">{row.contractNo}</td>
+                      <td className="p-2 text-right">{formatMoney(row.settlementAmount)}</td>
+                      <td className="p-2 text-right">{formatMoney(row.payableAmount)}</td>
+                      <td className="p-2 text-right text-emerald-700">{formatMoney(row.paidAmount)}</td>
+                      <td className="p-2 text-right text-red-700">{formatMoney(row.unpaidAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function MobileAmount({ label, value, tone }: { label: string; value: number; tone?: 'success' | 'danger' }) {
+  const toneClass = tone === 'success' ? 'text-emerald-700' : tone === 'danger' ? 'text-red-700' : 'text-slate-900';
+  return (
+    <div className="rounded bg-white p-2">
+      <div className="text-muted-foreground">{label}</div>
+      <div className={`mt-1 font-semibold ${toneClass}`}>{formatMoneyShort(value)}</div>
+    </div>
   );
 }
