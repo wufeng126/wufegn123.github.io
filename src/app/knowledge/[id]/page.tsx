@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Download, FileText, Link2, MessageSquare, RotateCcw, Send, Tag, UserRound } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Circle, Download, FileText, Link2, MessageSquare, RotateCcw, Send, Tag, Trash2, UserRound } from 'lucide-react';
 import {
   getKnowledgeCategoryLabel,
   getKnowledgeProjectName,
@@ -346,6 +346,7 @@ function buildRelatedKnowledge(current: KnowledgeDoc, docs: KnowledgeDoc[]): Rel
 
 export default function KnowledgeDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [doc, setDoc] = useState<KnowledgeDoc | null>(null);
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -355,6 +356,7 @@ export default function KnowledgeDetailPage() {
   const [selectedApprover, setSelectedApprover] = useState('');
   const [comment, setComment] = useState('');
   const [acting, setActing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -433,6 +435,11 @@ export default function KnowledgeDetailPage() {
     workflowState !== 'completed' &&
     canUserWithdraw(currentUser?.role, doc?.created_by, currentUser)
   ), [currentUser, doc?.created_by, isMonthly, workflowState]);
+  const canDeleteMonthlyDraft = useMemo(() => (
+    isMonthly &&
+    workflowState === 'draft' &&
+    canUserWithdraw(currentUser?.role, doc?.created_by, currentUser)
+  ), [currentUser, doc?.created_by, isMonthly, workflowState]);
   const workflowComments = useMemo(() => extractWorkflowComments(doc?.content), [doc?.content]);
   const relatedLinks = useMemo(() => extractWikiLinks(doc?.content), [doc?.content]);
   const relatedDocs = useMemo(() => (doc ? buildRelatedKnowledge(doc, docs) : []), [doc, docs]);
@@ -465,6 +472,28 @@ export default function KnowledgeDetailPage() {
       setError(e instanceof Error ? e.message : '流程处理失败');
     } finally {
       setActing(false);
+    }
+  }
+
+  async function handleDeleteMonthlyDraft() {
+    if (!doc?.id || deleting) return;
+    const confirmed = window.confirm('确认删除这份月度分析草稿吗？删除后不会再出现在知识库列表中。');
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/ai/knowledge?id=${encodeURIComponent(String(doc.id))}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '删除月度分析草稿失败');
+      router.push('/knowledge');
+      router.refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '删除月度分析草稿失败');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -502,6 +531,17 @@ export default function KnowledgeDetailPage() {
           >
             写知识
           </Link>
+          {canDeleteMonthlyDraft ? (
+            <button
+              type="button"
+              onClick={handleDeleteMonthlyDraft}
+              disabled={deleting}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-4 text-sm font-medium text-[#B91C1C] transition hover:bg-[#FEE2E2] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? '删除中...' : '删除草稿'}
+            </button>
+          ) : null}
         </div>
 
         {loading ? (

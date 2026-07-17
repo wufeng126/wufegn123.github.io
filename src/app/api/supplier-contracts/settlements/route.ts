@@ -220,6 +220,13 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    const { data: supplier } = contract?.supplier_id
+      ? await supabase.from('suppliers').select('name').eq('id', contract.supplier_id).maybeSingle()
+      : { data: null };
+    const { data: project } = contract?.project_id
+      ? await supabase.from('projects').select('name').eq('id', contract.project_id).maybeSingle()
+      : { data: null };
+
     await pushBusinessNotification({
       type: 'new_settlement',
       title: '新增结算单',
@@ -228,7 +235,18 @@ export async function POST(request: NextRequest) {
       projectId: contract?.project_id,
       relatedId: settlement?.id,
       relatedType: 'supplier_settlement',
-      metadata: { contract_id: contractId, settlement_type, settlement_amount: settlementAmount, settlement_no: settlement?.settlement_no },
+      metadata: {
+        contract_id: contractId,
+        contractName: contract?.contract_name,
+        settlement_type,
+        settlement_amount: settlementAmount,
+        settlementAmount,
+        settlement_no: settlement?.settlement_no,
+        settlementDate: settlement_date,
+        supplierName: supplier?.name,
+        projectName: project?.name,
+        businessSummary: `${supplier?.name || contract?.contract_name || '供应商'}新增结算 ${settlement?.settlement_no || ''}${project?.name ? `，项目 ${project.name}` : ''}，金额 ¥${settlementAmount.toLocaleString()}，类型 ${settlement_type}`,
+      },
     });
 
     return NextResponse.json({ settlement });

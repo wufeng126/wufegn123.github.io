@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { notifyVisaWorkflow } from '@/lib/visa-workflow';
+import { buildNotificationExtra } from '@/lib/business-notification';
 
 function isEnabled(value: unknown, fallback = false) {
   if (value === undefined || value === null) return fallback;
@@ -98,7 +99,7 @@ async function createAndPushNotification(client: any, type: string, title: strin
     let shouldSend = false;
     if (type.includes('certificate') && typeEnabledMap['certificate_reminder_enabled']) shouldSend = true;
     if (type.includes('visa') && typeEnabledMap['visa_reminder_enabled']) shouldSend = true;
-    if (['new_report', 'new_payment', 'new_worker', 'new_settlement', 'new_salary', 'new_client_payment', 'new_supplier_payment'].includes(type) && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
+    if (['new_report', 'new_payment', 'new_worker', 'new_settlement', 'new_salary', 'new_worker_payment', 'new_client_payment', 'new_supplier_payment'].includes(type) && typeEnabledMap['new_record_reminder_enabled']) shouldSend = true;
     if (type === 'cost_warning' && typeEnabledMap['cost_warning_enabled']) shouldSend = true;
     if (type === 'new_settlement' && typeEnabledMap['settlement_reminder_enabled']) shouldSend = true;
     if (['new_client_payment', 'new_supplier_payment'].includes(type) && typeEnabledMap['payment_warning_enabled']) shouldSend = true;
@@ -122,6 +123,7 @@ async function createAndPushNotification(client: any, type: string, title: strin
           content,
           severity: severity as 'info' | 'warning' | 'danger',
           projectName,
+          extra: buildNotificationExtra({ type, title, content, projectName, metadata }),
         };
         const { title: msgTitle, text } = formatDingTalkMessage(params);
         const result = await sendDingTalkNotification(dingtalkSetting.setting_value, secretSetting?.setting_value, msgTitle, text);
@@ -270,8 +272,10 @@ async function checkVisaExpiry(client: any) {
       recipientUserId: visa.current_responsible_user_id,
       metadata: {
         visaNumber: visa.visa_number,
+        visaName: visa.visa_name,
         status: visa.status,
         targetNames: [visa.current_responsible_name],
+        businessSummary: `${projectName}签证 ${visa.visa_number}${visa.visa_name ? `（${visa.visa_name}）` : ''}当前环节 ${stageText} 已超过 7 天未推进，负责人 ${visa.current_responsible_name || '-'}`,
       },
     });
 
@@ -312,7 +316,7 @@ async function checkNewRecords(client: any, lastCheckTime: string) {
         '新增甲方报量',
         `项目：${projectName}\n报量金额：${parseFloat(report.report_amount || '0').toLocaleString()} 元\n报量月份：${report.year_month}`,
         'info',
-        { projectName, amount: report.report_amount, month: report.year_month },
+        { projectName, amount: report.report_amount, yearMonth: report.year_month },
         report.project_id,
         report.id,
         'client_report'
@@ -343,7 +347,7 @@ async function checkNewRecords(client: any, lastCheckTime: string) {
         '新增付款记录',
         `项目：${projectName}\n付款金额：${parseFloat(payment.payment_amount || '0').toLocaleString()} 元\n付款日期：${payment.payment_date}`,
         'info',
-        { projectName, amount: payment.payment_amount, date: payment.payment_date },
+        { projectName, amount: payment.payment_amount, paymentAmount: payment.payment_amount, paymentDate: payment.payment_date },
         payment.project_id,
         payment.id,
         'client_payment'
@@ -403,7 +407,7 @@ async function checkNewRecords(client: any, lastCheckTime: string) {
         '新增结算记录',
         `项目：${projectName}\n合同：${contractName}\n结算金额：${parseFloat(settlement.settlement_amount || '0').toLocaleString()} 元`,
         'info',
-        { projectName, contractName, amount: settlement.settlement_amount },
+        { projectName, contractName, amount: settlement.settlement_amount, settlementAmount: settlement.settlement_amount },
         settlement.project_id,
         settlement.id,
         'settlement'
@@ -415,7 +419,7 @@ async function checkNewRecords(client: any, lastCheckTime: string) {
   // 检测新增工资发放
   const { data: newSalaryPayments } = await client
     .from('salary_payments')
-    .select('id, project_id, total_amount, payment_date, created_at')
+    .select('id, project_id, worker_id, year_month, payment_amount, payment_date, created_at, workers(name)')
     .gte('created_at', lastCheckTime);
 
   if (newSalaryPayments && newSalaryPayments.length > 0) {
@@ -425,14 +429,15 @@ async function checkNewRecords(client: any, lastCheckTime: string) {
         const { data: proj } = await client.from('projects').select('name').eq('id', salary.project_id).single();
         projectName = proj?.name || projectName;
       }
-      const yearMonth = salary.payment_date ? new Date(salary.payment_date).toISOString().slice(0, 7) : '未知';
+      const yearMonth = salary.year_month || (salary.payment_date ? new Date(salary.payment_date).toISOString().slice(0, 7) : '未知');
+      const workerName = (salary.workers as any)?.name || '未知工人';
       await createAndPushNotification(
         client,
-        'new_salary',
+        'new_worker_payment',
         '新增工资发放',
-        `项目：${projectName}\n发放月份：${yearMonth}\n发放金额：${parseFloat(salary.total_amount || '0').toLocaleString()} 元`,
+        `项目：${projectName}\n工人：${workerName}\n发放月份：${yearMonth}\n发放金额：${parseFloat(salary.payment_amount || '0').toLocaleString()} 元`,
         'info',
-        { projectName, yearMonth, amount: salary.total_amount },
+        { projectName, workerName, yearMonth, amount: salary.payment_amount, paymentAmount: salary.payment_amount, paymentDate: salary.payment_date },
         salary.project_id,
         salary.id,
         'salary_payment'
@@ -466,7 +471,7 @@ async function checkNewRecords(client: any, lastCheckTime: string) {
         '新增供应商付款',
         `项目：${projectName}\n供应商：${sp.supplier_name || '未知'}\n付款金额：${parseFloat(sp.payment_amount || '0').toLocaleString()} 元`,
         'info',
-        { projectName, supplierName: sp.supplier_name, amount: sp.payment_amount },
+        { projectName, supplierName: sp.supplier_name, amount: sp.payment_amount, paymentAmount: sp.payment_amount },
         sp.project_id,
         sp.id,
         'supplier_payment'

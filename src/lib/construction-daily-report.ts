@@ -504,6 +504,11 @@ async function pushReportNotification(
       reportDate: summary.report_date,
       targetLabel: '全员',
       targetUserIds: recipientUserIds,
+      submittedProjects: summary.company.submitted_projects,
+      totalProjects: summary.company.total_projects,
+      missingAssignmentCount: summary.company.missing_assignment_count,
+      issueCount: summary.company.issue_count,
+      businessSummary: `${getReadableDate(summary.report_date)}项目日报汇总：${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有日志，未交 ${summary.company.missing_assignment_count} 个项目人员项，问题异常 ${summary.company.issue_count} 条`,
     },
   });
 

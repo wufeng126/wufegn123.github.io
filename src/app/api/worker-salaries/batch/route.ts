@@ -529,6 +529,7 @@ export async function POST(request: NextRequest) {
 
     // 钉钉推送通知
     if (result.imported > 0 || result.updated > 0) {
+      const yearMonthText = Array.from(importedYearMonths).join('、');
       await pushBusinessNotification({
         type: 'new_worker_salary',
         title: '批量导入月度工资',
@@ -536,7 +537,13 @@ export async function POST(request: NextRequest) {
         severity: notInRoster.length > 0 ? 'warning' : 'info',
         projectId: undefined,
         relatedType: 'worker_salary_batch',
-        metadata: { imported: result.imported, updated: result.updated, notInRosterCount: notInRoster.length },
+        metadata: {
+          imported: result.imported,
+          updated: result.updated,
+          notInRosterCount: notInRoster.length,
+          yearMonth: yearMonthText,
+          businessSummary: `批量导入月度工资，新增 ${result.imported || 0} 条，更新 ${result.updated || 0} 条${yearMonthText ? `，月份 ${yearMonthText}` : ''}${notInRoster.length > 0 ? `，${notInRoster.length} 人不在花名册中` : ''}`,
+        },
       });
     }
 

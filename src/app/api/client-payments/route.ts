@@ -189,6 +189,13 @@ export async function POST(request: NextRequest) {
       details: { project_id: projectId, payment_amount: paymentAmount, payment_date, payment_method },
     });
 
+    const { data: project } = await client
+      .from('projects')
+      .select('name')
+      .eq('id', projectId)
+      .maybeSingle();
+    const projectName = project?.name || '项目';
+
     await pushBusinessNotification({
       type: 'new_client_payment',
       title: '新增甲方回款',
@@ -197,7 +204,16 @@ export async function POST(request: NextRequest) {
       projectId,
       relatedId: paymentData?.id,
       relatedType: 'client_payment',
-      metadata: { project_id: projectId, amount: paymentAmount, payment_date, payment_method },
+      metadata: {
+        project_id: projectId,
+        amount: paymentAmount,
+        paymentAmount,
+        payment_date,
+        paymentDate: payment_date,
+        payment_method,
+        projectName,
+        businessSummary: `${projectName}新增甲方回款，金额 ¥${paymentAmount.toLocaleString()}，回款日期 ${payment_date}，方式 ${payment_method || '-'}`,
+      },
     });
 
     return NextResponse.json({ payment: paymentData });

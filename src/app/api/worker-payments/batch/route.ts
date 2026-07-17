@@ -549,16 +549,26 @@ async function confirmImport(rows: ParsedPaymentRow[], request: NextRequest) {
   });
 
   if ((data?.length || 0) > 0) {
+    const importedYearMonths = [...new Set(rowsWithWorkers.map(row => row.year_month).filter(Boolean))];
+    const importedProjects = [...new Set(rowsWithWorkers.map(row => row.project_name).filter(Boolean))].slice(0, 5);
+    const autoCreatedWorkers = rowsWithWorkers.filter(row => row.create_worker).length;
+    const unmatchedSalary = rowsWithWorkers.filter(row => !row.salary_id).length;
+    const totalPaymentAmount = rowsWithWorkers.reduce((sum, row) => sum + parseAmount(row.payment_amount), 0);
     await pushBusinessNotification({
       type: 'new_worker_payment',
       title: '批量导入工资发放',
       content: `批量导入工资发放记录，成功导入 ${data?.length || 0} 条`,
-      severity: rowsWithWorkers.some(row => row.create_worker || !row.salary_id) ? 'warning' : 'info',
+      severity: autoCreatedWorkers > 0 || unmatchedSalary > 0 ? 'warning' : 'info',
       relatedType: 'salary_payment_batch',
       metadata: {
         count: data?.length || 0,
-        autoCreatedWorkers: rowsWithWorkers.filter(row => row.create_worker).length,
-        unmatchedSalary: rowsWithWorkers.filter(row => !row.salary_id).length,
+        autoCreatedWorkers,
+        unmatchedSalary,
+        yearMonth: importedYearMonths.join('、'),
+        projectName: importedProjects.join('、'),
+        paymentAmount: totalPaymentAmount,
+        amount: totalPaymentAmount,
+        businessSummary: `批量导入工资发放 ${data?.length || 0} 条，涉及月份 ${importedYearMonths.join('、') || '-'}，合计 ¥${totalPaymentAmount.toLocaleString()}${autoCreatedWorkers ? `，自动新增工人 ${autoCreatedWorkers} 人` : ''}${unmatchedSalary ? `，未匹配工资 ${unmatchedSalary} 条` : ''}`,
       },
     });
   }

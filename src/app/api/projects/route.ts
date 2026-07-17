@@ -20,12 +20,14 @@ function nullableValue(value: unknown) {
   return value === '' || value === undefined ? null : value;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const client = getSupabaseClient();
     
     // 获取当前用户信息
     const user = await getCurrentUser();
+    const scope = request.nextUrl.searchParams.get('scope');
+    const assignedOnly = ['assigned', 'managed', 'mine'].includes(scope || '');
     
     // 查询项目数据
     const query = client
@@ -43,7 +45,7 @@ export async function GET() {
     // 数据权限过滤：已登录且非超级管理员只能看到自己有权限的项目
     let filteredProjects = data || [];
     
-    if (user && user.role !== 'super_admin') {
+    if (user && (user.role !== 'super_admin' || assignedOnly)) {
       // 获取用户信息（包括管理的项目）
       const { data: userData } = await client
         .from('users')

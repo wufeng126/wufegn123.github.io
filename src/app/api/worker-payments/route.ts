@@ -305,6 +305,14 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    const [{ data: worker }, { data: project }] = await Promise.all([
+      client.from('workers').select('name').eq('id', workerId).maybeSingle(),
+      client.from('projects').select('name').eq('id', projectId).maybeSingle(),
+    ]);
+    const workerName = (worker as any)?.name || '工人';
+    const projectName = (project as any)?.name || '项目';
+    const resolvedYearMonth = matchedSalary.yearMonth || year_month || '';
+
     // 钉钉推送通知
     await pushBusinessNotification({
       type: 'new_worker_payment',
@@ -314,7 +322,20 @@ export async function POST(request: NextRequest) {
       projectId: project_id ? parseInt(String(project_id)) : undefined,
       relatedId: payment?.id,
       relatedType: 'salary_payment',
-      metadata: { worker_id, project_id, amount, payment_date, payment_type },
+      metadata: {
+        worker_id,
+        project_id,
+        workerName,
+        projectName,
+        year_month: resolvedYearMonth,
+        yearMonth: resolvedYearMonth,
+        amount: paymentAmount,
+        paymentAmount,
+        payment_date,
+        paymentDate: payment_date,
+        payment_type,
+        businessSummary: `${workerName} ${resolvedYearMonth} 工资发放，项目 ${projectName}，金额 ¥${paymentAmount.toLocaleString()}，发放日期 ${payment_date}`,
+      },
     });
 
     return NextResponse.json({ payment, warnings: matchedSalary.warning ? [matchedSalary.warning] : [] });

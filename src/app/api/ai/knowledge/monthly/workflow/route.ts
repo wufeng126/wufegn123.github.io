@@ -372,6 +372,8 @@ export async function POST(request: NextRequest) {
           targetUserIds: [userId],
           targetNames: [username],
           dingtalkDeferred: true,
+          status: '草稿',
+          businessSummary: `《${doc.title}》已由${username}撤回到草稿${comment.trim() ? `，说明：${comment.trim()}` : ''}`,
         },
       });
 
@@ -444,6 +446,8 @@ export async function POST(request: NextRequest) {
           targetUserIds: [recipientUser.id],
           targetNames: [recipientName],
           dingtalkDeferred: true,
+          status: STATE_TAGS[config.to].replace('状态:', ''),
+          businessSummary: `《${doc.title}》由${username}提交至${STATE_TAGS[config.to].replace('状态:', '')}，下一处理人：${recipientName}${comment.trim() ? `，意见：${comment.trim()}` : ''}`,
         },
       });
     }

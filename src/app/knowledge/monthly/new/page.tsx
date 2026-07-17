@@ -233,7 +233,7 @@ export default function NewMonthlyKnowledgePage() {
 
     async function loadProjects() {
       try {
-        const res = await fetch('/api/projects');
+        const res = await fetch('/api/projects?scope=assigned');
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || '项目列表加载失败');
         const list = Array.isArray(json.projects) ? json.projects : [];

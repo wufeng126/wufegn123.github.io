@@ -51,16 +51,31 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    const { data: supplier } = body.supplier_id
+      ? await supabase.from('suppliers').select('name').eq('id', Number(body.supplier_id)).maybeSingle()
+      : { data: null };
+    const { data: project } = body.project_id
+      ? await supabase.from('projects').select('name').eq('id', Number(body.project_id)).maybeSingle()
+      : { data: null };
+    const paymentAmount = Number(body.payment_amount || 0);
+
     // 钉钉推送通知
     await pushBusinessNotification({
       type: 'new_supplier_payment',
       title: '新增供应商付款',
-      content: `新增供应商付款记录，金额: ¥${Number(body.payment_amount || 0).toLocaleString()}，付款日期: ${body.payment_date || '-'}`,
+      content: `新增供应商付款记录，金额: ¥${paymentAmount.toLocaleString()}，付款日期: ${body.payment_date || '-'}`,
       severity: 'info',
       projectId: body.project_id ? parseInt(String(body.project_id)) : undefined,
       relatedId: paymentData?.id,
       relatedType: 'supplier_payment',
-      metadata: body,
+      metadata: {
+        ...body,
+        supplierName: supplier?.name,
+        projectName: project?.name,
+        paymentAmount,
+        paymentDate: body.payment_date,
+        businessSummary: `${supplier?.name || '供应商'}新增付款${project?.name ? `，项目 ${project.name}` : ''}，金额 ¥${paymentAmount.toLocaleString()}，付款日期 ${body.payment_date || '-'}`,
+      },
     });
 
     return NextResponse.json(paymentData, { status: 201 });

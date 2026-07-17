@@ -437,7 +437,14 @@ export async function POST(request: NextRequest) {
         projectId: Number(project_id),
         visaId: visa?.id,
         recipientUserId: projectManagerUserId,
-        metadata: { visaNumber: visa_number, status: finalStatus, targetNames: [managerName] },
+        metadata: {
+          visaNumber: visa_number,
+          visaName: visa_name,
+          visaAmount: visa_amount,
+          status: finalStatus,
+          targetNames: [managerName],
+          businessSummary: `签证 ${visa_number}${visa_name ? `（${visa_name}）` : ''}已提交给${managerName || '项目经理'}办理甲方工程部签字${visa_amount ? `，金额 ¥${Number(visa_amount).toLocaleString()}` : ''}`,
+        },
       });
     }
 

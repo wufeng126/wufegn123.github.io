@@ -418,6 +418,10 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    const { data: worker } = worker_id
+      ? await client.from('workers').select('name').eq('id', Number(worker_id)).maybeSingle()
+      : { data: null };
+
     // 钉钉推送通知
     await pushBusinessNotification({
       type: 'new_worker_salary',
@@ -427,7 +431,17 @@ export async function POST(request: NextRequest) {
       projectId: project_id ? parseInt(String(project_id)) : undefined,
       relatedId: salaryData?.id,
       relatedType: 'worker_salary',
-      metadata: { worker_id, project_id, year_month, gross_pay, net_pay },
+      metadata: {
+        worker_id,
+        project_id,
+        year_month,
+        yearMonth: year_month,
+        gross_pay,
+        net_pay,
+        amount: Number(net_pay || gross_pay || 0),
+        workerName: worker?.name,
+        businessSummary: `${worker?.name || '工人'} ${year_month} 工资核算，实发 ¥${Number(net_pay || 0).toLocaleString()}，应发 ¥${Number(gross_pay || 0).toLocaleString()}`,
+      },
     });
 
     return NextResponse.json({ salary: salaryData });

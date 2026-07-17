@@ -40,6 +40,182 @@ function shouldUseRobotBroadcast(type: string) {
   return ['construction_daily_report'].includes(type);
 }
 
+function toText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (typeof value === 'string') return value.trim();
+  return '';
+}
+
+function pickText(metadata: Record<string, unknown> | undefined, keys: string[]): string {
+  if (!metadata) return '';
+  for (const key of keys) {
+    const value = toText(metadata[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function pickNumber(metadata: Record<string, unknown> | undefined, keys: string[]): number | null {
+  if (!metadata) return null;
+  for (const key of keys) {
+    const raw = metadata[key];
+    const value = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(/[^\d.-]/g, ''));
+    if (Number.isFinite(value) && value !== 0) return value;
+  }
+  return null;
+}
+
+function formatCurrency(value: number | null): string {
+  if (value === null) return '';
+  return `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
+}
+
+function compactText(value: string, maxLength = 120): string {
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function buildBusinessSummary(params: {
+  type: string;
+  title: string;
+  content: string;
+  projectName?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const { type, title, content, projectName, metadata } = params;
+  const explicitSummary = pickText(metadata, ['businessSummary', 'summary', 'notificationSummary', 'dingTalkSummary']);
+  if (explicitSummary) return compactText(explicitSummary);
+
+  const supplierName = pickText(metadata, ['supplierName', 'supplier_name', 'companyName', 'company_name']);
+  const contractName = pickText(metadata, ['contractName', 'contract_name']);
+  const visaNumber = pickText(metadata, ['visaNumber', 'visa_number']);
+  const visaName = pickText(metadata, ['visaName', 'visa_name']);
+  const workerName = pickText(metadata, ['workerName', 'worker_name', 'name']);
+  const yearMonth = pickText(metadata, ['yearMonth', 'year_month', 'salaryMonth', 'salary_month', 'reportMonth', 'report_month']);
+  const date = pickText(metadata, ['settlementDate', 'settlement_date', 'paymentDate', 'payment_date', 'reportDate', 'report_date', 'logDate', 'log_date']);
+  const certificateType = pickText(metadata, ['certificateType', 'certificate_type']);
+  const expiryDate = pickText(metadata, ['expiryDate', 'expiry_date']);
+  const daysLeft = pickText(metadata, ['daysLeft', 'days_left']);
+  const status = pickText(metadata, ['status', 'state', 'to', 'workflowState', 'workflow_state']);
+  const riskLevel = pickText(metadata, ['riskLevel', 'risk_level']);
+  const amount = formatCurrency(pickNumber(metadata, [
+    'settlementAmount',
+    'settlement_amount',
+    'paymentAmount',
+    'payment_amount',
+    'amount',
+    'payableAmount',
+    'payable_amount',
+    'visaAmount',
+    'visa_amount',
+    'net_pay',
+    'gross_pay',
+    'totalAmount',
+    'total_amount',
+  ]));
+
+  switch (type) {
+    case 'new_report':
+      return compactText(`${projectName || '项目'}新增甲方报量${amount ? `，金额${amount}` : ''}${yearMonth ? `，月份${yearMonth}` : ''}`);
+    case 'new_payment':
+      return compactText(`${projectName || '项目'}新增付款记录${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
+    case 'new_settlement':
+      return compactText(`${supplierName || contractName || '供应商'}新增结算${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
+    case 'certificate_expired':
+      return compactText(`${workerName || '工人'}${certificateType || '证件'}已过期${expiryDate ? `，到期日${expiryDate}` : ''}${daysLeft ? `，已过期${Math.abs(Number(daysLeft) || 0)}天` : ''}`);
+    case 'certificate_expiry_7':
+    case 'certificate_expiry_15':
+    case 'certificate_expiry_30':
+      return compactText(`${workerName || '工人'}${certificateType || '证件'}即将到期${expiryDate ? `，到期日${expiryDate}` : ''}${daysLeft ? `，剩余${daysLeft}天` : ''}`);
+    case 'new_supplier_payment':
+      return compactText(`${supplierName || '供应商'}新增付款${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
+    case 'new_client_payment':
+      return compactText(`${projectName || '项目'}收到甲方回款${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
+    case 'new_worker_salary':
+    case 'new_salary':
+      return compactText(`${yearMonth ? `${yearMonth} ` : ''}${workerName || '工人'}工资核算${amount ? `，金额${amount}` : ''}`);
+    case 'new_worker_payment':
+      return compactText(`${yearMonth ? `${yearMonth} ` : ''}${workerName || '工人'}工资发放${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
+    case 'construction_log_alert':
+      return compactText(`${projectName || '项目'}施工日志风险${riskLevel ? `（${riskLevel}）` : ''}：${content}`);
+    case 'construction_daily_report':
+      return compactText(`${date || pickText(metadata, ['reportDate']) || '当日'}项目日报汇总：${content}`);
+    case 'monthly_analysis_workflow':
+      return compactText(`月度分析流转${status ? `至${status}` : ''}：${content}`);
+    case 'visa_workflow':
+    case 'visa_workflow_overdue':
+      return compactText(`签证流程提醒：${[visaNumber, visaName].filter(Boolean).join(' ') || '签证'}${status ? `，状态${status}` : ''}${amount ? `，金额${amount}` : ''}。${content}`);
+    case 'cost_warning':
+      return compactText(`${projectName || '项目'}成本预警${status ? `：${status}` : ''}。${content}`);
+    case 'new_worker':
+      return compactText(`${workerName || '工人'}入场${projectName ? `，项目${projectName}` : ''}`);
+    default:
+      return compactText(content || title);
+  }
+}
+
+export function buildNotificationExtra(params: {
+  type: string;
+  title: string;
+  content: string;
+  projectName?: string;
+  metadata?: Record<string, unknown>;
+}): Record<string, string> | undefined {
+  const { metadata } = params;
+  const extra: Record<string, string> = {};
+  const summary = buildBusinessSummary(params);
+  if (summary) extra['业务摘要'] = summary;
+
+  const targetNames = Array.isArray(metadata?.targetNames)
+    ? metadata.targetNames.map(toText).filter(Boolean).join('、')
+    : '';
+  if (targetNames) extra['提醒对象'] = targetNames;
+
+  const businessObject = pickText(metadata, [
+    'supplierName',
+    'supplier_name',
+    'companyName',
+    'company_name',
+    'workerName',
+    'worker_name',
+    'contractName',
+    'contract_name',
+    'visaName',
+    'visa_name',
+    'certificateType',
+    'certificate_type',
+    'visaNumber',
+    'visa_number',
+  ]);
+  if (businessObject) extra['业务对象'] = businessObject;
+
+  const amount = formatCurrency(pickNumber(metadata, [
+    'settlementAmount',
+    'settlement_amount',
+    'paymentAmount',
+    'payment_amount',
+    'amount',
+    'payableAmount',
+    'payable_amount',
+    'visaAmount',
+    'visa_amount',
+    'net_pay',
+    'gross_pay',
+    'totalAmount',
+    'total_amount',
+  ]));
+  if (amount) extra['金额'] = amount;
+
+  const period = pickText(metadata, ['yearMonth', 'year_month', 'salaryMonth', 'salary_month', 'reportMonth', 'report_month']);
+  if (period) extra['所属期间'] = period;
+
+  const status = pickText(metadata, ['status', 'state', 'to', 'workflowState', 'workflow_state']);
+  if (status) extra['当前状态'] = status;
+
+  return Object.keys(extra).length > 0 ? extra : undefined;
+}
+
 function isMissingRecipientColumn(error: unknown) {
   const err = error as SupabaseErrorLike;
   const message = String(err?.message || err?.details || '');
@@ -173,8 +349,7 @@ export async function pushBusinessNotification(params: {
       projectName = project?.name;
     }
 
-    const targetNames = Array.isArray(metadata?.targetNames) ? metadata.targetNames.filter(Boolean).join('、') : '';
-    const extra = targetNames ? { 提醒对象: targetNames } : undefined;
+    const extra = buildNotificationExtra({ type, title, content, projectName, metadata });
     const notifParams: NotificationParams = {
       type,
       title,

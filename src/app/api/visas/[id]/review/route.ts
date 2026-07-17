@@ -105,7 +105,14 @@ export async function POST(
         projectId: visa.project_id,
         visaId: Number(id),
         recipientUserId: visa.budget_user_id,
-        metadata: { visaNumber: visa.visa_number, status: '待预算员确认', targetNames: [visa.budget_user_name] },
+        metadata: {
+          visaNumber: visa.visa_number,
+          visaName: visa.visa_name,
+          visaAmount: visa.visa_amount,
+          status: '待预算员确认',
+          targetNames: [visa.budget_user_name],
+          businessSummary: `签证 ${visa.visa_number}${visa.visa_name ? `（${visa.visa_name}）` : ''}已完成甲方商务确认，待预算员确认计入结算${visa.visa_amount ? `，金额 ¥${Number(visa.visa_amount).toLocaleString()}` : ''}`,
+        },
       });
     }
 

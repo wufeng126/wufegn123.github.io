@@ -112,6 +112,23 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    const { data: existingDoc, error: fetchError } = await supabase
+      .from('ai_knowledge_docs')
+      .select('id,tags')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingDoc) {
+      return apiServerError(fetchError?.message || '知识文档不存在');
+    }
+
+    const tags = normalizeKnowledgeTags(existingDoc.tags);
+    const isMonthlyAnalysis = tags.includes('月度分析');
+    const isDraft = tags.includes('状态:草稿');
+    if (isMonthlyAnalysis && !isDraft) {
+      return apiBadRequest('月度分析已进入流转，只有草稿状态可以删除');
+    }
+
     const { error } = await supabase.from('ai_knowledge_docs').update({
       status: 'deleted',
       updated_at: new Date().toISOString(),

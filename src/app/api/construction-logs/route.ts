@@ -192,8 +192,11 @@ async function createRiskSideEffects(
       fallbackToAdmin: recipients.length === 0,
       targetLabel: '项目预算员',
       riskTypes: risk.types,
-    riskLevel: risk.level,
+      riskLevel: risk.level,
       matchedKeywords: risk.matchedKeywords,
+      logDate,
+      projectName: projName,
+      businessSummary: `${projName} ${logDate || ''}施工日志识别到${typeLabel}风险${levelLabel ? `（${levelLabel}）` : ''}：${risk.summary}`,
     },
   });
 }
