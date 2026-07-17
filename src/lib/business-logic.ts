@@ -85,12 +85,21 @@ export function calculateSalary(params: {
  * 根据 salary_payments 汇总已付金额，更新 worker_salaries.payment_status
  */
 export type SalaryPaymentStatus = 'unpaid' | 'partial' | 'paid' | 'overpaid';
+export const SALARY_PAYMENT_TOLERANCE = 1;
 
 export function calculateSalaryPaymentStatus(netPay: number, paidAmount: number): SalaryPaymentStatus {
   if (paidAmount <= 0) return 'unpaid';
-  if (paidAmount > netPay) return 'overpaid';
-  if (paidAmount === netPay) return 'paid';
+  const difference = Math.round((paidAmount - netPay) * 100) / 100;
+  if (Math.abs(difference) <= SALARY_PAYMENT_TOLERANCE) return 'paid';
+  if (difference > SALARY_PAYMENT_TOLERANCE) return 'overpaid';
   return 'partial';
+}
+
+export function calculateSalaryUnpaidAmount(netPay: number, paidAmount: number): number {
+  const difference = Math.round((paidAmount - netPay) * 100) / 100;
+  return Math.abs(difference) <= SALARY_PAYMENT_TOLERANCE
+    ? 0
+    : Math.max(0, netPay - paidAmount);
 }
 
 export async function syncSalaryPaymentStatus(salaryId: number): Promise<SalaryPaymentStatus> {

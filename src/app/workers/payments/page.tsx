@@ -467,10 +467,10 @@ export default function WorkerPaymentsPage() {
   }, [payments]);
 
   const stats = {
-    totalAmount: payments.reduce((sum, p) => sum + parseFloat(p.amount), 0),
-    recordCount: payments.length,
-    projectCount: new Set(payments.map(p => p.project_id)).size,
-    batchCount: new Set(payments.map(p => p.year_month || p.payment_date?.substring(0, 7))).size,
+    totalAmount: filteredPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0),
+    recordCount: filteredPayments.length,
+    projectCount: new Set(filteredPayments.map(p => p.project_id)).size,
+    batchCount: new Set(filteredPayments.map(p => p.year_month || p.payment_date?.substring(0, 7))).size,
   };
 
   const formatCurrency = (amount: number) => {

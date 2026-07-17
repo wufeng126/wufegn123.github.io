@@ -3,7 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
-import { calculateSalaryPaymentStatus, syncSalaryPaymentStatus } from '@/lib/business-logic';
+import { SALARY_PAYMENT_TOLERANCE, calculateSalaryPaymentStatus, calculateSalaryUnpaidAmount, syncSalaryPaymentStatus } from '@/lib/business-logic';
 
 type RelatedNameEntity = {
   name?: string | null;
@@ -236,9 +236,9 @@ export async function GET(request: NextRequest) {
         fine: parseNumeric(record.fine),
         net_pay: netPay,
         paid_amount: paidAmount,
-        unpaid_amount: Math.max(0, netPay - paidAmount),
+        unpaid_amount: calculateSalaryUnpaidAmount(netPay, paidAmount),
         payment_status: calculateSalaryPaymentStatus(netPay, paidAmount),
-        payment_warning: paidAmount > netPay ? '已发金额超过当月实发工资，请核实工资发放记录' : null,
+        payment_warning: Math.round((paidAmount - netPay) * 100) / 100 > SALARY_PAYMENT_TOLERANCE ? '已发金额超过当月实发工资，请核实工资发放记录' : null,
         remark: record.remark,
       };
     });

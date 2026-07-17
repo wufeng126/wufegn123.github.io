@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
-import { syncSalaryPaymentStatus } from '@/lib/business-logic';
+import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
 
 type DbRow = Record<string, any>;
@@ -430,7 +430,7 @@ async function analyzeRows(rows: any[][]) {
     const importingPaid = importPaidMap.get(salary.id) || 0;
     const netPay = parseAmount(salary.net_pay);
 
-    if (alreadyPaid + importingPaid + row.payment_amount > netPay) {
+    if (Math.round((alreadyPaid + importingPaid + row.payment_amount - netPay) * 100) / 100 > SALARY_PAYMENT_TOLERANCE) {
       issues.push({
         row: row.row,
         type: 'warning',

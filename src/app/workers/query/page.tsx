@@ -76,6 +76,8 @@ interface WorkerSummary {
   records: SalaryRecord[];
 }
 
+const SALARY_PAYMENT_TOLERANCE = 1;
+
 export default function WorkerSalaryQueryPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -206,7 +208,6 @@ export default function WorkerSalaryQueryPage() {
       workerData.total_advance += advance;
       workerData.total_insurance += insurance;
       workerData.total_deduction += deduction;
-      workerData.paid += Number(s.paid_amount || 0);
       workerData.monthly_count += 1;
       workerData.records.push(s);
     });
@@ -215,9 +216,8 @@ export default function WorkerSalaryQueryPage() {
     let filteredPayments = salaryPayments;
     if (filterYear) {
       filteredPayments = filteredPayments.filter(p => {
-        if (p.year_month && p.year_month.startsWith(filterYear)) return true;
-        if (p.payment_date && p.payment_date.startsWith(filterYear)) return true;
-        return false;
+        const matchMonth = p.year_month || p.payment_date?.substring(0, 7) || '';
+        return matchMonth.startsWith(filterYear);
       });
     }
     if (filterProject && filterProject !== 'all') {
@@ -256,11 +256,17 @@ export default function WorkerSalaryQueryPage() {
           records: [],
         });
       }
+
+      const workerData = workerMap.get(paymentKey)!;
+      workerData.paid += parseFloat(p.amount) || 0;
     });
     
-    // 计算未付：已发金额使用工资核算接口按 salary_id 汇总后的 paid_amount，避免独立预支款混入正式工资发放
+    // 已发金额直接按工资发放记录汇总，保证工资查询与工资发放页面口径一致。
     workerMap.forEach(w => {
-      w.unpaid = Math.max(0, w.total_net_pay - w.paid);
+      const difference = Math.round((w.paid - w.total_net_pay) * 100) / 100;
+      w.unpaid = Math.abs(difference) <= SALARY_PAYMENT_TOLERANCE
+        ? 0
+        : Math.max(0, w.total_net_pay - w.paid);
     });
     
     return Array.from(workerMap.values()).sort((a, b) => a.worker_name.localeCompare(b.worker_name));

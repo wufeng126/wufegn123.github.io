@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
-import { syncSalaryPaymentStatus } from '@/lib/business-logic';
+import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/business-logic';
 
 function parseAmount(value: any): number {
   const parsed = Number(value);
@@ -148,7 +148,7 @@ async function resolveSalaryForPayment(
   );
   const netPay = parseAmount(salaryRecord.net_pay);
 
-  if (paidAmount + params.amount > netPay) {
+  if (Math.round((paidAmount + params.amount - netPay) * 100) / 100 > SALARY_PAYMENT_TOLERANCE) {
     warning = `发放超额：实发工资 ¥${netPay.toLocaleString()}，已发放 ¥${paidAmount.toLocaleString()}，本次 ¥${params.amount.toLocaleString()}，请核实`;
   }
 
