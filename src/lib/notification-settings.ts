@@ -5,6 +5,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS = [
   { key: 'dingtalk_robot_broadcast_enabled', value: '', enabled: true, description: '允许公司级广播消息发送到钉钉群机器人' },
   { key: 'dingtalk_webhook', value: '', enabled: true, description: '钉钉群机器人 Webhook，仅用于公司级广播' },
   { key: 'dingtalk_secret', value: '', enabled: true, description: '钉钉群机器人加签 Secret' },
+  { key: 'dingtalk_recipient_bindings', value: '{}', enabled: true, description: '按消息类型绑定钉钉个人通知接收人' },
   { key: 'todo_digest_enabled', value: '', enabled: true, description: '允许定时向个人推送待办汇总' },
   { key: 'new_record_reminder_enabled', value: '', enabled: true, description: '新增记录、流程节点和日报汇总提醒' },
   { key: 'visa_reminder_enabled', value: '', enabled: true, description: '签证流程和签证超期提醒' },

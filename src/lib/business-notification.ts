@@ -6,6 +6,30 @@ import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/
 type NotificationSeverity = 'info' | 'warning' | 'danger';
 type NotificationRow = { id?: number | string; recipient_user_id?: number | null };
 type SupabaseErrorLike = { message?: string; details?: string } | null;
+
+function parseRecipientBindings(value?: string | null): Record<string, number[]> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+    return Object.entries(parsed).reduce<Record<string, number[]>>((acc, [type, ids]) => {
+      if (!Array.isArray(ids)) return acc;
+      const normalizedIds = Array.from(
+        new Set(
+          ids
+            .map((id) => Number(id))
+            .filter((id) => Number.isInteger(id) && id > 0),
+        ),
+      );
+      if (normalizedIds.length > 0) acc[type] = normalizedIds;
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
 function getPriority(severity: NotificationSeverity) {
   if (severity === 'danger') return 2;
   if (severity === 'warning') return 1;
@@ -49,7 +73,26 @@ export async function pushBusinessNotification(params: {
       metadata,
     } = params;
 
-    const uniqueRecipientIds = Array.from(new Set((recipientUserIds || []).filter(Boolean)));
+    const notificationSettings = await getNotificationSettingsMap(supabase, [
+      'dingtalk_enabled',
+      'dingtalk_webhook',
+      'dingtalk_secret',
+      'dingtalk_robot_broadcast_enabled',
+      'dingtalk_recipient_bindings',
+      'new_record_reminder_enabled',
+      'settlement_reminder_enabled',
+      'payment_warning_enabled',
+      'salary_reminder_enabled',
+      'client_payment_reminder_enabled',
+      'supplier_payment_reminder_enabled',
+      'cost_warning_enabled',
+      'visa_reminder_enabled',
+    ]);
+    const configuredRecipientIds = parseRecipientBindings(notificationSettings.dingtalk_recipient_bindings?.value)[type] || [];
+    const resolvedRecipientIds = recipientUserIds && recipientUserIds.length > 0
+      ? recipientUserIds
+      : configuredRecipientIds;
+    const uniqueRecipientIds = Array.from(new Set((resolvedRecipientIds || []).filter(Boolean)));
     const baseNotification = {
       type,
       title,
@@ -101,20 +144,6 @@ export async function pushBusinessNotification(params: {
       return;
     }
 
-    const notificationSettings = await getNotificationSettingsMap(supabase, [
-      'dingtalk_enabled',
-      'dingtalk_webhook',
-      'dingtalk_secret',
-      'dingtalk_robot_broadcast_enabled',
-      'new_record_reminder_enabled',
-      'settlement_reminder_enabled',
-      'payment_warning_enabled',
-      'salary_reminder_enabled',
-      'client_payment_reminder_enabled',
-      'supplier_payment_reminder_enabled',
-      'cost_warning_enabled',
-      'visa_reminder_enabled',
-    ]);
     const isTypeEnabled = (key: string) => notificationSettings[key]?.enabled !== false;
 
     let shouldSend = false;

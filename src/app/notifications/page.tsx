@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Bell,
   BellRing,
@@ -69,10 +70,58 @@ interface Settings {
   };
 }
 
+interface RecipientUser {
+  id: number;
+  name: string;
+  username: string;
+  role: string;
+  dingtalkBound: boolean;
+  dingtalkActive: boolean;
+}
+
+type RecipientBindings = Record<string, number[]>;
+
+function parseRecipientBindings(value?: string | null): RecipientBindings {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+    return Object.entries(parsed).reduce<RecipientBindings>((acc, [type, ids]) => {
+      if (!Array.isArray(ids)) return acc;
+      const normalizedIds = Array.from(
+        new Set(
+          ids
+            .map((id) => Number(id))
+            .filter((id) => Number.isInteger(id) && id > 0),
+        ),
+      );
+      if (normalizedIds.length > 0) acc[type] = normalizedIds;
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
+const recipientBindingTypes = [
+  { type: 'new_settlement', title: '供应商结算新增', desc: '新增供应商结算单后自动推送' },
+  { type: 'new_supplier_payment', title: '供应商付款新增', desc: '新增供应商付款记录后自动推送' },
+  { type: 'new_client_payment', title: '甲方回款新增', desc: '新增甲方回款记录后自动推送' },
+  { type: 'new_worker_salary', title: '工资核算导入', desc: '工资核算数据导入成功后自动推送' },
+  { type: 'new_worker_payment', title: '工资发放导入', desc: '工资发放数据导入成功后自动推送' },
+  { type: 'construction_log_alert', title: '施工日志风险', desc: '施工日志识别出风险后自动推送' },
+  { type: 'monthly_analysis_workflow', title: '月度分析流转', desc: '月度分析提交、确认、退回等节点推送' },
+  { type: 'visa_workflow', title: '签证流程流转', desc: '签证提交、签字、确认等节点推送' },
+  { type: 'visa_workflow_overdue', title: '签证超期推进', desc: '签证超过期限未推进时自动推送' },
+];
+
 const notificationRules = [
   {
     settingKey: 'new_record_reminder_enabled',
     title: '月度分析流转',
+    mode: '实时触发',
+    trigger: '预算员、项目经理、老板提交下一步时立即推送',
     target: '当前流程节点负责人',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '预算员提交给手动选择的项目经理；项目经理确认后返回原预算员；预算员再选择老板。',
@@ -80,6 +129,8 @@ const notificationRules = [
   {
     settingKey: 'visa_reminder_enabled',
     title: '签证办理流转',
+    mode: '实时触发',
+    trigger: '签证提交、签字、商务确认、预算员确认计入结算时立即推送',
     target: '项目经理 / 原发起预算员',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '预算员发起后推给项目经理；项目经理完成线下签字后推回预算员确认计入结算。',
@@ -87,13 +138,18 @@ const notificationRules = [
   {
     settingKey: 'visa_reminder_enabled',
     title: '签证超期推进',
+    mode: '定时检测',
+    trigger: '定时调用通知检测接口，发现超过 7 天未推进时推送',
     target: '当前负责人',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '超过 7 天未进入下一状态时，只提醒当前负责推进的人。',
+    cron: '/api/notifications/check?force=true',
   },
   {
     settingKey: 'cost_warning_enabled',
     title: '施工日志风险',
+    mode: '实时触发',
+    trigger: '施工日志提交后识别到风险内容时立即推送',
     target: '项目绑定预算员',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '按项目身份中的预算员接收，不因超级管理员可看全部项目而默认接收全部提醒。',
@@ -101,13 +157,18 @@ const notificationRules = [
   {
     settingKey: 'new_record_reminder_enabled',
     title: '项目日报汇总',
+    mode: '定时生成',
+    trigger: '每天 12 点截止后调用日报生成接口，生成后推送',
     target: '公司广播',
     channel: '站内通知 + 钉钉群机器人',
     detail: '用于每日 12 点后自动汇总推送；后续可再缩小为项目相关人员。',
+    cron: '/api/construction-daily-reports/generate',
   },
   {
     settingKey: 'salary_reminder_enabled',
     title: '工资核算/发放',
+    mode: '实时触发',
+    trigger: '工资核算或工资发放导入成功后立即推送',
     target: '相关项目预算员、财务或流程负责人',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '工资类提醒不发群，避免工资信息扩散。',
@@ -115,13 +176,36 @@ const notificationRules = [
   {
     settingKey: 'supplier_payment_reminder_enabled',
     title: '供应商付款/结算',
+    mode: '实时触发',
+    trigger: '新增供应商结算或付款记录后立即推送',
     target: '相关业务负责人',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '供应商付款和结算按业务记录接收人推送。',
   },
   {
+    settingKey: 'client_payment_reminder_enabled',
+    title: '甲方回款提醒',
+    mode: '实时触发',
+    trigger: '新增甲方回款记录后立即推送',
+    target: '相关业务负责人',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '用于让预算、财务及时知道项目回款已发生。',
+  },
+  {
+    settingKey: 'todo_digest_enabled',
+    title: '待办事项汇总',
+    mode: '定时汇总',
+    trigger: '定时汇总每个人未读待办，再按个人推送',
+    target: '当前待办负责人',
+    channel: '钉钉个人工作通知',
+    detail: '适合每天上班前或下午固定时间提醒，不会推给无关人员。',
+    cron: '/api/notifications/todo-digest',
+  },
+  {
     settingKey: 'dingtalk_robot_broadcast_enabled',
     title: '公司级广播',
+    mode: '通道开关',
+    trigger: '被日报汇总、系统公告等公司级消息调用',
     target: '钉钉群',
     channel: '钉钉群机器人',
     detail: '仅用于日报汇总、系统公告这类适合公开广播的消息。',
@@ -208,9 +292,13 @@ export default function NotificationsPage() {
   const [dingtalkSecret, setDingtalkSecret] = useState('');
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [testingWorkNotice, setTestingWorkNotice] = useState(false);
+  const [pushingTodoDigest, setPushingTodoDigest] = useState(false);
   const [checking, setChecking] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [recipientUsers, setRecipientUsers] = useState<RecipientUser[]>([]);
+  const [recipientBindings, setRecipientBindings] = useState<RecipientBindings>({});
+  const [savingRecipientBindings, setSavingRecipientBindings] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -239,8 +327,21 @@ export default function NotificationsPage() {
       setSettings(data.settings || {});
       setWebhookUrl(data.settings?.dingtalk_webhook?.value || '');
       setDingtalkSecret(data.settings?.dingtalk_secret?.value || '');
+      setRecipientBindings(parseRecipientBindings(data.settings?.dingtalk_recipient_bindings?.value));
     } catch (error) {
       console.error('获取设置失败:', error);
+    }
+  };
+
+  const fetchRecipientUsers = async () => {
+    try {
+      const res = await fetch('/api/notifications/recipient-users');
+      const data = await res.json();
+      if (data.success) {
+        setRecipientUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error('获取接收人失败:', error);
     }
   };
 
@@ -248,6 +349,7 @@ export default function NotificationsPage() {
     const timer = window.setTimeout(() => {
       fetchData();
       fetchSettings();
+      fetchRecipientUsers();
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeTab, page]);
@@ -369,6 +471,31 @@ export default function NotificationsPage() {
     }
   };
 
+  // 手动推送待办汇总
+  const pushTodoDigest = async () => {
+    setPushingTodoDigest(true);
+    try {
+      const res = await fetch('/api/notifications/todo-digest', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || '待办汇总推送失败');
+      }
+      toast({
+        title: '推送完成',
+        description: `已发送 ${data.sentCount || 0} 人，跳过 ${data.skippedCount || 0} 人`,
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        title: '推送失败',
+        description: error instanceof Error ? error.message : '请稍后重试',
+        variant: 'error',
+      });
+    } finally {
+      setPushingTodoDigest(false);
+    }
+  };
+
   // 执行检测
   const runCheck = async () => {
     setChecking(true);
@@ -409,6 +536,56 @@ export default function NotificationsPage() {
         description: error instanceof Error ? error.message : '请稍后重试',
         variant: 'error',
       });
+    }
+  };
+
+  const toggleRecipientBinding = (messageType: string, userId: number, checked: boolean) => {
+    setRecipientBindings((prev) => {
+      const currentIds = prev[messageType] || [];
+      const nextIds = checked
+        ? Array.from(new Set([...currentIds, userId]))
+        : currentIds.filter((id) => id !== userId);
+
+      if (nextIds.length === 0) {
+        const rest = { ...prev };
+        delete rest[messageType];
+        return rest;
+      }
+
+      return {
+        ...prev,
+        [messageType]: nextIds,
+      };
+    });
+  };
+
+  const saveRecipientBindings = async () => {
+    setSavingRecipientBindings(true);
+    try {
+      const res = await fetch('/api/notifications/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'dingtalk_recipient_bindings',
+          value: JSON.stringify(recipientBindings),
+          enabled: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || '接收人配置保存失败');
+      }
+
+      toast({ title: '保存成功', description: '消息类型接收人已更新', variant: 'success' });
+      fetchSettings();
+    } catch (error) {
+      toast({
+        title: '保存失败',
+        description: error instanceof Error ? error.message : '请稍后重试',
+        variant: 'error',
+      });
+    } finally {
+      setSavingRecipientBindings(false);
     }
   };
 
@@ -592,6 +769,7 @@ export default function NotificationsPage() {
                 { key: 'visa_reminder_enabled', label: '签证流程提醒', desc: '签证提交、推进、超期和预算员确认时发送提醒' },
                 { key: 'settlement_reminder_enabled', label: '结算单提醒', desc: '新增结算单时发送钉钉通知' },
                 { key: 'new_record_reminder_enabled', label: '业务流转提醒', desc: '新增记录、月度分析、日报汇总等业务节点通知' },
+                { key: 'todo_digest_enabled', label: '待办汇总提醒', desc: '定时汇总每个人未读待办并推送到钉钉个人通知' },
                 { key: 'salary_reminder_enabled', label: '工资发放提醒', desc: '新增工资发放记录时发送钉钉通知' },
                 { key: 'payment_warning_enabled', label: '应付款预警', desc: '应付款到期、超期欠款时发送预警' },
                 { key: 'cost_warning_enabled', label: '成本预警', desc: '成本超支或利润为负时发送预警' },
@@ -612,27 +790,145 @@ export default function NotificationsPage() {
               ))}
             </div>
 
+            {/* 消息接收人绑定 */}
             <div className="space-y-3 pt-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>消息接收人绑定</p>
+                  <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
+                    用于没有明确流程负责人的业务消息。已指定流程负责人的消息，仍优先推送给流程节点负责人。
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={saveRecipientBindings}
+                  disabled={savingRecipientBindings}
+                  className="flex items-center gap-1"
+                >
+                  {savingRecipientBindings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  保存接收人配置
+                </Button>
+              </div>
+
+              {recipientUsers.length === 0 ? (
+                <div className="rounded-lg border p-4 text-sm" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                  暂无可绑定用户，请先在用户与权限中维护人员。
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {recipientBindingTypes.map((item) => {
+                    const selectedIds = recipientBindings[item.type] || [];
+                    return (
+                      <div key={item.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{item.title}</p>
+                              <Badge variant="outline">{selectedIds.length} 人</Badge>
+                            </div>
+                            <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{item.desc}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {recipientUsers.map((user) => {
+                            const disabled = !user.dingtalkBound || !user.dingtalkActive;
+                            const checked = selectedIds.includes(user.id);
+                            return (
+                              <label
+                                key={`${item.type}-${user.id}`}
+                                className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${
+                                  disabled ? 'opacity-60' : 'cursor-pointer hover:bg-gray-50'
+                                }`}
+                                style={{ borderColor: checked ? '#165DFF' : '#E5E6EB', background: checked ? '#F4F9FF' : '#FFFFFF' }}
+                              >
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <Checkbox
+                                    checked={checked}
+                                    disabled={disabled}
+                                    onCheckedChange={(value) => toggleRecipientBinding(item.type, user.id, value === true)}
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="truncate font-medium" style={{ color: '#1D2129' }}>{user.name || user.username}</p>
+                                    <p className="truncate text-xs" style={{ color: '#86909C' }}>{user.role || '未设置角色'}</p>
+                                  </div>
+                                </div>
+                                {disabled && (
+                                  <Badge variant="secondary" className="shrink-0">
+                                    {!user.dingtalkBound ? '未绑定钉钉' : '已停用'}
+                                  </Badge>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#BEDAFF', background: '#F4F9FF' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>自动推送生效条件</p>
+                  <p className="mt-1 text-xs leading-5" style={{ color: '#4E5969' }}>
+                    实时类消息由业务动作触发；定时类消息需要部署平台按计划调用接口。个人通知按流程负责人或项目角色精准推送，群机器人只用于公司级广播。
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={runCheck}
+                    disabled={checking}
+                    className="flex items-center gap-1"
+                  >
+                    {checking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    检测预警
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={pushTodoDigest}
+                    disabled={pushingTodoDigest}
+                    className="flex items-center gap-1"
+                  >
+                    {pushingTodoDigest ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    推送待办汇总
+                  </Button>
+                </div>
+              </div>
+
               <div>
-                <p className="text-sm font-medium" style={{ color: '#1D2129' }}>消息推送规则台账</p>
+                <p className="text-sm font-medium" style={{ color: '#1D2129' }}>自动推送规则台账</p>
                 <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
-                  这里展示“哪些消息推给哪些人”。待办类消息按项目身份或流程负责人精准推送；群机器人只做公司级广播。
+                  用来核对“什么动作会推送、推给谁、走哪个钉钉通道”。标记为定时的规则，需要在部署平台配置定时调用。
                 </p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {notificationRules.map((rule) => {
                   const enabled = settings[rule.settingKey]?.enabled ?? true;
+                  const isScheduled = rule.mode.includes('定时');
                   return (
                     <div key={`${rule.settingKey}-${rule.title}`} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
+                            <Badge variant={isScheduled ? 'secondary' : 'outline'}>{rule.mode}</Badge>
+                          </div>
                           <p className="mt-1 text-xs" style={{ color: '#4E5969' }}>接收对象：{rule.target}</p>
                         </div>
                         <Badge variant={enabled ? 'default' : 'secondary'}>{enabled ? '已启用' : '已停用'}</Badge>
                       </div>
-                      <div className="mt-3 rounded-md px-3 py-2 text-xs" style={{ background: '#F7F8FA', color: '#4E5969' }}>
-                        推送通道：{rule.channel}
+                      <div className="mt-3 space-y-2 rounded-md px-3 py-2 text-xs" style={{ background: '#F7F8FA', color: '#4E5969' }}>
+                        <p>触发条件：{rule.trigger}</p>
+                        <p>推送通道：{rule.channel}</p>
+                        {rule.cron && (
+                          <p className="break-all" style={{ color: '#165DFF' }}>定时接口：{rule.cron}</p>
+                        )}
                       </div>
                       <p className="mt-2 text-xs leading-5" style={{ color: '#86909C' }}>{rule.detail}</p>
                     </div>
