@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Check, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { getUserDisplayName } from '@/lib/user-display-name';
@@ -73,25 +73,38 @@ export default function ApprovalConfigPage() {
   const [configs, setConfigs] = useState<WorkflowConfig[]>([]);
   const [editing, setEditing] = useState<WorkflowConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingDefaults, setSavingDefaults] = useState(false);
   const [users, setUsers] = useState<SystemUser[]>([]);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/system/workflow-config').then(r => r.json()),
-      fetch('/api/auth/center/users').then(r => r.json()),
-    ]).then(([wJ, uJ]) => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
+      const [wJ, uJ] = await Promise.all([
+        fetch('/api/system/workflow-config').then(r => r.json()),
+        fetch('/api/auth/center/users').then(r => r.json()),
+      ]);
       if (uJ && uJ.users) setUsers(uJ.users);
       if (wJ.success) {
         if (wJ.data && wJ.data.length > 0) {
           setConfigs(wJ.data);
         } else {
-          createDefaultConfig();
+          await createDefaultConfig(false);
         }
+      } else {
+        toast.error(wJ.error || '审批流程加载失败');
       }
-    }).finally(() => setLoading(false));
-  }, []);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : '审批流程加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  async function createDefaultConfig() {
+  async function createDefaultConfig(showToast = true) {
+    setSavingDefaults(true);
     try {
       const results = await Promise.all(DEFAULT_WORKFLOW_CONFIGS.map(config =>
         fetch('/api/system/workflow-config', {
@@ -100,8 +113,15 @@ export default function ApprovalConfigPage() {
           body: JSON.stringify(config),
         }).then(res => res.json())
       ));
-      setConfigs(results.filter(json => json.success).map(json => json.data));
-    } catch {}
+      const failed = results.find(json => !json.success);
+      if (failed) throw new Error(failed.error || '默认流程恢复失败');
+      setConfigs(results.map(json => json.data));
+      if (showToast) toast.success('默认审批流程已恢复');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : '默认流程恢复失败');
+    } finally {
+      setSavingDefaults(false);
+    }
   }
 
   async function save() {
@@ -123,6 +143,7 @@ export default function ApprovalConfigPage() {
         if (idx >= 0) { const n = [...prev]; n[idx] = json.data; return n; }
         return [...prev, json.data];
       });
+      setEditing(null);
       toast.success('保存成功');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : '保存失败');
@@ -133,7 +154,7 @@ export default function ApprovalConfigPage() {
     if (!editing) return;
     setEditing({
       ...editing,
-      steps: [...editing.steps, { state: '', label: '', role: '', actor: '' }],
+      steps: [...editing.steps, { state: `step_${editing.steps.length + 1}`, label: '', role: '', actor: '' }],
     });
   }
 
@@ -189,12 +210,30 @@ export default function ApprovalConfigPage() {
             <h1 className="text-xl font-bold text-[#1D2129] sm:text-2xl">审批流程配置</h1>
             <p className="text-sm text-[#86909C] mt-0.5">自定义月度分析等业务流程的审批节点和责任人</p>
           </div>
-          <span className="inline-flex h-9 items-center rounded-full bg-[#E8F3FF] px-3 text-xs font-medium text-[#165DFF]">当前启用 3 类流程</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-9 items-center rounded-full bg-[#E8F3FF] px-3 text-xs font-medium text-[#165DFF]">当前启用 3 类流程</span>
+            <button
+              onClick={() => createDefaultConfig()}
+              disabled={savingDefaults}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#D8E3FF] bg-white px-3 text-xs font-medium text-[#165DFF] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {savingDefaults ? '恢复中' : '恢复默认流程'}
+            </button>
+          </div>
         </div>
 
         {configs.length === 0 && !loading ? (
           <div className="bg-white rounded-xl border border-dashed border-[#E5E6EB] p-14 text-center">
-            <p className="text-sm text-[#86909C] mb-4">暂无审批流程，点击"新建流程"创建</p>
+            <p className="text-sm text-[#86909C] mb-4">暂无审批流程，可先恢复系统默认的三类流程</p>
+            <button
+              onClick={() => createDefaultConfig()}
+              disabled={savingDefaults}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#165DFF] px-4 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RotateCcw className="h-4 w-4" />
+              {savingDefaults ? '恢复中' : '恢复默认流程'}
+            </button>
           </div>
         ) : null}
 
@@ -257,7 +296,7 @@ export default function ApprovalConfigPage() {
                     </button>
                   </div>
                   <div className="space-y-3">
-                    {editing.steps.filter(s => s.label).map((step, i) => (
+                    {editing.steps.map((step, i) => (
                       <div key={i} className="flex flex-col gap-3 rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-3 sm:flex-row sm:items-center">
                         <span className="text-xs text-[#86909C] w-5 shrink-0">{i + 1}</span>
                         <div className="grid w-full flex-1 gap-2 sm:grid-cols-3">

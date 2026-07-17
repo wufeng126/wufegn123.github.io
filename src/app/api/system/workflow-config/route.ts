@@ -36,6 +36,23 @@ const DEFAULT_WORKFLOW_CONFIGS = [
 
 const ALLOWED_WORKFLOW_TYPES = DEFAULT_WORKFLOW_CONFIGS.map(config => config.workflow_type);
 
+function normalizeSteps(steps: unknown) {
+  if (!Array.isArray(steps)) return null;
+  return steps
+    .filter((step): step is { state?: unknown; label?: unknown; role?: unknown; actor?: unknown } => !!step && typeof step === 'object')
+    .map((step, index) => ({
+      state: String(step.state || `step_${index + 1}`).trim(),
+      label: String(step.label || '').trim(),
+      role: String(step.role || '').trim(),
+      actor: String(step.actor || '').trim(),
+    }))
+    .filter(step => step.label);
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '审批流程配置失败';
+}
+
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -47,7 +64,9 @@ export async function GET() {
     const existingTypes = new Set((existing || []).map((item: { workflow_type: string }) => item.workflow_type));
     const missingConfigs = DEFAULT_WORKFLOW_CONFIGS.filter(config => !existingTypes.has(config.workflow_type));
     if (missingConfigs.length > 0) {
-      const { error: seedError } = await supabase.from('workflow_configs').upsert(missingConfigs);
+      const { error: seedError } = await supabase
+        .from('workflow_configs')
+        .upsert(missingConfigs, { onConflict: 'workflow_type' });
       if (seedError) throw new Error(seedError.message);
     }
 
@@ -58,8 +77,8 @@ export async function GET() {
       .order('id');
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, data: data || [] });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: getErrorMessage(e) }, { status: 500 });
   }
 }
 
@@ -67,22 +86,32 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const { workflow_type, name, steps } = body;
-    if (!workflow_type || !steps) {
+    const normalizedSteps = normalizeSteps(steps);
+    if (!workflow_type || !normalizedSteps) {
       return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+    }
+    if (normalizedSteps.length === 0) {
+      return NextResponse.json({ success: false, error: '审批流程至少需要一个节点' }, { status: 400 });
     }
     if (!ALLOWED_WORKFLOW_TYPES.includes(workflow_type)) {
       return NextResponse.json({ success: false, error: '当前仅支持月度分析、施工日志确认、签证办理三类流程配置' }, { status: 400 });
     }
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('workflow_configs').upsert({
-      workflow_type, name: name || workflow_type, steps,
+      workflow_type,
+      name: String(name || workflow_type).trim(),
+      steps: normalizedSteps,
       updated_at: new Date().toISOString(),
-    }).select().single();
+    }, { onConflict: 'workflow_type' }).select().single();
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, data });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: getErrorMessage(e) }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest) {
+  return PUT(request);
 }
 
 export async function DELETE(request: NextRequest) {
@@ -93,7 +122,7 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseClient();
     await supabase.from('workflow_configs').delete().eq('id', parseInt(id));
     return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: getErrorMessage(e) }, { status: 500 });
   }
 }
