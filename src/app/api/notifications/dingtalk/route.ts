@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireAuth } from '@/lib/api-auth';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
-import { requireAuth } from '@/lib/api-auth';
-
-function isEnabled(value: unknown, fallback = true) {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  const normalized = String(value).trim().toLowerCase();
-  if (['false', '0', 'off', 'no', 'disabled'].includes(normalized)) return false;
-  if (['true', '1', 'on', 'yes', 'enabled'].includes(normalized)) return true;
-  return fallback;
-}
+import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 function shouldUseRobotBroadcast(type: string) {
   return ['construction_daily_report'].includes(type);
@@ -24,30 +15,16 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { test, channel = 'robot', notificationId, notificationIds } = body;
+    const settings = await getNotificationSettingsMap(supabase, [
+      'dingtalk_webhook',
+      'dingtalk_secret',
+      'dingtalk_robot_broadcast_enabled',
+    ]);
 
-    // 获取钉钉 Webhook 设置
-    const { data: webhookSetting } = await supabase
-      .from('notification_settings')
-      .select('*')
-      .eq('setting_key', 'dingtalk_webhook')
-      .single();
+    const webhookSetting = settings.dingtalk_webhook;
+    const webhookUrl = webhookSetting?.value;
+    const secret = settings.dingtalk_secret?.value;
 
-    const { data: secretSetting } = await supabase
-      .from('notification_settings')
-      .select('*')
-      .eq('setting_key', 'dingtalk_secret')
-      .single();
-
-    const { data: robotBroadcastSetting } = await supabase
-      .from('notification_settings')
-      .select('enabled')
-      .eq('setting_key', 'dingtalk_robot_broadcast_enabled')
-      .maybeSingle();
-
-    const webhookUrl = webhookSetting?.setting_value;
-    const secret = secretSetting?.setting_value;
-
-    // 测试消息
     if (test) {
       if (channel === 'work') {
         const auth = await requireAuth(request);
@@ -84,7 +61,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (!webhookUrl || !isEnabled(webhookSetting?.enabled, true)) {
+      if (!webhookUrl || !isNotificationSettingEnabled(webhookSetting?.enabled, true)) {
         return NextResponse.json(
           { success: false, error: '钉钉群机器人 Webhook 未配置或未启用，请在通知设置中配置' },
           { status: 400 }
@@ -95,19 +72,19 @@ export async function POST(request: NextRequest) {
         webhookUrl,
         secret,
         '测试通知',
-        '### 🔵 钉钉通知测试\n\n这是一条来自**建筑劳务管理系统**的测试消息。\n\n---\n⏰ ' + new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+        `### 钉钉通知测试\n\n这是一条来自 **建筑劳务管理系统** 的测试消息。\n\n---\n时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`
       );
 
       if (result.success) {
         return NextResponse.json({ success: true, message: '测试消息已发送，请检查钉钉群' });
       }
+
       return NextResponse.json(
-        { success: false, error: `发送失败: ${result.errmsg || '未知错误'}` },
+        { success: false, error: `发送失败：${result.errmsg || '未知错误'}` },
         { status: 500 }
       );
     }
 
-    // 重发指定通知
     let targetIds = notificationIds || [];
     if (notificationId) {
       targetIds = [notificationId];
@@ -132,7 +109,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 获取项目名称映射
     const projectIds = [...new Set(notifications.map((n: { project_id: number }) => n.project_id).filter(Boolean))];
     const { data: projects } = projectIds.length > 0
       ? await supabase
@@ -162,7 +138,6 @@ export async function POST(request: NextRequest) {
 
     for (const notification of notifications) {
       const projectName = notification.project_id ? projectMap.get(notification.project_id) : undefined;
-
       const params: NotificationParams = {
         type: notification.type,
         title: notification.title,
@@ -176,8 +151,8 @@ export async function POST(request: NextRequest) {
 
       if (
         webhookUrl &&
-        isEnabled(webhookSetting?.enabled, true) &&
-        isEnabled(robotBroadcastSetting?.enabled, true) &&
+        isNotificationSettingEnabled(webhookSetting?.enabled, true) &&
+        isNotificationSettingEnabled(settings.dingtalk_robot_broadcast_enabled?.enabled, true) &&
         shouldUseRobotBroadcast(notification.type)
       ) {
         const result = await sendDingTalkNotification(webhookUrl, secret, title, text);
@@ -194,7 +169,6 @@ export async function POST(request: NextRequest) {
 
       if (sent) {
         sentCount++;
-        // 更新通知发送状态
         await supabase
           .from('notifications')
           .update({ is_sent: true, sent_at: new Date().toISOString() })

@@ -1,22 +1,11 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
+import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
 
 type NotificationSeverity = 'info' | 'warning' | 'danger';
 type NotificationRow = { id?: number | string; recipient_user_id?: number | null };
 type SupabaseErrorLike = { message?: string; details?: string } | null;
-type SettingEnabled = boolean | string | number | null | undefined;
-
-function isEnabled(value: SettingEnabled, fallback = false) {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  const normalized = value.trim().toLowerCase();
-  if (['false', '0', 'off', 'no', 'disabled'].includes(normalized)) return false;
-  if (['true', '1', 'on', 'yes', 'enabled'].includes(normalized)) return true;
-  return fallback;
-}
-
 function getPriority(severity: NotificationSeverity) {
   if (severity === 'danger') return 2;
   if (severity === 'warning') return 1;
@@ -112,25 +101,21 @@ export async function pushBusinessNotification(params: {
       return;
     }
 
-    const { data: typeSettings } = await supabase
-      .from('notification_settings')
-      .select('setting_key, enabled')
-      .in('setting_key', [
-        'new_record_reminder_enabled',
-        'settlement_reminder_enabled',
-        'payment_warning_enabled',
-        'salary_reminder_enabled',
-        'client_payment_reminder_enabled',
-        'supplier_payment_reminder_enabled',
-        'cost_warning_enabled',
-        'visa_reminder_enabled',
-      ]);
-
-    const typeEnabledMap: Record<string, boolean> = {};
-    typeSettings?.forEach((setting: { setting_key: string; enabled: SettingEnabled }) => {
-      typeEnabledMap[setting.setting_key] = isEnabled(setting.enabled, true);
-    });
-    const isTypeEnabled = (key: string) => typeEnabledMap[key] !== false;
+    const notificationSettings = await getNotificationSettingsMap(supabase, [
+      'dingtalk_enabled',
+      'dingtalk_webhook',
+      'dingtalk_secret',
+      'dingtalk_robot_broadcast_enabled',
+      'new_record_reminder_enabled',
+      'settlement_reminder_enabled',
+      'payment_warning_enabled',
+      'salary_reminder_enabled',
+      'client_payment_reminder_enabled',
+      'supplier_payment_reminder_enabled',
+      'cost_warning_enabled',
+      'visa_reminder_enabled',
+    ]);
+    const isTypeEnabled = (key: string) => notificationSettings[key]?.enabled !== false;
 
     let shouldSend = false;
     if (['new_report', 'new_worker'].includes(type) && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
@@ -145,32 +130,9 @@ export async function pushBusinessNotification(params: {
     if (type === 'construction_daily_report' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
     if (['visa_workflow', 'visa_workflow_overdue'].includes(type) && (isTypeEnabled('visa_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
 
-    const { data: dingtalkEnabled } = await supabase
-      .from('notification_settings')
-      .select('enabled')
-      .eq('setting_key', 'dingtalk_enabled')
-      .single();
-    if (dingtalkEnabled && !isEnabled(dingtalkEnabled.enabled, true)) shouldSend = false;
+    if (!isNotificationSettingEnabled(notificationSettings.dingtalk_enabled?.enabled, true)) shouldSend = false;
 
     if (!shouldSend) return;
-
-    const { data: webhookSetting } = await supabase
-      .from('notification_settings')
-      .select('setting_value, enabled')
-      .eq('setting_key', 'dingtalk_webhook')
-      .single();
-
-    const { data: secretSetting } = await supabase
-      .from('notification_settings')
-      .select('setting_value')
-      .eq('setting_key', 'dingtalk_secret')
-      .single();
-
-    const { data: robotBroadcastSetting } = await supabase
-      .from('notification_settings')
-      .select('enabled')
-      .eq('setting_key', 'dingtalk_robot_broadcast_enabled')
-      .maybeSingle();
 
     let projectName: string | undefined;
     if (projectId) {
@@ -201,12 +163,16 @@ export async function pushBusinessNotification(params: {
     let robotSent = false;
     const canSendRobotBroadcast =
       shouldUseRobotBroadcast(type) &&
-      isEnabled(robotBroadcastSetting?.enabled, true);
+      isNotificationSettingEnabled(notificationSettings.dingtalk_robot_broadcast_enabled?.enabled, true);
 
-    if (canSendRobotBroadcast && webhookSetting?.setting_value && isEnabled(webhookSetting.enabled, true)) {
+    if (
+      canSendRobotBroadcast &&
+      notificationSettings.dingtalk_webhook?.value &&
+      isNotificationSettingEnabled(notificationSettings.dingtalk_webhook?.enabled, true)
+    ) {
       const result = await sendDingTalkNotification(
-        webhookSetting.setting_value,
-        secretSetting?.setting_value,
+        notificationSettings.dingtalk_webhook.value,
+        notificationSettings.dingtalk_secret?.value,
         msgTitle,
         text
       );

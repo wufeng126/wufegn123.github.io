@@ -595,7 +595,9 @@ export const notificationSettings = pgTable("notification_settings", {
 	enabled: varchar({ length: 5 }).default('true'), // 是否启用
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-});
+}, (table) => [
+	unique("notification_settings_setting_key_key").on(table.settingKey),
+]);
 
 // 供应商合同表
 export const supplierContracts = pgTable("supplier_contracts", {
