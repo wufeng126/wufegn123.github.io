@@ -123,9 +123,17 @@ const DEFAULT_PERMISSION_MODULES = [
     key: 'data',
     name: '数据与决策',
     permissions: [
+      { code: 'business_overview:view', name: '查看经营总览' },
       { code: 'cost_center:view', name: '查看成本中心' },
       { code: 'cost_center:export', name: '导出成本数据' },
       { code: 'reports:view', name: '查看报表' },
+    ],
+  },
+  {
+    key: 'construction',
+    name: '施工管理',
+    permissions: [
+      { code: 'construction_attendance:view', name: '查看人员出勤' },
     ],
   },
   {

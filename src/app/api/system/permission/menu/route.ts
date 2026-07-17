@@ -123,6 +123,7 @@ const PERMISSION_MENU_STRUCTURE = [
     code: 'analysis',
     icon: 'chart',
     children: [
+      { name: '经营总览-查看', code: 'business_overview:view', icon: 'chart' },
       { name: '成本利润中心-查看', code: 'cost_center:view', icon: 'eye' },
       { name: '成本利润中心-导出', code: 'cost_center:export', icon: 'download' },
       { name: '供应商成本看板', code: 'data_board:supplier_cost', icon: 'chart' },
@@ -137,6 +138,7 @@ const PERMISSION_MENU_STRUCTURE = [
     children: [
       { name: '施工日志-查看', code: 'construction_logs:view', icon: 'list' },
       { name: '施工日志-写日志', code: 'construction_logs:edit', icon: 'edit' },
+      { name: '人员出勤-查看', code: 'construction_attendance:view', icon: 'users' },
     ]
   },
   {

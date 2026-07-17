@@ -33,7 +33,7 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/project-center': ['projects:view', 'work_items:view', 'visas:view', 'client_reports:view', 'client_payments:view'],
   '/hr-salary': ['workers:view', 'certificates:view', 'salaries:view', 'salaries:pay', 'salaries:query'],
   '/supplier-expense': ['suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
-  '/business-analysis': ['cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
+  '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/construction-logs': [],
   '/cost-estimation': [],
   '/knowledge': [],

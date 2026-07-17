@@ -11,7 +11,8 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   '/project-center': ['projects:view'],
   '/hr-salary': ['workers:view'],
   '/supplier-expense': ['suppliers:view'],
-  '/business-analysis': ['cost_center:view'],
+  '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view'],
+  '/construction-attendance': ['construction_attendance:view'],
   '/system-management': ['system:manage'],
 
   // === 项目经营模块 ===
@@ -40,6 +41,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   '/miscellaneous-materials': ['miscellaneous_materials:view'],
 
   // === 经营分析模块 ===
+  '/business-analysis/overview': ['business_overview:view'],
   '/cost-center': ['cost_center:view'],
   '/data-board': ['data_board:supplier_cost_view'],
   '/data-board/supplier-cost': ['data_board:supplier_cost_view'],

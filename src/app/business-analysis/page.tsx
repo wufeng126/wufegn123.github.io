@@ -655,7 +655,7 @@ function BusinessOverviewPage() {
 }
 
 const tabs: TabItem[] = [
-  { key: 'overview', label: '经营总览', href: '/business-analysis?tab=overview', content: BusinessOverviewPage },
+  { key: 'overview', label: '经营总览', href: '/business-analysis?tab=overview', content: BusinessOverviewPage, permission: 'business_overview:view' },
   { key: 'cost-center', label: '成本利润', href: '/business-analysis?tab=cost-center', content: CostCenterPage, permission: 'cost_center:view' },
   { key: 'worker-cost', label: '人工成本', href: '/business-analysis?tab=worker-cost', content: WorkerCostPage, permission: 'data_board:worker_cost_view' },
   { key: 'supplier-cost', label: '供应商成本', href: '/business-analysis?tab=supplier-cost', content: SupplierCostPage, permission: 'data_board:supplier_cost_view' },
