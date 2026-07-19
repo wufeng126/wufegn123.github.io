@@ -5,6 +5,7 @@ export type ProjectWorkerRow = {
   name: string;
   work_type?: string | null;
   team_name?: string | null;
+  id_card?: string | null;
   status?: string | null;
   project_id?: number | null;
   entry_date?: string | null;

@@ -79,12 +79,15 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/integrations/wps/workers/bindings': { permission: 'system:manage', superAdminOnly: true },
   '/api/integrations/wps/workers/sync': { permission: 'system:manage', superAdminOnly: true },
   '/api/miscellaneous-materials/recognize': { permission: 'miscellaneous_materials:view' },
+  '/api/team-groups': { permission: 'team_groups:view' },
+  '/api/team-settlements': { permission: 'team_settlements:view' },
 
   // === 新导航容器页 ===
   '/workspace': { permission: 'projects:view' },
   '/project-center': { permission: 'projects:view' },
   '/hr-salary': { permission: 'workers:view' },
   '/supplier-expense': { permission: 'suppliers:view' },
+  '/team-settlement': { permission: 'team_settlements:view' },
   '/business-analysis': {},
   '/construction-logs': {},
   '/construction-attendance': { permission: 'construction_attendance:view' },
@@ -233,6 +236,8 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/payments': 'supplier_payments:edit',
   '/api/comprehensive-expenses': 'comprehensive_expenses:edit',
   '/api/miscellaneous-materials': 'miscellaneous_materials:edit',
+  '/api/team-groups': 'team_groups:edit',
+  '/api/team-settlements': 'team_settlements:edit',
 
   // 审核操作
   '/api/review': 'system:manage',
@@ -300,6 +305,14 @@ export function checkApiWritePermission(
     if (method === 'POST') {
       return userPermissions.includes('notifications:settings');
     }
+  }
+
+  if (pathname === '/api/team-groups' && method === 'POST') {
+    return userPermissions.includes('team_groups:create') || userPermissions.includes('team_groups:edit');
+  }
+
+  if (pathname === '/api/team-settlements' && method === 'POST') {
+    return userPermissions.includes('team_settlements:create') || userPermissions.includes('team_settlements:edit');
   }
 
   // 查找匹配的 API 路由（按长度降序精确匹配）

@@ -106,6 +106,20 @@ const DEFAULT_PERMISSION_MODULES = [
     ],
   },
   {
+    key: 'team_settlement',
+    name: '班组结算',
+    permissions: [
+      { code: 'team_groups:view', name: '查看班组档案' },
+      { code: 'team_groups:create', name: '创建班组档案' },
+      { code: 'team_groups:edit', name: '编辑班组档案' },
+      { code: 'team_groups:delete', name: '删除班组档案' },
+      { code: 'team_settlements:view', name: '查看班组结算' },
+      { code: 'team_settlements:create', name: '创建班组结算' },
+      { code: 'team_settlements:edit', name: '编辑班组结算' },
+      { code: 'team_settlements:delete', name: '删除班组结算' },
+    ],
+  },
+  {
     key: 'funds',
     name: '资金管理',
     permissions: [

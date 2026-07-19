@@ -971,3 +971,127 @@ export const projectArchives = pgTable("project_archives", {
 			name: "project_archives_project_id_fkey"
 		}).onDelete("cascade"),
 ]);
+
+export const teamGroups = pgTable("team_groups", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id").notNull(),
+	name: varchar({ length: 200 }).notNull(),
+	leaderName: varchar("leader_name", { length: 100 }),
+	phone: varchar({ length: 30 }),
+	workType: varchar("work_type", { length: 50 }),
+	remark: text(),
+	status: varchar({ length: 20 }).default('active'),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("team_groups_project_name_key").on(table.projectId, table.name),
+	index("team_groups_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("team_groups_work_type_idx").using("btree", table.workType.asc().nullsLast().op("text_ops")),
+	index("team_groups_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "team_groups_project_id_fkey"
+		}).onDelete("cascade"),
+]);
+
+export const teamSettlements = pgTable("team_settlements", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id").notNull(),
+	teamId: integer("team_id"),
+	settlementNo: varchar("settlement_no", { length: 50 }),
+	settlementMonth: varchar("settlement_month", { length: 7 }).notNull(),
+	periodStart: date("period_start").notNull(),
+	periodEnd: date("period_end").notNull(),
+	status: varchar({ length: 20 }).default('draft'),
+	remark: text(),
+	createdBy: integer("created_by"),
+	createdByName: varchar("created_by_name", { length: 100 }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("team_settlements_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("team_settlements_team_id_idx").using("btree", table.teamId.asc().nullsLast().op("int4_ops")),
+	index("team_settlements_month_idx").using("btree", table.settlementMonth.asc().nullsLast().op("text_ops")),
+	index("team_settlements_created_at_idx").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "team_settlements_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.teamId],
+			foreignColumns: [teamGroups.id],
+			name: "team_settlements_team_id_fkey"
+		}).onDelete("set null"),
+]);
+
+export const teamSettlementItems = pgTable("team_settlement_items", {
+	id: serial().primaryKey().notNull(),
+	settlementId: integer("settlement_id").notNull(),
+	projectId: integer("project_id").notNull(),
+	teamId: integer("team_id"),
+	content: varchar({ length: 300 }).notNull(),
+	unit: varchar({ length: 30 }),
+	quantity: numeric({ precision: 14, scale: 2 }).default('0'),
+	unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).default('0'),
+	amount: numeric({ precision: 14, scale: 2 }).default('0'),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("team_settlement_items_settlement_id_idx").using("btree", table.settlementId.asc().nullsLast().op("int4_ops")),
+	index("team_settlement_items_project_content_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops"), table.content.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.settlementId],
+			foreignColumns: [teamSettlements.id],
+			name: "team_settlement_items_settlement_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "team_settlement_items_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.teamId],
+			foreignColumns: [teamGroups.id],
+			name: "team_settlement_items_team_id_fkey"
+		}).onDelete("set null"),
+]);
+
+export const teamSettlementSplits = pgTable("team_settlement_splits", {
+	id: serial().primaryKey().notNull(),
+	settlementId: integer("settlement_id").notNull(),
+	projectId: integer("project_id").notNull(),
+	teamId: integer("team_id"),
+	workerId: integer("worker_id").notNull(),
+	workerName: varchar("worker_name", { length: 100 }),
+	workType: varchar("work_type", { length: 50 }),
+	teamName: varchar("team_name", { length: 100 }),
+	workHours: numeric("work_hours", { precision: 10, scale: 2 }).default('0'),
+	unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).default('0'),
+	amount: numeric({ precision: 14, scale: 2 }).default('0'),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("team_settlement_splits_settlement_worker_key").on(table.settlementId, table.workerId),
+	index("team_settlement_splits_settlement_id_idx").using("btree", table.settlementId.asc().nullsLast().op("int4_ops")),
+	index("team_settlement_splits_project_worker_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops"), table.workerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.settlementId],
+			foreignColumns: [teamSettlements.id],
+			name: "team_settlement_splits_settlement_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "team_settlement_splits_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.teamId],
+			foreignColumns: [teamGroups.id],
+			name: "team_settlement_splits_team_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "team_settlement_splits_worker_id_fkey"
+		}).onDelete("cascade"),
+]);

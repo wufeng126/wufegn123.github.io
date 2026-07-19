@@ -119,6 +119,23 @@ const PERMISSION_MENU_STRUCTURE = [
     ]
   },
   {
+    name: '班组结算',
+    code: 'team_settlement',
+    icon: 'file',
+    children: [
+      { name: '班组档案-列表', code: 'team_groups:list', icon: 'list' },
+      { name: '班组档案-查看', code: 'team_groups:view', icon: 'eye' },
+      { name: '班组档案-新增', code: 'team_groups:create', icon: 'plus' },
+      { name: '班组档案-编辑', code: 'team_groups:edit', icon: 'edit' },
+      { name: '班组档案-删除', code: 'team_groups:delete', icon: 'trash' },
+      { name: '班组结算-列表', code: 'team_settlements:list', icon: 'list' },
+      { name: '班组结算-查看', code: 'team_settlements:view', icon: 'eye' },
+      { name: '班组结算-新增', code: 'team_settlements:create', icon: 'plus' },
+      { name: '班组结算-编辑', code: 'team_settlements:edit', icon: 'edit' },
+      { name: '班组结算-删除', code: 'team_settlements:delete', icon: 'trash' },
+    ]
+  },
+  {
     name: '经营分析',
     code: 'analysis',
     icon: 'chart',

@@ -106,7 +106,7 @@ export default function ConstructionAttendancePage() {
             </Link>
             <div>
               <h1 className="text-xl font-bold text-[#1D2129] sm:text-2xl">人员出勤统计</h1>
-              <p className="mt-1 text-sm text-[#86909C]">按项目、月份、工人汇总施工日志中记录的实际出勤工时</p>
+              <p className="mt-1 text-sm text-[#86909C]">按项目、月份、工人汇总施工日志中记录的实际出勤工时，统计周期为每月 26 日至次月 25 日</p>
             </div>
           </div>
           <Link href="/construction-logs/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-sm hover:bg-[#0E49D8]">

@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getSettlementPeriod } from '@/lib/settlement-period';
 
 type LogRow = {
   id: number;
@@ -33,12 +34,7 @@ type SummaryRow = {
 };
 
 function getMonthRange(month: string) {
-  const safeMonth = /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().slice(0, 7);
-  const start = `${safeMonth}-01`;
-  const [year, monthNumber] = safeMonth.split('-').map(Number);
-  const lastDay = new Date(year, monthNumber, 0).getDate();
-  const end = `${safeMonth}-${String(lastDay).padStart(2, '0')}`;
-  return { month: safeMonth, start, end };
+  return getSettlementPeriod(month);
 }
 
 function includesKeyword(row: SummaryRow, keyword: string) {
