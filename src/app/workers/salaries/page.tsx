@@ -59,6 +59,15 @@ interface SalaryRecord {
   paid?: number;
 }
 
+interface SalaryImportIssue {
+  row: number;
+  type: 'error' | 'warning' | 'skipped';
+  workerName?: string;
+  projectName?: string;
+  yearMonth?: string;
+  reason: string;
+}
+
 export default function WorkerSalariesPage() {
   const { toast } = useToast();
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -415,6 +424,10 @@ export default function WorkerSalariesPage() {
         setImportResultOpen(true);
       } else {
         // 显示详细错误信息
+        setImportResult(result);
+        if (result?.issues?.length || result?.notInRoster?.length || result?.notFoundProjects?.length || result?.warnings?.length) {
+          setImportResultOpen(true);
+        }
         const errorMsg = result.error || '导入失败';
         const details = result.details || '';
         const debugInfo = result.debug;
@@ -1272,7 +1285,7 @@ export default function WorkerSalariesPage() {
 
       {/* 导入结果对话框 */}
       <AlertDialog open={importResultOpen} onOpenChange={setImportResultOpen}>
-        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
+        <AlertDialogContent className="max-h-[85vh] w-[calc(100vw-1.5rem)] max-w-3xl overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>导入结果</AlertDialogTitle>
           </AlertDialogHeader>
@@ -1283,7 +1296,7 @@ export default function WorkerSalariesPage() {
                 <div className="rounded-lg border border-green-200 bg-green-50 p-3">
                   <div className="flex items-center gap-2 text-green-700 font-medium">
                     <DollarSign className="w-4 h-4" />
-                    <span>成功导入 {importResult.count} 条记录</span>
+                    <span>成功导入 {importResult.count || 0} 条记录</span>
                   </div>
                   {importResult.importedYearMonths?.length > 0 && (
                     <div className="mt-1 text-sm text-green-600">
@@ -1291,6 +1304,45 @@ export default function WorkerSalariesPage() {
                     </div>
                   )}
                 </div>
+
+                {/* 未导入/需处理明细 */}
+                {importResult.issues?.length > 0 && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-red-700 font-medium">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span>未导入/需处理明细 {importResult.issues.length} 条</span>
+                      </div>
+                      {importResult.issues.length > 50 && (
+                        <span className="text-xs text-red-500">仅显示前 50 条</span>
+                      )}
+                    </div>
+                    <div className="mt-2 overflow-x-auto rounded-md border border-red-100 bg-white">
+                      <Table className="min-w-[680px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-16">行号</TableHead>
+                            <TableHead>工人</TableHead>
+                            <TableHead>项目</TableHead>
+                            <TableHead className="w-24">月份</TableHead>
+                            <TableHead>原因</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {importResult.issues.slice(0, 50).map((issue: SalaryImportIssue, idx: number) => (
+                            <TableRow key={`${issue.row}-${idx}`}>
+                              <TableCell>{issue.row || '-'}</TableCell>
+                              <TableCell>{issue.workerName || '-'}</TableCell>
+                              <TableCell>{issue.projectName || '-'}</TableCell>
+                              <TableCell>{issue.yearMonth || '-'}</TableCell>
+                              <TableCell className="text-red-700">{issue.reason}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
 
                 {/* 不在花名册的人员 */}
                 {importResult.notInRoster?.length > 0 && (
@@ -1317,7 +1369,7 @@ export default function WorkerSalariesPage() {
                   <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
                     <div className="flex items-center gap-2 text-yellow-700 font-medium">
                       <FileText className="w-4 h-4" />
-                      <span>以下项目未匹配（已设为空）</span>
+                      <span>以下项目未匹配，相关行已跳过</span>
                     </div>
                     <div className="mt-1 text-sm text-yellow-600">
                       {importResult.notFoundProjects.join('、')}
@@ -1338,7 +1390,7 @@ export default function WorkerSalariesPage() {
                 )}
 
                 {/* 全部成功 */}
-                {(!importResult.notInRoster?.length && !importResult.notFoundProjects?.length && !importResult.warnings?.filter((w: string) => !w.includes('不在花名册')).length) && (
+                {(!importResult.issues?.length && !importResult.notInRoster?.length && !importResult.notFoundProjects?.length && !importResult.warnings?.filter((w: string) => !w.includes('不在花名册')).length) && (
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                     <div className="text-blue-700 text-sm">所有记录均已成功导入，无异常</div>
                   </div>

@@ -75,18 +75,29 @@ function getCellValue(row: any[], index: number): any {
   return val !== null && val !== undefined ? val : '';
 }
 
+type ImportIssueType = 'error' | 'warning' | 'skipped';
+
+type ImportIssue = {
+  row: number;
+  type: ImportIssueType;
+  workerName?: string;
+  projectName?: string;
+  yearMonth?: string;
+  reason: string;
+};
+
 // GET: 下载导入模板
 export async function GET() {
   try {
     const XLSXModule = await import('xlsx');
     const data = [
-      ['工人姓名', '项目名称', '年月', '工时', '工价', '包活工资', '个税', '借支', '劳保', '罚款', '备注'],
-      ['张三', '示例项目', '2026-01', 200, 35, 0, 0, 0, 45, 0, '1月份工资'],
+      ['工人姓名', '身份证号（选填）', '项目名称', '年月', '工时', '工价', '包活工资', '个税', '借支', '劳保', '罚款', '备注'],
+      ['张三', '', '示例项目', '2026-01', 200, 35, 0, 0, 0, 45, 0, '1月份工资'],
     ];
     const ws = XLSXModule.utils.aoa_to_sheet(data);
     // 设置列宽
     ws['!cols'] = [
-      { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 6 }, { wch: 6 },
+      { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 6 }, { wch: 6 },
       { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 12 },
     ];
     const wb = XLSXModule.utils.book_new();
@@ -111,22 +122,29 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
 
     // ========== 获取所有工人和项目（用于姓名匹配） ==========
-    const { data: workersData } = await client.from('workers').select('id, name, project_id');
+    const { data: workersData } = await client.from('workers').select('id, name, project_id, id_card');
     const { data: projectsData } = await client.from('projects').select('id, name');
     const workersList = workersData || [];
     const projectsList = projectsData || [];
 
-    let recordsToInsert: any[] = [];
-    let errors: string[] = [];
-    let warnings: string[] = [];
-    let notInRoster: { row: number; name: string }[] = [];
-    let notFoundProjects: string[] = [];
-    let importedYearMonths: Set<string> = new Set();
+    const recordsToInsert: any[] = [];
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const issues: ImportIssue[] = [];
+    const notInRoster: { row: number; name: string; projectName?: string; yearMonth?: string; reason?: string }[] = [];
+    const notFoundProjects: string[] = [];
+    const importedYearMonths: Set<string> = new Set();
     let totalRows = 0;
     let headerRowIndex = 0;
     let totalDataRows = 0;
     let skippedEmpty = 0;
     let skippedNoName = 0;
+
+    const addIssue = (issue: ImportIssue) => {
+      issues.push(issue);
+    };
+
+    const normalizeIdCard = (value: any): string => String(value || '').replace(/\s/g, '').trim().toUpperCase();
 
     // ========== 文件上传模式 ==========
     if (contentType.includes('multipart/form-data')) {
@@ -233,6 +251,7 @@ export async function POST(request: NextRequest) {
       };
 
       const workerNameIdx = findIndex(['工人姓名', '姓名', '员工姓名', '工人', '员工']);
+      const idCardIdx = findIndex(['身份证号', '身份证号码', '身份证', '证件号码']);
       const projectNameIdx = findIndex(['项目名称', '所属项目', '项目']);
       const yearMonthIdx = findIndex(['年月', '工资月份', '所属月份', '月份']);
       const workHoursIdx = findIndex(['工时', '工作小时', '出勤天数', '天数']);
@@ -267,6 +286,7 @@ export async function POST(request: NextRequest) {
         if (!row || row.length === 0) { skippedEmpty++; continue; }
 
         const workerName = String(getCellValue(row, workerNameIdx)).trim();
+        const idCard = normalizeIdCard(getCellValue(row, idCardIdx));
         const projectName = String(getCellValue(row, projectNameIdx)).trim();
         const rawYearMonth = getCellValue(row, yearMonthIdx);
         const yearMonth = normalizeYearMonth(rawYearMonth);
@@ -275,9 +295,16 @@ export async function POST(request: NextRequest) {
         totalDataRows++;
         if (!workerName) { skippedNoName++; }
 
-        if (!workerName) { errors.push(`第${rowNumber}行：工人姓名为空`); continue; }
+        if (!workerName) {
+          const reason = '工人姓名为空';
+          errors.push(`第${rowNumber}行：${reason}`);
+          addIssue({ row: rowNumber, type: 'error', projectName, yearMonth, reason });
+          continue;
+        }
         if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
-          errors.push(`第${rowNumber}行：月份格式错误"${rawYearMonth}"，应为YYYY-MM格式`);
+          const reason = `月份格式错误"${rawYearMonth}"，应为YYYY-MM格式`;
+          errors.push(`第${rowNumber}行：${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName, projectName, reason });
           continue;
         }
 
@@ -294,7 +321,9 @@ export async function POST(request: NextRequest) {
           if (raw === '' || raw === null || raw === undefined) return 0;
           const num = Number(raw);
           if (isNaN(num)) {
-            errors.push(`第${rowNumber}行：${fieldName}"${raw}"不是有效数字`);
+            const reason = `${fieldName}"${raw}"不是有效数字`;
+            errors.push(`第${rowNumber}行：${reason}`);
+            addIssue({ row: rowNumber, type: 'error', workerName, projectName, yearMonth, reason });
             return null;
           }
           return num;
@@ -316,26 +345,41 @@ export async function POST(request: NextRequest) {
         if (fine === null) continue;
         const remark = String(getCellValue(row, remarkIdx)).trim();
 
-        // 匹配工人
-        const worker = workersList.find(w => w.name.trim() === workerName);
-        if (!worker) {
-          if (!notInRoster.find(n => n.name === workerName)) {
-            notInRoster.push({ row: rowNumber, name: workerName });
-            warnings.push(`第${rowNumber}行：未找到工人"${workerName}"（不在花名册中）`);
-          }
-          continue;
-        }
-
         // 匹配项目
-        let projectId: number | null = worker.project_id;
+        let projectId: number | null = null;
         if (projectName) {
           const project = projectsList.find(p => p.name.trim() === projectName);
           if (project) {
             projectId = project.id;
           } else {
-            errors.push(`第${rowNumber}行：项目名称"${projectName}"不存在`);
+            const reason = `项目名称"${projectName}"不存在`;
+            if (!notFoundProjects.includes(projectName)) notFoundProjects.push(projectName);
+            errors.push(`第${rowNumber}行：${reason}`);
+            addIssue({ row: rowNumber, type: 'error', workerName, projectName, yearMonth, reason });
             continue;
           }
+        }
+
+        // 匹配工人：身份证优先，其次姓名；项目只作为工资归属维度，不阻止跨项目工资导入。
+        const workerCandidates = idCard
+          ? workersList.filter(w => normalizeIdCard((w as any).id_card) === idCard)
+          : workersList.filter(w => String(w.name || '').trim() === workerName);
+        const worker = (projectId
+          ? workerCandidates.find(w => Number(w.project_id) === Number(projectId))
+          : undefined) || workerCandidates[0];
+
+        if (!worker) {
+          const reason = idCard
+            ? `未找到身份证号"${idCard}"对应的工人档案`
+            : `未找到工人"${workerName}"（不在花名册中）`;
+          notInRoster.push({ row: rowNumber, name: workerName, projectName, yearMonth, reason });
+          warnings.push(`第${rowNumber}行：${reason}`);
+          addIssue({ row: rowNumber, type: 'skipped', workerName, projectName, yearMonth, reason });
+          continue;
+        }
+
+        if (!projectId) {
+          projectId = worker.project_id || null;
         }
 
         // 计算应发和实发
@@ -348,6 +392,9 @@ export async function POST(request: NextRequest) {
           worker_id: worker.id,
           project_id: projectId,
           year_month: yearMonth,
+          _rowNumber: rowNumber,
+          _workerName: workerName,
+          _projectName: projectName || projectsList.find(p => p.id === projectId)?.name || '',
           work_hours: workHours,
           hourly_rate: hourlyRate,
           contract_work_pay: contractWorkPay,
@@ -372,8 +419,19 @@ export async function POST(request: NextRequest) {
 
       for (let i = 0; i < salaries.length; i++) {
         const s = salaries[i];
-        if (!s.worker_id) { errors.push(`第${i + 1}条记录缺少工人信息`); continue; }
-        if (!s.year_month) { errors.push(`第${i + 1}条记录缺少年月信息`); continue; }
+        const rowNumber = i + 1;
+        if (!s.worker_id) {
+          const reason = '缺少工人信息';
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', projectName: s.project_name, yearMonth: s.year_month, reason });
+          continue;
+        }
+        if (!s.year_month) {
+          const reason = '缺少年月信息';
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName: s.worker_name, projectName: s.project_name, reason });
+          continue;
+        }
 
         const workerId = parseInt(s.worker_id);
         let projectId: number | null = s.project_id ? parseInt(s.project_id) : null;
@@ -400,6 +458,9 @@ export async function POST(request: NextRequest) {
           worker_id: workerId,
           project_id: projectId,
           year_month: normalizedYM,
+          _rowNumber: rowNumber,
+          _workerName: s.worker_name || '',
+          _projectName: s.project_name || '',
           work_hours: workHours,
           hourly_rate: hourlyRate,
           contract_work_pay: contractWorkPay,
@@ -432,6 +493,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: '没有有效的工资数据',
         details: errors.join('；') || warnings.join('；') || `共${totalDataRows}行数据，全部被跳过`,
+        errors,
+        warnings,
+        issues,
+        notInRoster,
+        notFoundProjects,
         debug: debugInfo,
       }, { status: 400 });
     }
@@ -441,7 +507,16 @@ export async function POST(request: NextRequest) {
     const dedupedRecords = recordsToInsert.filter((record: any) => {
       const key = makeSalaryKey(record);
       if (seenSalaryKeys.has(key)) {
-        warnings.push(`工人ID ${record.worker_id} 在项目ID ${record.project_id || '-'}、${record.year_month} 的工资记录在本次导入中重复，已跳过重复行`);
+        const reason = `本次导入文件内已存在该工人在当前项目、当前月份的工资核算记录`;
+        warnings.push(`第${record._rowNumber || '-'}行：${reason}，已跳过`);
+        addIssue({
+          row: record._rowNumber || 0,
+          type: 'skipped',
+          workerName: record._workerName,
+          projectName: record._projectName,
+          yearMonth: record.year_month,
+          reason,
+        });
         return false;
       }
       seenSalaryKeys.add(key);
@@ -476,7 +551,16 @@ export async function POST(request: NextRequest) {
     const finalRecordsToInsert = dedupedRecords.filter((record: any) => {
       const key = makeSalaryKey(record);
       if (existingSalaryKeys.has(key)) {
-        warnings.push(`工人ID ${record.worker_id} 在项目ID ${record.project_id || '-'}、${record.year_month} 已有工资核算记录，已跳过`);
+        const reason = `系统中已存在该工人在当前项目、当前月份的工资核算记录`;
+        warnings.push(`第${record._rowNumber || '-'}行：${reason}，已跳过`);
+        addIssue({
+          row: record._rowNumber || 0,
+          type: 'skipped',
+          workerName: record._workerName,
+          projectName: record._projectName,
+          yearMonth: record.year_month,
+          reason,
+        });
         return false;
       }
       return true;
@@ -487,12 +571,20 @@ export async function POST(request: NextRequest) {
         error: '没有可导入的工资数据',
         details: warnings.join('；') || '本次导入数据均为重复工资记录',
         warnings,
+        issues,
+        notInRoster,
+        notFoundProjects,
       }, { status: 400 });
     }
 
     console.log('[Salaries Batch] Inserting', finalRecordsToInsert.length, 'records');
 
-    const { data, error: insertError } = await insertWithSequenceFix('worker_salaries', finalRecordsToInsert, client);
+    const dbRecordsToInsert = finalRecordsToInsert.map((record: any) => {
+      const { _rowNumber, _workerName, _projectName, ...dbRecord } = record;
+      return dbRecord;
+    });
+
+    const { data, error: insertError } = await insertWithSequenceFix('worker_salaries', dbRecordsToInsert, client);
 
     if (insertError) {
       console.error('[Salaries Batch] Insert error:', insertError);
@@ -509,11 +601,13 @@ export async function POST(request: NextRequest) {
       imported: data?.length || 0,
       errors: errors,
       warnings: warnings,
+      issues: issues,
       notInRoster: notInRoster,
       notFoundProjects: notFoundProjects,
       successCount: data?.length || 0,
       errorCount: errors.length,
       warningCount: warnings.length,
+      skippedCount: issues.filter(issue => issue.type === 'skipped').length,
       message: errors.length > 0
         ? `成功导入 ${data?.length || 0} 条，失败 ${errors.length} 条`
         : `成功导入 ${data?.length || 0} 条工资记录`,
