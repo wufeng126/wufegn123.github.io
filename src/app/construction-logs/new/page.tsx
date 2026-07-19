@@ -10,7 +10,7 @@ import {
   getDefaultConstructionLogDate,
 } from '@/lib/construction-log-deadline';
 
-type Project = { id: number | string; name: string };
+type Project = { id: number | string; name: string; is_archived?: boolean };
 type AttendanceWorker = {
   id: number;
   name: string;
@@ -118,7 +118,9 @@ export default function NewConstructionLogPage() {
     fetch('/api/projects')
       .then(r => r.json())
       .then(j => {
-        const list = Array.isArray(j.projects) ? j.projects : [];
+        const list = Array.isArray(j.projects)
+          ? j.projects.filter((project: Project) => !project.is_archived)
+          : [];
         setProjects(list);
         if (list.length > 0) {
           setDrafts(current => current.map((draft, index) => (

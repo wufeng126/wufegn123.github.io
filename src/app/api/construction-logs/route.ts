@@ -23,10 +23,18 @@ type ConstructionLogDraft = {
   location?: string | null;
   content: string;
   headcount?: number | string | null;
+  attachments?: LogAttachment[];
   attendance_worker_ids?: number[];
   attendance_workers?: AttendanceWorkerDraft[];
   scope_worker_ids?: number[];
   issues?: string | null;
+};
+
+type LogAttachment = {
+  name?: string;
+  size?: number;
+  storageKey?: string;
+  type?: string;
 };
 
 type AttendanceWorkerDraft = {
@@ -81,6 +89,23 @@ function normalizeAttendanceWorkers(value: unknown, fallbackIds?: number[]) {
   return Array.from(map.values());
 }
 
+function normalizeAttachments(value: unknown): LogAttachment[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): LogAttachment | null => {
+      const payload = asPayload(item);
+      const storageKey = payload.storageKey ? String(payload.storageKey) : '';
+      if (!storageKey) return null;
+      return {
+        name: payload.name ? String(payload.name) : '',
+        size: Number.isFinite(Number(payload.size)) ? Number(payload.size) : 0,
+        storageKey,
+        type: payload.type ? String(payload.type) : 'image',
+      };
+    })
+    .filter((item): item is LogAttachment => item !== null);
+}
+
 function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[] {
   if (Array.isArray(body.project_logs)) {
     return body.project_logs
@@ -92,6 +117,7 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
           project_id: Number(payload.project_id),
           location: payload.location ? String(payload.location) : null,
           content: String(payload.content || '').trim(),
+          attachments: normalizeAttachments(payload.attachments),
           headcount: typeof payload.headcount === 'number' || typeof payload.headcount === 'string'
             ? payload.headcount
             : null,
@@ -110,6 +136,7 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
     project_id: Number(body.project_id),
     location: body.location ? String(body.location) : null,
     content: String(body.content || '').trim(),
+    attachments: normalizeAttachments(body.attachments),
     headcount: typeof body.headcount === 'number' || typeof body.headcount === 'string' ? body.headcount : null,
     attendance_worker_ids: attendanceWorkers.map(worker => worker.worker_id),
     attendance_workers: attendanceWorkers,
@@ -295,6 +322,16 @@ export async function POST(request: NextRequest) {
       if (forbiddenProject) return apiForbidden('无权提交该项目施工日志');
     }
 
+    const { data: projectRows, error: projectRowsError } = await supabase
+      .from('projects')
+      .select('id,name,is_archived')
+      .in('id', uniqueProjectIds);
+    if (projectRowsError) throw new Error(projectRowsError.message);
+    const archivedProject = (projectRows || []).find((project: { is_archived?: boolean }) => project.is_archived);
+    if (archivedProject) {
+      return apiBadRequest(`项目已归档，不能再提交施工日志：${archivedProject.name || archivedProject.id}`);
+    }
+
     const { data: existingLog, error: existingError } = await supabase
       .from('construction_logs')
       .select('id')
@@ -350,6 +387,7 @@ export async function POST(request: NextRequest) {
       content: draft.content,
       headcount: getDraftHeadcount(draft),
       issues: draft.issues || null,
+      attachments: draft.attachments || [],
       daily_group_id: dailyGroupId,
       submission_status: submissionWindow.submissionStatus,
       submitted_at: submittedAt,

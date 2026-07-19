@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RotateCcw, Search, Send, UserPlus, UsersRound } from 'lucide-react';
 import { getDefaultConstructionLogDate } from '@/lib/construction-log-deadline';
 
-type Project = { id: number | string; name: string };
+type Project = { id: number | string; name: string; is_archived?: boolean };
 type RecognizedFile = { name: string; size: number; storageKey?: string; textLength?: number };
 type AttendanceWorker = {
   id: number;
@@ -89,7 +89,9 @@ export default function ConstructionLogScanPage() {
     fetch('/api/projects')
       .then(res => res.json())
       .then(json => {
-        const list = Array.isArray(json.projects) ? json.projects : [];
+        const list = Array.isArray(json.projects)
+          ? json.projects.filter((project: Project) => !project.is_archived)
+          : [];
         setProjects(list);
         if (list.length > 0) setProjectId(String(list[0].id));
       })
@@ -305,6 +307,12 @@ export default function ConstructionLogScanPage() {
           attendance_worker_ids: attendanceWorkerIds,
           attendance_workers: buildAttendanceWorkers(),
           scope_worker_ids: scopeWorkerIds,
+          attachments: recognizedFiles.map(file => ({
+            name: file.name,
+            size: file.size,
+            storageKey: file.storageKey,
+            type: 'image',
+          })).filter(file => file.storageKey),
           issues,
           source_type: 'ocr',
         }),

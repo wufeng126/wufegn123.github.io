@@ -200,9 +200,14 @@ export const projects = pgTable("projects", {
 	warrantyExpiredPaymentRatio: numeric("warranty_expired_payment_ratio", { precision: 5, scale: 2 }),
 	completionDate: date("completion_date"),
 	warrantyDays: integer("warranty_days"),
+	isArchived: boolean("is_archived").default(false).notNull(),
+	archivedAt: timestamp("archived_at", { withTimezone: true, mode: 'string' }),
+	archivedBy: integer("archived_by"),
+	archiveNote: text("archive_note"),
 }, (table) => [
 	index("projects_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	index("projects_year_idx").using("btree", table.year.asc().nullsLast().op("int4_ops")),
+	index("projects_is_archived_idx").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
 	pgPolicy("projects_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
 	pgPolicy("projects_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
 	pgPolicy("projects_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
@@ -888,6 +893,10 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 		content: text().notNull(), // 施工内容
 		headcount: integer(), // 出勤人数
 		issues: text(), // 异常/问题
+		attachments: jsonb("attachments").default([]).notNull(),
+		attachmentsCleanedAt: timestamp("attachments_cleaned_at", { withTimezone: true, mode: 'string' }),
+		attachmentsOriginalCount: integer("attachments_original_count").default(0).notNull(),
+		attachmentsCleanedBy: integer("attachments_cleaned_by"),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	}, (table) => [
 		index("construction_logs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
@@ -942,3 +951,23 @@ export const constructionDailyReports = pgTable("construction_daily_reports", {
 		index("construction_daily_reports_report_date_idx").using("btree", table.reportDate.asc().nullsLast().op("text_ops")),
 		index("construction_daily_reports_ai_status_idx").using("btree", table.aiStatus.asc().nullsLast().op("text_ops")),
 	]);
+
+export const projectArchives = pgTable("project_archives", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id").notNull(),
+	archivedBy: integer("archived_by"),
+	archivedAt: timestamp("archived_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	snapshotData: jsonb("snapshot_data").default({}).notNull(),
+	photoCount: integer("photo_count").default(0).notNull(),
+	knowledgeDocId: integer("knowledge_doc_id"),
+	note: text(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("project_archives_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("project_archives_archived_at_idx").using("btree", table.archivedAt.asc().nullsLast().op("timestamptz_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "project_archives_project_id_fkey"
+		}).onDelete("cascade"),
+]);

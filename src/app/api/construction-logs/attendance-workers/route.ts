@@ -51,6 +51,14 @@ export async function GET(request: NextRequest) {
     const hasAccess = await assertProjectAccess(projectId, supabase, auth.user);
     if (!hasAccess) return apiForbidden('无权查看该项目花名册');
 
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id,is_archived')
+      .eq('id', projectId)
+      .maybeSingle();
+    if (projectError) throw new Error(projectError.message);
+    if (project?.is_archived) return apiBadRequest('项目已归档，不能再选择出勤人员');
+
     const workers = (await getProjectActiveWorkers(supabase, projectId))
       .map((worker) => ({
         id: worker.id,
@@ -109,6 +117,14 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const hasAccess = await assertProjectAccess(projectId, supabase, auth.user);
     if (!hasAccess) return apiForbidden('无权维护该项目负责范围');
+
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id,is_archived')
+      .eq('id', projectId)
+      .maybeSingle();
+    if (projectError) throw new Error(projectError.message);
+    if (project?.is_archived) return apiBadRequest('项目已归档，不能再维护施工日志出勤范围');
 
     const validWorkerIds = (await getProjectActiveWorkers(supabase, projectId, {
       workerIds,

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // 查询项目数据
     const query = client
       .from('projects')
-      .select('id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, created_at')
+      .select('id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, is_archived, archived_at, archived_by, archive_note, created_at')
       .order('year', { ascending: false })
       .order('created_at', { ascending: false });
     

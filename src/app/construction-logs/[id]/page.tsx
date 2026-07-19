@@ -18,6 +18,9 @@ type ConstructionLogDetail = {
   headcount?: number | null;
   issues?: string | null;
   created_at?: string | null;
+  attachments_cleaned_at?: string | null;
+  attachments_original_count?: number | null;
+  attachments_cleaned_by?: number | null;
   attendance_workers?: {
     worker_id: number;
     worker_name?: string | null;
@@ -75,6 +78,13 @@ function formatDate(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatDateOnly(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('zh-CN');
 }
 
 function riskClass(level?: RiskLevel | null) {
@@ -176,6 +186,11 @@ export default function ConstructionLogDetailPage() {
               <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] p-4 text-sm leading-7 text-[#1D2129] whitespace-pre-wrap">
                 {detail.content || '未填写施工内容'}
               </div>
+              {Number(detail.attachments_original_count || 0) > 0 && (
+                <div className="mt-4 rounded-lg border border-[#F7BA1E]/30 bg-[#FFF7E8] px-4 py-3 text-sm text-[#B45309]">
+                  原有 {Number(detail.attachments_original_count || 0)} 张照片，已于 {formatDateOnly(detail.attachments_cleaned_at)} 项目归档时清理。
+                </div>
+              )}
               {detail.attendance_workers && detail.attendance_workers.length > 0 && (
                 <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-white p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">

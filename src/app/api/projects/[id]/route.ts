@@ -27,6 +27,15 @@ export async function GET(
       throw new Error(`查询项目失败: ${error.message}`);
     }
 
+    const { data: archiveRecords, error: archiveError } = await client
+      .from('project_archives')
+      .select('*')
+      .eq('project_id', parseInt(id))
+      .order('archived_at', { ascending: false });
+    if (archiveError) {
+      console.warn('[ProjectDetail] archive records load failed:', archiveError.message);
+    }
+
     // 获取项目统计数据
     const projectId = parseInt(id);
     const financialSummary = await getProjectFinancialSummary(projectId);
@@ -134,6 +143,7 @@ export async function GET(
 
     return NextResponse.json({
       project: data,
+      archives: archiveRecords || [],
       stats: {
         totalGrossPay: totalGrossPay.toFixed(2),
         totalNetPay: totalNetPay.toFixed(2),

@@ -5,14 +5,18 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  Archive,
   BarChart3,
+  BookOpen,
   Building2,
   Calendar,
   CreditCard,
   DollarSign,
   FileText,
+  Loader2,
   ListTree,
   MapPin,
+  ShieldAlert,
   Target,
   Wallet,
 } from 'lucide-react';
@@ -20,6 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { isSuperAdminUser } from '@/lib/route-permissions';
 
 interface Project {
   id: number;
@@ -33,6 +38,10 @@ interface Project {
   tax_rate?: number | string | null;
   expected_completion_date?: string | null;
   created_at?: string | null;
+  is_archived?: boolean;
+  archived_at?: string | null;
+  archived_by?: number | null;
+  archive_note?: string | null;
 }
 
 interface ProjectStats {
@@ -55,6 +64,23 @@ interface ProjectStats {
   netCashFlow?: string;
   fundingGapAmount?: string;
   paymentRate?: string;
+}
+
+interface ProjectArchive {
+  id: number;
+  archived_at?: string | null;
+  archived_by?: number | null;
+  photo_count?: number | null;
+  knowledge_doc_id?: number | null;
+  note?: string | null;
+  snapshot_data?: {
+    constructionLogs?: {
+      logCount?: number;
+      cleanedPhotoCount?: number;
+      totalWorkHours?: number;
+    };
+    finance?: Record<string, number | string | null | undefined>;
+  } | null;
 }
 
 const statusStyles: Record<string, string> = {
@@ -90,17 +116,34 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString('zh-CN');
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
 
   const [project, setProject] = useState<Project | null>(null);
   const [stats, setStats] = useState<ProjectStats | null>(null);
+  const [archives, setArchives] = useState<ProjectArchive[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchProject = async () => {
+    const loadProject = async () => {
       setLoading(true);
       setError('');
       try {
@@ -111,6 +154,7 @@ export default function ProjectDetailPage() {
         }
         setProject(data.project || null);
         setStats(data.stats || null);
+        setArchives(data.archives || []);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : '获取项目详情失败');
       } finally {
@@ -118,8 +162,56 @@ export default function ProjectDetailPage() {
       }
     };
 
-    fetchProject();
+    loadProject();
   }, [projectId]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        const user = data.user || data.data;
+        setIsSuperAdmin(isSuperAdminUser(user?.role, user?.role_id || user?.roleId));
+      } catch {
+        setIsSuperAdmin(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  const handleArchiveProject = async () => {
+    if (!project || archiving) return;
+    const note = window.prompt('请输入归档备注，可留空：');
+    if (note === null) return;
+    const confirmed = window.confirm('确认归档该项目吗？归档后将清理施工日志照片，且不能再提交施工日志和出勤。');
+    if (!confirmed) return;
+
+    setArchiving(true);
+    setArchiveError('');
+    try {
+      const res = await fetch(`/api/projects/${projectId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || '项目归档失败');
+      }
+      const detailRes = await fetch(`/api/projects/${projectId}`);
+      const detailData = await detailRes.json();
+      if (detailRes.ok) {
+        setProject(detailData.project || null);
+        setStats(detailData.stats || null);
+        setArchives(detailData.archives || []);
+      }
+    } catch (err: unknown) {
+      setArchiveError(err instanceof Error ? err.message : '项目归档失败');
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   const archiveItems = useMemo(() => {
     if (!project) return [];
@@ -218,13 +310,47 @@ export default function ProjectDetailPage() {
               <Badge className={statusStyles[project.status] || 'bg-gray-50 text-gray-600 border-gray-200'}>
                 {project.status || '未设置'}
               </Badge>
+              {project.is_archived && (
+                <Badge className="border-gray-200 bg-gray-100 text-gray-700">
+                  已归档
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-gray-500 mt-1">
               {project.partner || '未填写甲方'} · {project.year}年度 · {project.address || '未填写地址'}
             </p>
           </div>
         </div>
+        {isSuperAdmin && !project.is_archived && (
+          <Button
+            variant="outline"
+            className="h-9 border-amber-200 text-amber-700 hover:bg-amber-50"
+            disabled={archiving}
+            onClick={handleArchiveProject}
+          >
+            {archiving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Archive className="w-4 h-4 mr-1.5" />}
+            项目归档
+          </Button>
+        )}
       </div>
+
+      {archiveError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {archiveError}
+        </div>
+      )}
+
+      {project.is_archived && (
+        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">该项目已归档</p>
+            <p className="mt-1 text-amber-700">
+              归档后施工日志照片已清理，施工日志和出勤不再录入；结算、付款、回款等收尾数据仍可继续维护。
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-blue-100 bg-blue-50">
@@ -308,6 +434,68 @@ export default function ProjectDetailPage() {
             );
           })}
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">归档记录</h2>
+          <p className="text-xs text-gray-500 mt-1">项目结束后的归档快照会同步沉淀到知识库，便于后续复盘和资料追溯。</p>
+        </div>
+        <Card>
+          <CardContent className="p-0">
+            {archives.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
+                <Archive className="h-9 w-9 text-gray-300" />
+                <p className="mt-3 text-sm font-medium text-gray-700">暂无归档记录</p>
+                <p className="mt-1 text-xs text-gray-500">项目归档后，这里会显示归档时间、清理照片数量和知识库沉淀入口。</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {archives.map((archive) => {
+                  const logs = archive.snapshot_data?.constructionLogs;
+                  return (
+                    <div key={archive.id} className="p-5">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold text-gray-900">项目归档报告 #{archive.id}</h3>
+                            <Badge className="border-green-200 bg-green-50 text-green-700">已生成快照</Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">归档时间：{formatDateTime(archive.archived_at)}</p>
+                          {archive.note && (
+                            <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-700">{archive.note}</p>
+                          )}
+                        </div>
+                        {archive.knowledge_doc_id && (
+                          <Link href={`/knowledge/${archive.knowledge_doc_id}`}>
+                            <Button variant="outline" size="sm" className="h-9">
+                              <BookOpen className="mr-1.5 h-4 w-4" />
+                              查看知识库沉淀
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div className="rounded-lg bg-blue-50 px-3 py-3">
+                          <p className="text-xs text-blue-600">施工日志</p>
+                          <p className="mt-1 text-lg font-semibold text-blue-800">{logs?.logCount || 0} 篇</p>
+                        </div>
+                        <div className="rounded-lg bg-amber-50 px-3 py-3">
+                          <p className="text-xs text-amber-600">已清理照片</p>
+                          <p className="mt-1 text-lg font-semibold text-amber-800">{archive.photo_count || logs?.cleanedPhotoCount || 0} 张</p>
+                        </div>
+                        <div className="rounded-lg bg-green-50 px-3 py-3">
+                          <p className="text-xs text-green-600">出勤总工时</p>
+                          <p className="mt-1 text-lg font-semibold text-green-800">{Number(logs?.totalWorkHours || 0).toLocaleString('zh-CN')} 小时</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </section>
     </div>
   );
