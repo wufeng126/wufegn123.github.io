@@ -200,6 +200,7 @@ export const projects = pgTable("projects", {
 	warrantyExpiredPaymentRatio: numeric("warranty_expired_payment_ratio", { precision: 5, scale: 2 }),
 	completionDate: date("completion_date"),
 	warrantyDays: integer("warranty_days"),
+	projectType: varchar("project_type", { length: 50 }).default('business').notNull(),
 	isArchived: boolean("is_archived").default(false).notNull(),
 	archivedAt: timestamp("archived_at", { withTimezone: true, mode: 'string' }),
 	archivedBy: integer("archived_by"),
@@ -207,6 +208,7 @@ export const projects = pgTable("projects", {
 }, (table) => [
 	index("projects_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
 	index("projects_year_idx").using("btree", table.year.asc().nullsLast().op("int4_ops")),
+	index("projects_project_type_idx").using("btree", table.projectType.asc().nullsLast().op("text_ops")),
 	index("projects_is_archived_idx").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
 	pgPolicy("projects_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
 	pgPolicy("projects_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
@@ -897,12 +899,42 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 		attachmentsCleanedAt: timestamp("attachments_cleaned_at", { withTimezone: true, mode: 'string' }),
 		attachmentsOriginalCount: integer("attachments_original_count").default(0).notNull(),
 		attachmentsCleanedBy: integer("attachments_cleaned_by"),
+		status: varchar("status", { length: 20 }).default('submitted').notNull(),
+		scheduledSubmitAt: timestamp("scheduled_submit_at", { withTimezone: true, mode: 'string' }),
+		scheduledBy: integer("scheduled_by"),
+		scheduledCancelledAt: timestamp("scheduled_cancelled_at", { withTimezone: true, mode: 'string' }),
+		submittedAt: timestamp("submitted_at", { withTimezone: true, mode: 'string' }),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	}, (table) => [
 		index("construction_logs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 		index("construction_logs_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
 		index("construction_logs_log_date_idx").using("btree", table.logDate.asc().nullsLast().op("text_ops")),
+		index("construction_logs_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+		index("construction_logs_scheduled_submit_at_idx").using("btree", table.scheduledSubmitAt.asc().nullsLast().op("timestamptz_ops")),
 	]);
+
+export const constructionLogSubmitters = pgTable("construction_log_submitters", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id").notNull(),
+	userId: integer("user_id").notNull(),
+	createdBy: integer("created_by"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("construction_log_submitters_project_user_key").on(table.projectId, table.userId),
+	index("construction_log_submitters_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("construction_log_submitters_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "construction_log_submitters_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "construction_log_submitters_user_id_fkey"
+		}).onDelete("cascade"),
+]);
 
 export const constructionLogAttendance = pgTable("construction_log_attendance", {
 	id: serial().primaryKey().notNull(),

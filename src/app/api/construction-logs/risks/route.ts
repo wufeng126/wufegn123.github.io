@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { detectConstructionLogRisk, getRiskWorkflowStatusFromTags } from '@/lib/construction-log-risk';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 function toArrayTags(tags: unknown): string[] {
@@ -28,11 +28,13 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     const status = searchParams.get('status') || 'all';
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '100', 10), 300);
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
 
     let query = supabase
       .from('construction_logs')
       .select('*')
+      .neq('status', 'pending')
+      .neq('status', 'cancelled')
       .order('log_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(pageSize);

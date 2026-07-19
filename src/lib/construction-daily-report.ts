@@ -365,7 +365,12 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
   const [projectsRes, usersRes, logsRes] = await Promise.all([
     supabase.from('projects').select('id,name').order('id', { ascending: true }),
     supabase.from('users').select('id,username,name,dingtalk_name,managed_projects,is_disabled,role'),
-    supabase.from('construction_logs').select('*').eq('log_date', reportDate),
+    supabase
+      .from('construction_logs')
+      .select('*')
+      .eq('log_date', reportDate)
+      .neq('status', 'pending')
+      .neq('status', 'cancelled'),
   ]);
 
   if (projectsRes.error) throw new Error(projectsRes.error.message);

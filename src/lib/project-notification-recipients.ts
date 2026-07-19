@@ -1,5 +1,6 @@
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { getProjectRoleUserIds } from '@/lib/user-project-roles';
+import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 
 type SupabaseLike = {
   from: (table: string) => {
@@ -91,12 +92,13 @@ export async function getProjectBudgetRecipients(
   client: SupabaseLike,
   projectId: number
 ): Promise<NotificationRecipient[]> {
-  const [{ data: users, error: userError }, { data: userRoles }, { data: roles }] = await Promise.all([
+  const [{ data: users, error: userError }, { data: userRoles }, { data: roles }, { data: projects }] = await Promise.all([
     client
       .from('users')
       .select('id,username,name,role,managed_projects,is_disabled,dingtalk_user_id,dingtalk_name'),
     client.from('user_roles').select('user_id,role_id'),
     client.from('roles').select('id,name,code,level'),
+    client.from('projects').select('id,name'),
   ]);
 
   if (userError) throw new Error(userError.message);
@@ -118,6 +120,14 @@ export async function getProjectBudgetRecipients(
       managedProjectIds: parseManagedProjects(user.managed_projects),
     };
   });
+
+  const project = (Array.isArray(projects) ? projects : []).find((row: any) => Number(row?.id) === Number(projectId)) as { name?: string | null } | undefined;
+  if (project?.name === PUBLIC_LOG_PROJECT_NAME) {
+    const superAdmins = usersWithRoles
+      .filter(({ user, roles }) => isSuperAdminRole(user, roles))
+      .map(({ user }) => user as NotificationRecipient);
+    if (superAdmins.length > 0) return uniqRecipients(superAdmins);
+  }
 
   const configuredBudgetUserIds = new Set(await getProjectRoleUserIds(client, projectId, 'budget'));
   if (configuredBudgetUserIds.size > 0) {

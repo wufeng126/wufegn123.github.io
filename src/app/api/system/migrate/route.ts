@@ -20,6 +20,57 @@ CREATE TABLE IF NOT EXISTS construction_logs (
 CREATE INDEX IF NOT EXISTS construction_logs_project_id_idx ON construction_logs(project_id);
 CREATE INDEX IF NOT EXISTS construction_logs_user_id_idx ON construction_logs(user_id);
 CREATE INDEX IF NOT EXISTS construction_logs_log_date_idx ON construction_logs(log_date);
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'submitted';
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS scheduled_submit_at TIMESTAMPTZ;
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS scheduled_by INTEGER;
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS scheduled_cancelled_at TIMESTAMPTZ;
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS construction_logs_status_idx ON construction_logs(status);
+CREATE INDEX IF NOT EXISTS construction_logs_scheduled_submit_at_idx ON construction_logs(scheduled_submit_at);
+
+-- 施工日志项目提交人员范围；无配置时默认项目内人员都可提交
+CREATE TABLE IF NOT EXISTS construction_log_submitters (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_by INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(project_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS construction_log_submitters_project_id_idx ON construction_log_submitters(project_id);
+CREATE INDEX IF NOT EXISTS construction_log_submitters_user_id_idx ON construction_log_submitters(user_id);
+
+-- 项目类型：business 为真实经营项目，construction_public_log 为公司公共/非项目施工日志专用项目
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_type VARCHAR(50) NOT NULL DEFAULT 'business';
+CREATE INDEX IF NOT EXISTS projects_project_type_idx ON projects(project_type);
+INSERT INTO projects (
+  name,
+  year,
+  status,
+  address,
+  partner,
+  contract_amount,
+  icon,
+  project_type
+)
+SELECT
+  '公司公共项目/非项目日志',
+  EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER,
+  '公共日志',
+  '公司内部',
+  '公司内部',
+  0,
+  'ClipboardList',
+  'construction_public_log'
+WHERE NOT EXISTS (
+  SELECT 1 FROM projects
+  WHERE project_type = 'construction_public_log'
+     OR name = '公司公共项目/非项目日志'
+);
+UPDATE projects
+SET project_type = 'construction_public_log'
+WHERE name = '公司公共项目/非项目日志';
 
 -- 施工日志出勤人员明细
 CREATE TABLE IF NOT EXISTS construction_log_attendance (

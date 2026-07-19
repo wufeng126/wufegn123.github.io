@@ -19,6 +19,7 @@ import {
   VISA_DONE_STATUSES,
 } from '@/lib/business-logic';
 import { parseNumeric, round2, yearMonthToRange } from './format';
+import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 
 // ========== 类型定义 ==========
 
@@ -169,6 +170,7 @@ export async function getProjectFinancialSummary(
     .single();
 
   if (!project) return null;
+  if (project.name === PUBLIC_LOG_PROJECT_NAME) return null;
 
   const projectTaxRate = parseNumeric(project.tax_rate || '9');
 
@@ -400,7 +402,7 @@ export async function getGlobalSummary(
   const client = getSupabaseClient();
 
   // 获取项目列表
-  let projectsQuery = client.from('projects').select('id, name, status');
+  let projectsQuery = client.from('projects').select('id, name, status').neq('name', PUBLIC_LOG_PROJECT_NAME);
   if (projectIds && projectIds.length > 0) {
     projectsQuery = projectsQuery.in('id', projectIds);
   }
@@ -503,6 +505,7 @@ export async function getProjectListSummary(
   let projectsQuery = client
     .from('projects')
     .select('id, name, year, status, address, partner, contract_amount, expected_completion_date, created_at')
+    .neq('name', PUBLIC_LOG_PROJECT_NAME)
     .order('created_at', { ascending: false });
 
   if (projectIds && projectIds.length > 0) {

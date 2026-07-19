@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { getSettlementPeriod } from '@/lib/settlement-period';
 
 type LogRow = {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     const workType = (searchParams.get('workType') || '').trim();
     const keyword = (searchParams.get('keyword') || '').trim();
 
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
     const parsedProjectId = projectId !== 'all' ? Number(projectId) : null;
     if (parsedProjectId && Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
       return apiForbidden('无权查看该项目出勤统计');

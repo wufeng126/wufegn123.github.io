@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
+import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 
 // 获取当前月份
 function getCurrentYearMonth() {
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
     const { data: allProjects, error: projectError } = await client
       .from('projects')
       .select('id, name, status, address, partner, contract_amount, year, expected_completion_date, created_at')
+      .neq('name', PUBLIC_LOG_PROJECT_NAME)
       .order('created_at', { ascending: false });
 
     if (projectError) {

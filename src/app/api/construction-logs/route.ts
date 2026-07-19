@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getConstructionLogAccessibleProjectIds, isPublicLogProject } from '@/lib/public-log-project';
 import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
 import {
   buildRiskKnowledgeContent,
@@ -17,6 +17,7 @@ import {
 import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
+import { canUserSubmitConstructionLog, hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
 
 type ConstructionLogDraft = {
   project_id: number;
@@ -47,6 +48,12 @@ type ConstructionLogPayload = Record<string, unknown>;
 
 type InsertedConstructionLogRow = {
   id: number;
+};
+
+type ScheduledConstructionLogRow = InsertedConstructionLogRow & ConstructionLogDraft & {
+  log_date: string;
+  scheduled_submit_at?: string | null;
+  user_id?: number | null;
 };
 
 type AttendanceWorkerRow = {
@@ -199,6 +206,13 @@ function getDraftHeadcount(draft: ConstructionLogDraft) {
   return toNullableHeadcount(draft.headcount);
 }
 
+function normalizeScheduledSubmitAt(value: unknown) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
 async function createRiskSideEffects(
   supabase: SupabaseClient,
   data: InsertedConstructionLogRow | null,
@@ -271,12 +285,57 @@ async function createRiskSideEffects(
   });
 }
 
+async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
+  const nowIso = new Date().toISOString();
+  const { data: dueLogs, error } = await supabase
+    .from('construction_logs')
+    .select('id,project_id,location,content,issues,log_date,scheduled_submit_at,user_id')
+    .eq('status', 'pending')
+    .lte('scheduled_submit_at', nowIso)
+    .limit(50);
+
+  if (error) {
+    const message = String(error.message || '').toLowerCase();
+    if (error.code === '42703' || error.code === 'PGRST204' || message.includes('status') || message.includes('scheduled_submit_at')) return;
+    throw new Error(error.message);
+  }
+
+  for (const log of ((dueLogs || []) as ScheduledConstructionLogRow[])) {
+    const scheduledAt = log.scheduled_submit_at ? new Date(log.scheduled_submit_at) : new Date();
+    const window = getConstructionLogSubmissionWindow(log.log_date, scheduledAt);
+    if (!window.submissionStatus) continue;
+
+    const submittedAt = log.scheduled_submit_at || nowIso;
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('construction_logs')
+      .update({
+        status: 'submitted',
+        submission_status: window.submissionStatus,
+        submitted_at: submittedAt,
+      })
+      .eq('id', log.id)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (updateError) throw new Error(updateError.message);
+    if (!updatedRows || updatedRows.length === 0) continue;
+
+    await createRiskSideEffects(supabase, { id: log.id }, {
+      project_id: Number(log.project_id),
+      location: log.location || null,
+      content: log.content || '',
+      issues: log.issues || null,
+    }, log.log_date, Number(log.user_id || 0) || undefined);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
 
     const supabase = getSupabaseClient();
+    await processDueScheduledConstructionLogs(supabase);
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
     const userId = searchParams.get('userId');
@@ -284,7 +343,7 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '50');
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
     const parsedProjectId = projectId ? parseInt(projectId, 10) : null;
 
     if (parsedProjectId && Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
@@ -332,6 +391,10 @@ export async function POST(request: NextRequest) {
     const body = asPayload(await request.json());
     const log_date = typeof body.log_date === 'string' ? body.log_date : '';
     const drafts = normalizeLogDrafts(body);
+    const hasScheduledSubmitInput = typeof body.scheduled_submit_at === 'string' && body.scheduled_submit_at.trim() !== '';
+    const scheduledSubmitDate = normalizeScheduledSubmitAt(body.scheduled_submit_at);
+    if (hasScheduledSubmitInput && !scheduledSubmitDate) return apiBadRequest('预约提交时间格式不正确');
+    const isScheduled = hasScheduledSubmitInput;
 
     if (!log_date || drafts.length === 0) {
       return apiBadRequest('项目、日期和施工内容不能为空');
@@ -342,12 +405,20 @@ export async function POST(request: NextRequest) {
       return apiBadRequest('同一份施工日志中不能重复选择同一个项目');
     }
 
-    const submissionWindow = getConstructionLogSubmissionWindow(log_date);
+    const submissionWindow = getConstructionLogSubmissionWindow(log_date, scheduledSubmitDate || new Date());
     if (!submissionWindow.allowed || !submissionWindow.submissionStatus) {
       return apiBadRequest(submissionWindow.message);
     }
 
     const supabase = getSupabaseClient();
+    if (isScheduled) {
+      if (!scheduledSubmitDate || scheduledSubmitDate.getTime() <= Date.now()) {
+        return apiBadRequest('预约提交时间必须晚于当前时间');
+      }
+      const canSchedule = await hasBudgetRoleInDatabase(supabase, user);
+      if (!canSchedule) return apiForbidden('只有预算员可以预约提交施工日志');
+    }
+
     const { data: currentUserRecord } = await supabase
       .from('users')
       .select('id,username,name,dingtalk_name')
@@ -359,15 +430,20 @@ export async function POST(request: NextRequest) {
       name: currentUserRecord?.name || user.name,
       dingtalk_name: currentUserRecord?.dingtalk_name || user.dingtalk_name,
     }, user.name || user.username);
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, user);
     if (Array.isArray(accessibleProjectIds)) {
       const forbiddenProject = uniqueProjectIds.find((projectId) => !accessibleProjectIds.includes(projectId));
       if (forbiddenProject) return apiForbidden('无权提交该项目施工日志');
     }
 
+    for (const projectId of uniqueProjectIds) {
+      const canSubmit = await canUserSubmitConstructionLog(supabase, projectId, user.id);
+      if (!canSubmit) return apiForbidden('该项目未将你配置为施工日志提交人员');
+    }
+
     const { data: projectRows, error: projectRowsError } = await loadProjectsForArchiveCheck(supabase, uniqueProjectIds);
     if (projectRowsError) throw new Error(projectRowsError.message);
-    const archivedProject = ((projectRows || []) as ProjectArchiveCheckRow[]).find((project) => project.is_archived);
+    const archivedProject = ((projectRows || []) as ProjectArchiveCheckRow[]).find((project) => project.is_archived && !isPublicLogProject(project));
     if (archivedProject) {
       return apiBadRequest(`项目已归档，不能再提交施工日志：${archivedProject.name || archivedProject.id}`);
     }
@@ -377,6 +453,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('user_id', user.id)
       .eq('log_date', log_date)
+      .neq('status', 'cancelled')
       .limit(1);
 
     if (existingError) throw new Error(existingError.message);
@@ -417,6 +494,7 @@ export async function POST(request: NextRequest) {
 
     const dailyGroupId = randomUUID();
     const submittedAt = new Date().toISOString();
+    const scheduledSubmitAt = scheduledSubmitDate?.toISOString() || null;
     const sourceType = body.source_type === 'ocr' ? 'ocr' : 'manual';
     const insertRows = drafts.map((draft) => ({
       project_id: draft.project_id,
@@ -429,8 +507,12 @@ export async function POST(request: NextRequest) {
       issues: draft.issues || null,
       attachments: draft.attachments || [],
       daily_group_id: dailyGroupId,
-      submission_status: submissionWindow.submissionStatus,
-      submitted_at: submittedAt,
+      status: isScheduled ? 'pending' : 'submitted',
+      scheduled_submit_at: scheduledSubmitAt,
+      scheduled_by: isScheduled ? user.id : null,
+      scheduled_cancelled_at: null,
+      submission_status: isScheduled ? null : submissionWindow.submissionStatus,
+      submitted_at: isScheduled ? null : submittedAt,
       source_type: sourceType,
     }));
 
@@ -480,8 +562,10 @@ export async function POST(request: NextRequest) {
       if (scopeError) throw new Error(scopeError.message);
     }
 
-    for (let index = 0; index < insertedRows.length; index += 1) {
-      await createRiskSideEffects(supabase, insertedRows[index], drafts[index], log_date, user?.id);
+    if (!isScheduled) {
+      for (let index = 0; index < insertedRows.length; index += 1) {
+        await createRiskSideEffects(supabase, insertedRows[index], drafts[index], log_date, user?.id);
+      }
     }
 
     const enrichedRows = insertedRows.map(enrichConstructionLog);

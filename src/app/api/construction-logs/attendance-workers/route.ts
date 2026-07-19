@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import type { RequestAuthUser } from '@/lib/auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
 
 function parseProjectId(value: string | null) {
@@ -65,8 +66,8 @@ async function loadProjectArchiveState(supabase: ReturnType<typeof getSupabaseCl
   };
 }
 
-async function assertProjectAccess(projectId: number, supabase: unknown, user: Parameters<typeof getAccessibleProjectIds>[1]) {
-  const accessibleProjectIds = await getAccessibleProjectIds(supabase, user);
+async function assertProjectAccess(projectId: number, supabase: ReturnType<typeof getSupabaseClient>, user: RequestAuthUser) {
+  const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, user);
   if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(projectId)) {
     return false;
   }

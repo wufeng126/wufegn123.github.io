@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { detectConstructionLogRisk, getRiskTypeLabel, type ConstructionRiskLevel, type ConstructionRiskType } from '@/lib/construction-log-risk';
 import { getUserDisplayName } from '@/lib/user-display-name';
 
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
     const month = searchParams.get('month');
     const parsedProjectId = projectId ? parseInt(projectId, 10) : null;
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
 
     if (parsedProjectId && Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parsedProjectId)) {
       return apiSuccess([], {
@@ -148,7 +148,11 @@ export async function GET(request: NextRequest) {
     const { data: projectRows, error: projectError } = await projectsQuery;
     if (projectError) throw new Error(projectError.message);
 
-    let query = supabase.from('construction_logs').select('project_id, user_id, user_name, log_date, content, issues');
+    let query = supabase
+      .from('construction_logs')
+      .select('project_id, user_id, user_name, log_date, content, issues')
+      .neq('status', 'pending')
+      .neq('status', 'cancelled');
     if (parsedProjectId) query = query.eq('project_id', parsedProjectId);
     else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
     if (dateFrom) query = query.gte('log_date', dateFrom);

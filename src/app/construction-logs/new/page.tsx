@@ -3,12 +3,13 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Camera, ClipboardList, ImageIcon, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Camera, ClipboardList, ImageIcon, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import {
   formatLogWindowText,
   getConstructionLogSubmissionWindow,
   getDefaultConstructionLogDate,
 } from '@/lib/construction-log-deadline';
+import { usePermission } from '@/contexts/permission-context';
 
 type Project = { id: number | string; name: string; is_archived?: boolean };
 type AttendanceWorker = {
@@ -114,6 +115,7 @@ function buildAttendanceWorkers(draft: ProjectLogDraft) {
 
 export default function NewConstructionLogPage() {
   const router = useRouter();
+  const { user, isSuperAdmin } = usePermission();
   const [projects, setProjects] = useState<Project[]>([]);
   const [logDate, setLogDate] = useState(getDefaultConstructionLogDate());
   const [drafts, setDrafts] = useState<ProjectLogDraft[]>([createDraft()]);
@@ -125,9 +127,11 @@ export default function NewConstructionLogPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [submittedStatus, setSubmittedStatus] = useState('');
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduledSubmitAt, setScheduledSubmitAt] = useState('');
 
   useEffect(() => {
-    fetch('/api/projects')
+    fetch('/api/projects?includePublicLog=1')
       .then(r => r.json())
       .then(j => {
         const list = Array.isArray(j.projects)
@@ -172,7 +176,15 @@ export default function NewConstructionLogPage() {
     });
   }, [attendanceLoading, attendanceOptions, drafts]);
 
+  const canScheduleSubmit = useMemo(() => {
+    const roleText = `${user?.role || ''} ${user?.name || ''}`.toLowerCase();
+    return isSuperAdmin || roleText.includes('budget') || roleText.includes('cost') || roleText.includes('estimate') || roleText.includes('预算') || roleText.includes('造价') || roleText.includes('经营');
+  }, [isSuperAdmin, user?.name, user?.role]);
   const submissionWindow = useMemo(() => getConstructionLogSubmissionWindow(logDate), [logDate]);
+  const scheduledWindow = useMemo(() => {
+    if (!scheduleEnabled || !scheduledSubmitAt) return submissionWindow;
+    return getConstructionLogSubmissionWindow(logDate, new Date(scheduledSubmitAt));
+  }, [logDate, scheduleEnabled, scheduledSubmitAt, submissionWindow]);
   const isUploadingPhotos = useMemo(() => Object.values(photoUploading).some(Boolean), [photoUploading]);
 
   function updateDraft(id: string, patch: Partial<ProjectLogDraft>) {
@@ -303,8 +315,24 @@ export default function NewConstructionLogPage() {
       setError('同一份施工日志中不能重复选择同一个项目');
       return;
     }
-    if (!submissionWindow.allowed) {
-      setError(submissionWindow.message);
+    const effectiveWindow = scheduleEnabled ? scheduledWindow : submissionWindow;
+    if (scheduleEnabled) {
+      if (!canScheduleSubmit) {
+        setError('只有预算员可以预约提交施工日志');
+        return;
+      }
+      if (!scheduledSubmitAt) {
+        setError('请选择预约提交时间');
+        return;
+      }
+      const scheduledDate = new Date(scheduledSubmitAt);
+      if (Number.isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now()) {
+        setError('预约提交时间必须晚于当前时间');
+        return;
+      }
+    }
+    if (!effectiveWindow.allowed) {
+      setError(effectiveWindow.message);
       return;
     }
     if (isUploadingPhotos) {
@@ -328,6 +356,7 @@ export default function NewConstructionLogPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           log_date: logDate,
+          scheduled_submit_at: scheduleEnabled ? scheduledSubmitAt : undefined,
           project_logs: validDrafts.map(draft => ({
             project_id: draft.project_id,
             location: draft.location,
@@ -350,7 +379,7 @@ export default function NewConstructionLogPage() {
       });
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '提交失败');
-      setSubmittedStatus(submissionWindow.label);
+      setSubmittedStatus(scheduleEnabled ? `待提交，预约时间：${new Date(scheduledSubmitAt).toLocaleString('zh-CN')}` : submissionWindow.label);
       setSuccess(true);
       setTimeout(() => router.push('/construction-logs'), 1500);
     } catch (e: unknown) {
@@ -428,6 +457,40 @@ export default function NewConstructionLogPage() {
                 <div className="mt-1 text-xs opacity-80">{formatLogWindowText(logDate)}</div>
               </div>
             </div>
+            {canScheduleSubmit && (
+              <div className="mt-4 rounded-xl border border-[#D6E4FF] bg-[#FAFCFF] p-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-[#1D2129]">
+                  <input
+                    type="checkbox"
+                    checked={scheduleEnabled}
+                    onChange={event => setScheduleEnabled(event.target.checked)}
+                    className="h-4 w-4 rounded border-[#C9CDD4] text-[#165DFF]"
+                  />
+                  <CalendarClock className="h-4 w-4 text-[#165DFF]" />
+                  预约提交
+                </label>
+                {scheduleEnabled && (
+                  <div className="mt-3 grid gap-3 md:grid-cols-[260px_1fr]">
+                    <input
+                      type="datetime-local"
+                      value={scheduledSubmitAt}
+                      onChange={event => setScheduledSubmitAt(event.target.value)}
+                      className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                    />
+                    <div className={`rounded-xl border px-4 py-3 text-sm ${
+                      scheduledWindow.status === 'late'
+                        ? 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]'
+                        : scheduledWindow.allowed
+                          ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]'
+                          : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+                    }`}>
+                      <div className="font-medium">预约后状态：待提交</div>
+                      <div className="mt-1 text-xs">{scheduledSubmitAt ? scheduledWindow.message : '选择预约时间后，系统会在到点后自动提交。'}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {drafts.map((draft, index) => {
@@ -754,11 +817,11 @@ export default function NewConstructionLogPage() {
             </button>
             <button
               type="submit"
-              disabled={saving || isUploadingPhotos || !submissionWindow.allowed}
+              disabled={saving || isUploadingPhotos || !(scheduleEnabled ? scheduledWindow.allowed : submissionWindow.allowed)}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:w-auto sm:min-w-[160px]"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : '提交日志'}
+              {saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : scheduleEnabled ? '保存并预约' : '提交日志'}
             </button>
           </div>
         </form>

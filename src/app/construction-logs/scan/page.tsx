@@ -86,7 +86,7 @@ export default function ConstructionLogScanPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    fetch('/api/projects')
+    fetch('/api/projects?includePublicLog=1')
       .then(res => res.json())
       .then(json => {
         const list = Array.isArray(json.projects)

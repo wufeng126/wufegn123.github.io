@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   BarChart3,
   BookOpenCheck,
+  CalendarClock,
   Camera,
   ClipboardList,
   FileCheck2,
@@ -15,6 +16,7 @@ import {
   Trash2,
   UserRoundCheck,
   Users,
+  Settings2,
 } from 'lucide-react';
 import { usePermission } from '@/contexts/permission-context';
 
@@ -25,6 +27,7 @@ type WorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'monthly_
 type LogItem = {
   id: number;
   project_id: number;
+  user_id?: number;
   user_name: string;
   log_date: string;
   location: string;
@@ -32,6 +35,8 @@ type LogItem = {
   headcount: number;
   issues: string;
   created_at: string;
+  status?: 'submitted' | 'pending' | 'cancelled' | null;
+  scheduled_submit_at?: string | null;
   submission_status?: 'normal' | 'late' | null;
   risk_type?: RiskType | null;
   risk_types?: RiskType[];
@@ -88,6 +93,13 @@ type StatsSummary = {
 
 type Project = { id: number; name: string };
 
+type SubmitterUser = {
+  id: number;
+  name: string;
+  username?: string;
+  role?: string;
+};
+
 const RISK_TYPE_LABELS: Record<RiskType, string> = {
   change: '变更',
   visa: '签证',
@@ -127,9 +139,32 @@ function statusClass(status: WorkflowStatus) {
   return 'border-[#C9CDD4] bg-[#F7F8FA] text-[#4E5969]';
 }
 
+function logStatusLabel(log: LogItem) {
+  if (log.status === 'pending') return '待提交';
+  if (log.status === 'cancelled') return '已取消';
+  return log.submission_status === 'late' ? '逾期补交' : '正常提交';
+}
+
+function logStatusClass(log: LogItem) {
+  if (log.status === 'pending') return 'bg-[#E8F3FF] text-[#165DFF]';
+  if (log.status === 'cancelled') return 'bg-[#F2F3F5] text-[#86909C]';
+  return log.submission_status === 'late' ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#E8FFEA] text-[#047857]';
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 export default function ConstructionLogsPage() {
-  const { hasPermission } = usePermission();
+  const { hasPermission, user, isSuperAdmin } = usePermission();
   const canViewAttendance = hasPermission('construction_attendance:view');
+  const canManageSubmitters = useMemo(() => {
+    const roleText = `${user?.role || ''} ${user?.name || ''}`.toLowerCase();
+    return isSuperAdmin || roleText.includes('budget') || roleText.includes('cost') || roleText.includes('estimate') || roleText.includes('预算') || roleText.includes('造价') || roleText.includes('经营');
+  }, [isSuperAdmin, user?.name, user?.role]);
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const statusParam = searchParams.get('status');
@@ -150,8 +185,8 @@ export default function ConstructionLogsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [riskLoading, setRiskLoading] = useState(false);
-  const [tab, setTab] = useState<'stats' | 'logs' | 'risks'>(
-    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' ? tabParam : 'risks',
+  const [tab, setTab] = useState<'stats' | 'logs' | 'risks' | 'submitters'>(
+    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' || tabParam === 'submitters' ? tabParam : 'risks',
   );
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [statsProjectId, setStatsProjectId] = useState('all');
@@ -162,7 +197,14 @@ export default function ConstructionLogsPage() {
   );
   const [actionBusy, setActionBusy] = useState<number | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
+  const [cancelingLogId, setCancelingLogId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
+  const [submitterProjectId, setSubmitterProjectId] = useState('');
+  const [submitterUsers, setSubmitterUsers] = useState<SubmitterUser[]>([]);
+  const [submitterIds, setSubmitterIds] = useState<number[]>([]);
+  const [submitterConfigured, setSubmitterConfigured] = useState(false);
+  const [submitterLoading, setSubmitterLoading] = useState(false);
+  const [submitterSaving, setSubmitterSaving] = useState(false);
 
   const loadBase = useCallback(async function loadBase() {
     setLoading(true);
@@ -178,7 +220,7 @@ export default function ConstructionLogsPage() {
       const [logRes, statsRes, projRes] = await Promise.all([
         fetch(`/api/construction-logs?pageSize=100${userFilter}`),
         fetch(`/api/construction-logs/stats?month=${month}${statsProjectId !== 'all' ? `&projectId=${statsProjectId}` : ''}`),
-        fetch('/api/projects'),
+        fetch('/api/projects?includePublicLog=1'),
       ]);
       const logJson = await logRes.json();
       const statsJson = await statsRes.json();
@@ -205,13 +247,37 @@ export default function ConstructionLogsPage() {
         risk_total: Number(statsJson.risk_summary?.total || statsJson.meta?.risk_summary?.total || 0),
         high_risk_total: Number(statsJson.risk_summary?.by_level?.high || statsJson.meta?.risk_summary?.by_level?.high || 0),
       });
-      setProjects(Array.isArray(projJson.projects) ? projJson.projects : []);
+      const nextProjects = Array.isArray(projJson.projects) ? projJson.projects : [];
+      setProjects(nextProjects);
+      setSubmitterProjectId(current => current || (nextProjects[0] ? String(nextProjects[0].id) : ''));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '施工日志数据加载失败，请稍后重试');
     } finally {
       setLoading(false);
     }
   }, [mineOnly, month, statsProjectId]);
+
+  const loadSubmitters = useCallback(async function loadSubmitters(projectId: string) {
+    if (!projectId || !canManageSubmitters) return;
+    setSubmitterLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/construction-logs/submitters?projectId=${projectId}`);
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '提交人员配置加载失败');
+      const data = json.data || {};
+      setSubmitterUsers(Array.isArray(data.users) ? data.users : []);
+      setSubmitterIds(Array.isArray(data.submitter_user_ids) ? data.submitter_user_ids.map(Number) : []);
+      setSubmitterConfigured(Boolean(data.configured));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '提交人员配置加载失败');
+      setSubmitterUsers([]);
+      setSubmitterIds([]);
+      setSubmitterConfigured(false);
+    } finally {
+      setSubmitterLoading(false);
+    }
+  }, [canManageSubmitters]);
 
   const loadRisks = useCallback(async function loadRisks() {
     setRiskLoading(true);
@@ -241,6 +307,11 @@ export default function ConstructionLogsPage() {
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [loadRisks]);
+
+  useEffect(() => {
+    if (tab !== 'submitters' || !submitterProjectId) return;
+    void loadSubmitters(submitterProjectId);
+  }, [loadSubmitters, submitterProjectId, tab]);
 
   const projectNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -289,6 +360,54 @@ export default function ConstructionLogsPage() {
       setMessage(error instanceof Error ? error.message : '施工日志删除失败');
     } finally {
       setDeletingLogId(null);
+    }
+  }
+
+  async function handleCancelSchedule(logId: number) {
+    if (!window.confirm('确认取消这条预约提交吗？取消后不会自动提交。')) return;
+    setCancelingLogId(logId);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/construction-logs/${logId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_schedule' }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '取消预约失败');
+      setMessage('预约提交已取消');
+      await loadBase();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '取消预约失败');
+    } finally {
+      setCancelingLogId(null);
+    }
+  }
+
+  function toggleSubmitter(userId: number) {
+    setSubmitterIds(current => (
+      current.includes(userId) ? current.filter(id => id !== userId) : [...current, userId]
+    ));
+  }
+
+  async function handleSaveSubmitters() {
+    if (!submitterProjectId) return;
+    setSubmitterSaving(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/construction-logs/submitters', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: Number(submitterProjectId), user_ids: submitterIds }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '提交人员配置保存失败');
+      setSubmitterConfigured(submitterIds.length > 0);
+      setMessage(submitterIds.length > 0 ? '提交人员配置已保存' : '已恢复默认：所有项目人员都可以提交');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '提交人员配置保存失败');
+    } finally {
+      setSubmitterSaving(false);
     }
   }
 
@@ -359,6 +478,11 @@ export default function ConstructionLogsPage() {
           <button onClick={() => setTab('logs')} className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${tab === 'logs' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
             <ClipboardList className="mr-1 inline h-4 w-4" />日志记录
           </button>
+          {canManageSubmitters && (
+            <button onClick={() => setTab('submitters')} className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${tab === 'submitters' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
+              <Settings2 className="mr-1 inline h-4 w-4" />提交人员
+            </button>
+          )}
         </div>
 
         {tab === 'risks' && (
@@ -586,13 +710,15 @@ export default function ConstructionLogsPage() {
                   <span className="h-3 w-px bg-[#E5E6EB]" />
                   <span>{log.log_date}</span>
                   <span>{log.user_name}</span>
-                  <span className={`rounded-full px-2 py-0.5 ${
-                    log.submission_status === 'late'
-                      ? 'bg-[#FFF7E8] text-[#D46B08]'
-                      : 'bg-[#E8FFEA] text-[#047857]'
-                  }`}>
-                    {log.submission_status === 'late' ? '逾期补交' : '正常提交'}
+                  <span className={`rounded-full px-2 py-0.5 ${logStatusClass(log)}`}>
+                    {logStatusLabel(log)}
                   </span>
+                  {log.status === 'pending' && log.scheduled_submit_at && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[#165DFF]">
+                      <CalendarClock className="h-3 w-3" />
+                      预约 {formatDateTime(log.scheduled_submit_at)}
+                    </span>
+                  )}
                   {log.location && <span>{log.location}</span>}
                 </div>
                 <p className="text-sm text-[#1D2129]">{log.content}</p>
@@ -614,6 +740,17 @@ export default function ConstructionLogsPage() {
                   {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
                   <div className="flex w-full shrink-0 items-center justify-end gap-3 md:ml-auto md:w-auto">
                     <Link href={`/construction-logs/${log.id}`} className="font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                    {log.status === 'pending' && Number(log.user_id) === Number(user?.id) && (
+                      <button
+                        type="button"
+                        disabled={cancelingLogId === log.id}
+                        onClick={() => handleCancelSchedule(log.id)}
+                        className="inline-flex items-center gap-1 font-medium text-[#D46B08] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        {cancelingLogId === log.id ? '取消中...' : '取消预约'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={deletingLogId === log.id}
@@ -627,6 +764,96 @@ export default function ConstructionLogsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {tab === 'submitters' && canManageSubmitters && (
+          <div className="space-y-4">
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="font-semibold text-[#1D2129]">施工日志提交人员设置</h2>
+                  <p className="mt-1 text-xs text-[#86909C]">未配置名单时，默认所有有该项目权限的人员都可以提交；配置后只允许勾选人员提交。</p>
+                </div>
+                <select
+                  value={submitterProjectId}
+                  onChange={event => setSubmitterProjectId(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF] md:w-72"
+                >
+                  <option value="">请选择项目</option>
+                  {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
+                </select>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#1D2129]">
+                    {submitterConfigured ? `已配置 ${submitterIds.length} 人` : '默认全员可提交'}
+                  </h3>
+                  <p className="mt-1 text-xs text-[#86909C]">清空勾选并保存，即恢复默认全员可提交。</p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setSubmitterIds(submitterUsers.map(item => item.id))}
+                    disabled={submitterLoading || submitterUsers.length === 0}
+                    className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF] disabled:opacity-50"
+                  >
+                    全选
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSubmitterIds([])}
+                    disabled={submitterLoading}
+                    className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF] disabled:opacity-50"
+                  >
+                    恢复默认
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSubmitters}
+                    disabled={submitterSaving || submitterLoading || !submitterProjectId}
+                    className="h-9 rounded-lg bg-[#165DFF] px-4 text-xs font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                  >
+                    {submitterSaving ? '保存中...' : '保存配置'}
+                  </button>
+                </div>
+              </div>
+
+              {submitterLoading ? (
+                <div className="rounded-lg bg-[#F7F8FA] p-8 text-center text-sm text-[#86909C]">正在加载人员...</div>
+              ) : submitterUsers.length === 0 ? (
+                <div className="rounded-lg bg-[#F7F8FA] p-8 text-center text-sm text-[#86909C]">当前项目暂无可配置人员</div>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {submitterUsers.map(item => {
+                    const checked = submitterIds.includes(item.id);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleSubmitter(item.id)}
+                        className={`flex items-center gap-3 rounded-lg border p-3 text-left transition ${
+                          checked ? 'border-[#165DFF] bg-[#F0F5FF]' : 'border-[#E5E6EB] bg-white hover:border-[#165DFF]/40'
+                        }`}
+                      >
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
+                          checked ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-[#C9CDD4] bg-white'
+                        }`}>
+                          {checked ? '✓' : ''}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-[#1D2129]">{item.name || item.username || `用户${item.id}`}</span>
+                          <span className="mt-1 block truncate text-xs text-[#86909C]">{item.role || '项目人员'}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           </div>
         )}
       </div>

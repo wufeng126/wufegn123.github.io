@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, CalendarDays, FileText, ImageIcon, MapPin, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarClock, CalendarDays, FileText, ImageIcon, MapPin, Save, Users, XCircle } from 'lucide-react';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
@@ -18,6 +18,10 @@ type ConstructionLogDetail = {
   headcount?: number | null;
   issues?: string | null;
   created_at?: string | null;
+  status?: 'submitted' | 'pending' | 'cancelled' | null;
+  scheduled_submit_at?: string | null;
+  can_edit_schedule?: boolean;
+  can_cancel_schedule?: boolean;
   attachments?: {
     name?: string | null;
     size?: number | null;
@@ -114,11 +118,26 @@ function formatFileSize(size?: number | null) {
   return `${(value / 1024 / 1024).toFixed(1)}MB`;
 }
 
+function toDateTimeInputValue(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60 * 1000);
+  return local.toISOString().slice(0, 16);
+}
+
 export default function ConstructionLogDetailPage() {
   const params = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConstructionLogDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editLocation, setEditLocation] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editIssues, setEditIssues] = useState('');
+  const [editScheduledAt, setEditScheduledAt] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -130,7 +149,13 @@ export default function ConstructionLogDetailPage() {
         const res = await fetch(`/api/construction-logs/${params.id}`);
         const json = await res.json();
         if (!res.ok || json.success === false) throw new Error(json.error || '施工日志详情加载失败');
-        if (mounted) setDetail(json.data);
+        if (mounted) {
+          setDetail(json.data);
+          setEditLocation(json.data?.location || '');
+          setEditContent(json.data?.content || '');
+          setEditIssues(json.data?.issues || '');
+          setEditScheduledAt(toDateTimeInputValue(json.data?.scheduled_submit_at));
+        }
       } catch (e: unknown) {
         if (mounted) setError(e instanceof Error ? e.message : '施工日志详情加载失败');
       } finally {
@@ -153,6 +178,39 @@ export default function ConstructionLogDetailPage() {
       || Boolean(attachment.url)
     ))
   ), [detail?.attachments]);
+
+  async function handleSaveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!detail) return;
+    if (!editContent.trim()) {
+      setError('施工内容不能为空');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/construction-logs/${detail.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: editLocation,
+          content: editContent,
+          issues: editIssues,
+          scheduled_submit_at: editScheduledAt,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '保存失败');
+      setEditing(false);
+      const reload = await fetch(`/api/construction-logs/${params.id}`);
+      const reloadJson = await reload.json();
+      if (reload.ok && reloadJson.success !== false) setDetail(reloadJson.data);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
@@ -179,16 +237,85 @@ export default function ConstructionLogDetailPage() {
                     <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4 text-[#165DFF]" />{detail.log_date}</span>
                     <span className="inline-flex items-center gap-1"><Users className="h-4 w-4 text-[#7C3AED]" />{detail.user_name || '未记录人员'}</span>
                     {detail.location && <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4 text-[#10B981]" />{detail.location}</span>}
+                    {detail.status === 'pending' && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#F0F5FF] px-2 py-0.5 text-xs font-medium text-[#165DFF]">
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        待提交{detail.scheduled_submit_at ? `：${formatDate(detail.scheduled_submit_at)}` : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
+                <div className="flex flex-col items-start gap-2 md:items-end">
+                {detail.can_edit_schedule && (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(current => !current)}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#165DFF] bg-white px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]"
+                  >
+                    {editing ? <XCircle className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
+                    {editing ? '取消编辑' : '修改预约日志'}
+                  </button>
+                )}
                 {detail.risk?.hasRisk && (
                   <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${riskClass(detail.risk.level)}`}>
                     <AlertTriangle className="h-3.5 w-3.5" />
                     {detail.risk.level ? riskLevelLabels[detail.risk.level] : '风险提醒'}
                   </span>
                 )}
+                </div>
               </div>
             </section>
+
+            {editing && detail.can_edit_schedule && (
+              <form onSubmit={handleSaveEdit} className="rounded-xl border border-[#D6E4FF] bg-white p-4 sm:p-5">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block text-sm font-medium text-[#1D2129]">
+                    施工部位
+                    <input
+                      value={editLocation}
+                      onChange={event => setEditLocation(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-[#1D2129]">
+                    预约提交时间
+                    <input
+                      type="datetime-local"
+                      value={editScheduledAt}
+                      onChange={event => setEditScheduledAt(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                    />
+                  </label>
+                </div>
+                <label className="mt-3 block text-sm font-medium text-[#1D2129]">
+                  施工内容
+                  <textarea
+                    value={editContent}
+                    onChange={event => setEditContent(event.target.value)}
+                    rows={5}
+                    className="mt-1 w-full rounded-lg border border-[#E5E6EB] p-3 text-sm outline-none focus:border-[#165DFF]"
+                  />
+                </label>
+                <label className="mt-3 block text-sm font-medium text-[#1D2129]">
+                  异常/问题
+                  <input
+                    value={editIssues}
+                    onChange={event => setEditIssues(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                  />
+                </label>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                  >
+                    <Save className="h-4 w-4" />
+                    {saving ? '保存中...' : '保存修改'}
+                  </button>
+                </div>
+              </form>
+            )}
 
             <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#1D2129]">

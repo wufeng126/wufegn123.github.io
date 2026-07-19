@@ -2,9 +2,11 @@ import { NextRequest } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { detectConstructionLogRisk, enrichConstructionLog } from '@/lib/construction-log-risk';
+import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
+import { hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
 
 type LogAttachment = {
   name?: string;
@@ -16,6 +18,23 @@ type LogAttachment = {
   uploadedAt?: string;
   url?: string;
 };
+
+function asPayload(value: unknown) {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function normalizeOptionalText(value: unknown) {
+  if (typeof value !== 'string') return undefined;
+  return value.trim();
+}
+
+function isPendingBeforeSchedule(log: { status?: string | null; scheduled_submit_at?: string | null }) {
+  if (log.status !== 'pending') return false;
+  if (!log.scheduled_submit_at) return true;
+  const scheduledAt = new Date(log.scheduled_submit_at);
+  if (Number.isNaN(scheduledAt.getTime())) return true;
+  return scheduledAt.getTime() > Date.now();
+}
 
 function createStorage() {
   return new S3Storage({
@@ -66,7 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (error || !log) return apiNotFound('施工日志不存在');
 
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
     if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(Number(log.project_id))) {
       return apiForbidden('无权查看该项目施工日志');
     }
@@ -104,9 +123,87 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       attendance_workers: attendanceWorkers || [],
       risk,
       risk_doc: riskDoc || null,
+      can_edit_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
+      can_cancel_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
     });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '施工日志详情查询失败'));
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
+    const { id } = await params;
+    const logId = Number(id);
+    if (!Number.isFinite(logId)) return apiNotFound('施工日志不存在');
+
+    const body = asPayload(await request.json());
+    const supabase = getSupabaseClient();
+    const { data: log, error } = await supabase
+      .from('construction_logs')
+      .select('id,project_id,user_id,status,scheduled_submit_at,log_date')
+      .eq('id', logId)
+      .single();
+
+    if (error || !log) return apiNotFound('施工日志不存在');
+
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
+    if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(Number(log.project_id))) {
+      return apiForbidden('无权修改该项目施工日志');
+    }
+    if (Number(log.user_id) !== Number(auth.user.id)) return apiForbidden('只能修改本人预约的施工日志');
+    if (!isPendingBeforeSchedule(log)) return apiBadRequest('只有到点前的待提交日志可以修改或取消预约');
+
+    if (body.action === 'cancel_schedule') {
+      const { error: updateError } = await supabase
+        .from('construction_logs')
+        .update({
+          status: 'cancelled',
+          scheduled_cancelled_at: new Date().toISOString(),
+        })
+        .eq('id', logId)
+        .eq('status', 'pending');
+      if (updateError) throw new Error(updateError.message);
+      return apiSuccess({ id: logId, status: 'cancelled' });
+    }
+
+    const patch: Record<string, unknown> = {};
+    const location = normalizeOptionalText(body.location);
+    const content = normalizeOptionalText(body.content);
+    const issues = normalizeOptionalText(body.issues);
+    if (location !== undefined) patch.location = location || null;
+    if (content !== undefined) {
+      if (!content) return apiBadRequest('施工内容不能为空');
+      patch.content = content;
+    }
+    if (issues !== undefined) patch.issues = issues || null;
+
+    if (typeof body.scheduled_submit_at === 'string' && body.scheduled_submit_at.trim()) {
+      const canSchedule = await hasBudgetRoleInDatabase(supabase, auth.user);
+      if (!canSchedule) return apiForbidden('只有预算员可以调整预约提交时间');
+      const nextScheduledAt = new Date(body.scheduled_submit_at);
+      if (Number.isNaN(nextScheduledAt.getTime())) return apiBadRequest('预约提交时间格式不正确');
+      if (nextScheduledAt.getTime() <= Date.now()) return apiBadRequest('预约提交时间必须晚于当前时间');
+      const window = getConstructionLogSubmissionWindow(String(log.log_date || ''), nextScheduledAt);
+      if (!window.allowed) return apiBadRequest(window.message);
+      patch.scheduled_submit_at = nextScheduledAt.toISOString();
+    }
+
+    if (Object.keys(patch).length === 0) return apiBadRequest('没有需要修改的内容');
+    const { data: updated, error: updateError } = await supabase
+      .from('construction_logs')
+      .update(patch)
+      .eq('id', logId)
+      .eq('status', 'pending')
+      .select('*')
+      .single();
+    if (updateError) throw new Error(updateError.message);
+    return apiSuccess(enrichConstructionLog(updated));
+  } catch (error: unknown) {
+    return apiServerError(getErrorMessage(error, '施工日志修改失败'));
   }
 }
 
@@ -128,7 +225,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     if (error || !log) return apiNotFound('施工日志不存在');
 
-    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
     if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(Number(log.project_id))) {
       return apiForbidden('无权删除该项目施工日志');
     }

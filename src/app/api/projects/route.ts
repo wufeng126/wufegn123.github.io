@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isSuperAdminUser } from '@/lib/route-permissions';
+import { ensurePublicLogProject, isPublicLogProject, PUBLIC_LOG_PROJECT_TYPE } from '@/lib/public-log-project';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -29,16 +30,18 @@ function normalizeProjectIds(value: unknown): number[] {
 
 type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-const PROJECT_BASE_SELECT = 'id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, created_at';
+const PROJECT_BASE_SELECT = 'id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, project_type, created_at';
+const PROJECT_BASE_SELECT_WITHOUT_TYPE = 'id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, created_at';
 const PROJECT_ARCHIVE_SELECT = `${PROJECT_BASE_SELECT}, is_archived, archived_at, archived_by, archive_note`;
+const PROJECT_ARCHIVE_SELECT_WITHOUT_TYPE = `${PROJECT_BASE_SELECT_WITHOUT_TYPE}, is_archived, archived_at, archived_by, archive_note`;
 
-function isMissingArchiveColumnError(error: { message?: string; code?: string } | null) {
+function isMissingOptionalProjectColumnError(error: { message?: string; code?: string } | null) {
   const message = (error?.message || '').toLowerCase();
   return (
     error?.code === '42703' ||
     error?.code === 'PGRST204' ||
     (
-      message.includes('is_archived') &&
+      (message.includes('is_archived') || message.includes('project_type')) &&
       (message.includes('does not exist') || message.includes('could not find') || message.includes('schema cache'))
     )
   );
@@ -52,22 +55,41 @@ async function loadProjects(client: ReturnType<typeof getSupabaseClient>) {
     .order('created_at', { ascending: false });
 
   if (!fullResult.error) return fullResult;
-  if (!isMissingArchiveColumnError(fullResult.error)) return fullResult;
+  if (!isMissingOptionalProjectColumnError(fullResult.error)) return fullResult;
 
   const fallbackResult = await client
     .from('projects')
-    .select(PROJECT_BASE_SELECT)
+    .select(PROJECT_ARCHIVE_SELECT_WITHOUT_TYPE)
+    .order('year', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (!fallbackResult.error) {
+    return {
+      ...fallbackResult,
+      data: fallbackResult.data?.map((project) => ({
+        ...project,
+        project_type: project.name === '公司公共项目/非项目日志' ? PUBLIC_LOG_PROJECT_TYPE : 'business',
+      })),
+    };
+  }
+
+  if (!isMissingOptionalProjectColumnError(fallbackResult.error)) return fallbackResult;
+
+  const finalFallbackResult = await client
+    .from('projects')
+    .select(PROJECT_BASE_SELECT_WITHOUT_TYPE)
     .order('year', { ascending: false })
     .order('created_at', { ascending: false });
 
   return {
-    ...fallbackResult,
-    data: fallbackResult.data?.map((project) => ({
+    ...finalFallbackResult,
+    data: finalFallbackResult.data?.map((project) => ({
       ...project,
       is_archived: false,
       archived_at: null,
       archived_by: null,
       archive_note: null,
+      project_type: project.name === '公司公共项目/非项目日志' ? PUBLIC_LOG_PROJECT_TYPE : 'business',
     })),
   };
 }
@@ -128,7 +150,9 @@ export async function GET(request: NextRequest) {
     // 获取当前用户信息
     const user = await getCurrentUser();
     const scope = request.nextUrl.searchParams.get('scope');
+    const includePublicLog = ['1', 'true', 'yes'].includes(String(request.nextUrl.searchParams.get('includePublicLog') || '').toLowerCase());
     const assignedOnly = ['assigned', 'managed', 'mine'].includes(scope || '');
+    if (includePublicLog) await ensurePublicLogProject(client);
     
     // 查询项目数据
     const { data, error } = await loadProjects(client);
@@ -138,7 +162,9 @@ export async function GET(request: NextRequest) {
     }
 
     // 数据权限过滤：已登录且非超级管理员只能看到自己有权限的项目
-    let filteredProjects = data || [];
+    let filteredProjects = includePublicLog
+      ? (data || [])
+      : (data || []).filter(project => !isPublicLogProject(project));
     
     if (user) {
       // 获取用户信息（包括管理的项目）
@@ -147,11 +173,11 @@ export async function GET(request: NextRequest) {
 
       // 如果有权限控制，过滤项目；没有分配项目时不能回退为全部可见。
       if (shouldFilterByAssignedProjects && accessProfile.managedProjectIds.length > 0) {
-        filteredProjects = filteredProjects.filter(p => accessProfile.managedProjectIds.includes(p.id));
+        filteredProjects = filteredProjects.filter(p => accessProfile.managedProjectIds.includes(p.id) || (includePublicLog && isPublicLogProject(p)));
       } else if (shouldFilterByAssignedProjects) {
-        filteredProjects = [];
+        filteredProjects = includePublicLog ? filteredProjects.filter(project => isPublicLogProject(project)) : [];
       } else {
-        filteredProjects = data || [];
+        filteredProjects = includePublicLog ? (data || []) : (data || []).filter(project => !isPublicLogProject(project));
       }
     }
     
