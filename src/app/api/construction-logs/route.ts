@@ -57,6 +57,47 @@ type AttendanceWorkerRow = {
   status?: string | null;
 };
 
+type ProjectArchiveCheckRow = {
+  id: number;
+  name?: string | null;
+  is_archived?: boolean | null;
+};
+
+function isMissingArchiveColumnError(error: { message?: string; code?: string } | null) {
+  const message = (error?.message || '').toLowerCase();
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    (
+      message.includes('is_archived') &&
+      (message.includes('does not exist') || message.includes('could not find') || message.includes('schema cache'))
+    )
+  );
+}
+
+async function loadProjectsForArchiveCheck(supabase: SupabaseClient, projectIds: number[]) {
+  const fullResult = await supabase
+    .from('projects')
+    .select('id,name,is_archived')
+    .in('id', projectIds);
+
+  if (!fullResult.error) return fullResult;
+  if (!isMissingArchiveColumnError(fullResult.error)) return fullResult;
+
+  const fallbackResult = await supabase
+    .from('projects')
+    .select('id,name')
+    .in('id', projectIds);
+
+  return {
+    ...fallbackResult,
+    data: fallbackResult.data?.map((project) => ({
+      ...project,
+      is_archived: false,
+    })),
+  };
+}
+
 function asPayload(value: unknown): ConstructionLogPayload {
   return value && typeof value === 'object' ? value as ConstructionLogPayload : {};
 }
@@ -324,12 +365,9 @@ export async function POST(request: NextRequest) {
       if (forbiddenProject) return apiForbidden('无权提交该项目施工日志');
     }
 
-    const { data: projectRows, error: projectRowsError } = await supabase
-      .from('projects')
-      .select('id,name,is_archived')
-      .in('id', uniqueProjectIds);
+    const { data: projectRows, error: projectRowsError } = await loadProjectsForArchiveCheck(supabase, uniqueProjectIds);
     if (projectRowsError) throw new Error(projectRowsError.message);
-    const archivedProject = (projectRows || []).find((project: { is_archived?: boolean }) => project.is_archived);
+    const archivedProject = ((projectRows || []) as ProjectArchiveCheckRow[]).find((project) => project.is_archived);
     if (archivedProject) {
       return apiBadRequest(`项目已归档，不能再提交施工日志：${archivedProject.name || archivedProject.id}`);
     }

@@ -31,6 +31,40 @@ function isMissingTableError(error: { message?: string; code?: string } | null) 
   );
 }
 
+function isMissingArchiveColumnError(error: { message?: string; code?: string } | null) {
+  const message = (error?.message || '').toLowerCase();
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    (
+      message.includes('is_archived') &&
+      (message.includes('does not exist') || message.includes('could not find') || message.includes('schema cache'))
+    )
+  );
+}
+
+async function loadProjectArchiveState(supabase: ReturnType<typeof getSupabaseClient>, projectId: number) {
+  const fullResult = await supabase
+    .from('projects')
+    .select('id,is_archived')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  if (!fullResult.error) return fullResult;
+  if (!isMissingArchiveColumnError(fullResult.error)) return fullResult;
+
+  const fallbackResult = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  return {
+    ...fallbackResult,
+    data: fallbackResult.data ? { ...fallbackResult.data, is_archived: false } : fallbackResult.data,
+  };
+}
+
 async function assertProjectAccess(projectId: number, supabase: unknown, user: Parameters<typeof getAccessibleProjectIds>[1]) {
   const accessibleProjectIds = await getAccessibleProjectIds(supabase, user);
   if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(projectId)) {
@@ -51,11 +85,7 @@ export async function GET(request: NextRequest) {
     const hasAccess = await assertProjectAccess(projectId, supabase, auth.user);
     if (!hasAccess) return apiForbidden('无权查看该项目花名册');
 
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('id,is_archived')
-      .eq('id', projectId)
-      .maybeSingle();
+    const { data: project, error: projectError } = await loadProjectArchiveState(supabase, projectId);
     if (projectError) throw new Error(projectError.message);
     if (project?.is_archived) return apiBadRequest('项目已归档，不能再选择出勤人员');
 
@@ -118,11 +148,7 @@ export async function POST(request: NextRequest) {
     const hasAccess = await assertProjectAccess(projectId, supabase, auth.user);
     if (!hasAccess) return apiForbidden('无权维护该项目负责范围');
 
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('id,is_archived')
-      .eq('id', projectId)
-      .maybeSingle();
+    const { data: project, error: projectError } = await loadProjectArchiveState(supabase, projectId);
     if (projectError) throw new Error(projectError.message);
     if (project?.is_archived) return apiBadRequest('项目已归档，不能再维护施工日志出勤范围');
 

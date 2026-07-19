@@ -29,6 +29,49 @@ function normalizeProjectIds(value: unknown): number[] {
 
 type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
+const PROJECT_BASE_SELECT = 'id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, created_at';
+const PROJECT_ARCHIVE_SELECT = `${PROJECT_BASE_SELECT}, is_archived, archived_at, archived_by, archive_note`;
+
+function isMissingArchiveColumnError(error: { message?: string; code?: string } | null) {
+  const message = (error?.message || '').toLowerCase();
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    (
+      message.includes('is_archived') &&
+      (message.includes('does not exist') || message.includes('could not find') || message.includes('schema cache'))
+    )
+  );
+}
+
+async function loadProjects(client: ReturnType<typeof getSupabaseClient>) {
+  const fullResult = await client
+    .from('projects')
+    .select(PROJECT_ARCHIVE_SELECT)
+    .order('year', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (!fullResult.error) return fullResult;
+  if (!isMissingArchiveColumnError(fullResult.error)) return fullResult;
+
+  const fallbackResult = await client
+    .from('projects')
+    .select(PROJECT_BASE_SELECT)
+    .order('year', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  return {
+    ...fallbackResult,
+    data: fallbackResult.data?.map((project) => ({
+      ...project,
+      is_archived: false,
+      archived_at: null,
+      archived_by: null,
+      archive_note: null,
+    })),
+  };
+}
+
 async function getProjectAccessProfile(client: ReturnType<typeof getSupabaseClient>, user: CurrentUser) {
   const tokenRoleId = user.role_id ?? (user as { roleId?: number }).roleId;
   let hasGlobalProjectAccess = isSuperAdminUser(user.role, tokenRoleId) || String(user.role) === 'boss';
@@ -88,13 +131,7 @@ export async function GET(request: NextRequest) {
     const assignedOnly = ['assigned', 'managed', 'mine'].includes(scope || '');
     
     // 查询项目数据
-    const query = client
-      .from('projects')
-      .select('id, name, year, status, address, partner, contract_amount, icon, building_area, tax_rate, expected_completion_date, construction_payment_ratio, completion_settlement_payment_ratio, warranty_payment_ratio, warranty_expired_payment_ratio, completion_date, warranty_days, is_archived, archived_at, archived_by, archive_note, created_at')
-      .order('year', { ascending: false })
-      .order('created_at', { ascending: false });
-    
-    const { data, error } = await query;
+    const { data, error } = await loadProjects(client);
 
     if (error) {
       throw new Error(`查询项目失败: ${error.message}`);
