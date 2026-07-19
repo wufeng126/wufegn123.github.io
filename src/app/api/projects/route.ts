@@ -2,18 +2,76 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
+import { isSuperAdminUser } from '@/lib/route-permissions';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
 function normalizeProjectIds(value: unknown): number[] {
-  if (!Array.isArray(value)) return [];
+  const parsed = typeof value === 'string'
+    ? (() => {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return [];
+        }
+      })()
+    : value;
+
+  if (!Array.isArray(parsed)) return [];
   return Array.from(new Set(
-    value
+    parsed
       .map((projectId) => Number(projectId))
       .filter((projectId) => Number.isInteger(projectId))
   ));
+}
+
+type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+
+async function getProjectAccessProfile(client: ReturnType<typeof getSupabaseClient>, user: CurrentUser) {
+  const tokenRoleId = user.role_id ?? (user as { roleId?: number }).roleId;
+  let hasGlobalProjectAccess = isSuperAdminUser(user.role, tokenRoleId) || String(user.role) === 'boss';
+
+  const { data: userData } = await client
+    .from('users')
+    .select('role, managed_projects')
+    .eq('id', user.id)
+    .single();
+
+  const managedProjectIds = normalizeProjectIds(userData?.managed_projects);
+  if (isSuperAdminUser(userData?.role) || userData?.role === 'boss') {
+    hasGlobalProjectAccess = true;
+  }
+
+  const { data: userRoles } = await client
+    .from('user_roles')
+    .select('role_id')
+    .eq('user_id', user.id);
+
+  const roleIds = (userRoles || [])
+    .map((row: { role_id?: unknown }) => Number(row.role_id))
+    .filter((roleId: number) => Number.isInteger(roleId));
+
+  if (roleIds.length > 0) {
+    const { data: roleRows } = await client
+      .from('roles')
+      .select('id, name, code, is_super_admin')
+      .in('id', roleIds);
+
+    if ((roleRows || []).some((role: { code?: string | null; name?: string | null; is_super_admin?: boolean | null }) => {
+      const name = role.name || '';
+      return Boolean(role.is_super_admin)
+        || role.code === 'super_admin'
+        || role.code === 'boss'
+        || name.includes('老板')
+        || name.includes('总经理');
+    })) {
+      hasGlobalProjectAccess = true;
+    }
+  }
+
+  return { managedProjectIds, hasGlobalProjectAccess };
 }
 
 function nullableValue(value: unknown) {
@@ -45,21 +103,18 @@ export async function GET(request: NextRequest) {
     // 数据权限过滤：已登录且非超级管理员只能看到自己有权限的项目
     let filteredProjects = data || [];
     
-    if (user && (user.role !== 'super_admin' || assignedOnly)) {
+    if (user) {
       // 获取用户信息（包括管理的项目）
-      const { data: userData } = await client
-        .from('users')
-        .select('managed_projects')
-        .eq('id', user.id)
-        .single();
-      
-      const allAllowedProjects = normalizeProjectIds(userData?.managed_projects);
+      const accessProfile = await getProjectAccessProfile(client, user);
+      const shouldFilterByAssignedProjects = assignedOnly || !accessProfile.hasGlobalProjectAccess;
 
       // 如果有权限控制，过滤项目；没有分配项目时不能回退为全部可见。
-      if (allAllowedProjects.length > 0) {
-        filteredProjects = filteredProjects.filter(p => allAllowedProjects.includes(p.id));
-      } else {
+      if (shouldFilterByAssignedProjects && accessProfile.managedProjectIds.length > 0) {
+        filteredProjects = filteredProjects.filter(p => accessProfile.managedProjectIds.includes(p.id));
+      } else if (shouldFilterByAssignedProjects) {
         filteredProjects = [];
+      } else {
+        filteredProjects = data || [];
       }
     }
     
