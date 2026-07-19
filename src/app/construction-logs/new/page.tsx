@@ -1,9 +1,9 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Camera, ClipboardList, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { ArrowLeft, Camera, ClipboardList, ImageIcon, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import {
   formatLogWindowText,
   getConstructionLogSubmissionWindow,
@@ -28,6 +28,15 @@ type AttendanceOptions = {
   scope_configured: boolean;
 };
 
+type LogAttachment = {
+  name: string;
+  size: number;
+  storageKey: string;
+  type: string;
+  uploadedAt?: string;
+  url?: string;
+};
+
 type ProjectLogDraft = {
   id: string;
   project_id: string;
@@ -39,6 +48,7 @@ type ProjectLogDraft = {
   worker_work_type: string;
   worker_search: string;
   issues: string;
+  attachments: LogAttachment[];
 };
 
 const EMPTY_WORK_TYPE = '__empty_work_type__';
@@ -63,6 +73,7 @@ function createDraft(projectId = ''): ProjectLogDraft {
     worker_work_type: '',
     worker_search: '',
     issues: '',
+    attachments: [],
   };
 }
 
@@ -109,6 +120,7 @@ export default function NewConstructionLogPage() {
   const [attendanceOptions, setAttendanceOptions] = useState<Record<string, AttendanceOptions>>({});
   const [attendanceLoading, setAttendanceLoading] = useState<Record<string, boolean>>({});
   const [attendanceErrors, setAttendanceErrors] = useState<Record<string, string>>({});
+  const [photoUploading, setPhotoUploading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -161,6 +173,7 @@ export default function NewConstructionLogPage() {
   }, [attendanceLoading, attendanceOptions, drafts]);
 
   const submissionWindow = useMemo(() => getConstructionLogSubmissionWindow(logDate), [logDate]);
+  const isUploadingPhotos = useMemo(() => Object.values(photoUploading).some(Boolean), [photoUploading]);
 
   function updateDraft(id: string, patch: Partial<ProjectLogDraft>) {
     setDrafts(current => current.map(draft => draft.id === id ? { ...draft, ...patch } : draft));
@@ -239,6 +252,43 @@ export default function NewConstructionLogPage() {
     }));
   }
 
+  async function handlePhotoUpload(draftId: string, event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    setPhotoUploading(current => ({ ...current, [draftId]: true }));
+    setError('');
+    try {
+      const formData = new FormData();
+      files.forEach(file => formData.append('files', file));
+      const res = await fetch('/api/construction-logs/attachments/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '施工照片上传失败');
+      const attachments = Array.isArray(json.data?.attachments) ? json.data.attachments : [];
+      setDrafts(current => current.map(draft => (
+        draft.id === draftId
+          ? { ...draft, attachments: [...draft.attachments, ...attachments] }
+          : draft
+      )));
+    } catch (uploadError: unknown) {
+      setError(uploadError instanceof Error ? uploadError.message : '施工照片上传失败');
+    } finally {
+      setPhotoUploading(current => ({ ...current, [draftId]: false }));
+      event.target.value = '';
+    }
+  }
+
+  function removeAttachment(draftId: string, storageKey: string) {
+    setDrafts(current => current.map(draft => (
+      draft.id === draftId
+        ? { ...draft, attachments: draft.attachments.filter(attachment => attachment.storageKey !== storageKey) }
+        : draft
+    )));
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const validDrafts = drafts.filter(draft => draft.project_id && draft.content.trim());
@@ -255,6 +305,10 @@ export default function NewConstructionLogPage() {
     }
     if (!submissionWindow.allowed) {
       setError(submissionWindow.message);
+      return;
+    }
+    if (isUploadingPhotos) {
+      setError('施工照片仍在上传，请稍后再提交');
       return;
     }
     const invalidHours = validDrafts.some(draft => draft.attendance_worker_ids.some((workerId) => {
@@ -282,6 +336,13 @@ export default function NewConstructionLogPage() {
             attendance_worker_ids: draft.attendance_worker_ids,
             attendance_workers: buildAttendanceWorkers(draft),
             scope_worker_ids: draft.scope_worker_ids,
+            attachments: draft.attachments.map(attachment => ({
+              name: attachment.name,
+              size: attachment.size,
+              storageKey: attachment.storageKey,
+              type: attachment.type || 'image',
+              uploadedAt: attachment.uploadedAt,
+            })),
             issues: draft.issues,
           })),
           source_type: 'manual',
@@ -622,6 +683,61 @@ export default function NewConstructionLogPage() {
                     className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm outline-none focus:border-[#165DFF]"
                   />
                 </div>
+
+                <div className="mt-3">
+                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <label className="block text-sm font-medium text-[#1D2129]">现场照片附件</label>
+                      <p className="mt-0.5 text-xs text-[#86909C]">可上传多张施工照片，提交后可在日志详情中查看</p>
+                    </div>
+                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF] sm:w-auto">
+                      {photoUploading[draft.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                      {photoUploading[draft.id] ? '上传中...' : '上传照片'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        multiple
+                        onChange={event => handlePhotoUpload(draft.id, event)}
+                        disabled={photoUploading[draft.id]}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {draft.attachments.length > 0 ? (
+                    <div className="grid gap-2 rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3 sm:grid-cols-2 md:grid-cols-3">
+                      {draft.attachments.map((attachment, attachmentIndex) => (
+                        <div key={attachment.storageKey} className="overflow-hidden rounded-lg border border-[#E5E6EB] bg-white">
+                          {attachment.url ? (
+                            <img
+                              src={attachment.url}
+                              alt={`施工照片${attachmentIndex + 1}`}
+                              className="h-28 w-full bg-[#F2F3F5] object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-28 items-center justify-center bg-[#F2F3F5] text-xs text-[#86909C]">照片已上传</div>
+                          )}
+                          <div className="flex items-center justify-between gap-2 px-2 py-2">
+                            <span className="min-w-0 truncate text-xs text-[#4E5969]">{attachment.name || `照片${attachmentIndex + 1}`}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(draft.id, attachment.storageKey)}
+                              className="shrink-0 rounded-md p-1 text-[#F53F3F] hover:bg-[#FFF1F0]"
+                              aria-label="删除照片"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 py-6 text-center text-sm text-[#86909C]">
+                      暂未上传现场照片
+                    </div>
+                  )}
+                </div>
               </section>
             );
           })}
@@ -638,11 +754,11 @@ export default function NewConstructionLogPage() {
             </button>
             <button
               type="submit"
-              disabled={saving || !submissionWindow.allowed}
+              disabled={saving || isUploadingPhotos || !submissionWindow.allowed}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:w-auto sm:min-w-[160px]"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {saving ? '提交中...' : '提交日志'}
+              {saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : '提交日志'}
             </button>
           </div>
         </form>

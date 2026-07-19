@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, CalendarDays, FileText, MapPin, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarDays, FileText, ImageIcon, MapPin, Users } from 'lucide-react';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
@@ -18,6 +18,14 @@ type ConstructionLogDetail = {
   headcount?: number | null;
   issues?: string | null;
   created_at?: string | null;
+  attachments?: {
+    name?: string | null;
+    size?: number | null;
+    storageKey?: string | null;
+    type?: string | null;
+    uploadedAt?: string | null;
+    url?: string | null;
+  }[];
   attachments_cleaned_at?: string | null;
   attachments_original_count?: number | null;
   attachments_cleaned_by?: number | null;
@@ -99,6 +107,13 @@ function normalizeTags(tags?: string[] | string | null) {
   return [];
 }
 
+function formatFileSize(size?: number | null) {
+  const value = Number(size || 0);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)}KB`;
+  return `${(value / 1024 / 1024).toFixed(1)}MB`;
+}
+
 export default function ConstructionLogDetailPage() {
   const params = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ConstructionLogDetail | null>(null);
@@ -131,6 +146,13 @@ export default function ConstructionLogDetailPage() {
 
   const riskTags = useMemo(() => normalizeTags(detail?.risk_doc?.tags), [detail?.risk_doc?.tags]);
   const riskStatus = riskTags.find(tag => tag.startsWith('风险状态:'))?.replace('风险状态:', '') || '待确认';
+  const photoAttachments = useMemo(() => (
+    (detail?.attachments || []).filter(attachment => (
+      attachment.type === 'image'
+      || /\.(png|jpe?g|webp|bmp)$/i.test(attachment.name || '')
+      || Boolean(attachment.url)
+    ))
+  ), [detail?.attachments]);
 
   return (
     <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
@@ -186,6 +208,46 @@ export default function ConstructionLogDetailPage() {
               <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] p-4 text-sm leading-7 text-[#1D2129] whitespace-pre-wrap">
                 {detail.content || '未填写施工内容'}
               </div>
+              {photoAttachments.length > 0 && (
+                <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="inline-flex items-center gap-2 text-sm font-medium text-[#1D2129]">
+                      <ImageIcon className="h-4 w-4 text-[#165DFF]" />
+                      现场照片
+                    </p>
+                    <span className="rounded-full bg-[#E8F3FF] px-2.5 py-1 text-xs font-medium text-[#165DFF]">
+                      {photoAttachments.length} 张
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    {photoAttachments.map((attachment, index) => (
+                      <a
+                        key={attachment.storageKey || attachment.url || index}
+                        href={attachment.url || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group overflow-hidden rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] transition hover:border-[#165DFF]/50"
+                      >
+                        {attachment.url ? (
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name || `施工照片${index + 1}`}
+                            className="h-36 w-full bg-[#F2F3F5] object-cover transition group-hover:scale-[1.02]"
+                          />
+                        ) : (
+                          <div className="flex h-36 items-center justify-center bg-[#F2F3F5] text-xs text-[#86909C]">照片链接生成失败</div>
+                        )}
+                        <div className="px-3 py-2">
+                          <p className="truncate text-xs font-medium text-[#1D2129]">{attachment.name || `施工照片${index + 1}`}</p>
+                          {formatFileSize(attachment.size) && (
+                            <p className="mt-1 text-xs text-[#86909C]">{formatFileSize(attachment.size)}</p>
+                          )}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
               {Number(detail.attachments_original_count || 0) > 0 && (
                 <div className="mt-4 rounded-lg border border-[#F7BA1E]/30 bg-[#FFF7E8] px-4 py-3 text-sm text-[#B45309]">
                   原有 {Number(detail.attachments_original_count || 0)} 张照片，已于 {formatDateOnly(detail.attachments_cleaned_at)} 项目归档时清理。

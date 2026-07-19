@@ -35,6 +35,7 @@ type LogAttachment = {
   size?: number;
   storageKey?: string;
   type?: string;
+  uploadedAt?: string;
 };
 
 type AttendanceWorkerDraft = {
@@ -101,6 +102,7 @@ function normalizeAttachments(value: unknown): LogAttachment[] {
         size: Number.isFinite(Number(payload.size)) ? Number(payload.size) : 0,
         storageKey,
         type: payload.type ? String(payload.type) : 'image',
+        uploadedAt: payload.uploadedAt ? String(payload.uploadedAt) : new Date().toISOString(),
       };
     })
     .filter((item): item is LogAttachment => item !== null);

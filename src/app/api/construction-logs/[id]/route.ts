@@ -1,9 +1,52 @@
 import { NextRequest } from 'next/server';
+import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { detectConstructionLogRisk, enrichConstructionLog } from '@/lib/construction-log-risk';
+
+type LogAttachment = {
+  name?: string;
+  size?: number;
+  storageKey?: string;
+  fileKey?: string;
+  key?: string;
+  type?: string;
+  uploadedAt?: string;
+  url?: string;
+};
+
+function createStorage() {
+  return new S3Storage({
+    endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+    accessKey: '',
+    secretKey: '',
+    bucketName: process.env.COZE_BUCKET_NAME,
+    region: 'cn-beijing',
+  });
+}
+
+function getAttachmentKey(attachment: LogAttachment) {
+  return attachment.storageKey || attachment.fileKey || attachment.key || '';
+}
+
+async function attachSignedUrls(attachments: unknown) {
+  if (!Array.isArray(attachments)) return [];
+  const storage = createStorage();
+  return Promise.all(attachments.map(async (item) => {
+    const attachment = item && typeof item === 'object' ? item as LogAttachment : {};
+    const key = getAttachmentKey(attachment);
+    if (!key) return attachment;
+    try {
+      const url = await storage.generatePresignedUrl({ key, expireTime: 3600 });
+      return { ...attachment, storageKey: attachment.storageKey || key, url };
+    } catch (error) {
+      console.warn('[construction-logs] attachment url sign failed', error);
+      return { ...attachment, storageKey: attachment.storageKey || key };
+    }
+  }));
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -52,9 +95,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (attendanceError) console.warn('[construction-logs] attendance workers load failed', attendanceError.message);
 
     const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
+    const attachments = await attachSignedUrls(log.attachments);
 
     return apiSuccess({
       ...enrichConstructionLog(log),
+      attachments,
       project: project || null,
       attendance_workers: attendanceWorkers || [],
       risk,
