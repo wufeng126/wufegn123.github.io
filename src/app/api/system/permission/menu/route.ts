@@ -149,13 +149,13 @@ const PERMISSION_MENU_STRUCTURE = [
     ]
   },
   {
-    name: '施工日志',
+    name: '施工管理',
     code: 'construction_logs',
     icon: 'clipboard',
     children: [
       { name: '施工日志-查看', code: 'construction_logs:view', icon: 'list' },
       { name: '施工日志-写日志', code: 'construction_logs:edit', icon: 'edit' },
-      { name: '人员出勤-查看', code: 'construction_attendance:view', icon: 'users' },
+      { name: '人员考勤-查看', code: 'construction_attendance:view', icon: 'users' },
     ]
   },
   {

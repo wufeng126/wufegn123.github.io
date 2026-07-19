@@ -13,6 +13,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   '/supplier-expense': ['suppliers:view'],
   '/team-settlement': ['team_settlements:view'],
   '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view'],
+  '/construction-logs': ['construction_logs:view', 'construction_logs:edit'],
   '/construction-attendance': ['construction_attendance:view'],
   '/system-management': ['system:manage'],
 
