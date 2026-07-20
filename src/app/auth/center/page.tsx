@@ -107,7 +107,7 @@ const DEFAULT_PERMISSION_MODULES = [
   },
   {
     key: 'team_settlement',
-    name: '班组结算',
+    name: '班组管理',
     permissions: [
       { code: 'team_groups:view', name: '查看班组档案' },
       { code: 'team_groups:create', name: '创建班组档案' },

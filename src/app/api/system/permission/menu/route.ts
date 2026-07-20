@@ -119,7 +119,7 @@ const PERMISSION_MENU_STRUCTURE = [
     ]
   },
   {
-    name: '班组结算',
+    name: '班组管理',
     code: 'team_settlement',
     icon: 'file',
     children: [

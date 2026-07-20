@@ -196,6 +196,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     const mode = request.nextUrl.searchParams.get('mode');
+    const settlementId = parseId(request.nextUrl.searchParams.get('id'));
     const projectId = parseId(request.nextUrl.searchParams.get('projectId'));
     const teamId = parseId(request.nextUrl.searchParams.get('teamId'));
     const month = request.nextUrl.searchParams.get('month');
@@ -254,6 +255,7 @@ export async function GET(request: NextRequest) {
       .from('team_settlements')
       .select('*')
       .order('created_at', { ascending: false });
+    if (settlementId) query = query.eq('id', settlementId);
     if (projectId) query = query.eq('project_id', projectId);
     else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
     if (teamId) query = query.eq('team_id', teamId);

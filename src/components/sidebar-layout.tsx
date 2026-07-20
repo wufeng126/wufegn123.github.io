@@ -34,6 +34,8 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/project-center': ['projects:view', 'work_items:view', 'visas:view', 'client_reports:view', 'client_payments:view'],
   '/hr-salary': ['workers:view', 'certificates:view', 'salaries:view', 'salaries:pay', 'salaries:query'],
   '/supplier-expense': ['suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
+  '/team-management': ['team_groups:view', 'team_settlements:view'],
+  '/team-management/groups': ['team_groups:view', 'team_settlements:view'],
   '/team-settlement': ['team_groups:view', 'team_settlements:view'],
   '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/construction-logs': ['construction_logs:view', 'construction_logs:edit', 'construction_attendance:view'],
@@ -49,7 +51,7 @@ const TOP_LEVEL_MENUS = [
   { name: '施工管理', href: '/construction-logs', icon: ClipboardList },
   { name: '人力资源', href: '/hr-salary', icon: Users },
   { name: '供应商与费用', href: '/supplier-expense', icon: ReceiptText },
-  { name: '班组结算', href: '/team-settlement', icon: FileSpreadsheet },
+  { name: '班组管理', href: '/team-management/groups', icon: FileSpreadsheet },
   { name: '经营分析', href: '/business-analysis', icon: BarChart3 },
   { name: '投标测算', href: '/cost-estimation/bid', icon: Calculator },
   { name: '知识库', href: '/knowledge', icon: BookOpen },
@@ -64,7 +66,8 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/quantity-reporting': '报量管理',
   '/hr-salary': '人力资源',
   '/supplier-expense': '供应商与费用',
-  '/team-settlement': '班组结算',
+  '/team-management': '班组管理',
+  '/team-settlement': '班组管理',
   '/business-analysis': '经营分析',
   '/construction-logs': '施工管理',
   '/construction-attendance': '人员出勤统计',
@@ -178,8 +181,8 @@ export default function SidebarLayout({
     // 供应商与费用
     if (['/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/supplier-expense';
 
-    // 班组结算
-    if (pathname.startsWith('/team-settlement')) return '/team-settlement';
+    // 班组管理
+    if (pathname.startsWith('/team-management') || pathname.startsWith('/team-settlement')) return '/team-management/groups';
 
     // 经营分析
     if (['/business-analysis', '/cost-center', '/data-board'].some(p => pathname.startsWith(p))) return '/business-analysis';
