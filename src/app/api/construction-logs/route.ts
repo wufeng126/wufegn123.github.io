@@ -70,6 +70,74 @@ type ProjectArchiveCheckRow = {
   is_archived?: boolean | null;
 };
 
+const OPTIONAL_CONSTRUCTION_LOG_COLUMNS = [
+  'source_type',
+  'daily_group_id',
+  'submission_status',
+] as const;
+
+function getMissingConstructionLogColumn(error: { message?: string; code?: string } | null | undefined) {
+  const message = String(error?.message || '');
+  const lowerMessage = message.toLowerCase();
+  if (
+    error?.code !== '42703' &&
+    error?.code !== 'PGRST204' &&
+    !lowerMessage.includes('schema cache') &&
+    !lowerMessage.includes('does not exist') &&
+    !lowerMessage.includes('could not find')
+  ) {
+    return null;
+  }
+
+  const quotedMatch = message.match(/'([^']+)' column of 'construction_logs'/i);
+  if (quotedMatch?.[1]) return quotedMatch[1];
+
+  return OPTIONAL_CONSTRUCTION_LOG_COLUMNS.find((column) => lowerMessage.includes(column)) || null;
+}
+
+function withoutConstructionLogColumn<T extends Record<string, unknown>>(rows: T[], column: string) {
+  return rows.map((row) => {
+    const next = { ...row };
+    delete next[column];
+    return next;
+  });
+}
+
+async function insertConstructionLogsWithColumnFallback(
+  supabase: SupabaseClient,
+  rows: Record<string, unknown>[],
+) {
+  let insertRows = rows;
+  const removedColumns = new Set<string>();
+
+  for (let attempt = 0; attempt <= OPTIONAL_CONSTRUCTION_LOG_COLUMNS.length; attempt += 1) {
+    const result = await supabase
+      .from('construction_logs')
+      .insert(insertRows)
+      .select();
+
+    if (!result.error) return result;
+
+    const missingColumn = getMissingConstructionLogColumn(result.error);
+    if (
+      missingColumn &&
+      OPTIONAL_CONSTRUCTION_LOG_COLUMNS.includes(missingColumn as typeof OPTIONAL_CONSTRUCTION_LOG_COLUMNS[number]) &&
+      !removedColumns.has(missingColumn)
+    ) {
+      removedColumns.add(missingColumn);
+      insertRows = withoutConstructionLogColumn(insertRows, missingColumn);
+      continue;
+    }
+
+    return result;
+  }
+
+  return supabase
+    .from('construction_logs')
+    .insert(insertRows)
+    .select();
+}
+
 function isMissingArchiveColumnError(error: { message?: string; code?: string } | null) {
   const message = (error?.message || '').toLowerCase();
   return (
@@ -306,17 +374,29 @@ async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
     if (!window.submissionStatus) continue;
 
     const submittedAt = log.scheduled_submit_at || nowIso;
-    const { data: updatedRows, error: updateError } = await supabase
+    const updatePayload: Record<string, unknown> = {
+      status: 'submitted',
+      submission_status: window.submissionStatus,
+      submitted_at: submittedAt,
+    };
+    let updateResult = await supabase
       .from('construction_logs')
-      .update({
-        status: 'submitted',
-        submission_status: window.submissionStatus,
-        submitted_at: submittedAt,
-      })
+      .update(updatePayload)
       .eq('id', log.id)
       .eq('status', 'pending')
       .select('id');
 
+    if (updateResult.error && getMissingConstructionLogColumn(updateResult.error) === 'submission_status') {
+      delete updatePayload.submission_status;
+      updateResult = await supabase
+        .from('construction_logs')
+        .update(updatePayload)
+        .eq('id', log.id)
+        .eq('status', 'pending')
+        .select('id');
+    }
+
+    const { data: updatedRows, error: updateError } = updateResult;
     if (updateError) throw new Error(updateError.message);
     if (!updatedRows || updatedRows.length === 0) continue;
 
@@ -516,10 +596,7 @@ export async function POST(request: NextRequest) {
       source_type: sourceType,
     }));
 
-    const { data, error } = await supabase
-      .from('construction_logs')
-      .insert(insertRows)
-      .select();
+    const { data, error } = await insertConstructionLogsWithColumnFallback(supabase, insertRows);
 
     if (error) throw new Error(error.message);
 

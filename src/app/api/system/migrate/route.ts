@@ -25,8 +25,24 @@ ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS scheduled_submit_at TIMES
 ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS scheduled_by INTEGER;
 ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS scheduled_cancelled_at TIMESTAMPTZ;
 ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS daily_group_id VARCHAR(64);
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS submission_status VARCHAR(20) DEFAULT 'normal';
+ALTER TABLE construction_logs ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) DEFAULT 'manual';
+UPDATE construction_logs
+SET
+  daily_group_id = COALESCE(daily_group_id, 'legacy-' || id::TEXT),
+  submission_status = COALESCE(submission_status, 'normal'),
+  submitted_at = COALESCE(submitted_at, created_at),
+  source_type = COALESCE(source_type, 'manual')
+WHERE daily_group_id IS NULL
+   OR submission_status IS NULL
+   OR submitted_at IS NULL
+   OR source_type IS NULL;
 CREATE INDEX IF NOT EXISTS construction_logs_status_idx ON construction_logs(status);
 CREATE INDEX IF NOT EXISTS construction_logs_scheduled_submit_at_idx ON construction_logs(scheduled_submit_at);
+CREATE INDEX IF NOT EXISTS construction_logs_daily_group_id_idx ON construction_logs(daily_group_id);
+CREATE INDEX IF NOT EXISTS construction_logs_submission_status_idx ON construction_logs(submission_status);
+CREATE INDEX IF NOT EXISTS construction_logs_user_date_idx ON construction_logs(user_id, log_date);
 
 -- 施工日志项目提交人员范围；无配置时默认项目内人员都可提交
 CREATE TABLE IF NOT EXISTS construction_log_submitters (
