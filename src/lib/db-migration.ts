@@ -54,7 +54,21 @@ const CONSTRUCTION_LOGS_MIGRATIONS = [
 const ALL_MIGRATIONS = [
   ...CONSTRUCTION_LOGS_MIGRATIONS,
   // roles 表
-  "ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false"
+  "ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false",
+  // team_groups 表
+  `CREATE TABLE IF NOT EXISTS team_groups (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+    group_name VARCHAR(200) NOT NULL,
+    team_leader VARCHAR(100),
+    team_leader_phone VARCHAR(50),
+    worker_count INTEGER DEFAULT 0,
+    work_type VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'active',
+    remark TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  )`
   // 未来添加新表的迁移时，在这里追加
 ];
 
