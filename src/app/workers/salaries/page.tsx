@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -16,10 +16,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { 
   Plus, Trash2, Upload, Download, Search, Calendar, Calculator, Pencil, 
-  DollarSign, Users, FileText, X, Printer, Settings, CheckCircle, TrendingUp, PieChart as PieChartIcon,
+  DollarSign, Users, FileText, X, Printer, Settings, CheckCircle, Loader2,
   AlertTriangle
 } from 'lucide-react';
-import EChartsWrapper, { CHART_COLORS } from '@/components/charts/echarts-wrapper';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Worker {
@@ -133,6 +132,7 @@ export default function WorkerSalariesPage() {
   // 导入结果对话框
   const [importResult, setImportResult] = useState<any>(null);
   const [importResultOpen, setImportResultOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -385,6 +385,14 @@ export default function WorkerSalariesPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImporting(true);
+    setImportResult({
+      pending: true,
+      fileName: file.name,
+      fileSize: file.size,
+    });
+    setImportResultOpen(true);
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -396,6 +404,7 @@ export default function WorkerSalariesPage() {
       });
 
       const result = await res.json();
+      setImporting(false);
 
       if (res.ok) {
         // 自动切换到导入数据的年月
@@ -425,9 +434,7 @@ export default function WorkerSalariesPage() {
       } else {
         // 显示详细错误信息
         setImportResult(result);
-        if (result?.issues?.length || result?.notInRoster?.length || result?.notFoundProjects?.length || result?.warnings?.length) {
-          setImportResultOpen(true);
-        }
+        setImportResultOpen(true);
         const errorMsg = result.error || '导入失败';
         const details = result.details || '';
         const debugInfo = result.debug;
@@ -448,6 +455,12 @@ export default function WorkerSalariesPage() {
       }
     } catch (error) {
       console.error('导入失败:', error);
+      setImporting(false);
+      setImportResult({
+        error: error instanceof Error ? error.message : '导入失败，请检查文件格式后重试',
+        issues: [],
+      });
+      setImportResultOpen(true);
       toast({ title: '导入失败', variant: 'error' });
     }
     e.target.value = '';
@@ -522,12 +535,11 @@ export default function WorkerSalariesPage() {
           <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9">
             <Download className="w-4 h-4 mr-1.5" />下载模板
           </Button>
-          <Button variant="outline" asChild className="btn-secondary h-9 cursor-pointer">
-            <label>
-              <Upload className="w-4 h-4 mr-1.5" />批量导入
-              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
-            </label>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="btn-secondary h-9" disabled={importing}>
+            {importing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}
+            {importing ? '导入中' : '批量导入'}
           </Button>
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} disabled={importing} />
           <Button variant="outline" onClick={handleExport} className="btn-secondary h-9">
             <Download className="w-4 h-4 mr-1.5" />导出
           </Button>
@@ -665,69 +677,6 @@ export default function WorkerSalariesPage() {
               <div className="stat-icon-container stat-icon-purple">
                 <Users className="w-5 h-5 text-white" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 人员成本趋势图 & 工种成本结构 */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        {/* 月度工资趋势图 */}
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-4 h-4" style={{ color: '#165DFF' }} />
-              <span className="text-sm font-semibold" style={{ color: '#1D2129' }}>项目工资对比</span>
-            </div>
-            <div className="h-56">
-              <EChartsWrapper option={{
-                tooltip: { trigger: 'axis' as const, formatter: (params: any) => {
-                  let html = `<div style="font-weight:600">${params[0].axisValue}</div>`;
-                  params.forEach((p: any) => {
-                    html += `<div style="display:flex;align-items:center;gap:4px;margin:2px 0">
-                      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
-                      <span>${p.seriesName}：</span><span style="font-weight:600">¥${Number(p.value).toLocaleString()}</span>
-                    </div>`;
-                  });
-                  return html;
-                }},
-                grid: { left: 10, right: 10, top: 10, bottom: 5, containLabel: true },
-                xAxis: { type: 'category' as const, data: projectSummary.length > 0 ? projectSummary.map(p => p.project_name.length > 6 ? p.project_name.slice(0,6)+'…' : p.project_name) : ['暂无'], axisLabel: { fontSize: 10, color: '#86909C', rotate: projectSummary.length > 4 ? 20 : 0 }, axisTick: { show: false }, axisLine: { lineStyle: { color: '#E5E6EB' } } },
-                yAxis: { type: 'value' as const, axisLabel: { fontSize: 10, color: '#86909C', formatter: (v: number) => (v/10000).toFixed(0)+'万' }, splitLine: { lineStyle: { color: '#F2F3F5', type: 'dashed' } }, axisLine: { show: false }, axisTick: { show: false } },
-                series: [
-                  { name: '应发工资', type: 'bar' as const, barWidth: '35%', data: projectSummary.map(p => p.total_gross_pay), itemStyle: { color: CHART_COLORS.primary, borderRadius: [3,3,0,0] as [number,number,number,number] } },
-                  { name: '实发工资', type: 'bar' as const, barWidth: '35%', data: projectSummary.map(p => p.total_net_pay), itemStyle: { color: CHART_COLORS.success, borderRadius: [3,3,0,0] as [number,number,number,number] } },
-                ],
-              }} />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 工种成本结构环形图 */}
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <PieChartIcon className="w-4 h-4" style={{ color: '#FF7D00' }} />
-              <span className="text-sm font-semibold" style={{ color: '#1D2129' }}>项目人工费占比</span>
-            </div>
-            <div className="h-56">
-              <EChartsWrapper option={{
-                tooltip: { formatter: (p: any) => `<b>${p.name}</b><br/>金额：¥${Number(p.value).toLocaleString()}<br/>占比：${p.percent}%` },
-                series: [{
-                  type: 'pie', radius: ['40%', '68%'], center: ['50%', '50%'],
-                  itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
-                  label: { show: true, fontSize: 10, color: '#86909C', formatter: '{b}\n{d}%' },
-                  labelLine: { length: 8, length2: 6 },
-                  data: projectSummary.length > 0 
-                    ? [...projectSummary].sort((a,b) => b.total_gross_pay - a.total_gross_pay).slice(0, 6).map((p, i) => ({
-                        name: p.project_name.length > 6 ? p.project_name.slice(0,6)+'…' : p.project_name,
-                        value: p.total_gross_pay,
-                        itemStyle: { color: [CHART_COLORS.primary, CHART_COLORS.success, CHART_COLORS.warning, CHART_COLORS.danger, '#722ED1', '#13C2C2'][i] }
-                      }))
-                    : [{ name: '暂无数据', value: 0, itemStyle: { color: '#E5E6EB' } }],
-                  animationType: 'scale', animationDuration: 800,
-                }],
-              }} />
             </div>
           </CardContent>
         </Card>
@@ -1284,26 +1233,53 @@ export default function WorkerSalariesPage() {
       </Dialog>
 
       {/* 导入结果对话框 */}
-      <AlertDialog open={importResultOpen} onOpenChange={setImportResultOpen}>
-        <AlertDialogContent className="max-h-[85vh] w-[calc(100vw-1.5rem)] max-w-3xl overflow-y-auto">
-          <AlertDialogHeader>
-            <AlertDialogTitle>导入结果</AlertDialogTitle>
-          </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            {importResult && (
-              <>
-                {/* 成功统计 */}
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                  <div className="flex items-center gap-2 text-green-700 font-medium">
-                    <DollarSign className="w-4 h-4" />
-                    <span>成功导入 {importResult.count || 0} 条记录</span>
+      <Dialog open={importResultOpen} onOpenChange={setImportResultOpen}>
+        <DialogContent className="flex max-h-[88vh] w-[calc(100vw-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:w-[min(960px,calc(100vw-2rem))]">
+          <DialogHeader className="border-b px-4 py-4 pr-12 sm:px-6">
+            <DialogTitle>导入结果</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            {(importing || importResult?.pending) ? (
+              <div className="flex min-h-[260px] flex-col items-center justify-center rounded-lg border border-blue-100 bg-blue-50/70 text-center">
+                <Loader2 className="mb-3 h-8 w-8 animate-spin text-blue-600" />
+                <div className="text-base font-medium text-gray-900">正在解析并导入工资表</div>
+                <div className="mt-1 text-sm text-gray-600">请稍候，导入完成后这里会自动显示处理结果。</div>
+                {importResult?.fileName && (
+                  <div className="mt-3 max-w-full truncate rounded-full bg-white px-3 py-1 text-xs text-gray-500">
+                    {importResult.fileName}
                   </div>
-                  {importResult.importedYearMonths?.length > 0 && (
-                    <div className="mt-1 text-sm text-green-600">
-                      涉及年月：{importResult.importedYearMonths.join('、')}
+                )}
+              </div>
+            ) : importResult && (
+              <>
+                {importResult.error && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <div className="flex items-start gap-2 text-red-700">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <div className="font-medium">{importResult.error}</div>
+                        {importResult.details && (
+                          <div className="mt-1 whitespace-pre-wrap text-sm text-red-600">{importResult.details}</div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {/* 成功统计 */}
+                {(!importResult.error || Number(importResult.count || 0) > 0) && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                    <div className="flex items-center gap-2 text-green-700 font-medium">
+                      <DollarSign className="w-4 h-4" />
+                      <span>成功导入 {importResult.count || 0} 条记录</span>
+                    </div>
+                    {importResult.importedYearMonths?.length > 0 && (
+                      <div className="mt-1 text-sm text-green-600">
+                        涉及年月：{importResult.importedYearMonths.join('、')}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 未导入/需处理明细 */}
                 {importResult.issues?.length > 0 && (
@@ -1390,7 +1366,7 @@ export default function WorkerSalariesPage() {
                 )}
 
                 {/* 全部成功 */}
-                {(!importResult.issues?.length && !importResult.notInRoster?.length && !importResult.notFoundProjects?.length && !importResult.warnings?.filter((w: string) => !w.includes('不在花名册')).length) && (
+                {(!importResult.error && !importResult.issues?.length && !importResult.notInRoster?.length && !importResult.notFoundProjects?.length && !importResult.warnings?.filter((w: string) => !w.includes('不在花名册')).length) && (
                   <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                     <div className="text-blue-700 text-sm">所有记录均已成功导入，无异常</div>
                   </div>
@@ -1398,11 +1374,13 @@ export default function WorkerSalariesPage() {
               </>
             )}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setImportResultOpen(false)}>确定</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <DialogFooter className="border-t bg-white px-4 py-3 sm:px-6">
+            <Button onClick={() => setImportResultOpen(false)} disabled={importing || importResult?.pending}>
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* 批量删除二次确认 */}
       <AlertDialog open={batchDeleteConfirm} onOpenChange={setBatchDeleteConfirm}>
         <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
