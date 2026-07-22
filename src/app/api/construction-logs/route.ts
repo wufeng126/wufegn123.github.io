@@ -71,6 +71,11 @@ type ProjectArchiveCheckRow = {
 };
 
 const OPTIONAL_CONSTRUCTION_LOG_COLUMNS = [
+  'status',
+  'scheduled_submit_at',
+  'scheduled_by',
+  'scheduled_cancelled_at',
+  'submitted_at',
   'source_type',
   'daily_group_id',
   'submission_status',
@@ -136,6 +141,47 @@ async function insertConstructionLogsWithColumnFallback(
     .from('construction_logs')
     .insert(insertRows)
     .select();
+}
+
+async function updateConstructionLogWithColumnFallback(
+  supabase: SupabaseClient,
+  logId: number,
+  requiredStatus: string,
+  payload: Record<string, unknown>,
+) {
+  let updatePayload = { ...payload };
+  const removedColumns = new Set<string>();
+
+  for (let attempt = 0; attempt <= OPTIONAL_CONSTRUCTION_LOG_COLUMNS.length; attempt += 1) {
+    const result = await supabase
+      .from('construction_logs')
+      .update(updatePayload)
+      .eq('id', logId)
+      .eq('status', requiredStatus)
+      .select('id');
+
+    if (!result.error) return result;
+
+    const missingColumn = getMissingConstructionLogColumn(result.error);
+    if (
+      missingColumn &&
+      OPTIONAL_CONSTRUCTION_LOG_COLUMNS.includes(missingColumn as typeof OPTIONAL_CONSTRUCTION_LOG_COLUMNS[number]) &&
+      !removedColumns.has(missingColumn)
+    ) {
+      removedColumns.add(missingColumn);
+      delete updatePayload[missingColumn];
+      continue;
+    }
+
+    return result;
+  }
+
+  return supabase
+    .from('construction_logs')
+    .update(updatePayload)
+    .eq('id', logId)
+    .eq('status', requiredStatus)
+    .select('id');
 }
 
 function isMissingArchiveColumnError(error: { message?: string; code?: string } | null) {
@@ -379,22 +425,7 @@ async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
       submission_status: window.submissionStatus,
       submitted_at: submittedAt,
     };
-    let updateResult = await supabase
-      .from('construction_logs')
-      .update(updatePayload)
-      .eq('id', log.id)
-      .eq('status', 'pending')
-      .select('id');
-
-    if (updateResult.error && getMissingConstructionLogColumn(updateResult.error) === 'submission_status') {
-      delete updatePayload.submission_status;
-      updateResult = await supabase
-        .from('construction_logs')
-        .update(updatePayload)
-        .eq('id', log.id)
-        .eq('status', 'pending')
-        .select('id');
-    }
+    const updateResult = await updateConstructionLogWithColumnFallback(supabase, log.id, 'pending', updatePayload);
 
     const { data: updatedRows, error: updateError } = updateResult;
     if (updateError) throw new Error(updateError.message);

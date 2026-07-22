@@ -72,6 +72,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/cost-estimation/work-types': { permission: 'projects:view' },
   '/api/cost-estimation/export': { permission: 'projects:view' },
   '/api/bid-estimations': { permission: 'projects:view' },
+  '/api/system/migrate': { permission: 'system:permission_manage', superAdminOnly: true },
   '/api/system/workflow-config': { permission: 'system:manage' },
   '/api/admins': { permission: 'system:permission_manage' },
   '/api/ai/knowledge': {},
@@ -266,6 +267,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/auth/center/permissions': 'system:permission_manage',
   '/api/auth/center/role-permissions': 'system:permission_manage',
   '/api/init/permissions': 'system:permission_manage',
+  '/api/system/migrate': 'system:permission_manage',
   '/api/system/permission': 'system:permission_manage',
 
   // 钉钉管理

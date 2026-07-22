@@ -15,7 +15,14 @@ app.prepare().then(async () => {
   // 执行数据库迁移
   if (process.env.COZE_PROJECT_ENV === 'PROD') {
     try {
-      await runMigrations();
+      const migrationResult = await runMigrations();
+      if (migrationResult.ok) {
+        console.log(`[DB Migration] ${migrationResult.message}`);
+      } else {
+        console.warn(`[DB Migration] ${migrationResult.message}`);
+        if (migrationResult.error) console.warn(`[DB Migration] ${migrationResult.error}`);
+        if (migrationResult.manualUrl) console.warn(`[DB Migration] Manual URL: ${migrationResult.manualUrl}`);
+      }
     } catch (err) {
       console.error('数据库迁移失败:', err);
     }
