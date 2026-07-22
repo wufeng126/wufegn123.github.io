@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
-import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
+import { getGlobalSummary, getProjectFinancialSummary, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 
 // 获取当前月份
@@ -497,9 +497,14 @@ export async function GET(request: Request) {
     
     const { data: workerSalaries } = await workerSalariesQuery;
     
-    const totalSalaryCost = workerSalaries?.reduce((sum, s) => {
+    const totalWorkerSalaryCost = workerSalaries?.reduce((sum, s) => {
       return sum + (parseFloat(s.gross_pay || '0') || 0);
     }, 0) || 0;
+    const totalTeamSettlementCost = await getTeamSettlementCostAmount(client, {
+      projectId: projectId ? parseInt(projectId) : undefined,
+      startDate: timeRange !== 'year' ? rangeStartDate : undefined,
+    });
+    const totalSalaryCost = totalWorkerSalaryCost + totalTeamSettlementCost;
     
     // 综合费用 - 支持项目筛选和时间范围筛选
     let expensesQuery = client
@@ -714,7 +719,12 @@ export async function GET(request: Request) {
           projSalariesQuery = projSalariesQuery.gte('year_month', rangeStartMonth);
         }
         const { data: projSalaries } = await projSalariesQuery;
-        const projSalaryCost = projSalaries?.reduce((sum: number, s: any) => sum + (parseFloat(s.gross_pay || '0') || 0), 0) || 0;
+        const projWorkerSalaryCost = projSalaries?.reduce((sum: number, s: any) => sum + (parseFloat(s.gross_pay || '0') || 0), 0) || 0;
+        const projTeamSettlementCost = await getTeamSettlementCostAmount(client, {
+          projectId: project.id,
+          startDate: timeRange !== 'year' ? rangeStartDate : undefined,
+        });
+        const projSalaryCost = projWorkerSalaryCost + projTeamSettlementCost;
 
         let projExpensesQuery = client
           .from('comprehensive_expenses')
@@ -780,6 +790,15 @@ export async function GET(request: Request) {
         monthlyCostMap[r.year_month] += gross;
       }
     });
+
+    for (const month of trendMonths) {
+      if (monthlyCostMap[month] === undefined) continue;
+      monthlyCostMap[month] += await getTeamSettlementCostAmount(client, {
+        projectId: projectId ? parseInt(projectId) : undefined,
+        yearMonthStart: month,
+        yearMonthEnd: month,
+      });
+    }
 
     const monthlyTrend = trendMonths.map(month => ({
       month,

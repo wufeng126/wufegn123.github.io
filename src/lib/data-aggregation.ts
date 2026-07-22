@@ -147,6 +147,79 @@ function yearMonthFilter(yearMonth: string): { start: string; end: string } {
   return yearMonthToRange(yearMonth);
 }
 
+function isMissingTeamSettlementSchemaError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toUpperCase();
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    code === 'PGRST204' ||
+    message.includes('team_settlements') ||
+    message.includes('team_settlement_items') ||
+    message.includes('schema cache')
+  );
+}
+
+export async function getTeamSettlementCostAmount(
+  client: ReturnType<typeof getSupabaseClient>,
+  options: {
+    projectId?: number;
+    projectIds?: number[];
+    dateRange?: DateRange;
+    startDate?: string;
+    endDate?: string;
+    yearMonthStart?: string;
+    yearMonthEnd?: string;
+  } = {}
+): Promise<number> {
+  try {
+    let settlementsQuery = client
+      .from('team_settlements')
+      .select('id,status,period_end,settlement_month,project_id');
+
+    if (options.projectId) {
+      settlementsQuery = settlementsQuery.eq('project_id', options.projectId);
+    } else if (options.projectIds && options.projectIds.length > 0) {
+      settlementsQuery = settlementsQuery.in('project_id', options.projectIds);
+    }
+
+    const startDate = options.dateRange?.start || options.startDate;
+    const endDate = options.dateRange?.end || options.endDate;
+    if (startDate) settlementsQuery = settlementsQuery.gte('period_end', startDate);
+    if (endDate) settlementsQuery = settlementsQuery.lte('period_end', endDate);
+    if (options.yearMonthStart) settlementsQuery = settlementsQuery.gte('settlement_month', options.yearMonthStart);
+    if (options.yearMonthEnd) settlementsQuery = settlementsQuery.lte('settlement_month', options.yearMonthEnd);
+
+    const { data: settlements, error: settlementsError } = await settlementsQuery;
+    if (settlementsError) {
+      if (isMissingTeamSettlementSchemaError(settlementsError)) return 0;
+      throw settlementsError;
+    }
+
+    const settlementIds = (settlements || [])
+      .filter((settlement: any) => !isVoidedStatus(settlement.status))
+      .map((settlement: any) => Number(settlement.id))
+      .filter(Boolean);
+
+    if (settlementIds.length === 0) return 0;
+
+    const { data: items, error: itemsError } = await client
+      .from('team_settlement_items')
+      .select('amount,settlement_id')
+      .in('settlement_id', settlementIds);
+
+    if (itemsError) {
+      if (isMissingTeamSettlementSchemaError(itemsError)) return 0;
+      throw itemsError;
+    }
+
+    return (items || []).reduce((sum: number, item: any) => sum + parseNumeric(item.amount), 0);
+  } catch (error) {
+    if (isMissingTeamSettlementSchemaError(error)) return 0;
+    throw error;
+  }
+}
+
 // ========== 单项目汇总 ==========
 
 /**
@@ -257,7 +330,9 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: salaries } = await salariesQuery;
-  const salaryAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+  const workerSalaryAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+  const teamSettlementAmount = await getTeamSettlementCostAmount(client, { projectId, dateRange });
+  const salaryAmount = workerSalaryAmount + teamSettlementAmount;
 
   // 5. 综合费用（仅已审核）
   let expensesQuery = client
@@ -342,13 +417,13 @@ export async function getProjectFinancialSummary(
   const paymentRate = taxableIncome > 0 ? (clientPaidAmount / taxableIncome) * 100 : 0;
   const receivableAmount = Math.max(taxableIncome - clientPaidAmount, 0);
   const supplierPayableAmount = Math.max(supplierPayableBaseAmount - supplierPaidAmount, 0);
-  const workerPayableAmount = Math.max(salaryAmount - workerPaidAmount, 0);
+  const workerPayableAmount = Math.max(workerSalaryAmount - workerPaidAmount, 0);
   const totalPayableAmount = supplierPayableAmount + workerPayableAmount;
   const cashOutAmount = supplierPaidAmount + workerPaidAmount;
   const netCashFlow = clientPaidAmount - cashOutAmount;
   const fundingGapAmount = Math.max(totalPayableAmount - receivableAmount, 0);
   const costIncomeRate = taxableIncome > 0 ? (totalCost / taxableIncome) * 100 : 0;
-  const payableBaseAmount = supplierPayableBaseAmount + salaryAmount;
+  const payableBaseAmount = supplierPayableBaseAmount + workerSalaryAmount;
   const payablePaymentRate = payableBaseAmount > 0 ? (cashOutAmount / payableBaseAmount) * 100 : 0;
 
   return {
@@ -429,7 +504,7 @@ export async function getGlobalSummary(
     totalTax: 0, totalSettlement: 0, totalSalary: 0, totalExpense: 0,
     totalMiscMaterial: 0, totalCost: 0, totalProfit: 0,
     totalClientPaid: 0, totalSupplierPaid: 0, totalWorkerPaid: 0,
-    totalSupplierPayableBase: 0,
+    totalSupplierPayableBase: 0, totalWorkerPayable: 0,
   };
 
   for (const pid of allProjectIds) {
@@ -450,6 +525,7 @@ export async function getGlobalSummary(
     totals.totalSupplierPaid += summary.supplierPaidAmount;
     totals.totalWorkerPaid += summary.workerPaidAmount;
     totals.totalSupplierPayableBase += summary.supplierPayableBaseAmount;
+    totals.totalWorkerPayable += summary.workerPayableAmount;
   }
 
   const profitRate = totals.totalTaxableIncome > 0
@@ -460,10 +536,10 @@ export async function getGlobalSummary(
     : 0;
   const totalReceivable = Math.max(totals.totalTaxableIncome - totals.totalClientPaid, 0);
   const totalSupplierPayable = Math.max(totals.totalSupplierPayableBase - totals.totalSupplierPaid, 0);
-  const totalWorkerPayable = Math.max(totals.totalSalary - totals.totalWorkerPaid, 0);
+  const totalWorkerPayable = totals.totalWorkerPayable;
   const totalPayable = totalSupplierPayable + totalWorkerPayable;
   const totalCashOut = totals.totalSupplierPaid + totals.totalWorkerPaid;
-  const payableBaseAmount = totals.totalSupplierPayableBase + totals.totalSalary;
+  const payableBaseAmount = totals.totalSupplierPayableBase + totals.totalWorkerPaid + totalWorkerPayable;
   const payablePaymentRate = payableBaseAmount > 0 ? (totalCashOut / payableBaseAmount) * 100 : 0;
   const costIncomeRate = totals.totalTaxableIncome > 0
     ? (totals.totalCost / totals.totalTaxableIncome) * 100

@@ -6,7 +6,7 @@ import {
   isVisaActiveStatus,
   isVisaDoneStatus,
 } from '@/lib/business-logic';
-import { getGlobalSummary, getProjectFinancialSummary } from '@/lib/data-aggregation';
+import { getGlobalSummary, getProjectFinancialSummary, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 
 const supabase = getSupabaseClient();
 
@@ -367,6 +367,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const teamSettlementCostByProject = new Map<number, { month: number }>();
+    await Promise.all(targetProjectIds.map(async (pid) => {
+      const monthAmount = await getTeamSettlementCostAmount(supabase, { projectId: pid, dateRange: reportDateRange });
+      teamSettlementCostByProject.set(pid, { month: monthAmount });
+    }));
+
     // Build per-project data
     const projectDataList: ProjectData[] = projects.map((projectRaw: Record<string, unknown>) => {
       const pid = projectRaw.id as number;
@@ -406,7 +412,8 @@ export async function GET(request: NextRequest) {
       const paymentRate = totalIncome > 0 ? (totalReceived / totalIncome) * 100 : 0;
 
       const supplierCost = safeSum(projSettlements.map(s => s.settlementAmount));
-      const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0)));
+      const teamSettlementCost = teamSettlementCostByProject.get(pid)?.month || 0;
+      const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + teamSettlementCost;
       const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.amount || 0)));
       const expenseCost = safeSum(projExpenses.map((e: Record<string, unknown>) => Number(e.amount || 0)));
       const materialCost = safeSum(projMaterials.map((m: Record<string, unknown>) => Number(m.amount || 0)));
@@ -424,7 +431,8 @@ export async function GET(request: NextRequest) {
       const totalCost = supplierCost + salaryCost + expenseCost + taxCost + materialCost;
 
       // === 月度成本明细 ===
-      const monthSalaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0)));
+      const monthTeamSettlementCost = teamSettlementCostByProject.get(pid)?.month || 0;
+      const monthSalaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + monthTeamSettlementCost;
 
       const monthSupplierSettlement = safeSum(
         projSettlements.filter(s => {
@@ -862,7 +870,12 @@ export async function GET(request: NextRequest) {
     }
 
     // === Comparisons: MoM and YoY ===
-    const prevMonthSalary = safeSum(salariesPrev.map((s: Record<string, unknown>) => Number(s.gross_pay || 0)));
+    const prevMonthTeamSettlement = await getTeamSettlementCostAmount(supabase, {
+      projectIds: targetProjectIds,
+      yearMonthStart: prevMonth,
+      yearMonthEnd: prevMonth,
+    });
+    const prevMonthSalary = safeSum(salariesPrev.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + prevMonthTeamSettlement;
     const prevMonthIncome = safeSum(
       clientReports.filter((r: Record<string, unknown>) => {
         const d = r.report_date as string;
@@ -904,7 +917,12 @@ export async function GET(request: NextRequest) {
       }).map((p) => p.paymentAmount)
     );
 
-    const lastYearSalary = safeSum(salariesLastYear.map((s: Record<string, unknown>) => Number(s.gross_pay || 0)));
+    const lastYearTeamSettlement = await getTeamSettlementCostAmount(supabase, {
+      projectIds: targetProjectIds,
+      yearMonthStart: lastYearMonth,
+      yearMonthEnd: lastYearMonth,
+    });
+    const lastYearSalary = safeSum(salariesLastYear.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + lastYearTeamSettlement;
     const lastYearIncome = safeSum(
       clientReports.filter((r: Record<string, unknown>) => {
         const d = r.report_date as string;
@@ -1014,11 +1032,16 @@ export async function GET(request: NextRequest) {
           return d && d.startsWith(trendMonth);
         }).map((p: Record<string, unknown>) => Number(p.payment_amount || 0))
       );
+      const trendTeamSettlement = await getTeamSettlementCostAmount(supabase, {
+        projectIds: targetProjectIds,
+        yearMonthStart: trendMonth,
+        yearMonthEnd: trendMonth,
+      });
       const trendSalary = safeSum(
         salariesTrend.filter((s: Record<string, unknown>) => {
           return (s.year_month as string) === trendMonth;
         }).map((s: Record<string, unknown>) => Number(s.gross_pay || 0))
-      );
+      ) + trendTeamSettlement;
       trends.push({ month: trendMonth, income: trendIncome, received: trendReceived, cost: 0, salary: trendSalary, profit: 0, supplierSettlement: 0, supplierPayment: 0, actualPayment: 0, operatingProfit: 0, cashNetFlow: 0 });
     }
     for (const trend of trends) {

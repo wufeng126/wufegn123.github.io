@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { VISA_DONE_STATUSES } from '@/lib/business-logic';
+import { getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 
 // 获取年月的起止日期
 function getMonthDateRange(year: number, month: number): { startDate: string; endDate: string } {
@@ -256,8 +257,15 @@ export async function GET(request: NextRequest) {
       sum + (parseFloat(item.visa_amount || '0') || 0), 0) || 0;
     const currentSettlementAmount = currentSettlementData?.reduce((sum, item) => 
       sum + (parseFloat(item.settlement_amount || '0') || 0), 0) || 0;
-    const currentSalaryAmount = currentSalaryData?.reduce((sum, item) => 
+    const currentWorkerSalaryAmount = currentSalaryData?.reduce((sum, item) => 
       sum + (parseFloat(item.gross_pay || '0') || 0), 0) || 0;
+    const currentTeamSettlementAmount = await getTeamSettlementCostAmount(client, {
+      projectId: projectId ? parseInt(projectId) : undefined,
+      dateRange: viewType === 'monthly'
+        ? { start: currentMonthRange.startDate, end: currentMonthRange.endDate }
+        : undefined,
+    });
+    const currentSalaryAmount = currentWorkerSalaryAmount + currentTeamSettlementAmount;
     const currentExpenseAmount = currentExpenseData?.reduce((sum, item) => 
       sum + (parseFloat(item.amount || '0') || 0), 0) || 0;
     const currentMiscMaterialAmount = currentMiscMaterialData?.reduce((sum, item) => 
@@ -277,8 +285,15 @@ export async function GET(request: NextRequest) {
       sum + (parseFloat(item.visa_amount || '0') || 0), 0) || 0;
     const prevSettlementAmount = prevSettlementData?.reduce((sum, item) => 
       sum + (parseFloat(item.settlement_amount || '0') || 0), 0) || 0;
-    const prevSalaryAmount = prevSalaryData?.reduce((sum, item) => 
+    const prevWorkerSalaryAmount = prevSalaryData?.reduce((sum, item) => 
       sum + (parseFloat(item.gross_pay || '0') || 0), 0) || 0;
+    const prevTeamSettlementAmount = await getTeamSettlementCostAmount(client, {
+      projectId: projectId ? parseInt(projectId) : undefined,
+      dateRange: viewType === 'monthly'
+        ? { start: prevMonthRange.startDate, end: prevMonthRange.endDate }
+        : undefined,
+    });
+    const prevSalaryAmount = prevWorkerSalaryAmount + prevTeamSettlementAmount;
     const prevExpenseAmount = prevExpenseData?.reduce((sum, item) => 
       sum + (parseFloat(item.amount || '0') || 0), 0) || 0;
     const prevMiscMaterialAmount = prevMiscMaterialData?.reduce((sum, item) => 

@@ -642,7 +642,35 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
     .select('gross_pay')
     .eq('project_id', projectId);
 
-  const salaryAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+  const workerSalaryAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+  let teamSettlementAmount = 0;
+  try {
+    const { data: teamSettlements, error: teamSettlementError } = await client
+      .from('team_settlements')
+      .select('id,status')
+      .eq('project_id', projectId);
+    if (teamSettlementError) throw teamSettlementError;
+
+    const settlementIds = (teamSettlements || [])
+      .filter((settlement: any) => !isVoidedStatus(settlement.status))
+      .map((settlement: any) => Number(settlement.id))
+      .filter(Boolean);
+
+    if (settlementIds.length > 0) {
+      const { data: teamItems, error: teamItemsError } = await client
+        .from('team_settlement_items')
+        .select('amount')
+        .in('settlement_id', settlementIds);
+      if (teamItemsError) throw teamItemsError;
+      teamSettlementAmount = (teamItems || []).reduce((sum: number, item: any) => sum + parseNumeric(item.amount), 0);
+    }
+  } catch (error: any) {
+    const message = String(error?.message || '').toLowerCase();
+    if (!message.includes('team_settlements') && !message.includes('team_settlement_items') && !message.includes('schema cache')) {
+      throw error;
+    }
+  }
+  const salaryAmount = workerSalaryAmount + teamSettlementAmount;
 
   // 5. 综合费用（仅已审核）
   const { data: expenses } = await client
