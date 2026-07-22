@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
+import { usePermission } from '@/contexts/permission-context';
 import {
   AlertCircle,
   BookOpen,
@@ -62,6 +63,19 @@ const quickEntries: QuickEntry[] = [
   { title: '月报经验沉淀', desc: '从月报中整理可复用内容', href: '/knowledge/monthly/new', icon: BookOpen, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
 ];
 
+const siteStaffQuickEntryHrefs = new Set([
+  '/construction-logs/scan',
+  '/construction-logs/new',
+  '/construction-logs?tab=logs&mine=1',
+  '/construction-daily-reports',
+  '/workers/query',
+]);
+
+function isSiteStaffRole(role?: string | null) {
+  const normalizedRole = String(role || '').toLowerCase();
+  return normalizedRole === 'site_staff' || normalizedRole.includes('\u73b0\u573a') || normalizedRole.includes('site');
+}
+
 const todoVisuals: Record<TodoKey, { icon: LucideIcon; tone: string; valueTone: string }> = {
   constructionLogsPending: { icon: Camera, tone: 'bg-blue-50 text-blue-700 ring-blue-100', valueTone: 'text-blue-700' },
   monthlyReportsPending: { icon: FileText, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100', valueTone: 'text-emerald-700' },
@@ -109,9 +123,11 @@ const fallbackTodos: TodoItem[] = [
 ];
 
 export default function WorkbenchContent() {
+  const { user } = usePermission();
   const [todos, setTodos] = useState<TodoResponse>({ total: 0, items: fallbackTodos });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const isSiteStaff = isSiteStaffRole(user?.role);
 
   useEffect(() => {
     let mounted = true;
@@ -147,10 +163,15 @@ export default function WorkbenchContent() {
     () => todoItems.reduce((sum, item) => sum + Number(item.count || 0), 0),
     [todoItems],
   );
+  const visibleQuickEntries = useMemo(
+    () => (isSiteStaff ? quickEntries.filter((item) => siteStaffQuickEntryHrefs.has(item.href)) : quickEntries),
+    [isSiteStaff],
+  );
 
   return (
     <div className="min-h-full bg-[#f5f7fb] p-4 text-slate-950 md:p-6">
       <div className="mx-auto max-w-[1320px] space-y-6">
+        {!isSiteStaff ? (
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-3">
@@ -208,6 +229,7 @@ export default function WorkbenchContent() {
             })}
           </div>
         </section>
+        ) : null}
 
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
@@ -216,11 +238,11 @@ export default function WorkbenchContent() {
               <p className="mt-1 text-xs text-slate-500">不再按板块分类，直接展示所有高频操作。</p>
             </div>
             <div className="rounded-md bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
-              {quickEntries.length} 个入口
+              {visibleQuickEntries.length} 个入口
             </div>
           </div>
           <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {quickEntries.map(item => {
+            {visibleQuickEntries.map(item => {
               const ItemIcon = item.icon;
               return (
                 <Link
