@@ -52,7 +52,9 @@ const CONSTRUCTION_LOGS_MIGRATIONS = [
 
 // 所有表的迁移列表
 const ALL_MIGRATIONS = [
-  ...CONSTRUCTION_LOGS_MIGRATIONS
+  ...CONSTRUCTION_LOGS_MIGRATIONS,
+  // roles 表
+  "ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false"
   // 未来添加新表的迁移时，在这里追加
 ];
 
