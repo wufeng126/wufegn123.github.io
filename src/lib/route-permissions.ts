@@ -61,6 +61,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 
   // === API 路由（生产环境必需注册，否则 403） ===
   '/api/workspace/todos': {},
+  '/api/auth/logout': {},
   '/api/construction-logs': { permission: 'projects:view' },
   '/api/construction-logs/attendance-summary': { permission: 'construction_attendance:view' },
   '/api/construction-logs/stats': { permission: 'projects:view' },
@@ -72,6 +73,16 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/cost-estimation/work-types': { permission: 'projects:view' },
   '/api/cost-estimation/export': { permission: 'projects:view' },
   '/api/bid-estimations': { permission: 'projects:view' },
+  '/api/worker-salary-summary': { permission: 'salaries:query' },
+  '/api/project-contracts': { permission: 'projects:view' },
+  '/api/project-internal-addons': { permission: 'work_items:view' },
+  '/api/internal-addon-templates': { permission: 'work_items:view' },
+  '/api/internal-addon-settlements': { permission: 'work_items:view' },
+  '/api/subitem-monthly-progress': { permission: 'work_items:view' },
+  '/api/subitem-monthly-reports': { permission: 'work_items:view' },
+  '/api/backups': { permission: 'system:manage', superAdminOnly: true },
+  '/api/maintenance/sequence': { permission: 'system:manage', superAdminOnly: true },
+  '/api/fetch-url': { permission: 'system:ai_manage' },
   '/api/system/migrate': { permission: 'system:permission_manage', superAdminOnly: true },
   '/api/system/workflow-config': { permission: 'system:manage' },
   '/api/admins': { permission: 'system:permission_manage' },
@@ -197,14 +208,22 @@ export const PUBLIC_PAGES = [
  */
 export const API_WRITE_PERMISSIONS: Record<string, string> = {
   // 项目经营
+  '/api/admins': 'system:permission_manage',
   '/api/projects': 'projects:edit',
+  '/api/project-contracts': 'projects:edit',
   '/api/work-items': 'work_items:edit',
   '/api/work-item-progress': 'work_items:edit',
   '/api/work-item-subitems': 'work_items:edit',
+  '/api/subitem-monthly-progress': 'work_items:edit',
+  '/api/subitem-monthly-reports': 'work_items:edit',
+  '/api/project-internal-addons': 'work_items:edit',
+  '/api/internal-addon-templates': 'work_items:edit',
+  '/api/internal-addon-settlements': 'work_items:edit',
   '/api/limit-prices': 'work_items:edit',
   '/api/visas': 'visas:edit',
   '/api/client-reports': 'client_reports:edit',
   '/api/client-payments': 'client_payments:edit',
+  '/api/cost-estimation': 'cost_estimation:bid',
 
   // 人力工资
   '/api/workers/batch': 'workers:import',
@@ -253,8 +272,11 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/notifications': 'notifications:settings',
 
   // AI 管理
+  '/api/ai/chat': 'projects:view',
+  '/api/ai/audit': 'system:ai_manage',
   '/api/ai/config': 'system:ai_manage',
   '/api/ai/knowledge': 'system:ai_manage',
+  '/api/fetch-url': 'system:ai_manage',
 
   // 报表导出
   '/api/reports/monthly/export-pdf': 'reports:monthly_export',
@@ -269,10 +291,15 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/init/permissions': 'system:permission_manage',
   '/api/system/migrate': 'system:permission_manage',
   '/api/system/permission': 'system:permission_manage',
+  '/api/system/workflow-config': 'system:manage',
+  '/api/audit-logs': 'system:manage',
+  '/api/backups': 'system:manage',
+  '/api/maintenance/sequence': 'system:manage',
 
   // 钉钉管理
   '/api/dingtalk/contacts': 'system:dingtalk_manage',
   '/api/dingtalk/bindings': 'system:dingtalk_manage',
+  '/api/dingtalk/token': 'system:dingtalk_manage',
   '/api/integrations/wps/workers/bindings': 'system:manage',
   '/api/integrations/wps/workers/sync': 'system:manage',
 };
@@ -304,6 +331,10 @@ export function checkApiWritePermission(
 
   if (pathname === '/api/ai/knowledge/monthly/workflow') {
     return ['admin', 'project_manager', 'boss'].includes(userRole || '');
+  }
+
+  if (pathname === '/api/auth/center/check') {
+    return true;
   }
 
   if (pathname === '/api/notifications') {
