@@ -103,7 +103,7 @@ function filterWorkers(workers: AttendanceWorker[], keyword: string, workType: s
 }
 
 function getWorkerHours(draft: ProjectLogDraft, workerId: number) {
-  return draft.attendance_worker_hours[String(workerId)] ?? '8';
+  return draft.attendance_worker_hours[String(workerId)] ?? '10';
 }
 
 function buildAttendanceWorkers(draft: ProjectLogDraft) {
@@ -225,7 +225,7 @@ export default function NewConstructionLogPage() {
       }
       const nextHours = { ...draft.attendance_worker_hours };
       if (selected.has(workerId)) {
-        nextHours[String(workerId)] = nextHours[String(workerId)] || '8';
+        nextHours[String(workerId)] = nextHours[String(workerId)] || '10';
       } else {
         delete nextHours[String(workerId)];
       }

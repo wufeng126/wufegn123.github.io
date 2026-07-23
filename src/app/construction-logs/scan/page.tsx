@@ -229,7 +229,7 @@ export default function ConstructionLogScanPage() {
       if (attendanceWorkerIds.includes(workerId)) {
         delete next[String(workerId)];
       } else {
-        next[String(workerId)] = next[String(workerId)] || '8';
+        next[String(workerId)] = next[String(workerId)] || '10';
       }
       return next;
     });
@@ -245,7 +245,7 @@ export default function ConstructionLogScanPage() {
   }
 
   function getWorkerHours(workerId: number) {
-    return attendanceWorkerHours[String(workerId)] ?? '8';
+    return attendanceWorkerHours[String(workerId)] ?? '10';
   }
 
   function addSelectedTemporaryToScope(workerIds: number[]) {
