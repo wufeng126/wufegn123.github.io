@@ -140,6 +140,11 @@ export async function middleware(request: NextRequest) {
     return addCorsHeaders(NextResponse.next(), request);
   }
 
+  // 5.4 定时任务通知检查入口，无需登录（由阿里云函数计算定时调用）
+  if (pathname === '/api/notifications/check') {
+    return addCorsHeaders(NextResponse.next(), request);
+  }
+
   // 6. 公开页面直接放行
   if (PUBLIC_PAGES.includes(pathname)) {
     return NextResponse.next();
