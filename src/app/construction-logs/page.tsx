@@ -6,9 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   BarChart3,
+  CalendarDays,
   BookOpenCheck,
   CalendarClock,
   Camera,
+  ChevronDown,
   ClipboardList,
   FileCheck2,
   FileText,
@@ -35,6 +37,8 @@ type LogItem = {
   headcount: number;
   issues: string;
   created_at: string;
+  updated_at?: string | null;
+  submitted_at?: string | null;
   status?: 'submitted' | 'pending' | 'cancelled' | null;
   scheduled_submit_at?: string | null;
   submission_status?: 'normal' | 'late' | null;
@@ -156,6 +160,56 @@ function formatDateTime(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function normalizeLogDate(value?: string | null) {
+  if (!value) return '未填写日期';
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().slice(0, 10);
+}
+
+function getLogDate(log: LogItem) {
+  return normalizeLogDate(log.log_date || log.created_at);
+}
+
+function getLogSortTime(log: LogItem) {
+  const value = log.submitted_at || log.updated_at || log.created_at || log.scheduled_submit_at || log.log_date;
+  const date = new Date(value || '');
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function formatLogDateLabel(value: string) {
+  if (value === '未填写日期') return value;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+}
+
+function groupLogsByDate(items: LogItem[]) {
+  const map = new Map<string, LogItem[]>();
+  items.forEach(log => {
+    const dateKey = getLogDate(log);
+    const list = map.get(dateKey) || [];
+    list.push(log);
+    map.set(dateKey, list);
+  });
+
+  return Array.from(map.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, dateLogs]) => {
+      const sortedLogs = [...dateLogs].sort((a, b) => getLogSortTime(b) - getLogSortTime(a));
+      return {
+        date,
+        logs: sortedLogs,
+        projectCount: new Set(sortedLogs.map(log => Number(log.project_id))).size,
+        submitterCount: new Set(sortedLogs.map(log => log.user_name || String(log.user_id || ''))).size,
+        riskCount: sortedLogs.filter(log => Boolean(log.risk_level)).length,
+        lateCount: sortedLogs.filter(log => log.submission_status === 'late').length,
+        pendingCount: sortedLogs.filter(log => log.status === 'pending').length,
+      };
+    });
 }
 
 export default function ConstructionLogsPage() {
@@ -310,7 +364,10 @@ export default function ConstructionLogsPage() {
 
   useEffect(() => {
     if (tab !== 'submitters' || !submitterProjectId) return;
-    void loadSubmitters(submitterProjectId);
+    const timeoutId = window.setTimeout(() => {
+      void loadSubmitters(submitterProjectId);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadSubmitters, submitterProjectId, tab]);
 
   const projectNameById = useMemo(() => {
@@ -325,6 +382,7 @@ export default function ConstructionLogsPage() {
   const highRisks = statsSummary.high_risk_total;
   const pendingRisks = risks.filter(risk => risk.workflow_status === 'pending').length;
   const submittedProjects = statsSummary.submitted_projects;
+  const logDateGroups = useMemo(() => groupLogsByDate(logs.slice(0, 80)), [logs]);
 
   async function handleRiskAction(logId: number) {
     setActionBusy(logId);
@@ -703,66 +761,95 @@ export default function ConstructionLogsPage() {
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">加载中...</div>
             ) : logs.length === 0 ? (
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">暂无日志记录</div>
-            ) : logs.slice(0, 80).map(log => (
-              <div key={log.id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 transition hover:border-[#165DFF]/30">
-                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#86909C]">
-                  <span>{projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`}</span>
-                  <span className="h-3 w-px bg-[#E5E6EB]" />
-                  <span>{log.log_date}</span>
-                  <span>{log.user_name}</span>
-                  <span className={`rounded-full px-2 py-0.5 ${logStatusClass(log)}`}>
-                    {logStatusLabel(log)}
-                  </span>
-                  {log.status === 'pending' && log.scheduled_submit_at && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[#165DFF]">
-                      <CalendarClock className="h-3 w-3" />
-                      预约 {formatDateTime(log.scheduled_submit_at)}
+            ) : logDateGroups.map((group, index) => (
+              <details key={group.date} open={index === 0} className="group rounded-xl border border-[#E5E6EB] bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition hover:bg-[#F7F8FA] md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969]">
+                      <CalendarDays className="h-5 w-5" />
                     </span>
-                  )}
-                  {log.location && <span>{log.location}</span>}
-                </div>
-                <p className="text-sm text-[#1D2129]">{log.content}</p>
-                {log.risk_level && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${riskBadgeClass(log.risk_level)}`}>
-                      <AlertTriangle className="h-3 w-3" />
-                      {RISK_LEVEL_LABELS[log.risk_level]}风险
-                    </span>
-                    {(log.risk_types || []).slice(0, 4).map(type => (
-                      <span key={type} className="rounded-full bg-[#F2F3F5] px-2 py-0.5 text-xs text-[#4E5969]">{RISK_TYPE_LABELS[type] || type}</span>
-                    ))}
-                    {log.risk_summary && <span className="text-xs text-[#86909C]">{log.risk_summary}</span>}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-base font-semibold text-[#1D2129]">{formatLogDateLabel(group.date)}</h2>
+                        {index === 0 && <span className="rounded-full bg-[#E8F3FF] px-2 py-0.5 text-xs font-medium text-[#165DFF]">最新</span>}
+                      </div>
+                      <p className="mt-1 text-sm text-[#86909C]">
+                        共 {group.logs.length} 篇，涉及 {group.projectCount} 个项目，{group.submitterCount} 人提交
+                      </p>
+                    </div>
                   </div>
-                )}
-                <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#F2F3F5] pt-3 text-xs text-[#86909C]">
-                  {log.headcount != null && <span>{log.headcount}人</span>}
-                  {highRisks > 0 && log.risk_level === 'high' && <span className="text-[#F53F3F]">高风险需优先确认</span>}
-                  {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
-                  <div className="flex w-full shrink-0 items-center justify-end gap-3 md:ml-auto md:w-auto">
-                    <Link href={`/construction-logs/${log.id}`} className="font-medium text-[#165DFF] hover:underline">查看详情</Link>
-                    {log.status === 'pending' && Number(log.user_id) === Number(user?.id) && (
-                      <button
-                        type="button"
-                        disabled={cancelingLogId === log.id}
-                        onClick={() => handleCancelSchedule(log.id)}
-                        className="inline-flex items-center gap-1 font-medium text-[#D46B08] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <CalendarClock className="h-3.5 w-3.5" />
-                        {cancelingLogId === log.id ? '取消中...' : '取消预约'}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      disabled={deletingLogId === log.id}
-                      onClick={() => handleDeleteLog(log.id)}
-                      className="inline-flex items-center gap-1 font-medium text-[#F53F3F] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      {deletingLogId === log.id ? '删除中' : '删除'}
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    {group.pendingCount > 0 && <span className="rounded-full bg-[#E8F3FF] px-2 py-1 text-xs font-medium text-[#165DFF]">待提交 {group.pendingCount}</span>}
+                    {group.lateCount > 0 && <span className="rounded-full bg-[#FFF7E8] px-2 py-1 text-xs font-medium text-[#D46B08]">逾期 {group.lateCount}</span>}
+                    {group.riskCount > 0 && <span className="rounded-full bg-[#FFF1F0] px-2 py-1 text-xs font-medium text-[#C62828]">风险 {group.riskCount}</span>}
+                    <ChevronDown className="h-4 w-4 text-[#86909C] transition group-open:rotate-180" />
                   </div>
+                </summary>
+
+                <div className="space-y-3 border-t border-[#F2F3F5] bg-[#F7F8FA] p-3 sm:p-4">
+                  {group.logs.map(log => (
+                    <div key={log.id} className="rounded-lg border border-[#E5E6EB] bg-white p-4 transition hover:border-[#165DFF]/30">
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#86909C]">
+                        <span>{projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`}</span>
+                        <span className="h-3 w-px bg-[#E5E6EB]" />
+                        <span>{formatDateTime(log.submitted_at || log.updated_at || log.created_at) || log.log_date}</span>
+                        <span>{log.user_name}</span>
+                        <span className={`rounded-full px-2 py-0.5 ${logStatusClass(log)}`}>
+                          {logStatusLabel(log)}
+                        </span>
+                        {log.status === 'pending' && log.scheduled_submit_at && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[#165DFF]">
+                            <CalendarClock className="h-3 w-3" />
+                            预约 {formatDateTime(log.scheduled_submit_at)}
+                          </span>
+                        )}
+                        {log.location && <span>{log.location}</span>}
+                      </div>
+                      <p className="text-sm text-[#1D2129]">{log.content}</p>
+                      {log.risk_level && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${riskBadgeClass(log.risk_level)}`}>
+                            <AlertTriangle className="h-3 w-3" />
+                            {RISK_LEVEL_LABELS[log.risk_level]}风险
+                          </span>
+                          {(log.risk_types || []).slice(0, 4).map(type => (
+                            <span key={type} className="rounded-full bg-[#F2F3F5] px-2 py-0.5 text-xs text-[#4E5969]">{RISK_TYPE_LABELS[type] || type}</span>
+                          ))}
+                          {log.risk_summary && <span className="text-xs text-[#86909C]">{log.risk_summary}</span>}
+                        </div>
+                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#F2F3F5] pt-3 text-xs text-[#86909C]">
+                        {log.headcount != null && <span>{log.headcount}人</span>}
+                        {highRisks > 0 && log.risk_level === 'high' && <span className="text-[#F53F3F]">高风险需优先确认</span>}
+                        {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
+                        <div className="flex w-full shrink-0 items-center justify-end gap-3 md:ml-auto md:w-auto">
+                          <Link href={`/construction-logs/${log.id}`} className="font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                          {log.status === 'pending' && Number(log.user_id) === Number(user?.id) && (
+                            <button
+                              type="button"
+                              disabled={cancelingLogId === log.id}
+                              onClick={() => handleCancelSchedule(log.id)}
+                              className="inline-flex items-center gap-1 font-medium text-[#D46B08] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <CalendarClock className="h-3.5 w-3.5" />
+                              {cancelingLogId === log.id ? '取消中...' : '取消预约'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={deletingLogId === log.id}
+                            onClick={() => handleDeleteLog(log.id)}
+                            className="inline-flex items-center gap-1 font-medium text-[#F53F3F] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {deletingLogId === log.id ? '删除中' : '删除'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </details>
             ))}
           </div>
         )}
