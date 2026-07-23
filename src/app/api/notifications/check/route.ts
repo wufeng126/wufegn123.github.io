@@ -3,6 +3,8 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { notifyVisaWorkflow } from '@/lib/visa-workflow';
 import { buildNotificationExtra } from '@/lib/business-notification';
+import { generateConstructionDailyReport } from '@/lib/construction-daily-report';
+import { getDefaultDailyReportDate, getShanghaiHour } from '@/lib/construction-log-deadline';
 
 function isEnabled(value: unknown, fallback = false) {
   if (value === undefined || value === null) return fallback;
@@ -551,6 +553,42 @@ async function checkCostWarnings(client: any) {
   return results;
 }
 
+async function checkConstructionDailyReport(client: any, force = false) {
+  const reportDate = getDefaultDailyReportDate();
+  const currentHour = getShanghaiHour();
+
+  if (!force && currentHour < 12) {
+    return {
+      checked: false,
+      skipped: true,
+      reason: 'before_noon',
+      reportDate,
+      pushedAt: null,
+    };
+  }
+
+  try {
+    const report = await generateConstructionDailyReport(client, reportDate, { force: false, push: true });
+    return {
+      checked: true,
+      skipped: false,
+      reportDate,
+      reportId: report?.id || null,
+      aiStatus: report?.ai_status || null,
+      pushedAt: report?.pushed_at || null,
+    };
+  } catch (error) {
+    console.error('[ConstructionDailyReport] auto check failed:', error);
+    return {
+      checked: false,
+      skipped: false,
+      reportDate,
+      pushedAt: null,
+      error: error instanceof Error ? error.message : 'daily_report_failed',
+    };
+  }
+}
+
 // 主检测函数
 export async function GET(request: NextRequest) {
   try {
@@ -574,6 +612,7 @@ export async function GET(request: NextRequest) {
     const visaResults = await checkVisaExpiry(client);
     const newRecordResults = await checkNewRecords(client, lastCheckTime);
     const costResults = await checkCostWarnings(client);
+    const dailyReportResults = await checkConstructionDailyReport(client, forceCheck);
 
     // 更新最后检测时间
     await client
@@ -595,6 +634,7 @@ export async function GET(request: NextRequest) {
         visas: visaResults,
         newRecords: newRecordResults,
         costs: costResults,
+        dailyReport: dailyReportResults,
       },
       totalNotifications: (certificateResults.expired + certificateResults.expiring7 + certificateResults.expiring15 + certificateResults.expiring30) +
         visaResults.expired + visaResults.expiring7 + visaResults.expiring15 + visaResults.expiring30 + visaResults.workflowOverdue +
