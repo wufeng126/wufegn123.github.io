@@ -237,18 +237,17 @@ function BusinessOverviewPage() {
   const receivedAmount = toNumber(summary.totalClientPaid);
   const receivableAmount = toNumber(summary.totalRatioUnreceivedAmount) || toNumber(summary.totalReceivable);
   const fullUnreceivedAmount = toNumber(summary.totalFullUnreceivedAmount) || toNumber(summary.totalReceivable);
-  const supplierPayable = toNumber(summary.totalSupplierPayable);
-  const workerPayable = toNumber(summary.totalWorkerPayable);
-  const totalPayable = toNumber(summary.totalPayable) || supplierPayable + workerPayable;
+  const supplierUnpaid = toNumber(summary.totalSupplierPayable);
+  const workerUnpaid = toNumber(summary.totalWorkerPayable);
+  const totalPayableUnpaid = toNumber(summary.totalPayable) || supplierUnpaid + workerUnpaid;
   const paidAmount = toNumber(summary.totalCashOut) || toNumber(summary.totalSupplierPaid) + toNumber(summary.totalWorkerPaid);
-  const payableUnpaid = Math.max(totalPayable - paidAmount, 0);
+  const totalPayable = paidAmount + totalPayableUnpaid;
   const fundingGap = toNumber(summary.totalFundingGap);
 
   const projectLedger = useMemo(
     () =>
       [...projects]
-        .sort((a, b) => toNumber(b.ratioUnreceivedAmount ?? b.receivableAmount) - toNumber(a.ratioUnreceivedAmount ?? a.receivableAmount))
-        .slice(0, 8),
+        .sort((a, b) => toNumber(b.ratioUnreceivedAmount ?? b.receivableAmount) - toNumber(a.ratioUnreceivedAmount ?? a.receivableAmount)),
     [projects]
   );
 
@@ -276,15 +275,15 @@ function BusinessOverviewPage() {
     },
     {
       label: '供应商未付',
-      value: formatWan(Math.max(supplierPayable - toNumber(summary.totalSupplierPaid), 0)),
-      note: '供应商结算应付减已付',
+      value: formatWan(supplierUnpaid),
+      note: `已付 ${formatWan(toNumber(summary.totalSupplierPaid))}`,
       icon: HandCoins,
       tone: 'bg-violet-50 text-violet-700 ring-violet-100',
     },
     {
       label: '工人工资未付',
-      value: formatWan(Math.max(workerPayable - toNumber(summary.totalWorkerPaid), 0)),
-      note: '工资应付减已发放',
+      value: formatWan(workerUnpaid),
+      note: `已发 ${formatWan(toNumber(summary.totalWorkerPaid))}`,
       icon: Users,
       tone: 'bg-rose-50 text-rose-700 ring-rose-100',
     },
@@ -302,8 +301,8 @@ function BusinessOverviewPage() {
       title: '人工成本',
       desc: '按项目查看应付工资、已发工资、未发工资和人员成本占比。',
       icon: Users,
-      primary: `应付 ${formatWan(workerPayable)}`,
-      secondary: `未付 ${formatWan(Math.max(workerPayable - toNumber(summary.totalWorkerPaid), 0))}`,
+      primary: `未付 ${formatWan(workerUnpaid)}`,
+      secondary: `已发 ${formatWan(toNumber(summary.totalWorkerPaid))}`,
       href: '/business-analysis?tab=worker-cost',
       tone: 'bg-rose-50 text-rose-700 ring-rose-100',
     },
@@ -311,8 +310,8 @@ function BusinessOverviewPage() {
       title: '供应商成本',
       desc: '按供应商、费用类型和项目归集结算额、付款额、未付额。',
       icon: BriefcaseBusiness,
-      primary: `应付 ${formatWan(supplierPayable)}`,
-      secondary: `未付 ${formatWan(Math.max(supplierPayable - toNumber(summary.totalSupplierPaid), 0))}`,
+      primary: `未付 ${formatWan(supplierUnpaid)}`,
+      secondary: `已付 ${formatWan(toNumber(summary.totalSupplierPaid))}`,
       href: '/business-analysis?tab=supplier-cost',
       tone: 'bg-violet-50 text-violet-700 ring-violet-100',
     },
@@ -346,8 +345,8 @@ function BusinessOverviewPage() {
     {
       name: '对外付款率',
       value: formatPercent(toNumber(summary.avgPayablePaymentRate)),
-      delta: payableUnpaid > 0 ? '有未付款' : '已付清',
-      positive: payableUnpaid <= 0,
+      delta: totalPayableUnpaid > 0 ? '有未付款' : '已付清',
+      positive: totalPayableUnpaid <= 0,
     },
     {
       name: '应收未收',
@@ -357,9 +356,9 @@ function BusinessOverviewPage() {
     },
     {
       name: '应付未付',
-      value: formatWan(payableUnpaid),
-      delta: payableUnpaid > 0 ? '需安排' : '正常',
-      positive: payableUnpaid <= 0,
+      value: formatWan(totalPayableUnpaid),
+      delta: totalPayableUnpaid > 0 ? '需安排' : '正常',
+      positive: totalPayableUnpaid <= 0,
     },
   ];
 
@@ -576,7 +575,7 @@ function BusinessOverviewPage() {
                 <div className="space-y-4">
                   <ProgressBar label="累计应付" value={totalPayable} total={totalPayable} color="bg-violet-500" />
                   <ProgressBar label="已付款项" value={paidAmount} total={totalPayable} color="bg-blue-500" />
-                  <ProgressBar label="应付未付" value={payableUnpaid} total={totalPayable} color="bg-rose-500" />
+                  <ProgressBar label="应付未付" value={totalPayableUnpaid} total={totalPayable} color="bg-rose-500" />
                 </div>
               </div>
             </div>
