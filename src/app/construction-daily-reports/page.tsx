@@ -57,6 +57,10 @@ type Report = {
   ai_status?: string | null;
   generated_at?: string;
   pushed_at?: string | null;
+  read_status?: {
+    read_count: number;
+    total_count: number;
+  };
 };
 
 function StatCard({ label, value, tone }: { label: string; value: number | string; tone: string }) {
@@ -216,6 +220,9 @@ export default function ConstructionDailyReportsPage() {
                   </div>
                   <div className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
                     AI 萃取：{report?.ai_status === 'done' ? '已生成' : report?.ai_status === 'fallback' ? '本地兜底' : '待生成'}
+                  </div>
+                  <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                    已阅 {report?.read_status?.read_count || 0}/{report?.read_status?.total_count || 0} 人
                   </div>
                 </div>
               </div>

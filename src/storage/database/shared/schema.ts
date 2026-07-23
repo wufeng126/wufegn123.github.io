@@ -989,6 +989,27 @@ export const constructionDailyReports = pgTable("construction_daily_reports", {
 		index("construction_daily_reports_ai_status_idx").using("btree", table.aiStatus.asc().nullsLast().op("text_ops")),
 	]);
 
+export const constructionDailyReportReads = pgTable("construction_daily_report_reads", {
+		id: serial().primaryKey().notNull(),
+		reportId: integer("report_id").notNull(),
+		userId: integer("user_id").notNull(),
+		readAt: timestamp("read_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	}, (table) => [
+		index("construction_daily_report_reads_report_id_idx").using("btree", table.reportId.asc().nullsLast().op("int4_ops")),
+		index("construction_daily_report_reads_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+		unique("construction_daily_report_reads_report_user_key").on(table.reportId, table.userId),
+		foreignKey({
+				columns: [table.reportId],
+				foreignColumns: [constructionDailyReports.id],
+				name: "construction_daily_report_reads_report_id_fkey"
+		}).onDelete("cascade"),
+		foreignKey({
+				columns: [table.userId],
+				foreignColumns: [users.id],
+				name: "construction_daily_report_reads_user_id_fkey"
+		}).onDelete("cascade"),
+	]);
+
 export const projectArchives = pgTable("project_archives", {
 	id: serial().primaryKey().notNull(),
 	projectId: integer("project_id").notNull(),

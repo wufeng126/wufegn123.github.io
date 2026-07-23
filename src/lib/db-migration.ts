@@ -171,6 +171,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS construction_daily_reports_report_date_key
 CREATE INDEX IF NOT EXISTS construction_daily_reports_report_date_idx ON construction_daily_reports(report_date);
 CREATE INDEX IF NOT EXISTS construction_daily_reports_ai_status_idx ON construction_daily_reports(ai_status);
 
+CREATE TABLE IF NOT EXISTS construction_daily_report_reads (
+  id SERIAL PRIMARY KEY,
+  report_id INTEGER NOT NULL REFERENCES construction_daily_reports(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  read_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(report_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS construction_daily_report_reads_report_id_idx ON construction_daily_report_reads(report_id);
+CREATE INDEX IF NOT EXISTS construction_daily_report_reads_user_id_idx ON construction_daily_report_reads(user_id);
+
 CREATE TABLE IF NOT EXISTS site_manager_worker_scopes (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL,
