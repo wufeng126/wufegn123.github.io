@@ -346,6 +346,10 @@ export function checkApiWritePermission(
     }
   }
 
+  if (pathname === '/api/client-payments' && method === 'DELETE') {
+    return userPermissions.includes('client_payments:delete');
+  }
+
   if (pathname === '/api/team-groups' && method === 'POST') {
     return userPermissions.includes('team_groups:create') || userPermissions.includes('team_groups:edit');
   }

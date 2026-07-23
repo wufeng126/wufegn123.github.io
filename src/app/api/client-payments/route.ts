@@ -3,7 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { logSecurityEvent } from '@/lib/security-log';
-import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { requireApiWritePermission, requireAuth, requirePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import {
   isEffectiveClientPaymentStatus,
@@ -326,7 +326,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    const auth = await requirePermission(request, 'client_payments:delete');
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
@@ -337,19 +337,19 @@ export async function DELETE(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const paymentId = parseInt(id);
+    if (!/^\d+$/.test(id)) {
+      return NextResponse.json({ error: '记录ID格式不正确' }, { status: 400 });
+    }
+    const paymentId = parseInt(id, 10);
 
-    const { data: currentPayment } = await client
+    const { data: currentPayment, error: currentError } = await client
       .from('client_payments')
-      .select('status')
+      .select('id, project_id, payment_amount, payment_date, payment_method, status, remark')
       .eq('id', paymentId)
       .single();
 
-    if (
-      isEffectiveClientPaymentStatus(currentPayment?.status) ||
-      isInactiveClientPaymentStatus(currentPayment?.status)
-    ) {
-      return NextResponse.json({ error: '已确认或已作废回款不可删除' }, { status: 400 });
+    if (currentError || !currentPayment) {
+      return NextResponse.json({ error: '回款记录不存在' }, { status: 404 });
     }
 
     const { error } = await client
@@ -360,6 +360,35 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       throw new Error(`删除付款记录失败: ${error.message}`);
     }
+
+    await auditLog({
+      operationType: 'delete',
+      resourceType: 'client_payment',
+      resourceId: paymentId,
+      details: {
+        project_id: currentPayment.project_id,
+        amount: parseNumeric(currentPayment.payment_amount),
+        payment_date: currentPayment.payment_date,
+        payment_method: currentPayment.payment_method,
+        status: currentPayment.status,
+        remark: currentPayment.remark,
+      },
+      request,
+    });
+
+    await logSecurityEvent({
+      event_type: 'client_payment_delete',
+      ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
+      user_agent: request.headers.get('user-agent') || 'unknown',
+      result: 'success',
+      details: {
+        id: paymentId,
+        project_id: currentPayment.project_id,
+        payment_amount: parseNumeric(currentPayment.payment_amount),
+        payment_date: currentPayment.payment_date,
+        status: currentPayment.status,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
