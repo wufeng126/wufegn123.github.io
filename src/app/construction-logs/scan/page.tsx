@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RotateCcw, Search, Send, UserPlus, UsersRound } from 'lucide-react';
 import { getDefaultConstructionLogDate } from '@/lib/construction-log-deadline';
+import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 
 type Project = { id: number | string; name: string; is_archived?: boolean };
 type RecognizedFile = { name: string; size: number; storageKey?: string; textLength?: number };
@@ -289,6 +290,14 @@ export default function ConstructionLogScanPage() {
     });
     if (invalidHours) {
       setMessage('\u51fa\u52e4\u5de5\u65f6\u9700\u5927\u4e8e0\u4e14\u4e0d\u8d85\u8fc724\u5c0f\u65f6');
+      return;
+    }
+    const attendanceValidation = validateAttendanceCountConsistency({
+      content,
+      selectedCount: attendanceWorkerIds.length,
+    });
+    if (!attendanceValidation.ok && attendanceValidation.message) {
+      setMessage(attendanceValidation.message);
       return;
     }
 

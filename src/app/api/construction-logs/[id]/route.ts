@@ -7,6 +7,7 @@ import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project
 import { detectConstructionLogRisk, enrichConstructionLog } from '@/lib/construction-log-risk';
 import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
 import { hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
+import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 
 type LogAttachment = {
   name?: string;
@@ -180,6 +181,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.content = content;
     }
     if (issues !== undefined) patch.issues = issues || null;
+
+    if (content !== undefined) {
+      const { count: attendanceCount, error: attendanceCountError } = await supabase
+        .from('construction_log_attendance')
+        .select('id', { count: 'exact', head: true })
+        .eq('log_id', logId);
+      if (attendanceCountError) throw new Error(attendanceCountError.message);
+      const attendanceValidation = validateAttendanceCountConsistency({
+        content,
+        selectedCount: attendanceCount || 0,
+      });
+      if (!attendanceValidation.ok && attendanceValidation.message) {
+        return apiBadRequest(attendanceValidation.message);
+      }
+    }
 
     if (typeof body.scheduled_submit_at === 'string' && body.scheduled_submit_at.trim()) {
       const canSchedule = await hasBudgetRoleInDatabase(supabase, auth.user);

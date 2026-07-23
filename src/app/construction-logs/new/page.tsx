@@ -9,6 +9,7 @@ import {
   getConstructionLogSubmissionWindow,
   getDefaultConstructionLogDate,
 } from '@/lib/construction-log-deadline';
+import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 import { usePermission } from '@/contexts/permission-context';
 
 type Project = { id: number | string; name: string; is_archived?: boolean };
@@ -111,6 +112,10 @@ function buildAttendanceWorkers(draft: ProjectLogDraft) {
     worker_id: workerId,
     work_hours: Number(getWorkerHours(draft, workerId) || 0),
   }));
+}
+
+function getProjectName(projects: Project[], projectId: string) {
+  return projects.find((project) => String(project.id) === projectId)?.name || '';
 }
 
 export default function NewConstructionLogPage() {
@@ -345,6 +350,21 @@ export default function NewConstructionLogPage() {
     }));
     if (invalidHours) {
       setError('出勤工时需大于0且不超过24小时');
+      return;
+    }
+
+    const mismatchDraft = validDrafts
+      .map((draft) => ({
+        draft,
+        validation: validateAttendanceCountConsistency({
+          content: draft.content,
+          selectedCount: draft.attendance_worker_ids.length,
+        }),
+      }))
+      .find((item) => !item.validation.ok);
+    if (mismatchDraft?.validation.message) {
+      const projectName = getProjectName(projects, mismatchDraft.draft.project_id);
+      setError(projectName ? `${projectName}\uff1a${mismatchDraft.validation.message}` : mismatchDraft.validation.message);
       return;
     }
 
