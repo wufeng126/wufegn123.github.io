@@ -18,6 +18,7 @@ import {
   Sparkles,
   Truck,
   UsersRound,
+  type LucideIcon,
 } from 'lucide-react';
 import { getDefaultDailyReportDate, getReadableDate } from '@/lib/construction-log-deadline';
 
@@ -89,22 +90,22 @@ const toneMeta: Record<ProjectTone, { label: string; className: string; marker: 
     rank: 0,
   },
   attention: {
-    label: '需要关注',
-    className: 'bg-amber-50 text-amber-700 ring-amber-100',
-    marker: 'border-l-amber-500',
-    rank: 1,
+    label: '暂无动态',
+    className: 'bg-slate-100 text-slate-600 ring-slate-200',
+    marker: 'border-l-slate-300',
+    rank: 2,
   },
   steady: {
     label: '正常推进',
     className: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     marker: 'border-l-emerald-500',
-    rank: 2,
+    rank: 1,
   },
 };
 
 function getProjectTone(project: ProjectDetail): ProjectTone {
   if (project.issue_count > 0) return 'risk';
-  if (project.missing_users.length > 0 || project.late_users.length > 0) return 'attention';
+  if (project.log_count <= 0) return 'attention';
   return 'steady';
 }
 
@@ -117,26 +118,66 @@ function joinList(items: string[], maxCount = 4) {
   return items.map(item => item.trim()).filter(Boolean).slice(0, maxCount).join('；');
 }
 
+function hasSubmissionNoise(value?: string | null) {
+  return /应交|已交|未交|未提交|逾期|提交情况|missing|late/i.test(String(value || ''));
+}
+
+function getCleanText(value: string | undefined, fallback: string) {
+  if (!value || hasSubmissionNoise(value)) return fallback;
+  return value;
+}
+
 function getProjectSections(project: ProjectDetail) {
+  const construction = emptyText(project.ai_sections?.construction_content || joinList(project.contents), '当日未形成可汇总的施工内容。');
+  const laborFallback = project.log_count > 0
+    ? `当日形成 ${project.log_count} 条施工日志，现场出勤合计 ${project.headcount_total} 人。`
+    : '当日未形成施工日志，暂无现场出勤汇总。';
+  const riskFallback = project.issue_count > 0
+    ? '存在需跟进事项，请相关负责人结合现场情况处理。'
+    : '未识别到明显进度风险。';
+
   return {
-    construction_content: emptyText(project.ai_sections?.construction_content || joinList(project.contents)),
-    labor_teams: emptyText(
-      project.ai_sections?.labor_teams ||
-        `当日形成 ${project.log_count} 条施工日志，现场出勤合计 ${project.headcount_total} 人。`,
-    ),
+    construction_content: construction,
+    labor_teams: emptyText(getCleanText(project.ai_sections?.labor_teams, laborFallback), laborFallback),
     materials_machinery: emptyText(project.ai_sections?.materials_machinery, '日志中未单独记录材料、机械使用情况。'),
     quality_safety: emptyText(
       project.ai_sections?.quality_safety || joinList(project.issues),
       project.issue_count > 0 ? '存在质量、安全或现场异常记录，请项目负责人核查。' : '未记录质量、安全异常。',
     ),
-    progress_risks: emptyText(
-      project.ai_sections?.progress_risks,
-      project.issue_count > 0 || project.missing_users.length > 0 || project.late_users.length > 0
-        ? '存在需跟进事项，请相关负责人结合现场情况处理。'
-        : '未识别到明显进度风险。',
-    ),
+    progress_risks: emptyText(getCleanText(project.ai_sections?.progress_risks, riskFallback), riskFallback),
     tomorrow_plan: emptyText(project.ai_sections?.tomorrow_plan),
   };
+}
+
+function cleanCompanyNarrative(summary: ReportSummary) {
+  const fallback = `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。`;
+  return emptyText(
+    getCleanText(summary.company.narrative, fallback),
+    fallback,
+  );
+}
+
+function cleanCompanyRisk(summary: ReportSummary) {
+  const fallback = summary.company.issue_count > 0
+    ? `当日记录 ${summary.company.issue_count} 条问题异常，请对应项目负责人跟进。`
+    : '未识别到明显日报风险。';
+  return emptyText(getCleanText(summary.company.risk_summary, fallback), fallback);
+}
+
+function getCompanyHighlights(summary: ReportSummary) {
+  const cleanPoints = (summary.company.key_points || [])
+    .map(item => String(item || '').trim())
+    .filter(item => item && !hasSubmissionNoise(item))
+    .slice(0, 4);
+
+  if (cleanPoints.length > 0) return cleanPoints;
+
+  return [
+    `当日 ${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有施工动态。`,
+    `施工日志 ${summary.company.log_count} 条，现场出勤合计 ${summary.company.headcount_total} 人。`,
+    summary.company.issue_count > 0 ? `记录 ${summary.company.issue_count} 条问题异常。` : '未记录明显质量、安全异常。',
+    '各项目可展开查看施工进展、资源投入、风险提醒和明日计划。',
+  ];
 }
 
 function StatCard({
@@ -149,7 +190,7 @@ function StatCard({
   label: string;
   value: string | number;
   note: string;
-  icon: typeof FileText;
+  icon: LucideIcon;
   tone: string;
 }) {
   return (
@@ -171,7 +212,7 @@ function SectionBlock({
   tone = 'default',
 }: {
   title: string;
-  icon: typeof FileText;
+  icon: LucideIcon;
   children: string;
   tone?: 'default' | 'risk';
 }) {
@@ -200,7 +241,7 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
         onClick={() => setOpen(value => !value)}
         className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left hover:bg-slate-50 sm:px-5"
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-slate-950">{project.project_name}</h3>
             <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ring-1 ${meta.className}`}>
@@ -218,7 +259,7 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
             </span>
             <span className="inline-flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
-              问题 {project.issue_count} 条
+              异常 {project.issue_count} 条
             </span>
           </div>
           <p className="mt-3 max-w-5xl text-sm leading-6 text-slate-700">{sections.construction_content}</p>
@@ -241,11 +282,10 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
             <SectionBlock title="质量安全" icon={ShieldCheck} tone={project.issue_count > 0 ? 'risk' : 'default'}>
               {sections.quality_safety}
             </SectionBlock>
-            <SectionBlock
-              title="风险与提醒"
-              icon={AlertTriangle}
-              tone={project.issue_count > 0 || project.missing_users.length > 0 || project.late_users.length > 0 ? 'risk' : 'default'}
-            >
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <SectionBlock title="风险与提醒" icon={AlertTriangle} tone={project.issue_count > 0 ? 'risk' : 'default'}>
               {sections.progress_risks}
             </SectionBlock>
             <SectionBlock title="明日计划" icon={Clock3}>
@@ -315,15 +355,23 @@ export default function ConstructionDailyReportsPage() {
 
   const summary = report?.summary;
   const projects = useMemo(() => summary?.projects || [], [summary]);
-  const orderedProjects = useMemo(
-    () =>
-      projects
-        .slice()
-        .sort((a, b) => toneMeta[getProjectTone(a)].rank - toneMeta[getProjectTone(b)].rank || a.project_id - b.project_id),
+  const activeProjects = useMemo(
+    () => projects.filter(project => project.log_count > 0 || project.issue_count > 0),
     [projects],
   );
+  const quietProjects = useMemo(
+    () => projects.filter(project => project.log_count <= 0 && project.issue_count <= 0),
+    [projects],
+  );
+  const orderedProjects = useMemo(
+    () =>
+      activeProjects
+        .slice()
+        .sort((a, b) => toneMeta[getProjectTone(a)].rank - toneMeta[getProjectTone(b)].rank || a.project_id - b.project_id),
+    [activeProjects],
+  );
   const focusProjects = useMemo(
-    () => orderedProjects.filter(project => getProjectTone(project) !== 'steady').slice(0, 4),
+    () => orderedProjects.filter(project => getProjectTone(project) === 'risk').slice(0, 4),
     [orderedProjects],
   );
   const readStatus = report?.read_status || { read_count: 0, total_count: 0 };
@@ -344,7 +392,7 @@ export default function ConstructionDailyReportsPage() {
               </div>
               <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">项目日报汇总</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                先看公司整体项目情况，再展开单个项目查看施工进展、资源投入、风险提醒和明日计划。页面面向全员阅读，只保留日报必要信息。
+                先看公司整体情况，再展开单个项目查看施工进展、资源投入、风险提醒和明日计划。页面面向所有员工阅读，不展示提交统计和人员名单。
               </p>
             </div>
 
@@ -391,7 +439,7 @@ export default function ConstructionDailyReportsPage() {
               <StatCard
                 label="项目覆盖"
                 value={`${summary.company.submitted_projects}/${summary.company.total_projects} 个`}
-                note="当日有施工日志的项目"
+                note="当日有施工动态的项目"
                 icon={HardHat}
                 tone="bg-blue-50 text-blue-700 ring-blue-100"
               />
@@ -411,8 +459,8 @@ export default function ConstructionDailyReportsPage() {
               />
               <StatCard
                 label="风险提醒"
-                value={`${summary.company.issue_count + summary.company.missing_assignment_count} 条`}
-                note="问题异常及未提交提醒"
+                value={`${summary.company.issue_count} 条`}
+                note="日志中提取的问题异常"
                 icon={AlertTriangle}
                 tone="bg-rose-50 text-rose-700 ring-rose-100"
               />
@@ -430,18 +478,10 @@ export default function ConstructionDailyReportsPage() {
                   </div>
                 </div>
                 <p className="text-sm leading-7 text-slate-700">
-                  {summary.company.narrative || `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。`}
+                  {cleanCompanyNarrative(summary)}
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {(summary.company.key_points?.length
-                    ? summary.company.key_points
-                    : [
-                        `当日 ${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有施工日志。`,
-                        `日志 ${summary.company.log_count} 条，现场出勤合计 ${summary.company.headcount_total} 人。`,
-                        summary.company.issue_count > 0 ? `记录 ${summary.company.issue_count} 条问题异常。` : '未记录明显质量、安全异常。',
-                        summary.company.missing_assignment_count > 0 ? `存在 ${summary.company.missing_assignment_count} 个未提交项目人员项。` : '项目日报提交情况正常。',
-                      ]
-                  ).map((item, index) => (
+                  {getCompanyHighlights(summary).map((item, index) => (
                     <div key={`${item}-${index}`} className="rounded-lg bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
                       {item}
                     </div>
@@ -455,7 +495,7 @@ export default function ConstructionDailyReportsPage() {
                   <h2 className="text-base font-semibold">今日优先关注</h2>
                 </div>
                 <p className="mb-3 rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-                  {summary.company.risk_summary || '未识别到明显日报风险。'}
+                  {cleanCompanyRisk(summary)}
                 </p>
                 <div className="space-y-3">
                   {focusProjects.length ? (
@@ -481,7 +521,7 @@ export default function ConstructionDailyReportsPage() {
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold">单项目日报</h2>
-                  <p className="mt-1 text-sm text-slate-500">默认展开需要关注的项目，正常项目可点击查看详情。</p>
+                  <p className="mt-1 text-sm text-slate-500">按风险优先排序，默认展开需要关注的项目，其他项目可点击查看详情。</p>
                 </div>
                 <div className="text-xs text-slate-500">
                   生成时间：{report?.generated_at ? new Date(report.generated_at).toLocaleString('zh-CN') : '-'}
@@ -490,11 +530,20 @@ export default function ConstructionDailyReportsPage() {
 
               {orderedProjects.length ? (
                 orderedProjects.map(project => (
-                  <ProjectCard key={project.project_id} project={project} defaultOpen={getProjectTone(project) !== 'steady'} />
+                  <ProjectCard key={project.project_id} project={project} defaultOpen={getProjectTone(project) === 'risk'} />
                 ))
               ) : (
-                <EmptyState message="当前日期暂无项目日报明细" />
+                <EmptyState message="当前日期暂无项目施工动态" />
               )}
+
+              {quietProjects.length > 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+                  <div className="font-medium text-slate-900">当日暂无动态项目</div>
+                  <p className="mt-2 leading-6">
+                    {quietProjects.map(project => project.project_name).join('、')}
+                  </p>
+                </div>
+              ) : null}
             </section>
           </>
         ) : (
