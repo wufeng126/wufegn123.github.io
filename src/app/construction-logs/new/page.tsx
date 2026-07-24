@@ -779,19 +779,33 @@ export default function NewConstructionLogPage() {
                       <label className="block text-sm font-medium text-[#1D2129]">现场照片附件</label>
                       <p className="mt-0.5 text-xs text-[#86909C]">可上传多张施工照片，提交后可在日志详情中查看</p>
                     </div>
-                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF] sm:w-auto">
-                      {photoUploading[draft.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
-                      {photoUploading[draft.id] ? '上传中...' : '上传照片'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        multiple
-                        onChange={event => handlePhotoUpload(draft.id, event)}
-                        disabled={photoUploading[draft.id]}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+                        {photoUploading[draft.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                        {photoUploading[draft.id] ? '上传中...' : '拍照'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          multiple
+                          onChange={event => handlePhotoUpload(draft.id, event)}
+                          disabled={photoUploading[draft.id]}
+                          className="hidden"
+                        />
+                      </label>
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+                        {photoUploading[draft.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                        {photoUploading[draft.id] ? '上传中...' : '上传照片'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={event => handlePhotoUpload(draft.id, event)}
+                          disabled={photoUploading[draft.id]}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
 
                   {draft.attachments.length > 0 ? (

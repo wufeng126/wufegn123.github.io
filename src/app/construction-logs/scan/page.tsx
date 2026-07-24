@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Camera, CheckCircle2, Loader2, RotateCcw, Search, Send, UserPlus, UsersRound } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, ImageIcon, Loader2, RotateCcw, Search, Send, UserPlus, UsersRound } from 'lucide-react';
 import { getDefaultConstructionLogDate } from '@/lib/construction-log-deadline';
 import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 import { isPublicLogRestrictedUser } from '@/lib/construction-log-role-rules';
@@ -374,7 +374,7 @@ export default function ConstructionLogScanPage() {
 
         <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
-            <label className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 text-center hover:border-[#165DFF] sm:min-h-[260px]">
+            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 text-center sm:min-h-[260px]">
               {previews.length > 0 ? (
                 <div className="grid w-full grid-cols-2 gap-2">
                   {previews.slice(0, 6).map((preview, index) => (
@@ -388,8 +388,19 @@ export default function ConstructionLogScanPage() {
                   <span className="mt-1 text-xs text-[#86909C]">可一次选择多张，建议照片清晰平整</span>
                 </>
               )}
-              <input type="file" accept="image/*" capture="environment" multiple onChange={handleFile} className="hidden" />
-            </label>
+              <div className="mt-4 grid w-full grid-cols-2 gap-2">
+                <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+                  <Camera className="h-4 w-4" />
+                  拍照识别
+                  <input type="file" accept="image/*" capture="environment" multiple onChange={handleFile} className="hidden" />
+                </label>
+                <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+                  <ImageIcon className="h-4 w-4" />
+                  上传照片
+                  <input type="file" accept="image/*" multiple onChange={handleFile} className="hidden" />
+                </label>
+              </div>
+            </div>
 
             {recognizing && (
               <div className="mt-3 flex items-center gap-2 rounded-lg bg-[#E8F3FF] px-3 py-2 text-sm text-[#165DFF]">
