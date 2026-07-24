@@ -38,7 +38,7 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/team-management/groups': ['team_groups:view', 'team_settlements:view'],
   '/team-settlement': ['team_groups:view', 'team_settlements:view'],
   '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
-  '/construction-logs': ['construction_logs:view', 'construction_logs:edit', 'construction_attendance:view'],
+  '/construction-logs': [],
   '/cost-estimation': [],
   '/knowledge': [],
   '/system-management': ['system:manage', 'system:permission_manage', 'system:dingtalk_manage', 'notifications:view', 'system:ai_manage', 'audit:view'],
@@ -58,6 +58,14 @@ const TOP_LEVEL_MENUS = [
   { name: '系统管理', href: '/system-management', icon: Settings },
 ];
 
+const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: typeof LayoutDashboard; permissions?: string[] }>> = {
+  '/construction-logs': [
+    { name: '项目日报汇总', href: '/construction-daily-reports', icon: FileSpreadsheet },
+    { name: '施工日志', href: '/construction-logs', icon: ClipboardList, permissions: ['construction_logs:view', 'construction_logs:edit'] },
+    { name: '人员出勤统计', href: '/construction-attendance', icon: Users, permissions: ['construction_attendance:view'] },
+  ],
+};
+
 // 页面标题映射
 const PAGE_TITLE_MAP: Record<string, string> = {
   '/': '业务工作台',
@@ -71,6 +79,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/business-analysis': '经营分析',
   '/construction-logs': '施工管理',
   '/construction-attendance': '人员出勤统计',
+  '/construction-daily-reports': '项目日报汇总',
   '/cost-estimation': '投标测算',
   '/knowledge': '知识库',
   '/system-management': '系统管理',
@@ -176,7 +185,7 @@ export default function SidebarLayout({
     if (['/hr-salary', '/workers', '/certificates'].some(p => pathname.startsWith(p))) return '/hr-salary';
 
     // 施工管理
-    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/construction-attendance') || pathname.startsWith('/reports/monthly')) return '/construction-logs';
+    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/construction-attendance') || pathname.startsWith('/construction-daily-reports')) return '/construction-logs';
 
     // 供应商与费用
     if (['/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/supplier-expense';
@@ -185,7 +194,7 @@ export default function SidebarLayout({
     if (pathname.startsWith('/team-management') || pathname.startsWith('/team-settlement')) return '/team-management/groups';
 
     // 经营分析
-    if (['/business-analysis', '/cost-center', '/data-board'].some(p => pathname.startsWith(p))) return '/business-analysis';
+    if (['/business-analysis', '/cost-center', '/data-board', '/reports/monthly'].some(p => pathname.startsWith(p))) return '/business-analysis';
 
     // 投标测算
     if (pathname.startsWith('/cost-estimation')) return '/cost-estimation/bid';
@@ -387,73 +396,102 @@ export default function SidebarLayout({
               .map((menu) => {
                 const isActive = activeMenu === menu.href;
                 const Icon = menu.icon;
+                const secondaryMenus = SECONDARY_MENUS[menu.href]?.filter(item => hasAnyPermission(item.permissions)) || [];
                 return (
-                  <Link
-                    key={menu.href}
-                    href={menu.href}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg transition-all duration-200 relative group',
-                      isEffectivelyCollapsed ? 'justify-center px-0 py-3' : 'px-3 py-3'
-                    )}
-                    style={{
-                      background: isActive ? '#EFF6FF' : 'transparent',
-                      color: isActive ? '#1D4ED8' : '#475569',
-                    }}
-                    onMouseOver={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
-                    onMouseOut={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                    title={isEffectivelyCollapsed ? menu.name : undefined}
-                    onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
-                  >
-                    {/* 左侧激活指示条 */}
-                    {isActive && (
-                      <div
-                        className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
-                        style={{
-                          width: '3px',
-                          height: '60%',
-                          background: '#2563EB',
-                          transition: 'all 0.2s ease',
-                        }}
-                      />
-                    )}
-                    <div
+                  <div key={menu.href}>
+                    <Link
+                      href={menu.href}
                       className={cn(
-                        'flex items-center justify-center flex-shrink-0 transition-all duration-200',
-                        isEffectivelyCollapsed ? 'w-8 h-8' : 'w-8 h-8'
+                        'flex items-center gap-3 rounded-lg transition-all duration-200 relative group',
+                        isEffectivelyCollapsed ? 'justify-center px-0 py-3' : 'px-3 py-3'
                       )}
                       style={{
-                        borderRadius: '8px',
-                        background: isActive ? '#DBEAFE' : '#F1F5F9',
+                        background: isActive ? '#EFF6FF' : 'transparent',
+                        color: isActive ? '#1D4ED8' : '#475569',
                       }}
+                      onMouseOver={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
+                      onMouseOut={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      title={isEffectivelyCollapsed ? menu.name : undefined}
+                      onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
                     >
-                      <Icon
-                        className="w-[18px] h-[18px] transition-colors duration-200"
-                        style={{ color: isActive ? '#2563EB' : '#64748B' }}
-                      />
-                    </div>
-                    {!isEffectivelyCollapsed && (
-                      <span
-                        className="text-[13px] transition-colors duration-200"
+                      {/* 左侧激活指示条 */}
+                      {isActive && (
+                        <div
+                          className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
+                          style={{
+                            width: '3px',
+                            height: '60%',
+                            background: '#2563EB',
+                            transition: 'all 0.2s ease',
+                          }}
+                        />
+                      )}
+                      <div
+                        className={cn(
+                          'flex items-center justify-center flex-shrink-0 transition-all duration-200',
+                          isEffectivelyCollapsed ? 'w-8 h-8' : 'w-8 h-8'
+                        )}
                         style={{
-                          color: isActive ? '#1D4ED8' : '#475569',
-                          fontWeight: isActive ? 600 : 400,
+                          borderRadius: '8px',
+                          background: isActive ? '#DBEAFE' : '#F1F5F9',
                         }}
                       >
-                        {menu.name}
-                      </span>
-                    )}
-                    {/* 激活指示圆点 */}
-                    {isActive && !isEffectivelyCollapsed && (
-                      <div style={{
-                        position: 'absolute',
-                        right: '12px',
-                        width: '5px',
-                        height: '5px',
-                        borderRadius: '50%',
-                        background: '#2563EB',
-                      }} />
-                    )}
-                  </Link>
+                        <Icon
+                          className="w-[18px] h-[18px] transition-colors duration-200"
+                          style={{ color: isActive ? '#2563EB' : '#64748B' }}
+                        />
+                      </div>
+                      {!isEffectivelyCollapsed && (
+                        <span
+                          className="text-[13px] transition-colors duration-200"
+                          style={{
+                            color: isActive ? '#1D4ED8' : '#475569',
+                            fontWeight: isActive ? 600 : 400,
+                          }}
+                        >
+                          {menu.name}
+                        </span>
+                      )}
+                      {/* 激活指示圆点 */}
+                      {isActive && !isEffectivelyCollapsed && secondaryMenus.length === 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          right: '12px',
+                          width: '5px',
+                          height: '5px',
+                          borderRadius: '50%',
+                          background: '#2563EB',
+                        }} />
+                      )}
+                    </Link>
+
+                    {isActive && !isEffectivelyCollapsed && secondaryMenus.length > 0 ? (
+                      <div className="mt-1 space-y-1 pb-1 pl-11">
+                        {secondaryMenus.map((item) => {
+                          const SubIcon = item.icon;
+                          const isSubActive = item.href === '/construction-logs'
+                            ? pathname.startsWith('/construction-logs')
+                            : pathname.startsWith(item.href);
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className="flex items-center gap-2 rounded-md px-3 py-2 text-xs transition"
+                              style={{
+                                background: isSubActive ? '#F1F5FF' : 'transparent',
+                                color: isSubActive ? '#1D4ED8' : '#64748B',
+                                fontWeight: isSubActive ? 600 : 400,
+                              }}
+                              onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
+                            >
+                              <SubIcon className="h-3.5 w-3.5" />
+                              <span>{item.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
           </div>

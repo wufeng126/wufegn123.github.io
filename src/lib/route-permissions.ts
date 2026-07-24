@@ -57,7 +57,7 @@ export interface RoutePermissionConfig {
  */
 export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   // === 根路由 ===
-  '/': { permission: 'projects:view' },
+  '/': {},
 
   // === API 路由（生产环境必需注册，否则 403） ===
   '/api/workspace/todos': {},
@@ -67,7 +67,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/construction-logs/stats': { permission: 'projects:view' },
   '/api/construction-logs/risks': { permission: 'projects:view' },
   '/api/construction-logs/ocr': { permission: 'projects:view' },
-  '/api/construction-daily-reports': { permission: 'projects:view' },
+  '/api/construction-daily-reports': {},
   '/api/cost-estimation': { permission: 'projects:view' },
   '/api/cost-estimation/stats': { permission: 'projects:view' },
   '/api/cost-estimation/work-types': { permission: 'projects:view' },
@@ -95,7 +95,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/team-settlements': { permission: 'team_settlements:view' },
 
   // === 新导航容器页 ===
-  '/workspace': { permission: 'projects:view' },
+  '/workspace': {},
   '/project-center': { permission: 'projects:view' },
   '/hr-salary': { permission: 'workers:view' },
   '/supplier-expense': { permission: 'suppliers:view' },
@@ -109,7 +109,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/construction-logs/scan': { permission: 'construction_logs:edit' },
   '/construction-logs': { permission: 'construction_logs:view' },
   '/construction-attendance': { permission: 'construction_attendance:view' },
-  '/construction-daily-reports': { permission: 'projects:view' },
+  '/construction-daily-reports': {},
   '/cost-estimation': {},
   '/knowledge': {},
   '/system-management': { permission: 'system:manage' },

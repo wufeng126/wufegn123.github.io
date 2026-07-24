@@ -18,6 +18,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view'],
   '/construction-logs': ['construction_logs:view', 'construction_logs:edit'],
   '/construction-attendance': ['construction_attendance:view'],
+  '/construction-daily-reports': [],
   '/system-management': ['system:manage'],
 
   // === 项目经营模块 ===
