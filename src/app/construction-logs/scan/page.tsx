@@ -73,7 +73,6 @@ export default function ConstructionLogScanPage() {
   const [content, setContent] = useState('');
   const [headcount, setHeadcount] = useState('');
   const [issues, setIssues] = useState('');
-  const [rawText, setRawText] = useState('');
   const [previews, setPreviews] = useState<string[]>([]);
   const [recognizedFiles, setRecognizedFiles] = useState<RecognizedFile[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -191,7 +190,6 @@ export default function ConstructionLogScanPage() {
     if (files.length === 0) return;
 
     setMessage('');
-    setRawText('');
     setWarnings([]);
     setRecognizedFiles([]);
     setPreviews(files.map(file => URL.createObjectURL(file)));
@@ -205,15 +203,10 @@ export default function ConstructionLogScanPage() {
 
       const data = json.data || {};
       const draft = data.draft || {};
-      setRawText(data.rawText || '');
-      if (draft.log_date) setLogDate(draft.log_date);
-      if (draft.location) setLocation(draft.location);
       if (draft.content) setContent(draft.content);
-      if (draft.headcount) setHeadcount(draft.headcount);
-      if (draft.issues) setIssues(draft.issues);
       setRecognizedFiles(Array.isArray(data.files) ? data.files : []);
       setWarnings(Array.isArray(data.warnings) ? data.warnings : data.warning ? [data.warning] : []);
-      setMessage(data.warning || '已自动整理为草稿，请人工核对后提交');
+      setMessage(data.warning || '已自动纠错整理施工内容，请人工核对后提交');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '识别失败，请人工补录');
     } finally {
@@ -273,7 +266,6 @@ export default function ConstructionLogScanPage() {
     setContent('');
     setHeadcount('');
     setIssues('');
-    setRawText('');
     setPreviews([]);
     setRecognizedFiles([]);
     setWarnings([]);
@@ -424,14 +416,6 @@ export default function ConstructionLogScanPage() {
               </div>
             )}
 
-            {rawText && (
-              <div className="mt-4">
-                <h2 className="mb-2 text-sm font-semibold text-[#1D2129]">识别原文</h2>
-                <div className="max-h-[220px] overflow-auto rounded-lg border border-[#E5E6EB] bg-[#FAFBFF] p-3 text-xs leading-5 text-[#4E5969] whitespace-pre-wrap">
-                  {rawText}
-                </div>
-              </div>
-            )}
           </div>
 
           <form onSubmit={handleSubmit} className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">

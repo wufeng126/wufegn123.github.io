@@ -17,77 +17,80 @@ export interface ConstructionLogOcrQuality {
   warnings: string[];
 }
 
-function pickLine(lines: string[], labels: string[]) {
-  const line = lines.find(item => labels.some(label => item.includes(label)));
-  if (!line) return '';
-  const [, value = ''] = line.split(/[:：]/);
-  return value.trim();
+const PAGE_MARK_REGEX = /^【第\d+张】/;
+const FIELD_LABEL_REGEX = /^(项目名称|项目|工程名称|日期|施工日期|记录日期|记录人|填报人|天气|温度|班组|工种|出勤|出勤人数|人数|施工部位|施工位置|部位|位置|备注)\s*[:：]?\s*/;
+const CONTENT_LABEL_REGEX = /^(施工内容|工作内容|今日施工|完成内容|主要内容|施工情况)\s*[:：]?\s*/;
+
+const COMMON_OCR_FIXES: Array<[RegExp, string]> = [
+  [/摸板/g, '模板'],
+  [/模版/g, '模板'],
+  [/钢筋邦扎/g, '钢筋绑扎'],
+  [/绑札/g, '绑扎'],
+  [/支摸/g, '支模'],
+  [/浇注/g, '浇筑'],
+  [/混泥土/g, '混凝土'],
+  [/砼土/g, '混凝土'],
+  [/保温板粘贴/g, '保温板粘贴'],
+  [/挂网抹灰/g, '挂网抹灰'],
+  [/腻子打磨/g, '腻子打磨'],
+  [/圾圾/g, '垃圾'],
+  [/清里/g, '清理'],
+  [/材枓/g, '材料'],
+  [/机戒/g, '机械'],
+  [/安荃/g, '安全'],
+  [/质量/g, '质量'],
+  [/验收合格/g, '验收合格'],
+];
+
+function normalizeWhitespace(rawText: string) {
+  return rawText
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
-function normalizeDate(text: string) {
-  const match = text.match(/(20\d{2})[年\-/.](\d{1,2})[月\-/.](\d{1,2})/);
-  if (!match) return '';
-  const [, year, month, day] = match;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+function applyCommonOcrFixes(text: string) {
+  return COMMON_OCR_FIXES.reduce((result, [pattern, replacement]) => result.replace(pattern, replacement), text);
 }
 
-function pickBlock(lines: string[], labels: string[]) {
-  const start = lines.findIndex(line => labels.some(label => line.includes(label)));
-  if (start < 0) return '';
-  return lines
-    .slice(start, Math.min(start + 5, lines.length))
-    .map((line, index) => index === 0 ? line.replace(/^.*?[:：]/, '').trim() : line)
+function removeNoiseLines(lines: string[]) {
+  const contentLabelIndex = lines.findIndex(line => CONTENT_LABEL_REGEX.test(line));
+  const sourceLines = contentLabelIndex >= 0 ? lines.slice(contentLabelIndex) : lines;
+
+  return sourceLines
+    .map(line => line.replace(PAGE_MARK_REGEX, '').trim())
+    .map(line => line.replace(CONTENT_LABEL_REGEX, '').trim())
     .filter(Boolean)
-    .join('\n');
+    .filter(line => {
+      if (FIELD_LABEL_REGEX.test(line) && line.length <= 24) return false;
+      if (/^(上午|下午|晚上)?\s*$/.test(line)) return false;
+      return true;
+    });
+}
+
+export function normalizeConstructionLogContent(rawText: string) {
+  const text = normalizeWhitespace(rawText);
+  if (!text) return '';
+
+  const lines = text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const cleaned = removeNoiseLines(lines)
+    .join('\n')
+    .replace(/[;；]\s*/g, '；')
+    .replace(/[、]{2,}/g, '、')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return applyCommonOcrFixes(cleaned);
 }
 
 export function parseConstructionLogText(rawText: string): ParsedConstructionLogDraft {
-  const text = rawText.replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-  const location = pickLine(lines, ['施工部位', '施工位置', '部位', '位置']);
-  const issues = pickLine(lines, ['异常', '问题', '存在问题', '质量问题', '安全问题']);
-  const headcountLine = pickLine(lines, ['出勤', '人数', '工人']);
-  const headcount = headcountLine.match(/\d+/)?.[0] || text.match(/(\d+)\s*(人|名)/)?.[1] || '';
-  const logDate = normalizeDate(text);
-  const materials = pickBlock(lines, ['材料', '进场材料', '材料使用']);
-  const machines = pickBlock(lines, ['机械', '设备', '台班']);
-  const coordination = pickBlock(lines, ['协调', '交底', '会议', '甲方', '监理']);
-
-  const contentLabelIndex = lines.findIndex(line => ['施工内容', '工作内容', '今日施工'].some(label => line.includes(label)));
-  let content = '';
-  if (contentLabelIndex >= 0) {
-    content = lines
-      .slice(contentLabelIndex, Math.min(contentLabelIndex + 8, lines.length))
-      .map(line => line.replace(/^(施工内容|工作内容|今日施工)\s*[:：]?/, '').trim())
-      .filter(Boolean)
-      .join('\n');
-  }
-
-  if (!content) {
-    content = lines
-      .filter(line => !line.includes('施工部位') && !line.includes('出勤') && !line.includes('异常'))
-      .slice(0, 10)
-      .join('\n');
-  }
-
-  const extraBlocks = [
-    materials ? `材料：${materials}` : '',
-    machines ? `机械设备：${machines}` : '',
-    coordination ? `协调事项：${coordination}` : '',
-  ].filter(Boolean);
-  if (extraBlocks.length > 0) {
-    content = [content, ...extraBlocks].filter(Boolean).join('\n\n');
-  }
-
   return {
-    log_date: logDate || undefined,
-    location: location || undefined,
-    content,
-    headcount: headcount || undefined,
-    issues: issues || undefined,
-    materials: materials || undefined,
-    machines: machines || undefined,
-    coordination: coordination || undefined,
+    content: normalizeConstructionLogContent(rawText),
   };
 }
 
@@ -96,16 +99,22 @@ export function analyzeConstructionLogOcrQuality(
   draft: ParsedConstructionLogDraft,
 ): ConstructionLogOcrQuality {
   const textLength = rawText.replace(/\s/g, '').length;
+  const contentLength = (draft.content || '').replace(/\s/g, '').length;
   const warnings: string[] = [];
-  if (textLength < 30) warnings.push('识别文字偏少，建议补拍更清晰、更完整的日志页。');
-  if (!draft.log_date) warnings.push('未识别到日期，请人工确认日期。');
-  if (!draft.location) warnings.push('未识别到施工部位，请人工补充。');
-  if (!draft.content || draft.content.replace(/\s/g, '').length < 10) warnings.push('施工内容不完整，请人工补充后再提交。');
+
+  if (textLength === 0) {
+    warnings.push('未识别到明显文字，已尽量生成草稿，请重点核对施工内容。');
+  } else if (textLength < 18 || contentLength < 10) {
+    warnings.push('图片识别质量较低，已尽量整理，请重点核对施工内容。');
+  } else {
+    warnings.push('已根据图片自动纠错整理施工内容，请提交前核对。');
+  }
+
   return {
     textLength,
-    hasDate: Boolean(draft.log_date),
-    hasLocation: Boolean(draft.location),
-    hasContent: Boolean(draft.content && draft.content.replace(/\s/g, '').length >= 10),
+    hasDate: false,
+    hasLocation: false,
+    hasContent: contentLength >= 10,
     warnings,
   };
 }
