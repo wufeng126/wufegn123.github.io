@@ -10,6 +10,7 @@ import {
   getDefaultConstructionLogDate,
 } from '@/lib/construction-log-deadline';
 import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
+import { isPublicLogRestrictedUser } from '@/lib/construction-log-role-rules';
 import { usePermission } from '@/contexts/permission-context';
 
 type Project = { id: number | string; name: string; is_archived?: boolean };
@@ -54,6 +55,7 @@ type ProjectLogDraft = {
 };
 
 const EMPTY_WORK_TYPE = '__empty_work_type__';
+const PUBLIC_LOG_PROJECT_NAME = '\u516c\u53f8\u516c\u5171\u9879\u76ee/\u975e\u9879\u76ee\u65e5\u5fd7';
 
 const emptyAttendanceOptions: AttendanceOptions = {
   workers: [],
@@ -140,7 +142,11 @@ export default function NewConstructionLogPage() {
       .then(r => r.json())
       .then(j => {
         const list = Array.isArray(j.projects)
-          ? j.projects.filter((project: Project) => !project.is_archived)
+          ? j.projects
+            .filter((project: Project) => !project.is_archived)
+            .filter((project: Project) => (
+              !(isPublicLogRestrictedUser(user) && project.name === PUBLIC_LOG_PROJECT_NAME)
+            ))
           : [];
         setProjects(list);
         if (list.length > 0) {
@@ -150,7 +156,7 @@ export default function NewConstructionLogPage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const projectIds = Array.from(new Set(drafts.map(draft => draft.project_id).filter(Boolean)));

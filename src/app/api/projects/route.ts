@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { ensurePublicLogProject, isPublicLogProject, PUBLIC_LOG_PROJECT_TYPE } from '@/lib/public-log-project';
+import { isUserRestrictedFromPublicConstructionLog } from '@/lib/construction-log-submitters';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -178,6 +179,10 @@ export async function GET(request: NextRequest) {
         filteredProjects = includePublicLog ? filteredProjects.filter(project => isPublicLogProject(project)) : [];
       } else {
         filteredProjects = includePublicLog ? (data || []) : (data || []).filter(project => !isPublicLogProject(project));
+      }
+
+      if (includePublicLog && await isUserRestrictedFromPublicConstructionLog(client, Number(user.id), user.role)) {
+        filteredProjects = filteredProjects.filter(project => !isPublicLogProject(project));
       }
     }
     

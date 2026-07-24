@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RotateCcw, Search, Send, UserPlus, UsersRound } from 'lucide-react';
 import { getDefaultConstructionLogDate } from '@/lib/construction-log-deadline';
 import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
+import { isPublicLogRestrictedUser } from '@/lib/construction-log-role-rules';
+import { usePermission } from '@/contexts/permission-context';
 
 type Project = { id: number | string; name: string; is_archived?: boolean };
 type RecognizedFile = { name: string; size: number; storageKey?: string; textLength?: number };
@@ -27,6 +29,7 @@ type AttendanceOptions = {
 };
 
 const EMPTY_WORK_TYPE = '__empty_work_type__';
+const PUBLIC_LOG_PROJECT_NAME = '\u516c\u53f8\u516c\u5171\u9879\u76ee/\u975e\u9879\u76ee\u65e5\u5fd7';
 
 const emptyAttendanceOptions: AttendanceOptions = {
   workers: [],
@@ -62,6 +65,7 @@ function filterWorkers(workers: AttendanceWorker[], keyword: string, workType: s
 
 export default function ConstructionLogScanPage() {
   const router = useRouter();
+  const { user } = usePermission();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState('');
   const [logDate, setLogDate] = useState(getDefaultConstructionLogDate());
@@ -91,13 +95,17 @@ export default function ConstructionLogScanPage() {
       .then(res => res.json())
       .then(json => {
         const list = Array.isArray(json.projects)
-          ? json.projects.filter((project: Project) => !project.is_archived)
+          ? json.projects
+            .filter((project: Project) => !project.is_archived)
+            .filter((project: Project) => (
+              !(isPublicLogRestrictedUser(user) && project.name === PUBLIC_LOG_PROJECT_NAME)
+            ))
           : [];
         setProjects(list);
         if (list.length > 0) setProjectId(String(list[0].id));
       })
       .catch(() => setMessage('项目列表加载失败'));
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;

@@ -4,6 +4,7 @@ import { parseProjectIds } from '@/lib/api-project-access';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { isMissingProjectRolesTable } from '@/lib/user-project-roles';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
+import { isPublicLogExemptRole, isPublicLogRestrictedRole } from '@/lib/construction-log-role-rules';
 
 type RoleRow = {
   id?: number | string | null;
@@ -29,6 +30,11 @@ type UserRow = {
 
 type SubmitterRow = {
   user_id?: number | string | null;
+};
+
+type ProjectRoleRow = {
+  user_id?: number | string | null;
+  role_code?: string | null;
 };
 
 function normalizeText(value: unknown) {
@@ -103,7 +109,58 @@ export async function getConstructionLogSubmitterIds(client: SupabaseClient, pro
   return { configured: userIds.length > 0, userIds: Array.from(new Set(userIds)) };
 }
 
+export async function isUserRestrictedFromPublicConstructionLog(client: SupabaseClient, userId: number, fallbackRole?: string | null) {
+  if (isPublicLogExemptRole(fallbackRole)) return false;
+  if (isPublicLogRestrictedRole(fallbackRole)) return true;
+
+  const [{ data: userRow }, { data: projectRoles, error: projectRoleError }, { data: userRoles }, { data: roles }] = await Promise.all([
+    client
+      .from('users')
+      .select('id,role')
+      .eq('id', userId)
+      .maybeSingle(),
+    client
+      .from('user_project_roles')
+      .select('user_id,role_code')
+      .eq('user_id', userId),
+    client
+      .from('user_roles')
+      .select('user_id,role_id')
+      .eq('user_id', userId),
+    client
+      .from('roles')
+      .select('id,code,name,is_super_admin'),
+  ]);
+
+  if (isPublicLogExemptRole(userRow as { role?: string | null } | null)) return false;
+  if (isPublicLogRestrictedRole(userRow as { role?: string | null } | null)) return true;
+
+  const projectRoleRows = projectRoleError && isMissingProjectRolesTable(projectRoleError)
+    ? []
+    : ((Array.isArray(projectRoles) ? projectRoles : []) as ProjectRoleRow[]);
+  if (projectRoleRows.some((row) => isPublicLogRestrictedRole(row.role_code))) return true;
+
+  const roleIds = new Set(
+    ((Array.isArray(userRoles) ? userRoles : []) as UserRoleRow[])
+      .map((row) => Number(row.role_id))
+      .filter((roleId) => Number.isInteger(roleId)),
+  );
+  const matchedRoles = ((Array.isArray(roles) ? roles : []) as RoleRow[]).filter((role) => roleIds.has(Number(role.id)));
+  if (matchedRoles.some((role) => isPublicLogExemptRole(role))) return false;
+  return matchedRoles.some((role) => isPublicLogRestrictedRole(role));
+}
+
 export async function canUserSubmitConstructionLog(client: SupabaseClient, projectId: number, userId: number) {
+  const { data: projectRow } = await client
+    .from('projects')
+    .select('id,name')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  if ((projectRow as { name?: string } | null)?.name === PUBLIC_LOG_PROJECT_NAME) {
+    return !(await isUserRestrictedFromPublicConstructionLog(client, userId));
+  }
+
   const scope = await getConstructionLogSubmitterIds(client, projectId);
   return !scope.configured || scope.userIds.includes(userId);
 }
@@ -138,7 +195,7 @@ export async function getProjectSubmitterCandidates(client: SupabaseClient, proj
   return ((Array.isArray(users) ? users : []) as UserRow[])
     .filter((user) => !user.is_disabled && user.role !== 'pending')
     .filter((user) => {
-      if (isPublicLogProject) return true;
+      if (isPublicLogProject) return !isPublicLogRestrictedRole(user.role);
       if (projectRoleUserIds.has(Number(user.id))) return true;
       return parseProjectIds(user.managed_projects).includes(projectId);
     })
