@@ -58,13 +58,7 @@ const TOP_LEVEL_MENUS = [
   { name: '系统管理', href: '/system-management', icon: Settings },
 ];
 
-const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: typeof LayoutDashboard; permissions?: string[] }>> = {
-  '/construction-logs': [
-    { name: '项目日报汇总', href: '/construction-daily-reports', icon: FileSpreadsheet },
-    { name: '施工日志', href: '/construction-logs', icon: ClipboardList, permissions: ['construction_logs:view', 'construction_logs:edit'] },
-    { name: '人员出勤统计', href: '/construction-attendance', icon: Users, permissions: ['construction_attendance:view'] },
-  ],
-};
+const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: typeof LayoutDashboard; permissions?: string[] }>> = {};
 
 // 页面标题映射
 const PAGE_TITLE_MAP: Record<string, string> = {

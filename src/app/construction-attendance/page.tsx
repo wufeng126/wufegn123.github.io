@@ -158,7 +158,7 @@ export default function ConstructionAttendancePage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
-            <Link href="/construction-logs" className="rounded-lg border border-[#E5E6EB] bg-white p-2 text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
+            <Link href="/construction-logs?tab=logs" className="rounded-lg border border-[#E5E6EB] bg-white p-2 text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>

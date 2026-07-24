@@ -107,7 +107,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/business-analysis': {},
   '/construction-logs/new': { permission: 'construction_logs:edit' },
   '/construction-logs/scan': { permission: 'construction_logs:edit' },
-  '/construction-logs': { permission: 'construction_logs:view' },
+  '/construction-logs': {},
   '/construction-attendance': { permission: 'construction_attendance:view' },
   '/construction-daily-reports': {},
   '/cost-estimation': {},

@@ -51,7 +51,7 @@ type QuickEntry = {
 };
 
 const quickEntries: QuickEntry[] = [
-  { title: '项目日报汇总', desc: '查看每日公司总览和项目明细', href: '/construction-daily-reports', icon: ClipboardCheck, tone: 'bg-teal-50 text-teal-700 ring-teal-100' },
+  { title: '项目日报汇总', desc: '查看每日公司总览和项目明细', href: '/construction-logs?tab=daily-reports', icon: ClipboardCheck, tone: 'bg-teal-50 text-teal-700 ring-teal-100' },
   { title: '拍照录施工日志', desc: '手写日志拍照识别', href: '/construction-logs/scan', icon: Camera, tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
   { title: '新建施工日志', desc: '按时提交每日日志', href: '/construction-logs/new', icon: PenSquare, tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
   { title: '查看我的日志', desc: '查看已提交和待确认日志', href: '/construction-logs?tab=logs&mine=1', icon: FileSearch, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
@@ -67,7 +67,7 @@ const siteStaffQuickEntryHrefs = new Set([
   '/construction-logs/scan',
   '/construction-logs/new',
   '/construction-logs?tab=logs&mine=1',
-  '/construction-daily-reports',
+  '/construction-logs?tab=daily-reports',
   '/workers/query',
 ]);
 
