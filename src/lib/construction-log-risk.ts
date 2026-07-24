@@ -1,6 +1,6 @@
 export type ConstructionRiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
 export type ConstructionRiskLevel = 'low' | 'medium' | 'high';
-export type ConstructionRiskWorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
+export type ConstructionRiskWorkflowStatus = 'pending' | 'confirmed' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
 
 export interface ConstructionLogRisk {
   hasRisk: boolean;
@@ -84,6 +84,7 @@ export function getRiskLevelLabel(level?: ConstructionRiskLevel | null) {
 export function getRiskWorkflowStatusLabel(status?: ConstructionRiskWorkflowStatus | string | null) {
   const map: Record<string, string> = {
     pending: '待确认',
+    confirmed: '已确认',
     ignored: '确认无影响',
     resolved: '已处理',
     monthly: '待入月报',
@@ -96,6 +97,7 @@ export function getRiskWorkflowStatusLabel(status?: ConstructionRiskWorkflowStat
 export function getRiskWorkflowStatusFromTags(tags?: string[] | null): ConstructionRiskWorkflowStatus {
   const statusTag = (tags || []).find(tag => tag.startsWith('风险状态:'));
   const label = statusTag?.replace('风险状态:', '').trim();
+  if (label === '已确认') return 'confirmed';
   if (label === '确认无影响') return 'ignored';
   if (label === '已处理') return 'resolved';
   if (label === '加入月报说明' || label === '待入月报') return 'monthly';

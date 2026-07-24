@@ -12,9 +12,10 @@ import {
 } from '@/lib/construction-log-risk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-type RiskAction = 'monthly' | 'mark_monthly_included';
+type RiskAction = 'acknowledge' | 'monthly' | 'mark_monthly_included';
 
 const ACTION_CONFIG: Record<RiskAction, { status: ConstructionRiskWorkflowStatus; label: string }> = {
+  acknowledge: { status: 'confirmed', label: '已确认' },
   monthly: { status: 'monthly', label: '待入月报' },
   mark_monthly_included: { status: 'monthly_included', label: '已进入月报' },
 };

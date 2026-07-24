@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
             stats: {
               total: 0,
               pending: 0,
+              confirmed: 0,
               visaCreated: 0,
               monthly: 0,
               monthlyIncluded: 0,
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
             stats: {
               total: 0,
               pending: 0,
+              confirmed: 0,
               visaCreated: 0,
               monthly: 0,
               monthlyIncluded: 0,
@@ -139,6 +141,7 @@ export async function GET(request: NextRequest) {
         stats: {
           total: risks.length,
           pending: risks.filter((item: any) => item.workflow_status === 'pending').length,
+          confirmed: risks.filter((item: any) => item.workflow_status === 'confirmed').length,
           visaCreated: risks.filter((item: any) => item.workflow_status === 'visa_created').length,
           monthly: risks.filter((item: any) => item.workflow_status === 'monthly').length,
           monthlyIncluded: risks.filter((item: any) => item.workflow_status === 'monthly_included').length,

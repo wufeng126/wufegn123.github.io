@@ -24,7 +24,7 @@ import { usePermission } from '@/contexts/permission-context';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
-type WorkflowStatus = 'pending' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
+type WorkflowStatus = 'pending' | 'confirmed' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
 
 type LogItem = {
   id: number;
@@ -121,6 +121,7 @@ const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
 
 const STATUS_LABELS: Record<WorkflowStatus, string> = {
   pending: '待确认',
+  confirmed: '已确认',
   ignored: '确认无影响',
   resolved: '已处理',
   monthly: '待入月报',
@@ -136,6 +137,7 @@ function riskBadgeClass(level?: RiskLevel | null) {
 
 function statusClass(status: WorkflowStatus) {
   if (status === 'pending') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
+  if (status === 'confirmed') return 'border-[#10B981] bg-[#E8FFEA] text-[#047857]';
   if (status === 'visa_created') return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
   if (status === 'monthly') return 'border-[#7C3AED] bg-[#F3E8FF] text-[#6D28D9]';
   if (status === 'monthly_included') return 'border-[#10B981] bg-[#E8FFEA] text-[#047857]';
@@ -245,7 +247,7 @@ export default function ConstructionLogsPage() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [statsProjectId, setStatsProjectId] = useState('all');
   const [riskStatus, setRiskStatus] = useState<'all' | WorkflowStatus>(
-    statusParam === 'pending' || statusParam === 'ignored' || statusParam === 'resolved' || statusParam === 'monthly' || statusParam === 'monthly_included' || statusParam === 'visa_created'
+    statusParam === 'pending' || statusParam === 'confirmed' || statusParam === 'ignored' || statusParam === 'resolved' || statusParam === 'monthly' || statusParam === 'monthly_included' || statusParam === 'visa_created'
       ? statusParam
       : 'all',
   );
@@ -384,18 +386,22 @@ export default function ConstructionLogsPage() {
   const submittedProjects = statsSummary.submitted_projects;
   const logDateGroups = useMemo(() => groupLogsByDate(logs.slice(0, 80)), [logs]);
 
-  async function handleRiskAction(logId: number) {
+  async function handleRiskAction(logId: number, action: 'acknowledge' | 'monthly') {
     setActionBusy(logId);
     setMessage('');
     try {
       const res = await fetch('/api/construction-logs/risks/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logId, action: 'monthly', note: '纳入月度报告风险提醒候选' }),
+        body: JSON.stringify({
+          logId,
+          action,
+          note: action === 'acknowledge' ? '风险提醒已人工确认' : '纳入月度报告风险提醒候选',
+        }),
       });
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '标记失败');
-      setMessage('已标记为待入月报，月报保存后会自动回写为已进入月报');
+      setMessage(action === 'acknowledge' ? '已确认该风险提醒' : '已标记为待入月报，月报保存后会自动回写为已进入月报');
       await loadRisks();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '标记失败');
@@ -598,7 +604,11 @@ export default function ConstructionLogsPage() {
                     <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
                       查看详情
                     </Link>
-                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id)} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#7C3AED] px-3 text-xs font-medium text-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50">
+                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id, 'acknowledge')} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#10B981] px-3 text-xs font-medium text-[#047857] disabled:cursor-not-allowed disabled:opacity-50">
+                      <FileCheck2 className="h-3.5 w-3.5" />
+                      {risk.workflow_status === 'confirmed' ? '已确认' : '确认提醒'}
+                    </button>
+                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id, 'monthly')} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#7C3AED] px-3 text-xs font-medium text-[#6D28D9] disabled:cursor-not-allowed disabled:opacity-50">
                       <BookOpenCheck className="h-3.5 w-3.5" />
                       {risk.workflow_status === 'monthly_included' ? '已进月报' : risk.workflow_status === 'monthly' ? '待入月报' : '纳入月报'}
                     </button>
