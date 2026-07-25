@@ -18,6 +18,7 @@ import {
   KNOWLEDGE_QUALITY_LEVELS,
   getKnowledgeCategoryLabel,
   getKnowledgeQuality,
+  getKnowledgeScenarioTags,
   getKnowledgeSourceLabel,
   normalizeKnowledgeTags,
 } from '@/lib/knowledge-taxonomy';
@@ -177,6 +178,23 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function compactText(content?: string | null, limit = 96) {
+  const text = stripMarkdown(content);
+  if (!text) return '暂无摘要，建议在详情中补充结论、适用场景和复用要点。';
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function getSuggestedAction(doc: KnowledgeDoc, tags: string[]) {
+  const category = getCategoryLabel(doc);
+  if (category === '投标策略') return '投标前先核对同类项目报价、风险项和管理费口径，再形成测算假设。';
+  if (category === '成本经验') return '报价或结算前复核人工、材料、班组单价差异，异常项单独备注。';
+  if (category === '签证变更') return '现场发生同类事项时，优先准备影像、工程量、甲方签字和结算依据。';
+  if (category === '施工管理') return '施工过程中遇到相似内容时，提前提醒项目负责人关注进度、质量和人员投入。';
+  if (category === '合同结算') return '用于结算、回款和合同条款核对，关键金额和时间节点要二次确认。';
+  if (category === '月度分析' || tags.includes('月度分析')) return '下月复盘时对照问题、措施和结果，沉淀可复制的管理动作。';
+  return '用于同类项目复盘和新项目准备，先确认适用条件，再复用到当前业务。';
 }
 
 function buildGraph(docs: KnowledgeDoc[], width: number, height: number) {
@@ -609,6 +627,7 @@ export default function KnowledgePage() {
   const [pendingOnly, setPendingOnly] = useState(statusFromUrl === 'pending');
   const [showMoreCategories, setShowMoreCategories] = useState(false);
   const [activeQuality, setActiveQuality] = useState('全部等级');
+  const [selectedDocId, setSelectedDocId] = useState<string | number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -673,259 +692,302 @@ export default function KnowledgePage() {
       }
 
       return matchesKeyword && matchesCategory && matchesQuality;
-    });
+    }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
   }, [docs, query, activeCategory, activeQuality, currentUser, pendingOnly]);
 
+  const selectedDoc = useMemo(() => {
+    return filteredDocs.find(doc => String(doc.id) === String(selectedDocId)) || filteredDocs[0] || null;
+  }, [filteredDocs, selectedDocId]);
+
+  const categoryStats = useMemo(() => {
+    return categories.map(category => {
+      const count = category === '全部'
+        ? docs.length
+        : docs.filter(doc => getCategoryLabel(doc) === category).length;
+      return { category, count };
+    });
+  }, [docs]);
+
+  const metricCards = useMemo(() => {
+    const recommended = (qualityStats['推荐复用'] || 0) + (qualityStats['标准经验'] || 0);
+    const riskHits = docs.filter(doc => {
+      const tags = normalizeKnowledgeTags(doc.tags);
+      return getCategoryLabel(doc) === '施工管理' || tags.some(tag => tag.includes('风险'));
+    }).length;
+    return [
+      { label: '经验总数', value: docs.length, hint: '全部沉淀', color: '#165DFF' },
+      { label: '推荐复用', value: recommended, hint: '可直接参考', color: '#D46B08' },
+      { label: '风险命中', value: riskHits, hint: '施工与经营提醒', color: '#F59E0B' },
+      { label: '待复核', value: pendingCount, hint: pendingCount > 0 ? '需要处理' : '暂无待办', color: '#00A870' },
+    ];
+  }, [docs, pendingCount, qualityStats]);
+
+  const selectedTags = selectedDoc ? normalizeKnowledgeTags(selectedDoc.tags) : [];
+  const selectedCategory = selectedDoc ? getCategoryLabel(selectedDoc) : '';
+  const selectedQuality = selectedDoc ? getKnowledgeQuality(selectedTags, selectedDoc.source_type, selectedDoc.category) : '';
+  const selectedSource = selectedDoc ? getKnowledgeSourceLabel(selectedDoc.source_type, selectedDoc.source_ref, selectedTags) : '';
+  const selectedScenarioTags = selectedDoc ? getKnowledgeScenarioTags(selectedCategory, selectedTags) : [];
+
   return (
-    <div className="min-h-full bg-[var(--bg-page)] p-3 md:p-6">
+    <div className="min-h-full bg-[#F5F7FB] p-3 md:p-6">
       <style jsx global>{`
-        .kb-card { border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03); padding: 16px; }
-        @media (min-width:768px) { .kb-card { padding: 20px; } }
-        .kb-section-title { display: flex; align-items: center; gap: 8px; color: #1D2129; font-size: 15px; font-weight: 600; }
-        .kb-pill { white-space: nowrap; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 510; border: none; background: transparent; color: #8A8F98; transition: all .15s; }
-        .kb-pill-active, .kb-pill:hover { background: #165DFF; color: #FFF; border-color: #165DFF; }
-        .kb-stat { border: 1px solid #E5E6EB; border-radius: 10px; background: linear-gradient(180deg,#FFF,#F8FAFF); padding: 12px; text-align: center; }
-        .kb-stat span { color: #165DFF; font-size: 20px; font-weight: 700; }
-        .kb-stat p { margin-top: 2px; color: #86909C; font-size: 12px; }
+        .kb-panel { border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF; box-shadow: 0 8px 20px rgba(15,23,42,0.035); }
+        .kb-pill { white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1px solid transparent; color: #64748B; transition: all .15s; }
+        .kb-pill-active, .kb-pill:hover { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
       `}</style>
 
-      {/* 标题+操作 */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#171717] md:text-2xl">知识库</h1>
-          <p className="mt-0.5 text-xs text-[#8A8F98] md:text-sm">项目经验 · 成本经验 · 标准资料 · 复用沉淀</p>
+          <h1 className="text-xl font-bold text-[#0F172A] md:text-2xl">知识库经验台账</h1>
+          <p className="mt-1 text-xs text-[#64748B] md:text-sm">公司经验大脑：自动萃取、人工沉淀、业务调用。</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {pendingCount > 0 && (
-            <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[#F53F3F] text-white">{pendingCount} 条待处理</span>
+            <button
+              type="button"
+              onClick={() => setPendingOnly(true)}
+              className="inline-flex h-9 items-center rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3 text-xs font-semibold text-[#DC2626]"
+            >
+              待复核 {pendingCount}
+            </button>
           )}
-          <Link href="/knowledge/new" className="inline-flex h-9 md:h-10 items-center justify-center gap-1.5 rounded-lg bg-[#165DFF] px-3 md:px-4 text-xs md:text-sm font-medium text-white shadow-md hover:bg-[#0E49D8]">
-            <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" /><span className="hidden md:inline">写知识</span>
+          <Link href="/knowledge/new" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-3 text-xs font-semibold text-white hover:bg-[#1D4ED8] md:text-sm">
+            <Plus className="h-4 w-4" />写经验
           </Link>
-          <Link href="/knowledge/monthly/new" className="inline-flex h-9 md:h-10 items-center justify-center gap-1.5 rounded-lg border border-[#165DFF] bg-white px-3 md:px-4 text-xs md:text-sm font-medium text-[#165DFF] hover:bg-[rgba(22,93,255,0.06)]">
-            <FileText className="h-3.5 w-3.5 md:h-4 md:w-4" /><span className="hidden md:inline">写月度分析</span>
+          <Link href="/knowledge/monthly/new" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#334155] hover:border-[#2563EB] hover:text-[#2563EB] md:text-sm">
+            <FileText className="h-4 w-4" />月度分析
           </Link>
         </div>
       </div>
 
-      {/* KPI 摘要条 */}
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none md:grid md:grid-cols-4 md:gap-3">
-        {[
-          { label: '知识总数', value: docs.length, color: '#165DFF' },
-          { label: '原始记录', value: qualityStats['原始记录'] || 0, color: '#64748B' },
-          { label: '推荐复用', value: qualityStats['推荐复用'] || 0, color: '#D46B08' },
-          { label: '标准经验', value: qualityStats['标准经验'] || 0, color: '#00A870' },
-          { label: '待处理', value: pendingCount, color: '#F53F3F', show: pendingCount > 0 },
-        ].filter(s => s.show !== false).map((s, i) => (
-          <div key={i} className="rounded-[10px] bg-white p-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
-            <p className="text-xl md:text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
-            <p className="mt-0.5 text-[10px] md:text-xs text-[#8A8F98]">{s.label}</p>
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {metricCards.map(card => (
+          <div key={card.label} className="kb-panel flex min-h-[76px] items-center justify-between p-3">
+            <div>
+              <p className="text-xs text-[#64748B]">{card.label}</p>
+              <p className="mt-1 text-2xl font-bold" style={{ color: card.color }}>{card.value}</p>
+            </div>
+            <span className="rounded-full bg-[#F1F5F9] px-2 py-1 text-xs font-semibold text-[#64748B]">{card.hint}</span>
           </div>
         ))}
       </div>
 
-      {/* 搜索+分类 */}
-      <div className="mb-4 rounded-[10px] bg-white p-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
-        <div className="relative mb-3">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A8F98]" />
-          <input value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="搜索标题、正文、作者或标签"
-            className="h-10 w-full rounded-[10px] border border-[rgba(0,0,0,0.06)] bg-[#FBFCFF] pl-10 pr-4 text-sm outline-none focus:border-[#165DFF] focus:ring-4 focus:ring-[#165DFF]/10" />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {categories.slice(0, 5).map(cat => (
-            <button key={cat} type="button"
-              className={`kb-pill ${activeCategory === cat ? 'kb-pill-active' : ''}`}
-              onClick={() => setActiveCategory(cat)}>{cat}</button>
-          ))}
-          {categories.length > 5 && (
-            <div className="relative">
-              <button type="button"
-                className={`kb-pill ${categories.slice(5).includes(activeCategory) ? 'kb-pill-active' : ''}`}
-                onClick={() => setShowMoreCategories(!showMoreCategories)}>更多▾</button>
-              {showMoreCategories && (
-                <div className="absolute top-full left-0 mt-1 z-10 bg-white border border-[rgba(0,0,0,0.06)] rounded-lg p-2 shadow-lg min-w-[120px]">
-                  {categories.slice(5).map(cat => (
-                    <button key={cat} type="button"
-                      className={`block w-full text-left px-3 py-1.5 rounded text-xs hover:bg-[#F2F3F5] ${activeCategory === cat ? 'text-[#165DFF] font-medium' : 'text-[#4E5969]'}`}
-                      onClick={() => { setActiveCategory(cat); setShowMoreCategories(false); }}>{cat}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="w-px bg-[#E5E6EB] mx-0.5 self-stretch" />
-          <button type="button"
-            className={`kb-pill ${pendingOnly ? 'kb-pill-active' : ''}`}
-            onClick={() => setPendingOnly(!pendingOnly)}>
-            📋 待办{pendingCount > 0 ? ` (${pendingCount})` : ''}
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[#F2F3F5] pt-3">
-          {['全部等级', ...KNOWLEDGE_QUALITY_LEVELS].map(quality => (
+      <div className="kb-panel mb-3 p-3">
+        <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto] lg:items-center">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="搜索经验、项目、风险、单价、签证或结算要点"
+              className="h-10 w-full rounded-lg border border-[#D8E0EC] bg-[#FBFCFF] pl-10 pr-4 text-sm text-[#0F172A] outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {['全部等级', ...KNOWLEDGE_QUALITY_LEVELS].map(quality => (
+              <button
+                key={quality}
+                type="button"
+                className={`kb-pill ${activeQuality === quality ? 'kb-pill-active' : ''}`}
+                onClick={() => setActiveQuality(quality)}
+              >
+                {quality}
+              </button>
+            ))}
             <button
-              key={quality}
               type="button"
-              className={`kb-pill ${activeQuality === quality ? 'kb-pill-active' : ''}`}
-              onClick={() => setActiveQuality(quality)}
+              className={`kb-pill ${pendingOnly ? 'kb-pill-active' : ''}`}
+              onClick={() => setPendingOnly(!pendingOnly)}
             >
-              {quality}
+              只看待办{pendingCount > 0 ? ` ${pendingCount}` : ''}
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="min-w-0 space-y-5">
-          <section className="kb-card">
-            {activeCategory === '全部' ? (
-              <div className="divide-y divide-[#E5E6EB]">
-                {KNOWLEDGE_BUSINESS_CATEGORIES.map(cat => {
-                  const catDocs = filteredDocs.filter(d => getCategoryLabel(d) === cat);
-                  if (catDocs.length === 0) return null;
-                  const icons: Record<string, string> = { 项目经验: '📄', 成本经验: '¥', 签证变更: '↻', 施工管理: '🧭', 合同结算: '§', 标准资料: '□', 投标策略: '🏆', 月度分析: '📊' };
-                  return (
-                    <div key={cat} className="px-5 py-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <span className="text-base">{icons[cat] || '📋'}</span>
-                        <h3 className="text-base font-semibold text-[#171717]">{cat}</h3>
-                        <span className="text-xs text-[#8A8F98]">{catDocs.length} 条</span>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {catDocs.slice(0, 6).map(doc => {
-                          const tags = visibleTags(doc.tags);
-                          const docTags = normalizeKnowledgeTags(doc.tags);
-                          const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
-                          const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
-                          const hasFile = doc.file_key && !doc.file_key.startsWith('bid:');
-                          const isMonthly = isMonthlyAnalysisDoc(doc, docTags);
-                          const monthlyState = getMonthlyWorkflowState(docTags);
-                          return (
-                            <Link key={doc.id} href={`/knowledge/${doc.id}`}
-                              className="group rounded-xl border border-[rgba(0,0,0,0.06)] p-4 hover:border-[#165DFF]/30 hover:shadow-sm transition block">
-                              <div className="flex items-start gap-3">
-                                <span className="text-lg shrink-0 mt-0.5">{icons[cat] || '📄'}</span>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-[#171717] group-hover:text-[#165DFF] line-clamp-1">{doc.title}</p>
-                                  <p className="text-xs text-[#8A8F98] mt-1 line-clamp-2">{stripMarkdown(doc.content) || '暂无摘要'}</p>
-                                  <div className="flex items-center gap-2 mt-2 text-[10px] text-[#A9AEB8]">
-                                    <span className={`rounded px-1.5 py-0.5 ${qualityColors[quality]}`}>{quality}</span>
-                                    {isMonthly && (
-                                      <span className={`rounded px-1.5 py-0.5 ${monthlyStateBadgeClasses[monthlyState]}`}>
-                                        月度分析 · {monthlyStateLabels[monthlyState]}
-                                      </span>
-                                    )}
-                                    <span>{sourceLabel}</span>
-                                    <span>{formatDate(doc.updated_at || doc.created_at)}</span>
-                                    {hasFile && <span>📎 含附件</span>}
-                                    {tags.slice(0, 2).map(t => <span key={t} className="inline-flex items-center gap-0.5 rounded bg-[#F7F8FA] px-1.5 py-0.5"><Tag className="h-2.5 w-2.5" />{t}</span>)}
-                                  </div>
-                                </div>
-                              </div>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                      {catDocs.length > 6 && (
-                        <button onClick={() => setActiveCategory(cat)}
-                          className="mt-3 text-xs text-[#165DFF] hover:underline">
-                          查看全部 {catDocs.length} 条 →
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-                {filteredDocs.length === 0 && (
-                  <div className="py-10 text-center text-sm text-[#8A8F98]">暂无知识条目</div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
-                  <div className="kb-section-title">
-                    <FileText className="h-5 w-5" />
-                    <h2>{activeCategory}</h2>
-                  </div>
-                  <span className="text-sm text-[#8A8F98]">{filteredDocs.length} 条</span>
-                </div>
-                <div className="mt-4 divide-y divide-[#E5E6EB]">
-                  {loading ? (
-                    <div className="py-10 text-center text-sm text-[#8A8F98]">正在加载知识库...</div>
-                  ) : filteredDocs.length > 0 ? (
-                    filteredDocs.slice(0, 12).map(doc => {
-                      const tags = visibleTags(doc.tags);
-                      const docTags = normalizeKnowledgeTags(doc.tags);
-                      const quality = getKnowledgeQuality(docTags, doc.source_type, doc.category);
-                      const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, docTags);
-                      const isMonthly = isMonthlyAnalysisDoc(doc, docTags);
-                      const monthlyState = getMonthlyWorkflowState(docTags);
-                      return (
-                        <Link href={`/knowledge/${doc.id}`} key={doc.id} className="group block py-4 transition hover:bg-[#F8FAFF]">
-                          <div className="flex items-start justify-between gap-4 px-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-base font-semibold text-[#171717] group-hover:text-[#165DFF]">{doc.title}</h3>
-                                <span className="rounded-full bg-[rgba(22,93,255,0.06)] px-2 py-1 text-xs text-[#165DFF]">{getCategoryLabel(doc)}</span>
-                                <span className={`rounded-full px-2 py-1 text-xs ${qualityColors[quality]}`}>{quality}</span>
-                                {isMonthly && (
-                                  <span className={`rounded-full px-2 py-1 text-xs ${monthlyStateBadgeClasses[monthlyState]}`}>
-                                    月度分析 · {monthlyStateLabels[monthlyState]}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#4E5969]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
-                              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#8A8F98]">
-                                <span>来源：{sourceLabel}</span>
-                                <span>作者：{doc.created_by || '系统'}</span>
-                                <span>更新：{formatDate(doc.updated_at || doc.created_at)}</span>
-                                {tags.slice(0, 4).map(tag => (
-                                  <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#F7F8FA] px-2 py-1">
-                                    <Tag className="h-3 w-3" />{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#C9CDD4] transition group-hover:translate-x-1 group-hover:text-[#165DFF]" />
-                          </div>
-                        </Link>
-                      );
-                    })
-                  ) : (
-                    <div className="py-10 text-center text-sm text-[#8A8F98]">没有匹配的知识条目</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        </div>
+      <div className="grid gap-3 xl:grid-cols-[220px_minmax(0,1fr)_340px]">
+        <aside className="kb-panel p-3">
+          <div className="mb-2 text-sm font-bold text-[#334155]">经验类型</div>
+          <div className="space-y-1">
+            {categoryStats.map(item => (
+              <button
+                key={item.category}
+                type="button"
+                onClick={() => {
+                  setActiveCategory(item.category);
+                  setShowMoreCategories(false);
+                }}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                  activeCategory === item.category ? 'bg-[#EFF6FF] font-bold text-[#1D4ED8]' : 'text-[#334155] hover:bg-[#F8FAFC]'
+                }`}
+              >
+                <span>{item.category}</span>
+                <span className="text-xs text-[#94A3B8]">{item.count}</span>
+              </button>
+            ))}
+          </div>
 
-        <aside className="space-y-5">
-          <KnowledgeReusePanel docs={docs} />
-
-          <section className="kb-card">
-            <div className="kb-section-title">
-              <Sparkles className="h-5 w-5" />
-              <h2>快捷入口</h2>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 border-t border-[#E2E8F0] pt-3">
+            <div className="mb-2 text-sm font-bold text-[#334155]">常用调用</div>
+            <div className="flex flex-wrap gap-2">
               {quickLinks.map(link => (
                 <button
                   key={link}
                   type="button"
-                  className="kb-pill"
+                  className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-semibold text-[#475569] hover:bg-[#E0F2FE] hover:text-[#0369A1]"
                   onClick={() => {
-                    const target = link === '定额参考' ? '全部' : link;
-                    setActiveCategory(categories.includes(target) ? target : '全部');
-                    setQuery(link === '月度分析' ? '月度分析' : '');
+                    setQuery(link);
+                    setActiveCategory(categories.includes(link) ? link : '全部');
                   }}
                 >
                   {link}
                 </button>
               ))}
             </div>
-          </section>
+          </div>
+        </aside>
 
-          <KnowledgeGraph docs={docs} />
+        <main className="min-w-0">
+          <div className="kb-panel overflow-hidden">
+            <div className="grid grid-cols-[minmax(220px,1fr)_86px_92px_76px] gap-2 border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs font-bold text-[#64748B] max-lg:hidden">
+              <span>经验</span>
+              <span>来源</span>
+              <span>适用场景</span>
+              <span>引用</span>
+            </div>
+            <div className="divide-y divide-[#E2E8F0]">
+              {loading ? (
+                <div className="py-12 text-center text-sm text-[#64748B]">正在加载经验台账...</div>
+              ) : filteredDocs.length > 0 ? (
+                filteredDocs.map(doc => {
+                  const tags = normalizeKnowledgeTags(doc.tags);
+                  const displayTags = visibleTags(doc.tags);
+                  const category = getCategoryLabel(doc);
+                  const quality = getKnowledgeQuality(tags, doc.source_type, doc.category);
+                  const sourceLabel = getKnowledgeSourceLabel(doc.source_type, doc.source_ref, tags);
+                  const isMonthly = isMonthlyAnalysisDoc(doc, tags);
+                  const monthlyState = getMonthlyWorkflowState(tags);
+                  const scenarioTags = getKnowledgeScenarioTags(category, tags);
+                  const isSelected = selectedDoc && String(selectedDoc.id) === String(doc.id);
+
+                  return (
+                    <div
+                      key={doc.id}
+                      onClick={() => setSelectedDocId(doc.id)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedDocId(doc.id);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      className={`grid w-full grid-cols-1 gap-2 px-3 py-3 text-left transition lg:grid-cols-[minmax(220px,1fr)_86px_92px_76px] ${
+                        isSelected ? 'bg-[#EFF6FF]' : 'bg-white hover:bg-[#F8FAFC]'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded px-1.5 py-0.5 text-[11px] ${qualityColors[quality]}`}>{quality}</span>
+                          {isMonthly && (
+                            <span className={`rounded px-1.5 py-0.5 text-[11px] ${monthlyStateBadgeClasses[monthlyState]}`}>
+                              {monthlyStateLabels[monthlyState]}
+                            </span>
+                          )}
+                          <span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 text-[11px] text-[#475569]">{category}</span>
+                        </div>
+                        <p className="mt-2 line-clamp-1 text-sm font-bold text-[#0F172A]">{doc.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#64748B]">{compactText(doc.content, 110)}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {displayTags.slice(0, 3).map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[11px] text-[#64748B]">
+                              <Tag className="h-3 w-3" />{tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-xs leading-5 text-[#475569]">
+                        <span className="font-semibold text-[#0F172A] lg:block">{sourceLabel}</span>
+                        <span>{formatDate(doc.updated_at || doc.created_at)}</span>
+                      </div>
+                      <div className="text-xs leading-5 text-[#475569]">
+                        {scenarioTags.slice(0, 2).map(tag => (
+                          <span key={tag} className="mr-1 inline-block rounded bg-[#F1F5F9] px-1.5 py-0.5">{tag}</span>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs text-[#64748B] lg:block">
+                        <span>{doc.file_key && !doc.file_key.startsWith('bid:') ? '含附件' : '详情'}</span>
+                        <Link href={`/knowledge/${doc.id}`} className="font-semibold text-[#2563EB] hover:underline" onClick={event => event.stopPropagation()}>
+                          查看
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-12 text-center text-sm text-[#64748B]">没有匹配的经验，可调整筛选或新增经验。</div>
+              )}
+            </div>
+          </div>
+        </main>
+
+        <aside className="kb-panel p-3 xl:sticky xl:top-4">
+          {selectedDoc ? (
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className={`rounded px-2 py-1 text-xs font-semibold ${qualityColors[selectedQuality]}`}>{selectedQuality}</span>
+                  <h2 className="mt-3 text-lg font-bold leading-7 text-[#0F172A]">{selectedDoc.title}</h2>
+                </div>
+                <Link href={`/knowledge/${selectedDoc.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#CBD5E1] px-2 text-xs font-semibold text-[#334155] hover:border-[#2563EB] hover:text-[#2563EB]">
+                  详情<ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-[#EFF6FF] px-2 py-1 text-xs font-semibold text-[#2563EB]">{selectedCategory}</span>
+                {selectedScenarioTags.slice(0, 4).map(tag => (
+                  <span key={tag} className="rounded-full bg-[#F1F5F9] px-2 py-1 text-xs text-[#475569]">{tag}</span>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <div className="border-t border-[#E2E8F0] pt-4">
+                  <p className="text-xs font-bold text-[#64748B]">结论</p>
+                  <p className="mt-2 text-sm leading-6 text-[#0F172A]">{compactText(selectedDoc.content, 150)}</p>
+                </div>
+                <div className="border-t border-[#E2E8F0] pt-4">
+                  <p className="text-xs font-bold text-[#64748B]">建议动作</p>
+                  <p className="mt-2 text-sm leading-6 text-[#0F172A]">{getSuggestedAction(selectedDoc, selectedTags)}</p>
+                </div>
+                <div className="border-t border-[#E2E8F0] pt-4">
+                  <p className="text-xs font-bold text-[#64748B]">依据</p>
+                  <div className="mt-2 grid gap-2 text-sm text-[#475569]">
+                    <div className="flex justify-between gap-3">
+                      <span>来源</span>
+                      <strong className="text-right font-semibold text-[#0F172A]">{selectedSource}</strong>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span>作者</span>
+                      <strong className="text-right font-semibold text-[#0F172A]">{selectedDoc.created_by || '系统'}</strong>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span>更新</span>
+                      <strong className="text-right font-semibold text-[#0F172A]">{formatDate(selectedDoc.updated_at || selectedDoc.created_at)}</strong>
+                    </div>
+                    {selectedDoc.file_key && !selectedDoc.file_key.startsWith('bid:') && (
+                      <div className="flex justify-between gap-3">
+                        <span>附件</span>
+                        <strong className="text-right font-semibold text-[#0F172A]">{selectedDoc.file_name || '已上传'}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-10 text-center text-sm text-[#64748B]">选择一条经验后查看复用要点。</div>
+          )}
         </aside>
       </div>
     </div>
