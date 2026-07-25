@@ -202,7 +202,7 @@ export async function getProjectSubmitterCandidates(client: SupabaseClient, proj
     .map((user) => ({
       id: Number(user.id),
       username: user.username || '',
-      name: user.dingtalk_name || user.name || user.username || `用户${user.id}`,
+      name: user.name || user.dingtalk_name || user.username || `用户${user.id}`,
       role: user.role || '',
     }));
 }

@@ -76,6 +76,22 @@ function getUserAgent(request: Request): string {
   return request.headers.get('user-agent') || 'unknown';
 }
 
+function shouldSyncSystemNameFromDingTalk(user: {
+  username?: string | null;
+  name?: string | null;
+  dingtalk_name?: string | null;
+  dingtalk_mobile?: string | null;
+}, nextName: string) {
+  const currentName = String(user.name || '').trim();
+  const previousDingTalkName = String(user.dingtalk_name || '').trim();
+  const username = String(user.username || '').trim();
+  const mobile = String(user.dingtalk_mobile || '').trim();
+
+  if (!nextName.trim()) return false;
+  if (!currentName) return true;
+  return [previousDingTalkName, username, mobile].filter(Boolean).includes(currentName);
+}
+
 /**
  * 通过 authCode 获取钉钉用户信息
  * 钉钉免登流程：authCode → userid → 用户详情
@@ -228,8 +244,8 @@ async function findAndBindSystemUser(
 
   // 同步更新钉钉信息
   // 如果钉钉用户已离职/停用，自动禁用系统登录
-  if (isDingTalkInactive) {
-    dingtalkUpdateData.is_disabled = true;
+  if (!isDingTalkInactive && shouldSyncSystemNameFromDingTalk(matchedUser, dingtalk_name)) {
+    dingtalkUpdateData.name = dingtalk_name;
   }
 
   await client

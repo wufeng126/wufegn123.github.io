@@ -92,7 +92,7 @@ function getAccountStatus(user: PermissionUser) {
   if (user.role === 'pending' || (user.role_ids || []).length === 0) {
     return { label: '待分配', className: 'border-orange-200 bg-orange-50 text-orange-700' };
   }
-  if (user.is_disabled || user.dingtalk_info?.active === false) {
+  if (user.is_disabled) {
     return { label: '已禁用', className: 'border-red-200 bg-red-50 text-red-700' };
   }
   return { label: '已启用', className: 'border-green-200 bg-green-50 text-green-700' };
@@ -194,9 +194,7 @@ export default function DingtalkBindingPage() {
 
   const disabledUsers = useMemo(
     () =>
-      dingTalkUsers.filter(
-        (user) => Boolean(user.is_disabled) || user.dingtalk_info?.active === false
-      ),
+      dingTalkUsers.filter((user) => Boolean(user.is_disabled)),
     [dingTalkUsers]
   );
 

@@ -489,6 +489,7 @@ export default function PermissionCenterPage() {
   // 用户角色分配对话框
   const [userRoleDialogOpen, setUserRoleDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUserName, setEditingUserName] = useState('');
   const [editingUserRoles, setEditingUserRoles] = useState<number[]>([]);
   const [editingUserProjects, setEditingUserProjects] = useState<number[]>([]);
   const [editingProjectRoles, setEditingProjectRoles] = useState<Record<number, ProjectRoleCode[]>>({});
@@ -798,6 +799,7 @@ export default function PermissionCenterPage() {
 
   const openUserRoleDialog = (user: User) => {
     setEditingUser(user);
+    setEditingUserName(user.name || user.dingtalk_info?.name || user.username || '');
     setEditingUserRoles(user.role_ids || []);
     setEditingUserProjects(user.allowed_projects || []);
     setEditingProjectRoles(
@@ -829,6 +831,7 @@ export default function PermissionCenterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingUser.id,
+          name: editingUserName,
           role_ids: editingUserRoles,
           allowed_projects: editingUserProjects,
         }),
@@ -1494,6 +1497,27 @@ export default function PermissionCenterPage() {
           </DialogHeader>
           
           <div className="space-y-6">
+            <div className="grid gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="editing-user-name">系统显示姓名</Label>
+                <Input
+                  id="editing-user-name"
+                  value={editingUserName}
+                  onChange={(event) => setEditingUserName(event.target.value)}
+                  placeholder="请输入真实姓名"
+                  maxLength={50}
+                />
+                <p className="text-xs text-gray-500">用于系统各页面、待办和钉钉通知中的人员显示，可修正钉钉返回手机号的问题。</p>
+              </div>
+              <div className="space-y-2 text-sm">
+                <Label>钉钉原始信息</Label>
+                <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-gray-700">
+                  <p className="truncate">钉钉姓名：{editingUser?.dingtalk_info?.name || '-'}</p>
+                  <p className="mt-1 truncate">手机号：{editingUser?.dingtalk_info?.mobile || '-'}</p>
+                  <p className="mt-1 truncate">登录账号：{editingUser?.username || '-'}</p>
+                </div>
+              </div>
+            </div>
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
               <p className="font-medium">分配规则</p>
               <p className="mt-1">

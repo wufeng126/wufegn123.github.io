@@ -82,7 +82,7 @@ const riskTypeLabels: Record<string, string> = {
 };
 
 function getUserDisplayName(user: AppUser) {
-  return user.dingtalk_name || user.dingtalkName || user.name || user.username || `用户${user.id}`;
+  return user.name || user.dingtalk_name || user.dingtalkName || user.username || `用户${user.id}`;
 }
 
 function userHasRole(user: AppUser, role: 'project_manager' | 'boss') {

@@ -158,7 +158,7 @@ export async function PUT(request: NextRequest) {
     }
     
     const body = await request.json();
-    const { id, role_ids, allowed_projects } = body;
+    const { id, role_ids, allowed_projects, name } = body;
     
     if (!id) {
       return NextResponse.json({ error: '用户ID不能为空' }, { status: 400 });
@@ -219,6 +219,13 @@ export async function PUT(request: NextRequest) {
       role: inferUserBaseRole(existingUser.role, assignedRoles),
       is_disabled: existingUser.role === 'super_admin' ? false : assignedRoles.length === 0,
     };
+    if (name !== undefined) {
+      const displayName = String(name || '').trim();
+      if (displayName.length > 50) {
+        return NextResponse.json({ error: '姓名不能超过50个字符' }, { status: 400 });
+      }
+      userUpdate.name = displayName || existingUser.username;
+    }
     if (allowed_projects !== undefined) {
       userUpdate.managed_projects = allowed_projects;
     }

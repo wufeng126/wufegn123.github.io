@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const userName = user.dingtalk_name || user.name || user.username || `用户${user.id}`;
+      const userName = user.name || user.dingtalk_name || user.username || `用户${user.id}`;
       const result = await sendDingTalkWorkNotification([user.dingtalk_user_id], {
         type: 'todo_digest',
         title: '待办事项提醒',

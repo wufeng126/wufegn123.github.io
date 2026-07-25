@@ -88,6 +88,8 @@ interface SyncResult {
 type SyncUserRecord = {
   id: number;
   username: string;
+  name?: string | null;
+  dingtalk_name?: string | null;
   dingtalk_user_id?: string | null;
   dingtalk_mobile?: string | null;
   role?: string | null;
@@ -244,7 +246,6 @@ async function getUniqueUsername(
 
 function buildUserUpdateFromContact(user: DingTalkUserDetail, now: string) {
   return {
-    name: user.name,
     dingtalk_user_id: user.userid,
     dingtalk_union_id: user.unionid || null,
     dingtalk_mobile: user.mobile || null,
@@ -254,6 +255,17 @@ function buildUserUpdateFromContact(user: DingTalkUserDetail, now: string) {
     dingtalk_active: user.active !== false,
     last_dingtalk_sync_at: now,
   };
+}
+
+function shouldSyncSystemNameFromDingTalk(user: SyncUserRecord, nextName: string) {
+  const currentName = String(user.name || '').trim();
+  const previousDingTalkName = String(user.dingtalk_name || '').trim();
+  const username = String(user.username || '').trim();
+  const mobile = String(user.dingtalk_mobile || '').trim();
+
+  if (!nextName.trim()) return false;
+  if (!currentName) return true;
+  return [previousDingTalkName, username, mobile].filter(Boolean).includes(currentName);
 }
 
 async function syncContactsToSystemUsers(
@@ -266,7 +278,7 @@ async function syncContactsToSystemUsers(
 
   const { data: existingUsers } = await supabase
     .from('users')
-    .select('id,username,dingtalk_user_id,dingtalk_mobile,role,is_disabled');
+    .select('id,username,name,dingtalk_name,dingtalk_user_id,dingtalk_mobile,role,is_disabled');
 
   const users = (existingUsers || []) as SyncUserRecord[];
   const usersByDingTalkId = new Map(
@@ -289,7 +301,10 @@ async function syncContactsToSystemUsers(
     const matchedById = usersByDingTalkId.get(contact.userid);
     const matchedByMobile = contact.mobile ? unboundUsersByMobile.get(contact.mobile) : undefined;
     const matchedUser = matchedById || matchedByMobile;
-    const updateData = buildUserUpdateFromContact(contact, now);
+    const updateData: Record<string, unknown> = buildUserUpdateFromContact(contact, now);
+    if (matchedUser && shouldSyncSystemNameFromDingTalk(matchedUser, contact.name)) {
+      updateData.name = contact.name;
+    }
 
     if (matchedUser) {
       const { error } = await supabase
@@ -313,6 +328,7 @@ async function syncContactsToSystemUsers(
       .from('users')
       .insert({
         username,
+        name: contact.name || username,
         password_hash: passwordHash,
         role: 'pending',
         is_disabled: true,
@@ -329,19 +345,19 @@ async function syncContactsToSystemUsers(
 
   let disabledSystemUsers = 0;
   const activeDingTalkIdSet = new Set(activeDingTalkIds);
-  const usersToDisable = users.filter(
+  const usersToMarkInactive = users.filter(
     (user) => user.dingtalk_user_id && !activeDingTalkIdSet.has(String(user.dingtalk_user_id))
   );
 
-  if (usersToDisable.length > 0) {
-    const { data: disabledResult, error: disableError } = await supabase
+  if (usersToMarkInactive.length > 0) {
+    const { error: disableError } = await supabase
       .from('users')
-      .update({ is_disabled: true, dingtalk_active: false, last_dingtalk_sync_at: now })
-      .in('id', usersToDisable.map((user) => user.id))
+      .update({ dingtalk_active: false, last_dingtalk_sync_at: now })
+      .in('id', usersToMarkInactive.map((user) => user.id))
       .select('id');
 
     if (!disableError) {
-      disabledSystemUsers = disabledResult?.length || 0;
+      disabledSystemUsers = 0;
     }
   }
 
@@ -549,7 +565,7 @@ export async function getDingTalkContactsSyncStatus(): Promise<{
     supabase.from('dingtalk_contacts').select('sync_time').order('sync_time', { ascending: false }).limit(1),
     supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'pending'),
     supabase.from('users').select('id', { count: 'exact', head: true }).not('dingtalk_user_id', 'is', null).eq('is_disabled', false),
-    supabase.from('users').select('id', { count: 'exact', head: true }).not('dingtalk_user_id', 'is', null).eq('is_disabled', true),
+    supabase.from('users').select('id', { count: 'exact', head: true }).not('dingtalk_user_id', 'is', null).eq('is_disabled', true).neq('role', 'pending'),
     supabase.from('users').select('id', { count: 'exact', head: true }).not('dingtalk_user_id', 'is', null),
   ]);
 
