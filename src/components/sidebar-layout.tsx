@@ -31,7 +31,7 @@ import NotificationBell from '@/components/notification-bell';
 // 使用各 Tab 中权限最宽松的 code（通常是 :view 或 :list），用户拥有其中任意一个即可看到菜单
 const MENU_VISIBILITY: Record<string, string[]> = {
   '/workspace': [],  // 工作台所有人都可见
-  '/project-center': ['projects:view', 'work_items:view', 'visas:view', 'client_reports:view', 'client_payments:view'],
+  '/project-center': ['projects:view', 'work_items:view', 'visas:view', 'evidence_chain:view', 'client_reports:view', 'client_payments:view'],
   '/hr-salary': ['workers:view', 'certificates:view', 'salaries:view', 'salaries:pay', 'salaries:query'],
   '/supplier-expense': ['suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/team-management': ['team_groups:view', 'team_settlements:view'],
@@ -89,6 +89,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/certificates': '证件管理',
   '/client-reports': '产值结算',
   '/client-payments': '甲方回款',
+  '/evidence-chain': '结算证据链',
   '/cost-center': '成本利润中心',
   '/data-board/supplier-cost': '供应商成本看板',
   '/data-board/worker-cost': '工人成本看板',
@@ -173,7 +174,7 @@ export default function SidebarLayout({
     if (pathname.startsWith('/ai-assistant')) return '/workspace';
 
     // 项目管理
-    if (['/project-center', '/projects', '/quantity-reporting', '/work-items', '/limit-prices', '/visas', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
+    if (['/project-center', '/projects', '/quantity-reporting', '/work-items', '/limit-prices', '/visas', '/evidence-chain', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
 
     // 人力资源
     if (['/hr-salary', '/workers', '/certificates'].some(p => pathname.startsWith(p))) return '/hr-salary';

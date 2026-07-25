@@ -558,6 +558,61 @@ ALTER TABLE IF EXISTS team_settlement_splits
 CREATE INDEX IF NOT EXISTS team_settlement_splits_settlement_id_idx ON team_settlement_splits(settlement_id);
 CREATE INDEX IF NOT EXISTS team_settlement_splits_project_worker_idx ON team_settlement_splits(project_id, worker_id);
 
+CREATE TABLE IF NOT EXISTS settlement_evidence_records (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  event_date DATE NOT NULL,
+  title VARCHAR(300) NOT NULL,
+  evidence_type VARCHAR(50) DEFAULT '甲方回复',
+  source VARCHAR(200),
+  importance VARCHAR(30) DEFAULT '重点关注',
+  follow_status VARCHAR(30) DEFAULT '未处理',
+  amount_direction VARCHAR(50) DEFAULT '仅留痕/暂不确定',
+  estimated_amount NUMERIC(14,2),
+  summary TEXT,
+  attachments JSONB DEFAULT '[]'::jsonb,
+  related JSONB DEFAULT '[]'::jsonb,
+  tags JSONB DEFAULT '[]'::jsonb,
+  owner_user_id INTEGER,
+  owner_name VARCHAR(100),
+  created_by INTEGER,
+  created_by_name VARCHAR(100),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+ALTER TABLE IF EXISTS settlement_evidence_records
+  ADD COLUMN IF NOT EXISTS project_id INTEGER,
+  ADD COLUMN IF NOT EXISTS event_date DATE,
+  ADD COLUMN IF NOT EXISTS title VARCHAR(300),
+  ADD COLUMN IF NOT EXISTS evidence_type VARCHAR(50) DEFAULT '甲方回复',
+  ADD COLUMN IF NOT EXISTS source VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS importance VARCHAR(30) DEFAULT '重点关注',
+  ADD COLUMN IF NOT EXISTS follow_status VARCHAR(30) DEFAULT '未处理',
+  ADD COLUMN IF NOT EXISTS amount_direction VARCHAR(50) DEFAULT '仅留痕/暂不确定',
+  ADD COLUMN IF NOT EXISTS estimated_amount NUMERIC(14,2),
+  ADD COLUMN IF NOT EXISTS summary TEXT,
+  ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS related JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS owner_user_id INTEGER,
+  ADD COLUMN IF NOT EXISTS owner_name VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS created_by INTEGER,
+  ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+UPDATE settlement_evidence_records
+SET event_date = COALESCE(event_date, created_at::date, CURRENT_DATE)
+WHERE event_date IS NULL;
+UPDATE settlement_evidence_records
+SET title = COALESCE(NULLIF(title, ''), '结算证据-' || id::TEXT)
+WHERE title IS NULL OR title = '';
+CREATE INDEX IF NOT EXISTS settlement_evidence_project_id_idx ON settlement_evidence_records(project_id);
+CREATE INDEX IF NOT EXISTS settlement_evidence_event_date_idx ON settlement_evidence_records(event_date DESC);
+CREATE INDEX IF NOT EXISTS settlement_evidence_type_idx ON settlement_evidence_records(evidence_type);
+CREATE INDEX IF NOT EXISTS settlement_evidence_status_idx ON settlement_evidence_records(follow_status);
+CREATE INDEX IF NOT EXISTS settlement_evidence_importance_idx ON settlement_evidence_records(importance);
+CREATE INDEX IF NOT EXISTS settlement_evidence_owner_idx ON settlement_evidence_records(owner_user_id);
+
 CREATE TABLE IF NOT EXISTS bid_estimations (
   id SERIAL PRIMARY KEY,
   name VARCHAR(200) NOT NULL,

@@ -93,6 +93,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/miscellaneous-materials/recognize': { permission: 'miscellaneous_materials:view' },
   '/api/team-groups': { permission: 'team_groups:view' },
   '/api/team-settlements': { permission: 'team_settlements:view' },
+  '/api/evidence-chain': { permission: 'evidence_chain:view' },
 
   // === 新导航容器页 ===
   '/workspace': {},
@@ -120,6 +121,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/work-items': { permission: 'work_items:view' },
   '/limit-prices': { permission: 'work_items:view' },
   '/visas': { permission: 'visas:view' },
+  '/evidence-chain': { permission: 'evidence_chain:view' },
   '/client-reports': { permission: 'client_reports:view' },
   '/client-payments': { permission: 'client_payments:view' },
 
@@ -221,6 +223,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/internal-addon-settlements': 'work_items:edit',
   '/api/limit-prices': 'work_items:edit',
   '/api/visas': 'visas:edit',
+  '/api/evidence-chain': 'evidence_chain:edit',
   '/api/client-reports': 'client_reports:edit',
   '/api/client-payments': 'client_payments:edit',
   '/api/cost-estimation': 'cost_estimation:bid',
@@ -356,6 +359,16 @@ export function checkApiWritePermission(
 
   if (pathname === '/api/team-settlements' && method === 'POST') {
     return userPermissions.includes('team_settlements:create') || userPermissions.includes('team_settlements:edit');
+  }
+
+  if (pathname === '/api/evidence-chain') {
+    if (method === 'POST') {
+      return userPermissions.includes('evidence_chain:create') || userPermissions.includes('evidence_chain:edit');
+    }
+    if (method === 'DELETE') {
+      return userPermissions.includes('evidence_chain:delete') || userPermissions.includes('evidence_chain:edit');
+    }
+    return userPermissions.includes('evidence_chain:edit');
   }
 
   // 查找匹配的 API 路由（按长度降序精确匹配）
