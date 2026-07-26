@@ -29,7 +29,20 @@ function parseId(value: unknown) {
 }
 
 function joinList(value: unknown) {
-  return Array.isArray(value) ? value.join('、') : '';
+  if (!Array.isArray(value)) return '';
+  return value
+    .map((item) => {
+      if (!item) return '';
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object') {
+        const attachment = item as Record<string, unknown>;
+        return String(attachment.name || attachment.storageKey || attachment.key || '');
+      }
+      return String(item);
+    })
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join('、');
 }
 
 export async function GET(request: NextRequest) {

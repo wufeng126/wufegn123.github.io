@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   BadgeDollarSign,
@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Download,
   Edit3,
+  ExternalLink,
   FileArchive,
   FileText,
   Filter,
@@ -21,12 +22,23 @@ import {
   ShieldAlert,
   Tag,
   Trash2,
+  UploadCloud,
   X,
 } from 'lucide-react';
 
 type ProjectOption = {
   id: number;
   name: string;
+};
+
+type EvidenceAttachment = string | {
+  name?: string;
+  size?: number | null;
+  type?: string | null;
+  storageKey?: string;
+  key?: string;
+  uploadedAt?: string;
+  url?: string;
 };
 
 type EvidenceRecord = {
@@ -42,7 +54,7 @@ type EvidenceRecord = {
   amount_direction: string;
   estimated_amount: number | null;
   summary: string | null;
-  attachments: string[];
+  attachments: EvidenceAttachment[];
   related: string[];
   tags: string[];
   owner_user_id: number | null;
@@ -70,7 +82,7 @@ type EvidenceForm = {
   amount_direction: string;
   estimated_amount: string;
   summary: string;
-  attachments: string;
+  attachments: EvidenceAttachment[];
   related: string;
   tags: string;
   owner_name: string;
@@ -79,25 +91,27 @@ type EvidenceForm = {
 const EVIDENCE_TYPES = ['甲方回复', '图纸答疑', '设计变更', '合同外施工', '会议纪要', '结算争议', '现场照片', '其他'];
 const IMPORTANCE_OPTIONS = ['普通留痕', '重点关注', '必须结算', '争议风险'];
 const STATUS_OPTIONS = ['未处理', '待补资料', '已形成签证', '已进入结算', '已关闭'];
-const AMOUNT_OPTIONS = ['可能增加收入', '可能减少收入', '仅留痕/暂不确定'];
+const AMOUNT_OPTIONS = ['可能增加收入', '可能减少收入', '仅留痕，暂不确定'];
 const QUICK_TAGS = ['甲方确认', '合同外', '需签证', '待补资料', '争议风险', '结算可用'];
 
-const emptyForm = (): EvidenceForm => ({
-  project_id: '',
-  event_date: new Date().toISOString().slice(0, 10),
-  title: '',
-  evidence_type: '甲方回复',
-  source: '',
-  importance: '重点关注',
-  follow_status: '未处理',
-  amount_direction: '可能增加收入',
-  estimated_amount: '',
-  summary: '',
-  attachments: '',
-  related: '',
-  tags: '',
-  owner_name: '',
-});
+function emptyForm(): EvidenceForm {
+  return {
+    project_id: '',
+    event_date: new Date().toISOString().slice(0, 10),
+    title: '',
+    evidence_type: '甲方回复',
+    source: '',
+    importance: '重点关注',
+    follow_status: '未处理',
+    amount_direction: '可能增加收入',
+    estimated_amount: '',
+    summary: '',
+    attachments: [],
+    related: '',
+    tags: '',
+    owner_name: '',
+  };
+}
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
@@ -105,7 +119,14 @@ function cx(...classes: Array<string | false | null | undefined>) {
 
 function formatMoney(value: number | null | undefined) {
   if (value === null || value === undefined || Number(value) === 0) return '暂不确定';
-  return `¥${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`;
+  return `￥${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`;
+}
+
+function formatFileSize(size: number | null | undefined) {
+  if (!size) return '';
+  if (size < 1024) return `${size}B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`;
+  return `${(size / 1024 / 1024).toFixed(1)}MB`;
 }
 
 function splitLines(value: string) {
@@ -117,6 +138,30 @@ function splitLines(value: string) {
 
 function joinLines(value: string[] | null | undefined) {
   return (value || []).join('\n');
+}
+
+function getAttachmentName(attachment: EvidenceAttachment) {
+  if (typeof attachment === 'string') return attachment;
+  return attachment.name || attachment.storageKey || attachment.key || '未命名附件';
+}
+
+function getAttachmentUrl(attachment: EvidenceAttachment) {
+  return typeof attachment === 'string' ? '' : attachment.url || '';
+}
+
+function getAttachmentSize(attachment: EvidenceAttachment) {
+  return typeof attachment === 'string' ? null : attachment.size;
+}
+
+function sanitizeAttachmentForSave(attachment: EvidenceAttachment) {
+  if (typeof attachment === 'string') return attachment;
+  return {
+    name: attachment.name || attachment.storageKey || attachment.key || '未命名附件',
+    size: attachment.size || null,
+    type: attachment.type || 'application/octet-stream',
+    storageKey: attachment.storageKey || attachment.key || '',
+    uploadedAt: attachment.uploadedAt || new Date().toISOString(),
+  };
 }
 
 function toneForImportance(value: string) {
@@ -147,7 +192,7 @@ function toForm(record: EvidenceRecord): EvidenceForm {
     amount_direction: record.amount_direction || '可能增加收入',
     estimated_amount: record.estimated_amount ? String(record.estimated_amount) : '',
     summary: record.summary || '',
-    attachments: joinLines(record.attachments),
+    attachments: Array.isArray(record.attachments) ? record.attachments : [],
     related: joinLines(record.related),
     tags: joinLines(record.tags),
     owner_name: record.owner_name || '',
@@ -165,6 +210,7 @@ export default function EvidenceChainPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<EvidenceForm>(emptyForm);
@@ -222,6 +268,10 @@ export default function EvidenceChainPage() {
     return () => window.clearTimeout(timer);
   }, [projectId, keyword, typeFilter, statusFilter]);
 
+  function patchForm<K extends keyof EvidenceForm>(key: K, value: EvidenceForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
   function openCreate() {
     const nextForm = emptyForm();
     if (projectId !== 'all') nextForm.project_id = projectId;
@@ -234,14 +284,41 @@ export default function EvidenceChainPage() {
     setDrawerOpen(true);
   }
 
-  function patchForm<K extends keyof EvidenceForm>(key: K, value: EvidenceForm[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
   function toggleTag(tag: string) {
     const tags = splitLines(form.tags);
     const nextTags = tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag];
     patchForm('tags', nextTags.join('\n'));
+  }
+
+  async function uploadAttachments(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      const res = await fetch('/api/evidence-chain/attachments/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.error || '附件上传失败');
+      const attachments = Array.isArray(data.data?.attachments) ? data.data.attachments : [];
+      setForm((current) => ({ ...current, attachments: [...current.attachments, ...attachments] }));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '附件上传失败');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeAttachment(index: number) {
+    setForm((current) => ({
+      ...current,
+      attachments: current.attachments.filter((_, itemIndex) => itemIndex !== index),
+    }));
   }
 
   async function saveRecord() {
@@ -259,7 +336,7 @@ export default function EvidenceChainPage() {
         ...form,
         project_id: Number(form.project_id),
         estimated_amount: form.estimated_amount ? Number(form.estimated_amount) : null,
-        attachments: splitLines(form.attachments),
+        attachments: form.attachments.map(sanitizeAttachmentForSave),
         related: splitLines(form.related),
         tags: splitLines(form.tags),
       };
@@ -280,7 +357,7 @@ export default function EvidenceChainPage() {
   }
 
   async function deleteRecord(record: EvidenceRecord) {
-    if (!window.confirm(`确认删除「${record.title}」吗？`)) return;
+    if (!window.confirm(`确认删除“${record.title}”吗？`)) return;
     try {
       const res = await fetch(`/api/evidence-chain?id=${record.id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -301,7 +378,7 @@ export default function EvidenceChainPage() {
     { label: '证据总数', value: summary.count, icon: FileArchive, tone: 'bg-blue-50 text-blue-700' },
     { label: '必须结算', value: summary.required_count, icon: BadgeDollarSign, tone: 'bg-emerald-50 text-emerald-700' },
     { label: '争议风险', value: summary.risk_count, icon: ShieldAlert, tone: 'bg-rose-50 text-rose-700' },
-    { label: '预估影响金额', value: formatMoney(summary.estimated_amount), icon: AlertCircle, tone: 'bg-amber-50 text-amber-700' },
+    { label: '预计影响金额', value: formatMoney(summary.estimated_amount), icon: AlertCircle, tone: 'bg-amber-50 text-amber-700' },
   ];
 
   return (
@@ -436,6 +513,9 @@ export default function EvidenceChainPage() {
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{record.evidence_type}</span>
                         <span className={cx('rounded-full px-2 py-0.5 text-xs ring-1', toneForImportance(record.importance))}>{record.importance}</span>
                         <span className={cx('rounded-full px-2 py-0.5 text-xs ring-1', toneForStatus(record.follow_status))}>{record.follow_status}</span>
+                        {record.attachments.length > 0 && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{record.attachments.length} 个附件</span>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -451,7 +531,7 @@ export default function EvidenceChainPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
                       <span>{selectedRecord.project_name}</span>
-                      <span>·</span>
+                      <span>/</span>
                       <span>{selectedRecord.event_date}</span>
                     </div>
                     <h2 className="mt-2 text-xl font-semibold leading-7 text-slate-950">{selectedRecord.title}</h2>
@@ -505,12 +585,28 @@ export default function EvidenceChainPage() {
                       </div>
                       {selectedRecord.attachments.length > 0 ? (
                         <div className="grid gap-2 md:grid-cols-2">
-                          {selectedRecord.attachments.map((attachment) => (
-                            <div key={attachment} className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                              <FileText className="h-4 w-4 text-slate-400" />
-                              <span className="truncate">{attachment}</span>
-                            </div>
-                          ))}
+                          {selectedRecord.attachments.map((attachment, index) => {
+                            const url = getAttachmentUrl(attachment);
+                            const content = (
+                              <>
+                                <FileText className="h-4 w-4 flex-none text-slate-400" />
+                                <span className="min-w-0 flex-1 truncate">{getAttachmentName(attachment)}</span>
+                                {formatFileSize(getAttachmentSize(attachment)) && (
+                                  <span className="text-xs text-slate-400">{formatFileSize(getAttachmentSize(attachment))}</span>
+                                )}
+                                {url && <ExternalLink className="h-3.5 w-3.5 flex-none text-slate-400" />}
+                              </>
+                            );
+                            return url ? (
+                              <a key={`${getAttachmentName(attachment)}-${index}`} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                                {content}
+                              </a>
+                            ) : (
+                              <div key={`${getAttachmentName(attachment)}-${index}`} className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                {content}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-sm text-slate-500">暂无附件记录</p>
@@ -557,7 +653,7 @@ export default function EvidenceChainPage() {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
           <button aria-label="关闭新增证据" className="hidden flex-1 md:block" onClick={() => setDrawerOpen(false)} />
-          <aside className="flex h-full w-full max-w-[720px] flex-col bg-white shadow-2xl">
+          <aside className="flex h-full w-full max-w-[760px] flex-col bg-white shadow-2xl">
             <div className="border-b border-slate-200 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -567,13 +663,6 @@ export default function EvidenceChainPage() {
                 <button onClick={() => setDrawerOpen(false)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
                   <X className="h-5 w-5" />
                 </button>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                {['1 记事件', '2 补附件', '3 关联业务'].map((step, index) => (
-                  <div key={step} className={cx('rounded-md px-3 py-2 text-center font-medium', index === 0 ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-600')}>
-                    {step}
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -636,7 +725,7 @@ export default function EvidenceChainPage() {
                   </select>
                 </label>
                 <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-slate-700">预估金额</span>
+                  <span className="text-sm font-medium text-slate-700">预计金额</span>
                   <input type="number" value={form.estimated_amount} onChange={(event) => patchForm('estimated_amount', event.target.value)} placeholder="可不填" className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-slate-400" />
                 </label>
               </div>
@@ -659,39 +748,71 @@ export default function EvidenceChainPage() {
                 <textarea value={form.summary} onChange={(event) => patchForm('summary', event.target.value)} rows={5} placeholder="记录发生了什么、谁确认的、对结算可能有什么影响。" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm leading-6 outline-none focus:border-slate-400" />
               </label>
 
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                      <Paperclip className="h-4 w-4" />
+                      证据附件
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">支持图片、PDF、Word、Excel 等资料，单个不超过30MB。</p>
+                  </div>
+                  <label className={cx(
+                    'inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50',
+                    uploading && 'pointer-events-none opacity-60'
+                  )}>
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                    {uploading ? '上传中' : '选择文件'}
+                    <input type="file" multiple className="hidden" onChange={uploadAttachments} />
+                  </label>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {form.attachments.length > 0 ? form.attachments.map((attachment, index) => (
+                    <div key={`${getAttachmentName(attachment)}-${index}`} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <FileText className="h-4 w-4 flex-none text-slate-400" />
+                      <span className="min-w-0 flex-1 truncate text-slate-700">{getAttachmentName(attachment)}</span>
+                      {formatFileSize(getAttachmentSize(attachment)) && <span className="text-xs text-slate-400">{formatFileSize(getAttachmentSize(attachment))}</span>}
+                      <button type="button" onClick={() => removeAttachment(index)} className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="移除附件">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="rounded-md border border-dashed border-slate-200 bg-white px-3 py-5 text-center text-sm text-slate-500">
+                      暂未上传附件
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="space-y-1.5">
-                  <span className="text-sm font-medium text-slate-700">附件名称</span>
-                  <textarea value={form.attachments} onChange={(event) => patchForm('attachments', event.target.value)} rows={4} placeholder="每行一个附件名称" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm leading-6 outline-none focus:border-slate-400" />
-                </label>
                 <label className="space-y-1.5">
                   <span className="text-sm font-medium text-slate-700">关联业务</span>
                   <textarea value={form.related} onChange={(event) => patchForm('related', event.target.value)} rows={4} placeholder="例如：签证单 VS-2026-001、报量管理某清单项" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm leading-6 outline-none focus:border-slate-400" />
                 </label>
-              </div>
-
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
-                  <Tag className="h-4 w-4" />
-                  快速标签
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_TAGS.map((tag) => {
-                    const active = splitLines(form.tags).includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => toggleTag(tag)}
-                        className={cx(
-                          'rounded-full px-3 py-1 text-xs font-medium',
-                          active ? 'bg-slate-950 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100'
-                        )}
-                      >
-                        {tag}
-                      </button>
-                    );
-                  })}
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <Tag className="h-4 w-4" />
+                    快速标签
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {QUICK_TAGS.map((tag) => {
+                      const active = splitLines(form.tags).includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className={cx(
+                            'rounded-full px-3 py-1 text-xs font-medium',
+                            active ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100'
+                          )}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -703,7 +824,7 @@ export default function EvidenceChainPage() {
                 <div className="mt-2 grid gap-1 text-xs leading-5 md:grid-cols-3">
                   <span>{form.project_id ? '已选择项目' : '缺少项目'}</span>
                   <span>{form.title.trim() ? '标题已填写' : '缺少标题'}</span>
-                  <span>{splitLines(form.attachments).length > 0 ? `已记录 ${splitLines(form.attachments).length} 个附件` : '暂未记录附件'}</span>
+                  <span>{form.attachments.length > 0 ? `已上传 ${form.attachments.length} 个附件` : '暂未上传附件'}</span>
                 </div>
               </div>
             </div>
@@ -712,7 +833,7 @@ export default function EvidenceChainPage() {
               <button onClick={() => setDrawerOpen(false)} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 取消
               </button>
-              <button onClick={saveRecord} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
+              <button onClick={saveRecord} disabled={saving || uploading} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 保存证据
               </button>

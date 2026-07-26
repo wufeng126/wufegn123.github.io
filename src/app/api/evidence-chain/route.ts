@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -46,6 +47,64 @@ function normalizeJsonList(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function normalizeAttachments(value: unknown) {
+  if (!value) return [];
+  const rawList = Array.isArray(value) ? value : normalizeJsonList(value);
+  return rawList
+    .map((item) => {
+      if (!item) return null;
+      if (typeof item === 'string') return item.trim();
+      if (typeof item !== 'object') return null;
+      const attachment = item as Record<string, unknown>;
+      const name = String(attachment.name || '').trim();
+      const storageKey = String(attachment.storageKey || attachment.key || '').trim();
+      if (!name && !storageKey) return null;
+      return {
+        name: name || storageKey,
+        size: toNumberOrNull(attachment.size),
+        type: String(attachment.type || '').trim() || 'application/octet-stream',
+        storageKey,
+        uploadedAt: String(attachment.uploadedAt || '').trim() || new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function createStorage() {
+  return new S3Storage({
+    endpointUrl: process.env.OSS_ENDPOINT || process.env.COZE_BUCKET_ENDPOINT_URL,
+    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
+    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
+    bucketName: process.env.OSS_BUCKET_NAME || process.env.COZE_BUCKET_NAME,
+    region: process.env.OSS_REGION || 'cn-beijing',
+  });
+}
+
+async function attachSignedUrls(attachments: unknown) {
+  if (!Array.isArray(attachments)) return [];
+  const hasStoredFile = attachments.some((item) => (
+    item
+    && typeof item === 'object'
+    && String((item as Record<string, unknown>).storageKey || (item as Record<string, unknown>).key || '').trim()
+  ));
+  if (!hasStoredFile) return attachments;
+
+  const storage = createStorage();
+  return Promise.all(attachments.map(async (item) => {
+    if (!item || typeof item !== 'object') return item;
+    const attachment = item as Record<string, unknown>;
+    const key = String(attachment.storageKey || attachment.key || '').trim();
+    if (!key) return item;
+    try {
+      const url = await storage.generatePresignedUrl({ key, expireTime: 3600 });
+      return { ...attachment, storageKey: key, url };
+    } catch (error) {
+      console.warn('[evidence-chain] attachment url sign failed', error);
+      return { ...attachment, storageKey: key };
+    }
+  }));
+}
+
 function isMissingTableError(error: { message?: string; code?: string } | null) {
   const message = (error?.message || '').toLowerCase();
   return (
@@ -90,7 +149,7 @@ function normalizePayload(body: EvidenceInput, user: { id: number; name?: string
       amount_direction: String(body.amount_direction || '仅留痕/暂不确定').trim(),
       estimated_amount: toNumberOrNull(body.estimated_amount),
       summary: String(body.summary || '').trim() || null,
-      attachments: normalizeJsonList(body.attachments),
+      attachments: normalizeAttachments(body.attachments),
       related: normalizeJsonList(body.related),
       tags: normalizeJsonList(body.tags),
       owner_user_id: parseId(body.owner_user_id),
@@ -147,13 +206,13 @@ export async function GET(request: NextRequest) {
       throw new Error(error.message);
     }
 
-    const records = (data || []).map((record: any) => ({
+    const records = await Promise.all((data || []).map(async (record: any) => ({
       ...record,
       project_name: record.projects?.name || '',
-      attachments: Array.isArray(record.attachments) ? record.attachments : [],
+      attachments: await attachSignedUrls(record.attachments),
       related: Array.isArray(record.related) ? record.related : [],
       tags: Array.isArray(record.tags) ? record.tags : [],
-    }));
+    })));
 
     return apiSuccess({
       records,
