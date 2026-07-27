@@ -1183,16 +1183,22 @@ async function runWithSupabaseRpc() {
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const attempts = [{ query: MIGRATION_SQL }, { sql: MIGRATION_SQL }];
+  const attempts = [
+    { functionName: 'exec_sql', args: { query: MIGRATION_SQL } },
+    { functionName: 'exec_sql', args: { sql: MIGRATION_SQL } },
+    { functionName: 'execute_sql', args: { sql_text: MIGRATION_SQL } },
+    { functionName: 'execute_sql', args: { query: MIGRATION_SQL } },
+    { functionName: 'execute_sql', args: { sql: MIGRATION_SQL } },
+  ];
   let lastError = '';
 
-  for (const args of attempts) {
-    const { error } = await admin.rpc('exec_sql', args);
+  for (const attempt of attempts) {
+    const { error } = await admin.rpc(attempt.functionName, attempt.args);
     if (!error) return;
     lastError = error.message || JSON.stringify(error);
   }
 
-  throw new Error(lastError || 'exec_sql RPC 执行失败');
+  throw new Error(lastError || 'Supabase SQL RPC 执行失败');
 }
 
 export async function runMigrations(): Promise<MigrationResult> {
@@ -1215,7 +1221,7 @@ export async function runMigrations(): Promise<MigrationResult> {
     return {
       ok: true,
       mode: 'supabase-rpc',
-      message: '数据库迁移已通过 Supabase exec_sql 自动执行。',
+      message: '数据库迁移已通过 Supabase SQL RPC 自动执行。',
       sql: MIGRATION_SQL,
       manualUrl,
     };
