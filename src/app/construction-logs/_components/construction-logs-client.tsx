@@ -102,6 +102,8 @@ type SubmitterUser = {
   role?: string;
 };
 
+const LOG_PAGE_SIZE = 200;
+
 const RISK_TYPE_LABELS: Record<RiskType, string> = {
   change: '变更',
   visa: '签证',
@@ -215,6 +217,9 @@ export default function ConstructionLogsClient() {
   const statusParam = searchParams.get('status');
   const mineOnly = searchParams.get('mine') === '1';
   const [logs, setLogs] = useState<LogItem[]>([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logTotal, setLogTotal] = useState(0);
+  const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [stats, setStats] = useState<StatItem[]>([]);
   const [projectStats, setProjectStats] = useState<ProjectStatItem[]>([]);
@@ -251,19 +256,21 @@ export default function ConstructionLogsClient() {
   const [submitterLoading, setSubmitterLoading] = useState(false);
   const [submitterSaving, setSubmitterSaving] = useState(false);
 
+  const buildLogUserFilter = useCallback(async function buildLogUserFilter() {
+    if (!mineOnly) return '';
+    const meRes = await fetch('/api/auth/me');
+    const meJson = await meRes.json();
+    const currentUserId = meJson?.user?.id || meJson?.data?.id;
+    return currentUserId ? `&userId=${currentUserId}` : '';
+  }, [mineOnly]);
+
   const loadBase = useCallback(async function loadBase() {
     setLoading(true);
     try {
-      let userFilter = '';
-      if (mineOnly) {
-        const meRes = await fetch('/api/auth/me');
-        const meJson = await meRes.json();
-        const currentUserId = meJson?.user?.id || meJson?.data?.id;
-        if (currentUserId) userFilter = `&userId=${currentUserId}`;
-      }
+      const userFilter = await buildLogUserFilter();
 
       const [logRes, statsRes, projRes] = await Promise.all([
-        fetch(`/api/construction-logs?pageSize=100${userFilter}`),
+        fetch(`/api/construction-logs?page=1&pageSize=${LOG_PAGE_SIZE}${userFilter}`),
         fetch(`/api/construction-logs/stats?month=${month}${statsProjectId !== 'all' ? `&projectId=${statsProjectId}` : ''}`),
         fetch('/api/projects?includePublicLog=1'),
       ]);
@@ -273,7 +280,10 @@ export default function ConstructionLogsClient() {
       if (!logRes.ok || logJson.success === false) throw new Error(logJson.error || '施工日志加载失败');
       if (!statsRes.ok || statsJson.success === false) throw new Error(statsJson.error || '施工日志统计加载失败');
       if (!projRes.ok || projJson.success === false) throw new Error(projJson.error || '项目列表加载失败');
-      setLogs(Array.isArray(logJson.data) ? logJson.data : []);
+      const nextLogs = Array.isArray(logJson.data) ? logJson.data : [];
+      setLogs(nextLogs);
+      setLogPage(1);
+      setLogTotal(Number(logJson.meta?.pagination?.total || nextLogs.length || 0));
       setStats(Array.isArray(statsJson.data) ? statsJson.data : []);
       const nextProjectStats = (
         Array.isArray(statsJson.project_stats)
@@ -300,7 +310,35 @@ export default function ConstructionLogsClient() {
     } finally {
       setLoading(false);
     }
-  }, [mineOnly, month, statsProjectId]);
+  }, [buildLogUserFilter, month, statsProjectId]);
+
+  const loadMoreLogs = useCallback(async function loadMoreLogs() {
+    if (loadingMoreLogs) return;
+    setLoadingMoreLogs(true);
+    setMessage('');
+    try {
+      const nextPage = logPage + 1;
+      const userFilter = await buildLogUserFilter();
+      const res = await fetch(`/api/construction-logs?page=${nextPage}&pageSize=${LOG_PAGE_SIZE}${userFilter}`);
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '更多日志加载失败');
+      const nextLogs = Array.isArray(json.data) ? json.data : [];
+      setLogs(current => {
+        const existingIds = new Set(current.map(log => Number(log.id)));
+        const merged = [...current];
+        nextLogs.forEach((log: LogItem) => {
+          if (!existingIds.has(Number(log.id))) merged.push(log);
+        });
+        return merged;
+      });
+      setLogPage(nextPage);
+      setLogTotal(Number(json.meta?.pagination?.total || logTotal || nextLogs.length || 0));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '更多日志加载失败');
+    } finally {
+      setLoadingMoreLogs(false);
+    }
+  }, [buildLogUserFilter, loadingMoreLogs, logPage, logTotal]);
 
   const loadSubmitters = useCallback(async function loadSubmitters(projectId: string) {
     if (!projectId || !canManageSubmitters) return;
@@ -373,7 +411,8 @@ export default function ConstructionLogsClient() {
   const highRisks = statsSummary.high_risk_total;
   const pendingRisks = risks.filter(risk => risk.workflow_status === 'pending').length;
   const submittedProjects = statsSummary.submitted_projects;
-  const logDateGroups = useMemo(() => groupLogsByDate(logs.slice(0, 80)), [logs]);
+  const hasMoreLogs = logTotal > logs.length;
+  const logDateGroups = useMemo(() => groupLogsByDate(logs), [logs]);
 
   async function handleRiskAction(logId: number) {
     setActionBusy(logId);
@@ -756,7 +795,9 @@ export default function ConstructionLogsClient() {
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">加载中...</div>
             ) : logs.length === 0 ? (
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">暂无日志记录</div>
-            ) : logDateGroups.map((group, index) => (
+            ) : (
+              <>
+                {logDateGroups.map((group, index) => (
               <details key={group.date} open={index === 0} className="group rounded-xl border border-[#E5E6EB] bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition hover:bg-[#F7F8FA] md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
@@ -845,7 +886,22 @@ export default function ConstructionLogsClient() {
                   ))}
                 </div>
               </details>
-            ))}
+                ))}
+                <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[#C9CDD4] bg-white p-4 text-sm text-[#86909C]">
+                  <span>已显示 {logs.length}/{logTotal || logs.length} 条施工日志</span>
+                  {hasMoreLogs && (
+                    <button
+                      type="button"
+                      onClick={() => void loadMoreLogs()}
+                      disabled={loadingMoreLogs}
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loadingMoreLogs ? '加载中...' : '加载更多历史日志'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
