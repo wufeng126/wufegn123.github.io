@@ -9,6 +9,7 @@ export type WpsFieldMapping = {
   entryDate?: string;
   workType?: string;
   teamName?: string;
+  status?: string;
 };
 
 export type WpsIntegrationConfig = {
@@ -263,6 +264,7 @@ const FIELD_MAPPING_ALIASES: Record<keyof WpsFieldMapping, string> = {
   entryDate: 'entryDate',
   workType: 'workType',
   teamName: 'teamName',
+  status: 'status',
 };
 
 export function applyWpsFieldMapping(rows: Record<string, unknown>[], fieldMapping?: WpsFieldMapping | null) {

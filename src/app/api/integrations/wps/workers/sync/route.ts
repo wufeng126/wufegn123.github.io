@@ -241,6 +241,7 @@ function buildParsePreview(records: WpsWorkerInput[]) {
       entryDate: record.entryDate || null,
       workType: record.workType || null,
       teamName: record.teamName || null,
+      status: record.status || null,
     })),
   };
 }

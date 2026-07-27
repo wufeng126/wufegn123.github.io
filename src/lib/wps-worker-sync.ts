@@ -19,6 +19,7 @@ export interface WpsWorkerInput {
   entryDate?: string | null;
   workType?: string | null;
   teamName?: string | null;
+  status?: string | null;
 }
 
 export interface WpsWorkerSyncResult {
@@ -47,6 +48,7 @@ const FIELD_ALIASES: Record<keyof WpsWorkerInput, string[]> = {
   entryDate: ['entryDate', 'entry_date', 'inDate', '入场日期', '进场日期', '入职日期', '入场时间', '进场时间'],
   workType: ['workType', 'work_type', '工种', '班组工种'],
   teamName: ['teamName', 'team_name', '班组', '队伍', '班组名称', '施工班组'],
+  status: ['status', 'workerStatus', 'worker_status', '人员状态', '状态', '在场状态', '工人状态', '是否在场'],
 };
 
 const ATTACHMENT_KEYWORDS = ['照片', '图片', '附件', '影像', '扫描件', 'photo', 'image', 'file', 'attachment', 'upload'];
@@ -175,6 +177,7 @@ export function extractWpsWorkerRecords(payload: unknown): WpsWorkerInput[] {
       entryDate: pickField(flat, FIELD_ALIASES.entryDate),
       workType: pickField(flat, FIELD_ALIASES.workType),
       teamName: pickField(flat, FIELD_ALIASES.teamName),
+      status: pickField(flat, FIELD_ALIASES.status),
     };
   }).filter(hasMeaningfulWorkerSignal);
 }
@@ -238,6 +241,20 @@ function todayString(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizeWorkerStatus(value?: string | null, fallback?: string | null) {
+  const text = value?.trim().toLowerCase().replace(/\s+/g, '');
+  if (!text) return fallback || 'in_service';
+
+  const leftValues = ['left', 'inactive', '退场', '离场', '离职', '已退场', '已离场', '已离职', '不在场'];
+  const archivedValues = ['archived', 'archive', '归档', '已归档'];
+  const activeValues = ['in_service', 'active', '在场', '在岗', '在职', '正常', '已入场', '入场'];
+
+  if (leftValues.includes(text)) return 'left';
+  if (archivedValues.includes(text)) return 'archived';
+  if (activeValues.includes(text)) return 'in_service';
+  return fallback || 'in_service';
+}
+
 function stripNullish<T extends Record<string, unknown>>(data: T): T {
   return Object.fromEntries(
     Object.entries(data).filter(([, value]) => value !== undefined)
@@ -260,7 +277,7 @@ function buildWorkerData(input: WpsWorkerInput, projectId: number, existingEntry
     project_id: projectId,
     entry_date: existingEntryDate || entryDate || null,
     team_name: input.teamName?.trim() || null,
-    status: 'in_service',
+    status: normalizeWorkerStatus(input.status),
   });
 }
 
@@ -276,6 +293,7 @@ type ExistingWorkerRow = {
   project_id?: number | null;
   entry_date?: string | null;
   team_name?: string | null;
+  status?: string | null;
 };
 
 function preferInput(inputValue?: string | null, existingValue?: string | number | null) {
@@ -300,7 +318,7 @@ function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existin
     project_id: projectId,
     entry_date: existing.entry_date || entryDate || null,
     team_name: preferInput(input.teamName, existing.team_name),
-    status: 'in_service',
+    status: normalizeWorkerStatus(input.status, existing.status),
   });
 }
 
@@ -434,7 +452,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput)
   if (isValidChineseIdCard(idCard)) {
     const { data } = await client
       .from('workers')
-      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name')
+      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status')
       .eq('id_card', idCard)
       .maybeSingle();
     if (data) return data;
@@ -445,7 +463,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput)
   if (name && phone) {
     const { data } = await client
       .from('workers')
-      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name')
+      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status')
       .eq('name', name)
       .eq('phone', phone)
       .limit(1)

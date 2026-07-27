@@ -87,6 +87,7 @@ interface WpsFieldMapping {
   entryDate?: string;
   workType?: string;
   teamName?: string;
+  status?: string;
 }
 
 interface WpsConfig {
@@ -147,6 +148,7 @@ const defaultConfig: WpsConfig = {
     entryDate: '入场日期',
     workType: '工种',
     teamName: '班组',
+    status: '人员状态',
   },
   autoSyncEnabled: true,
 };
@@ -160,6 +162,7 @@ const mappingItems: Array<{ key: keyof WpsFieldMapping; label: string; required?
   { key: 'entryDate', label: '入场日期', hint: '用于项目调入时间' },
   { key: 'workType', label: '工种', hint: '施工日志筛选会用到' },
   { key: 'teamName', label: '班组', hint: '后续班组结算可关联' },
+  { key: 'status', label: '人员状态', hint: '用于同步在场、退场、已归档等状态' },
 ];
 
 function getProject(binding: WpsBinding): ProjectOption | null {
@@ -601,7 +604,7 @@ export default function WpsConfigPage() {
             </div>
           ) : (
             <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              先保存并测试 WPS 应用配置，系统会自动读取工作表和字段；未读取前也可以手动输入字段名。
+              先保存并测试 WPS 应用配置，系统会自动读取工作表和字段；读取成功后再从下拉框选择字段映射。
             </div>
           )}
 
@@ -609,37 +612,27 @@ export default function WpsConfigPage() {
             {mappingItems.map((item) => (
               <div key={item.key} className="space-y-2">
                 <Label>{item.label}{item.required ? <span className="ml-1 text-red-500">*</span> : null}</Label>
-                {fieldOptions.length > 0 ? (
-                  <Select
-                    value={config.fieldMapping[item.key] || '__none'}
-                    onValueChange={(value) => setConfig((prev) => ({
-                      ...prev,
-                      fieldMapping: {
-                        ...prev.fieldMapping,
-                        [item.key]: value === '__none' ? undefined : value,
-                      },
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择 WPS 字段" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">不映射</SelectItem>
-                      {fieldOptions.map((fieldName) => (
-                        <SelectItem key={fieldName} value={fieldName}>{fieldName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    value={config.fieldMapping[item.key] || ''}
-                    onChange={(event) => setConfig((prev) => ({
-                      ...prev,
-                      fieldMapping: { ...prev.fieldMapping, [item.key]: event.target.value },
-                    }))}
-                    placeholder={`WPS 字段名，如：${item.label}`}
-                  />
-                )}
+                <Select
+                  value={(fieldOptions.includes(config.fieldMapping[item.key] || '') ? config.fieldMapping[item.key] : '__none') || '__none'}
+                  disabled={fieldOptions.length === 0}
+                  onValueChange={(value) => setConfig((prev) => ({
+                    ...prev,
+                    fieldMapping: {
+                      ...prev.fieldMapping,
+                      [item.key]: value === '__none' ? undefined : value,
+                    },
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={fieldOptions.length > 0 ? '选择 WPS 字段' : '请先测试读取 WPS 字段'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">不映射</SelectItem>
+                    {fieldOptions.map((fieldName) => (
+                      <SelectItem key={fieldName} value={fieldName}>{fieldName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="text-xs text-gray-500">{item.hint}</div>
               </div>
             ))}

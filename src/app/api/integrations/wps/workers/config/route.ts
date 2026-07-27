@@ -76,7 +76,7 @@ function normalizeUrl(value: unknown): string | null {
 function normalizeFieldMapping(value: unknown): WpsFieldMapping {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const source = value as Record<string, unknown>;
-  const keys: Array<keyof WpsFieldMapping> = ['name', 'gender', 'idCard', 'phone', 'bankCard', 'entryDate', 'workType', 'teamName'];
+  const keys: Array<keyof WpsFieldMapping> = ['name', 'gender', 'idCard', 'phone', 'bankCard', 'entryDate', 'workType', 'teamName', 'status'];
   return Object.fromEntries(
     keys
       .map((key) => [key, cleanText(source[key])] as const)
