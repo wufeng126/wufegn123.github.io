@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
-import { Plus, Pencil, Trash2, Search, Upload, Download, Users, UserCheck, Filter, HardHat, X, LogOut, UserPlus, Building2, ChevronDown, ChevronUp, History, Database, ArrowRightLeft } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Upload, Download, Users, UserCheck, Filter, HardHat, X, LogOut, UserPlus, Building2, ChevronDown, ChevronUp, History, Database, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import { LinkableCell } from '@/components/linkable-cell';
 import WorkerImportDialog from '@/components/worker-import-dialog';
 import { WorkerDataManageDialog } from '@/components/worker-data-manage-dialog';
@@ -77,6 +77,7 @@ export default function WorkerRosterPage() {
   const [batchEditValue, setBatchEditValue] = useState<string>('');
   const [showProjectStats, setShowProjectStats] = useState(true);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [wpsSyncing, setWpsSyncing] = useState(false);
   const [dataManageDialogOpen, setDataManageDialogOpen] = useState(false);
   const [highlightProjectId, setHighlightProjectId] = useState<number | null>(null);
   const [chartProjectFilter, setChartProjectFilter] = useState<number | 'all'>('all'); // 图表项目筛选
@@ -597,6 +598,38 @@ export default function WorkerRosterPage() {
     }
   };
 
+  const handleWpsSync = async () => {
+    setWpsSyncing(true);
+    try {
+      const res = await fetch('/api/integrations/wps/workers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'WPS 同步失败');
+
+      const summary = data.summary || {};
+      toast({
+        title: data.success ? 'WPS 同步完成' : 'WPS 同步检查完成',
+        description: data.success
+          ? `新增 ${summary.created || 0} 人，更新 ${summary.updated || 0} 人，调入 ${summary.transferred || 0} 人，失败 ${summary.failed || 0} 条`
+          : data.message || '请到 WPS 配置页查看项目绑定结果',
+        variant: data.success ? 'default' : 'warning',
+      });
+      await fetchWorkers();
+    } catch (error) {
+      toast({
+        title: 'WPS 同步失败',
+        description: error instanceof Error ? error.message : '同步 WPS 花名册失败',
+        variant: 'error',
+      });
+    } finally {
+      setWpsSyncing(false);
+    }
+  };
+
   const handleExport = () => {
     const headers = ['姓名', '工种', '身份证号', '联系方式', '银行卡号', '入职日期', '所属项目', '状态', '黑名单', '备注'];
     const rows = workers.map(w => [
@@ -645,6 +678,9 @@ export default function WorkerRosterPage() {
           </Button>
           <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="btn-secondary h-9 w-full cursor-pointer sm:w-auto">
             <Upload className="w-4 h-4 mr-1.5" />批量导入<span className="text-xs text-muted-foreground ml-1">(CSV/XLSX)</span>
+          </Button>
+          <Button variant="outline" onClick={handleWpsSync} disabled={wpsSyncing} className="btn-secondary h-9 w-full sm:w-auto">
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${wpsSyncing ? 'animate-spin' : ''}`} />WPS同步
           </Button>
           <Button variant="outline" onClick={handleExport} className="btn-secondary h-9 w-full sm:w-auto">
             <Download className="w-4 h-4 mr-1.5" />导出

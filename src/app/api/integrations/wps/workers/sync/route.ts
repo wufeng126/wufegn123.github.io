@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { requireAuth } from '@/lib/api-auth';
+import { hasPermission, requireAuth } from '@/lib/api-auth';
 import { apiForbidden } from '@/lib/api-utils';
 import { extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
 import { applyWpsFieldMapping, extractWpsFileId, getWpsDbsheetSchema, listWpsDbsheetRecords, type WpsFieldMapping, type WpsIntegrationConfig, type WpsSheetSchema } from '@/lib/wps-openapi';
@@ -32,11 +32,11 @@ function getProjectName(binding: BindingRow): string | null {
   return project?.name || null;
 }
 
-async function requireSuperAdmin(request: NextRequest) {
+async function requireWpsSyncPermission(request: NextRequest) {
   const auth = await requireAuth(request);
   if (!auth.ok) return auth;
-  if (!auth.user.is_super_admin) {
-    return { ok: false as const, response: apiForbidden('只有超级管理员可以执行 WPS 同步') };
+  if (!hasPermission(auth.user, 'workers:import')) {
+    return { ok: false as const, response: apiForbidden('只有超级管理员或具备花名册导入权限的人员可以执行 WPS 同步') };
   }
   return auth;
 }
@@ -305,7 +305,7 @@ async function runParseTest(
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireSuperAdmin(request);
+  const auth = await requireWpsSyncPermission(request);
   if (!auth.ok) return auth.response;
 
   try {
