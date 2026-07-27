@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError } from '@/lib/api-utils';
+import { runMigrations } from '@/lib/db-migration';
 import { extractWpsFileId, getWpsDbsheetSchema, type WpsFieldMapping, type WpsIntegrationConfig } from '@/lib/wps-openapi';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
@@ -23,6 +24,41 @@ function cleanText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
   return text || null;
+}
+
+function getReadableErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  if (error && typeof error === 'object') {
+    const source = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [source.message, source.details, source.hint, source.code]
+      .map((part) => (part === null || part === undefined ? '' : String(part).trim()))
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join('；');
+  }
+  return fallback;
+}
+
+function isWpsConfigSchemaError(error: unknown) {
+  const message = getReadableErrorMessage(error, '').toLowerCase();
+  const code = error && typeof error === 'object' ? String((error as { code?: unknown }).code || '') : '';
+  return (
+    code === '42P01' ||
+    code === '42703' ||
+    code === 'PGRST204' ||
+    code === 'PGRST205' ||
+    message.includes('wps_worker_integration_config') ||
+    message.includes('schema cache') ||
+    message.includes('does not exist') ||
+    message.includes('could not find')
+  );
+}
+
+async function runWpsConfigMigration() {
+  const result = await runMigrations();
+  if (!result.ok) {
+    throw new Error(`数据库迁移未执行成功：${result.error || result.message}`);
+  }
 }
 
 function normalizeUrl(value: unknown): string | null {
@@ -67,6 +103,16 @@ async function getConfigRow(client: ReturnType<typeof getSupabaseClient>): Promi
   return data as ConfigRow | null;
 }
 
+async function getConfigRowWithMigration(client: ReturnType<typeof getSupabaseClient>): Promise<ConfigRow | null> {
+  try {
+    return await getConfigRow(client);
+  } catch (error) {
+    if (!isWpsConfigSchemaError(error)) throw error;
+    await runWpsConfigMigration();
+    return getConfigRow(client);
+  }
+}
+
 function toRuntimeConfig(row: ConfigRow | null): WpsIntegrationConfig {
   return {
     appId: row?.app_id || process.env.WPS_APP_ID || null,
@@ -107,16 +153,30 @@ async function saveTestResult(
     }, { onConflict: 'id' });
 }
 
+async function saveTestResultWithMigration(
+  client: ReturnType<typeof getSupabaseClient>,
+  status: 'success' | 'warning' | 'error',
+  message: string
+) {
+  try {
+    await saveTestResult(client, status, message);
+  } catch (error) {
+    if (!isWpsConfigSchemaError(error)) throw error;
+    await runWpsConfigMigration();
+    await saveTestResult(client, status, message);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireSuperAdmin(request);
   if (!auth.ok) return auth.response;
 
   try {
     const client = getSupabaseClient();
-    const row = await getConfigRow(client);
+    const row = await getConfigRowWithMigration(client);
     return NextResponse.json({ success: true, config: toSafeConfig(row) });
   } catch (error) {
-    return apiServerError(error instanceof Error ? error.message : '查询 WPS 应用配置失败');
+    return apiServerError(getReadableErrorMessage(error, '查询 WPS 应用配置失败'));
   }
 }
 
@@ -127,7 +187,7 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const client = getSupabaseClient();
-    const existing = await getConfigRow(client);
+    const existing = await getConfigRowWithMigration(client);
     const documentUrl = normalizeUrl(body.documentUrl ?? body.document_url);
     const fileId = cleanText(body.fileId ?? body.file_id) || extractWpsFileId(documentUrl);
     const appSecret = cleanText(body.appSecret ?? body.app_secret);
@@ -143,16 +203,28 @@ export async function PUT(request: NextRequest) {
       created_at: existing?.created_at || new Date().toISOString(),
     };
 
-    const { data, error } = await client
-      .from('wps_worker_integration_config')
-      .upsert(payload, { onConflict: 'id' })
-      .select('*')
-      .single();
-    if (error) throw error;
+    const upsertConfig = async () => {
+      const { data, error } = await client
+        .from('wps_worker_integration_config')
+        .upsert(payload, { onConflict: 'id' })
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as ConfigRow;
+    };
 
-    return NextResponse.json({ success: true, config: toSafeConfig(data as ConfigRow) });
+    let data: ConfigRow;
+    try {
+      data = await upsertConfig();
+    } catch (error) {
+      if (!isWpsConfigSchemaError(error)) throw error;
+      await runWpsConfigMigration();
+      data = await upsertConfig();
+    }
+
+    return NextResponse.json({ success: true, config: toSafeConfig(data) });
   } catch (error) {
-    return apiServerError(error instanceof Error ? error.message : '保存 WPS 应用配置失败');
+    return apiServerError(getReadableErrorMessage(error, '保存 WPS 应用配置失败'));
   }
 }
 
@@ -166,24 +238,24 @@ export async function POST(request: NextRequest) {
     if (action !== 'test') return apiBadRequest('不支持的 WPS 配置操作');
 
     const client = getSupabaseClient();
-    const row = await getConfigRow(client);
+    const row = await getConfigRowWithMigration(client);
     const runtimeConfig = toRuntimeConfig(row);
     const sheets = await getWpsDbsheetSchema(runtimeConfig);
     const message = sheets.length > 0
       ? `连接成功，读取到 ${sheets.length} 个工作表`
       : '连接成功，但未读取到工作表，请检查多维表格权限';
-    await saveTestResult(client, sheets.length > 0 ? 'success' : 'warning', message);
+    await saveTestResultWithMigration(client, sheets.length > 0 ? 'success' : 'warning', message);
 
     return NextResponse.json({
       success: sheets.length > 0,
       message,
       sheets,
-      config: toSafeConfig(await getConfigRow(client)),
+      config: toSafeConfig(await getConfigRowWithMigration(client)),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'WPS 连接测试失败';
+    const message = getReadableErrorMessage(error, 'WPS 连接测试失败');
     try {
-      await saveTestResult(getSupabaseClient(), 'error', message);
+      await saveTestResultWithMigration(getSupabaseClient(), 'error', message);
     } catch {
       // Ignore test status write failures; return the real WPS error to the page.
     }
