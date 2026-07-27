@@ -3,7 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { logSecurityEvent } from '@/lib/security-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
 
 // GET /api/supplier-contracts/payments - 获取付款记录列表
 export async function GET(request: NextRequest) {
@@ -56,7 +56,9 @@ export async function GET(request: NextRequest) {
 
     const summary = {
       totalPayments: paymentsWithDetails.length,
-      totalAmount: paymentsWithDetails.reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0),
+      totalAmount: paymentsWithDetails
+        .filter((p: any) => isEffectiveSupplierPaymentStatus(p.status))
+        .reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0),
     };
 
     return NextResponse.json({
@@ -97,6 +99,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: contractValidation.message }, { status: 400 });
     }
 
+    const { data: contract, error: contractError } = await supabase
+      .from('supplier_contracts')
+      .select('supplier_id, project_id')
+      .eq('id', contractId)
+      .single();
+    if (contractError || !contract) {
+      return NextResponse.json({ error: '合同不存在' }, { status: 400 });
+    }
+
     if (settlementId) {
       const settlementValidation = await validateSupplierSettlementPayment({
         settlement_id: settlementId,
@@ -123,6 +134,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: paymentArr, error } = await insertWithSequenceFix('supplier_payments', {
+      supplier_id: contract.supplier_id,
+      project_id: contract.project_id || null,
       contract_id: contractId,
       settlement_id: settlementId,
       payment_no: paymentNo,

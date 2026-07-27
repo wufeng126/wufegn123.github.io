@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
@@ -60,6 +60,11 @@ interface Settlement {
   status: string;
   remark?: string;
   supplier_name?: string;
+  contract_total_settlement_amount?: number;
+  contract_total_payable_amount?: number;
+  contract_paid_amount?: number;
+  contract_progress_pending_amount?: number;
+  contract_final_pending_amount?: number;
   created_at: string;
 }
 
@@ -71,6 +76,13 @@ interface Stats {
   totalPaid: number; // 已付金额
   totalProgressPending: number; // 进度未付金额 = 履约应付 - 已付
   totalFinalPending: number; // 决算未付金额 = 决算应付 - 已付
+}
+
+interface ImportResult {
+  success: number;
+  failed: number;
+  errors: string[];
+  message?: string;
 }
 
 // ============ 工具函数 ============
@@ -87,6 +99,41 @@ const formatPercent = (value: number | null | undefined) => {
 const formatDate = (dateStr: string | null | undefined) => {
   if (!dateStr) return '-';
   return dateStr.split('T')[0];
+};
+
+const isVoidedSettlement = (status?: string | null) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'voided' || normalized === 'cancelled' || normalized === '作废' || normalized === '已作废';
+};
+
+const calculateStatsFromSettlements = (rows: Settlement[]): Stats => {
+  const activeRows = rows.filter((s) => !isVoidedSettlement(s.status));
+  const totalsByContract = new Map<number, { amount: number; payable: number; paid: number }>();
+
+  activeRows.forEach((settlement) => {
+    const contractId = Number(settlement.contract_id);
+    if (!contractId || totalsByContract.has(contractId)) return;
+    totalsByContract.set(contractId, {
+      amount: Number(settlement.contract_total_settlement_amount ?? settlement.settlement_amount ?? 0),
+      payable: Number(settlement.contract_total_payable_amount ?? settlement.payable_amount ?? 0),
+      paid: Number(settlement.contract_paid_amount || 0),
+    });
+  });
+
+  const contractTotals = Array.from(totalsByContract.values());
+  const totalAmount = contractTotals.reduce((sum, item) => sum + item.amount, 0);
+  const totalPayable = contractTotals.reduce((sum, item) => sum + item.payable, 0);
+  const totalPaid = contractTotals.reduce((sum, item) => sum + item.paid, 0);
+
+  return {
+    totalSettlements: activeRows.length,
+    totalAmount,
+    totalPayable,
+    totalFinalPayable: totalAmount,
+    totalPaid,
+    totalProgressPending: Math.max(0, totalPayable - totalPaid),
+    totalFinalPending: Math.max(0, totalAmount - totalPaid),
+  };
 };
 
 // ============ 主组件 ============
@@ -112,7 +159,7 @@ export default function SettlementPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   // Excel导入辅助函数
   const parseExcelFile = async (file: File): Promise<any[]> => {
@@ -147,11 +194,23 @@ export default function SettlementPage() {
       const response = await fetch('/api/supplier-contracts/settlements/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records: data }),
+        body: JSON.stringify({ settlements: data }),
       });
       const result = await response.json();
-      setImportResult(result);
-      if (result.success > 0) {
+      const normalizedResult: ImportResult = {
+        success: Array.isArray(result.results?.success) ? result.results.success.length : Number(result.success || 0),
+        failed: Array.isArray(result.results?.failed) ? result.results.failed.length : Number(result.failed || 0),
+        errors: Array.isArray(result.results?.failed)
+          ? result.results.failed.map((item: any) => `第${item.row}行：${item.error}`)
+          : (Array.isArray(result.errors) ? result.errors : (result.error ? [result.error] : [])),
+        message: result.message,
+      };
+      setImportResult(normalizedResult);
+      if (!response.ok) {
+        toast.error(normalizedResult.errors[0] || '导入失败');
+        return;
+      }
+      if (normalizedResult.success > 0) {
         fetchSettlements();
         setImportDialogOpen(false);
         setImportFile(null);
@@ -492,15 +551,10 @@ export default function SettlementPage() {
   });
 
   // 根据筛选条件计算统计数据（直接使用 API 返回的 stats）
-  const filteredStats = stats || {
-    totalSettlements: 0,
-    totalAmount: 0,
-    totalPayable: 0,
-    totalFinalPayable: 0,
-    totalPaid: 0,
-    totalProgressPending: 0,
-    totalFinalPending: 0,
-  };
+  const filteredStats = useMemo(
+    () => calculateStatsFromSettlements(filteredSettlements),
+    [filteredSettlements]
+  );
 
   return (
     <div className="container mx-auto space-y-4 px-3 py-4 sm:px-4">
@@ -539,27 +593,27 @@ export default function SettlementPage() {
             <div className="text-lg font-bold">{filteredStats.totalSettlements}</div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">累计结算金额</div>
+            <div className="text-xs text-muted-foreground">合同累计结算</div>
             <div className="text-lg font-bold text-blue-600">{formatCurrency(filteredStats.totalAmount)}</div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">履约应付金额</div>
+            <div className="text-xs text-muted-foreground">合同进度应付</div>
             <div className="text-lg font-bold text-blue-600">{formatCurrency(filteredStats.totalPayable)}</div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">决算应付金额</div>
+            <div className="text-xs text-muted-foreground">合同100%应付</div>
             <div className="text-lg font-bold text-purple-600">{formatCurrency(filteredStats.totalFinalPayable)}</div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">已付金额</div>
+            <div className="text-xs text-muted-foreground">合同累计已付</div>
             <div className="text-lg font-bold text-green-600">{formatCurrency(filteredStats.totalPaid)}</div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">进度未付</div>
+            <div className="text-xs text-muted-foreground">合同进度未付</div>
             <div className="text-lg font-bold text-orange-600">{formatCurrency(filteredStats.totalProgressPending)}</div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">决算未付</div>
+            <div className="text-xs text-muted-foreground">合同100%未付</div>
             <div className="text-lg font-bold text-red-600">{formatCurrency(filteredStats.totalFinalPending)}</div>
           </CardContent></Card>
         </div>
@@ -627,9 +681,12 @@ export default function SettlementPage() {
                   <TableHead>供应商</TableHead>
                   <TableHead>合同</TableHead>
                   <TableHead>类型</TableHead>
-                  <TableHead className="text-right">结算金额(全额)</TableHead>
+                  <TableHead className="text-right">本次结算</TableHead>
+                  <TableHead className="text-right">本次应付</TableHead>
+                  <TableHead className="text-right">合同累计已付</TableHead>
+                  <TableHead className="text-right">合同进度未付</TableHead>
+                  <TableHead className="text-right">合同100%未付</TableHead>
                   <TableHead className="text-right">付款比例</TableHead>
-                  <TableHead className="text-right">应付金额</TableHead>
                   <TableHead>结算日期</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-center">操作</TableHead>
@@ -637,9 +694,9 @@ export default function SettlementPage() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8">加载中...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={13} className="text-center py-8">加载中...</TableCell></TableRow>
                 ) : filteredSettlements.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8">暂无数据</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={13} className="text-center py-8">暂无数据</TableCell></TableRow>
                 ) : (
                   filteredSettlements.map(s => (
                     <TableRow key={s.id}>
@@ -654,8 +711,11 @@ export default function SettlementPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(s.settlement_amount)}</TableCell>
-                      <TableCell className="text-right">{formatPercent(s.payment_ratio)}</TableCell>
                       <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.payable_amount)}</TableCell>
+                      <TableCell className="text-right text-green-600 font-bold">{formatCurrency(s.contract_paid_amount)}</TableCell>
+                      <TableCell className="text-right text-orange-600 font-bold">{formatCurrency(s.contract_progress_pending_amount)}</TableCell>
+                      <TableCell className="text-right text-red-600 font-bold">{formatCurrency(s.contract_final_pending_amount)}</TableCell>
+                      <TableCell className="text-right">{formatPercent(s.payment_ratio)}</TableCell>
                       <TableCell>{formatDate(s.settlement_date)}</TableCell>
                       <TableCell>
                         <Badge variant={s.status === '已确认' ? 'default' : 'outline'}>
@@ -693,16 +753,24 @@ export default function SettlementPage() {
                   <div className="mt-2 truncate text-xs text-gray-500">{s.contract?.contract_name || '-'}</div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <p className="text-gray-500">结算金额</p>
+                      <p className="text-gray-500">本次结算</p>
                       <p className="mt-0.5 font-semibold text-gray-900">{formatCurrency(s.settlement_amount)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">应付金额</p>
+                      <p className="text-gray-500">本次应付</p>
                       <p className="mt-0.5 font-semibold text-blue-600">{formatCurrency(s.payable_amount)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">付款比例</p>
-                      <p className="mt-0.5 font-medium text-gray-900">{formatPercent(s.payment_ratio)}</p>
+                      <p className="text-gray-500">合同累计已付</p>
+                      <p className="mt-0.5 font-semibold text-green-600">{formatCurrency(s.contract_paid_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">合同进度未付</p>
+                      <p className="mt-0.5 font-semibold text-orange-600">{formatCurrency(s.contract_progress_pending_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">合同100%未付</p>
+                      <p className="mt-0.5 font-semibold text-red-600">{formatCurrency(s.contract_final_pending_amount)}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">结算日期</p>

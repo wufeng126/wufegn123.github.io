@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const { settlements } = body;
+    const settlements = Array.isArray(body.settlements) ? body.settlements : body.records;
 
     if (!settlements || !Array.isArray(settlements) || settlements.length === 0) {
       return NextResponse.json({ error: '请提供有效的结算单数据' }, { status: 400 });

@@ -93,19 +93,47 @@ export async function GET(request: NextRequest) {
 
     const activeSettlements = result.filter((s: any) => !isVoidedStatus(s.status));
     const settlementContractIds = [...new Set(activeSettlements.map((s: any) => s.contract_id).filter(Boolean))];
+    const contractSettlementMap = new Map<number, { totalAmount: number; totalPayable: number }>();
+    activeSettlements.forEach((settlement: any) => {
+      const contractId = Number(settlement.contract_id);
+      if (!contractId) return;
+      const current = contractSettlementMap.get(contractId) || { totalAmount: 0, totalPayable: 0 };
+      current.totalAmount += Number(settlement.settlement_amount || 0);
+      current.totalPayable += Number(settlement.payable_amount || 0);
+      contractSettlementMap.set(contractId, current);
+    });
 
-    let totalPaid = 0;
+    const contractPaidMap = new Map<number, number>();
     if (settlementContractIds.length > 0) {
       const { data: payments } = await supabase
         .from('supplier_payments')
-        .select('payment_amount, status')
+        .select('contract_id, payment_amount, status')
         .in('contract_id', settlementContractIds);
 
-      totalPaid = (payments || [])
+      (payments || [])
         .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
-        .reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
+        .forEach((payment: any) => {
+          const contractId = Number(payment.contract_id);
+          if (!contractId) return;
+          contractPaidMap.set(contractId, (contractPaidMap.get(contractId) || 0) + Number(payment.payment_amount || 0));
+        });
     }
 
+    result = result.map((settlement: any) => {
+      const contractId = Number(settlement.contract_id);
+      const contractTotals = contractSettlementMap.get(contractId) || { totalAmount: 0, totalPayable: 0 };
+      const contractPaidAmount = contractPaidMap.get(contractId) || 0;
+      return {
+        ...settlement,
+        contract_total_settlement_amount: contractTotals.totalAmount,
+        contract_total_payable_amount: contractTotals.totalPayable,
+        contract_paid_amount: contractPaidAmount,
+        contract_progress_pending_amount: Math.max(0, contractTotals.totalPayable - contractPaidAmount),
+        contract_final_pending_amount: Math.max(0, contractTotals.totalAmount - contractPaidAmount),
+      };
+    });
+
+    const totalPaid = Array.from(contractPaidMap.values()).reduce((sum, amount) => sum + amount, 0);
     const totalAmount = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0);
     const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
     const totalFinalPayable = totalAmount;
