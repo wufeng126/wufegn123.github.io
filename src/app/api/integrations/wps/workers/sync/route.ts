@@ -191,15 +191,30 @@ async function fetchBindingRows(
   return fetchDocumentRows(binding);
 }
 
-function summarizeResults(results: WpsWorkerSyncResult[]) {
+function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.length) {
+  const created = results.filter((item) => item.action === 'created').length;
+  const updated = results.filter((item) => item.action === 'updated').length;
+  const transferred = results.filter((item) => item.action === 'transferred').length;
+  const skipped = results.filter((item) => item.action === 'skipped').length;
+  const failed = results.filter((item) => item.status === 'error').length;
+  const warnings = results.filter((item) => item.status === 'warning').length;
+  const changed = created + updated + transferred;
   return {
     total: results.length,
-    created: results.filter((item) => item.action === 'created').length,
-    updated: results.filter((item) => item.action === 'updated').length,
-    transferred: results.filter((item) => item.action === 'transferred').length,
-    skipped: results.filter((item) => item.action === 'skipped').length,
-    failed: results.filter((item) => item.status === 'error').length,
+    readRows,
+    created,
+    updated,
+    transferred,
+    skipped,
+    failed,
+    warnings,
+    changed,
+    succeeded: results.filter((item) => item.success).length,
   };
+}
+
+function buildSummaryMessage(summary: ReturnType<typeof summarizeResults>) {
+  return `读取 ${summary.readRows} 行，识别 ${summary.total} 条，新增 ${summary.created} 条，更新 ${summary.updated} 条，调入 ${summary.transferred} 条，跳过 ${summary.skipped} 条，失败 ${summary.failed} 条，有效变更 ${summary.changed} 条`;
 }
 
 function maskIdCard(value?: string | null) {
@@ -336,7 +351,7 @@ export async function POST(request: NextRequest) {
         success: results.some((item) => item.success),
         mode: 'payload',
         message: '测试数据已处理',
-        summary: summarizeResults(results),
+        summary: summarizeResults(results, manualRecords.length),
         results,
       });
     }
@@ -362,6 +377,7 @@ export async function POST(request: NextRequest) {
 
     const allResults: WpsWorkerSyncResult[] = [];
     const bindingResults = [];
+    let totalRowsRead = 0;
 
     for (const binding of bindings as BindingRow[]) {
       try {
@@ -378,6 +394,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { rows, worksheetName } = await fetchBindingRows(binding, integrationConfig);
+        totalRowsRead += rows.length;
         if (rows.length === 0) {
           const message = '文档已读取，但没有可同步的数据行';
           await updateBindingStatus(client, binding.id, 'warning', message);
@@ -398,9 +415,9 @@ export async function POST(request: NextRequest) {
         }
         allResults.push(...results);
 
-        const summary = summarizeResults(results);
+        const summary = summarizeResults(results, rows.length);
         const failed = summary.failed > 0;
-        const message = `读取 ${rows.length} 行，新增 ${summary.created} 人，更新 ${summary.updated} 人，调入 ${summary.transferred} 人，失败 ${summary.failed} 条`;
+        const message = buildSummaryMessage(summary);
         await updateBindingStatus(client, binding.id, failed ? 'warning' : 'success', message);
         bindingResults.push({
           bindingId: binding.id,
@@ -408,6 +425,7 @@ export async function POST(request: NextRequest) {
           worksheetName,
           status: failed ? 'warning' : 'success',
           message,
+          totalRows: rows.length,
           summary,
         });
       } catch (error) {
@@ -422,7 +440,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const summary = summarizeResults(allResults);
+    const summary = {
+      ...summarizeResults(allResults, totalRowsRead),
+      bindings: bindingResults.length,
+      successBindings: bindingResults.filter((item) => item.status === 'success').length,
+      warningBindings: bindingResults.filter((item) => item.status === 'warning').length,
+      errorBindings: bindingResults.filter((item) => item.status === 'error').length,
+    };
     return NextResponse.json({
       success: bindingResults.some((item) => item.status === 'success'),
       mode: 'document',

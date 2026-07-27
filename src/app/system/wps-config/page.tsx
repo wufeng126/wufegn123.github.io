@@ -216,6 +216,31 @@ function allFields(sheets: WpsSheet[]) {
   return Array.from(names);
 }
 
+function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?: unknown[]) {
+  const numberOf = (key: string) => Number(summary?.[key] || 0);
+  const readRows = numberOf('readRows');
+  const total = numberOf('total');
+  const created = numberOf('created');
+  const updated = numberOf('updated');
+  const transferred = numberOf('transferred');
+  const skipped = numberOf('skipped');
+  const failed = numberOf('failed');
+  const changed = numberOf('changed') || created + updated + transferred;
+  const bindingCount = numberOf('bindings') || bindingResults?.length || 0;
+  const parts = [
+    readRows > 0 ? `读取 ${readRows} 行` : null,
+    total > 0 ? `识别 ${total} 条` : null,
+    `新增 ${created} 条`,
+    `更新 ${updated} 条`,
+    `调入 ${transferred} 条`,
+    `跳过 ${skipped} 条`,
+    `失败 ${failed} 条`,
+    `有效变更 ${changed} 条`,
+    bindingCount > 0 ? `涉及 ${bindingCount} 个项目` : null,
+  ].filter(Boolean);
+  return parts.join('，');
+}
+
 export default function WpsConfigPage() {
   const { toast } = useToast();
   const [bindings, setBindings] = useState<WpsBinding[]>([]);
@@ -386,7 +411,7 @@ export default function WpsConfigPage() {
       toast({
         title: data.success ? '同步完成' : '同步检查完成',
         description: data.success
-          ? `新增 ${summary.created || 0} 人，更新 ${summary.updated || 0} 人，调入 ${summary.transferred || 0} 人，失败 ${summary.failed || 0} 条`
+          ? formatWpsSyncSummary(summary, data.bindingResults)
           : data.message || '请查看绑定台账中的同步结果说明',
         variant: data.success ? 'default' : 'warning',
       });
