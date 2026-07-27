@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { requireAuth } from '@/lib/api-auth';
 import { apiForbidden } from '@/lib/api-utils';
 import { extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
+import { applyWpsFieldMapping, extractWpsFileId, getWpsDbsheetSchema, listWpsDbsheetRecords, type WpsFieldMapping, type WpsIntegrationConfig, type WpsSheetSchema } from '@/lib/wps-openapi';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 type BindingRow = {
@@ -15,6 +16,15 @@ type BindingRow = {
   wps_sheet_id: string | null;
   wps_table_id: string | null;
   projects?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+type WpsConfigRow = {
+  app_id?: string | null;
+  app_secret?: string | null;
+  document_url?: string | null;
+  file_id?: string | null;
+  field_mapping?: WpsFieldMapping | null;
+  auto_sync_enabled?: boolean | null;
 };
 
 function getProjectName(binding: BindingRow): string | null {
@@ -115,6 +125,72 @@ async function fetchDocumentRows(binding: BindingRow): Promise<{ rows: Record<st
   return { rows, worksheetName: targetSheetName };
 }
 
+async function loadWpsIntegrationConfig(client: ReturnType<typeof getSupabaseClient>): Promise<WpsIntegrationConfig | null> {
+  const { data } = await client
+    .from('wps_worker_integration_config')
+    .select('app_id, app_secret, document_url, file_id, field_mapping, auto_sync_enabled')
+    .eq('id', 1)
+    .maybeSingle();
+  const row = data as WpsConfigRow | null;
+  const documentUrl = row?.document_url || process.env.WPS_DOCUMENT_URL || null;
+  const config: WpsIntegrationConfig = {
+    appId: row?.app_id || process.env.WPS_APP_ID || null,
+    appSecret: row?.app_secret || process.env.WPS_APP_SECRET || null,
+    documentUrl,
+    fileId: row?.file_id || extractWpsFileId(documentUrl),
+    fieldMapping: row?.field_mapping || {},
+  };
+
+  if (row?.auto_sync_enabled === false) return null;
+  if (!config.appId || !config.appSecret || (!config.fileId && !config.documentUrl)) return null;
+  return config;
+}
+
+function normalizeName(value?: string | null) {
+  return value?.trim().replace(/\s+/g, '').toLowerCase() || '';
+}
+
+function findSheetForBinding(binding: BindingRow, sheets: WpsSheetSchema[]) {
+  if (binding.wps_sheet_id) {
+    const exact = sheets.find((sheet) => sheet.id === binding.wps_sheet_id);
+    if (exact) return exact;
+  }
+
+  const names = [
+    binding.worksheet_name,
+    binding.wps_project_name,
+    getProjectName(binding),
+  ].map(normalizeName).filter(Boolean);
+  if (names.length === 0) return null;
+  return sheets.find((sheet) => names.includes(normalizeName(sheet.name))) || null;
+}
+
+async function fetchOpenApiRows(
+  binding: BindingRow,
+  config: WpsIntegrationConfig
+): Promise<{ rows: Record<string, unknown>[]; worksheetName?: string }> {
+  const sheets = await getWpsDbsheetSchema(config);
+  const sheet = findSheetForBinding(binding, sheets);
+  if (!sheet) {
+    throw new Error('未在 WPS 多维表格中找到匹配的工作表，请检查项目绑定里的工作表名称或工作表 ID');
+  }
+  const rows = await listWpsDbsheetRecords(config, sheet.id);
+  return {
+    rows: applyWpsFieldMapping(rows, config.fieldMapping),
+    worksheetName: sheet.name,
+  };
+}
+
+async function fetchBindingRows(
+  binding: BindingRow,
+  config: WpsIntegrationConfig | null
+): Promise<{ rows: Record<string, unknown>[]; worksheetName?: string }> {
+  if (config) {
+    return fetchOpenApiRows(binding, config);
+  }
+  return fetchDocumentRows(binding);
+}
+
 function summarizeResults(results: WpsWorkerSyncResult[]) {
   return {
     total: results.length,
@@ -172,7 +248,8 @@ function buildParsePreview(records: WpsWorkerInput[]) {
 async function runParseTest(
   client: ReturnType<typeof getSupabaseClient>,
   bindings: BindingRow[],
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  config: WpsIntegrationConfig | null
 ) {
   const bindingId = Number(body.bindingId ?? body.binding_id);
   const targetBindings = Number.isFinite(bindingId) && bindingId > 0
@@ -186,17 +263,17 @@ async function runParseTest(
   const bindingResults = [];
   for (const binding of targetBindings) {
     try {
-      if (!binding.wps_document_url) {
+      if (!config && !binding.wps_document_url) {
         bindingResults.push({
           bindingId: binding.id,
           projectName: getProjectName(binding),
           status: 'warning',
-          message: '未配置可直接读取的文档链接；如使用 WPS 实时推送，请通过 webhook 测试载荷验证',
+          message: '未配置 WPS 应用配置，也未配置可直接读取的文档链接',
         });
         continue;
       }
 
-      const { rows, worksheetName } = await fetchDocumentRows(binding);
+      const { rows, worksheetName } = await fetchBindingRows(binding, config);
       const records = buildRecordsFromRows(binding, rows, worksheetName);
       bindingResults.push({
         bindingId: binding.id,
@@ -276,8 +353,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '没有启用的 WPS 绑定配置' }, { status: 400 });
     }
 
+    const integrationConfig = await loadWpsIntegrationConfig(client);
+
     if ((body as Record<string, unknown>).testOnly) {
-      return runParseTest(client, bindings as BindingRow[], body as Record<string, unknown>);
+      return runParseTest(client, bindings as BindingRow[], body as Record<string, unknown>, integrationConfig);
     }
 
     const allResults: WpsWorkerSyncResult[] = [];
@@ -285,8 +364,8 @@ export async function POST(request: NextRequest) {
 
     for (const binding of bindings as BindingRow[]) {
       try {
-        if (!binding.wps_document_url) {
-          const message = '未配置文档链接；如使用 WPS 表单实时同步，请确认 webhook 已配置到 WPS 自动化流程';
+        if (!integrationConfig && !binding.wps_document_url) {
+          const message = '未配置 WPS 应用配置，也未配置文档直链；无法自动同步';
           await updateBindingStatus(client, binding.id, 'warning', message);
           bindingResults.push({
             bindingId: binding.id,
@@ -297,7 +376,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const { rows, worksheetName } = await fetchDocumentRows(binding);
+        const { rows, worksheetName } = await fetchBindingRows(binding, integrationConfig);
         if (rows.length === 0) {
           const message = '文档已读取，但没有可同步的数据行';
           await updateBindingStatus(client, binding.id, 'warning', message);

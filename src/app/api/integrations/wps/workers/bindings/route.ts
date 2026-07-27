@@ -60,13 +60,31 @@ interface BindingListItem {
   is_active?: boolean | null;
 }
 
+type WpsConfigStatusRow = {
+  app_id?: string | null;
+  app_secret?: string | null;
+  document_url?: string | null;
+  file_id?: string | null;
+};
+
+function hasPullCredential(config: WpsConfigStatusRow | null) {
+  return Boolean(
+    (config?.app_id && config?.app_secret && (config.document_url || config.file_id)) ||
+    (process.env.WPS_APP_ID && process.env.WPS_APP_SECRET && process.env.WPS_DOCUMENT_URL)
+  );
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireSuperAdmin(request);
   if (!auth.ok) return auth.response;
 
   try {
     const client = getSupabaseClient();
-    const [{ data: bindings, error: bindingsError }, { data: projects, error: projectsError }] = await Promise.all([
+    const [
+      { data: bindings, error: bindingsError },
+      { data: projects, error: projectsError },
+      { data: config },
+    ] = await Promise.all([
       client
         .from('wps_project_bindings')
         .select('*, projects(id, name, year, status)')
@@ -76,6 +94,11 @@ export async function GET(request: NextRequest) {
         .select('id, name, year, status')
         .order('year', { ascending: false })
         .order('name', { ascending: true }),
+      client
+        .from('wps_worker_integration_config')
+        .select('app_id, app_secret, document_url, file_id')
+        .eq('id', 1)
+        .maybeSingle(),
     ]);
 
     if (bindingsError) throw bindingsError;
@@ -93,7 +116,7 @@ export async function GET(request: NextRequest) {
       integration: {
         webhookPath: '/api/integrations/wps/workers/webhook',
         tokenConfigured: Boolean(process.env.WPS_WORKER_SYNC_TOKEN || process.env.WPS_SYNC_TOKEN),
-        pullCredentialConfigured: Boolean(process.env.WPS_ACCESS_TOKEN || process.env.WPS_APP_ID || process.env.WPS_APP_SECRET),
+        pullCredentialConfigured: hasPullCredential(config as WpsConfigStatusRow | null),
       },
       stats: {
         totalBindings: bindings?.length || 0,

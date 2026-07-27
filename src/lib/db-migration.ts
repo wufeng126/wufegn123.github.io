@@ -387,6 +387,37 @@ CREATE INDEX IF NOT EXISTS wps_project_bindings_form_id_idx ON wps_project_bindi
 CREATE INDEX IF NOT EXISTS wps_project_bindings_sheet_id_idx ON wps_project_bindings(wps_sheet_id);
 CREATE INDEX IF NOT EXISTS wps_project_bindings_table_id_idx ON wps_project_bindings(wps_table_id);
 
+CREATE TABLE IF NOT EXISTS wps_worker_integration_config (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  app_id VARCHAR(200),
+  app_secret TEXT,
+  document_url TEXT,
+  file_id VARCHAR(200),
+  field_mapping JSONB NOT NULL DEFAULT '{}'::jsonb,
+  auto_sync_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  last_test_at TIMESTAMPTZ,
+  last_test_status VARCHAR(20),
+  last_test_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  CONSTRAINT wps_worker_integration_config_singleton CHECK (id = 1)
+);
+ALTER TABLE IF EXISTS wps_worker_integration_config
+  ADD COLUMN IF NOT EXISTS app_id VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS app_secret TEXT,
+  ADD COLUMN IF NOT EXISTS document_url TEXT,
+  ADD COLUMN IF NOT EXISTS file_id VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS field_mapping JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS auto_sync_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS last_test_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS last_test_status VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS last_test_message TEXT,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+INSERT INTO wps_worker_integration_config (id)
+VALUES (1)
+ON CONFLICT (id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS project_archives (
   id SERIAL PRIMARY KEY,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

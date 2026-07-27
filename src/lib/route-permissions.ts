@@ -88,6 +88,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/admins': { permission: 'system:permission_manage' },
   '/api/ai/knowledge': {},
   '/api/integrations/wps/workers/logs': { permission: 'workers:import' },
+  '/api/integrations/wps/workers/config': { permission: 'system:manage', superAdminOnly: true },
   '/api/integrations/wps/workers/bindings': { permission: 'system:manage', superAdminOnly: true },
   '/api/integrations/wps/workers/sync': { permission: 'system:manage', superAdminOnly: true },
   '/api/miscellaneous-materials/recognize': { permission: 'miscellaneous_materials:view' },
@@ -303,6 +304,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/dingtalk/contacts': 'system:dingtalk_manage',
   '/api/dingtalk/bindings': 'system:dingtalk_manage',
   '/api/dingtalk/token': 'system:dingtalk_manage',
+  '/api/integrations/wps/workers/config': 'system:manage',
   '/api/integrations/wps/workers/bindings': 'system:manage',
   '/api/integrations/wps/workers/sync': 'system:manage',
 };
