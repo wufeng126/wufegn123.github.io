@@ -97,16 +97,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq('id', log.project_id)
       .maybeSingle();
 
-    const { data: riskDoc } = await supabase
-      .from('ai_knowledge_docs')
-      .select('id,title,tags,updated_at')
-      .eq('source_type', 'construction_log')
-      .eq('source_ref', `cl:${logId}`)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
     const { data: attendanceWorkers, error: attendanceError } = await supabase
       .from('construction_log_attendance')
       .select('worker_id,worker_name,work_type,team_name,work_hours')
@@ -123,7 +113,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       project: project || null,
       attendance_workers: attendanceWorkers || [],
       risk,
-      risk_doc: riskDoc || null,
+      risk_doc: null,
       can_edit_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
       can_cancel_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
     });

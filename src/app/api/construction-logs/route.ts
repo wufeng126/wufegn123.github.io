@@ -7,8 +7,6 @@ import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessag
 import { getConstructionLogAccessibleProjectIds, isPublicLogProject } from '@/lib/public-log-project';
 import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
 import {
-  buildRiskKnowledgeContent,
-  buildRiskKnowledgeTags,
   detectConstructionLogRisk,
   enrichConstructionLog,
   getRiskLevelLabel,
@@ -333,7 +331,7 @@ async function createRiskSideEffects(
   data: InsertedConstructionLogRow | null,
   draft: ConstructionLogDraft,
   logDate: string,
-  userId?: number,
+  _userId?: number,
 ) {
   const risk = detectConstructionLogRisk({ content: draft.content, issues: draft.issues || '' });
   if (!data || !risk.hasRisk) return;
@@ -346,29 +344,6 @@ async function createRiskSideEffects(
   const projName = (proj as { name?: string } | null)?.name || `项目${draft.project_id}`;
   const typeLabel = risk.primaryType ? getRiskTypeLabel(risk.primaryType) : '风险';
   const levelLabel = getRiskLevelLabel(risk.level);
-  const knowledgeContent = buildRiskKnowledgeContent({
-    projectName: projName,
-    projectId: String(draft.project_id),
-    logId: data.id,
-    logDate,
-    location: draft.location || '',
-    content: draft.content,
-    issues: draft.issues || '',
-    risk,
-  });
-
-  const insertDoc: Record<string, unknown> = {
-    title: `${projName} ${logDate || ''} 施工日志 - ${typeLabel}${levelLabel ? `(${levelLabel})` : ''}`,
-    category: risk.types.includes('cost') ? '成本分析' : risk.types.includes('visa') ? '签证' : '经验总结',
-    source_type: 'construction_log',
-    source_ref: `cl:${data.id}`,
-    tags: buildRiskKnowledgeTags({ projectId: String(draft.project_id), projectName: projName, logDate, risk }),
-    content: knowledgeContent,
-    status: 'active',
-  };
-  if (userId) insertDoc.created_by = userId;
-
-  await supabase.from('ai_knowledge_docs').insert(insertDoc);
 
   const recipients = await getProjectBudgetRecipients(supabase, draft.project_id);
   const targetNames = formatRecipientNames(recipients);
@@ -376,7 +351,7 @@ async function createRiskSideEffects(
   const { pushBusinessNotification } = await import('@/lib/business-notification');
   await pushBusinessNotification({
     type: 'construction_log_alert',
-    title: `${projName} 施工日志识别到${typeLabel}风险`,
+    title: `${projName}施工日志识别到${typeLabel}风险`,
     content: `${logDate || ''} ${risk.summary}。${risk.recommendation}`,
     severity: risk.level === 'high' ? 'danger' : 'warning',
     projectId: draft.project_id,

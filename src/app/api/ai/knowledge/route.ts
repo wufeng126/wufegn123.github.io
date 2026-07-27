@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('page_size') || '20');
 
-    let query = supabase.from('ai_knowledge_docs').select('*', { count: 'exact' });
+    let query = supabase
+      .from('ai_knowledge_docs')
+      .select('*', { count: 'exact' })
+      .neq('source_type', 'construction_log');
 
     if (category) query = query.eq('category', category);
     if (status) query = query.eq('status', status);
@@ -33,7 +36,11 @@ export async function GET(request: NextRequest) {
       return apiServerError(error.message);
     }
 
-    return apiSuccess(data || [], {
+    const filteredData = (data || []).filter((doc: any) =>
+      doc.source_type !== 'construction_log' && !String(doc.source_ref || '').startsWith('cl:'),
+    );
+
+    return apiSuccess(filteredData, {
       meta: { pagination: { page, pageSize, total: count || 0 } },
     });
   } catch (e: unknown) {

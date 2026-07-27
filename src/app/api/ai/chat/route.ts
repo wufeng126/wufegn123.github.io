@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       console.error('[AI] Knowledge search error:', e);
     }
 
-    // 搜索系统知识库（月度分析、施工日志等）
+    // 搜索系统知识库（月度分析、手动经验等）
     let systemKnowledge = '';
     try {
       systemKnowledge = await searchSystemKnowledge(inputSummary);

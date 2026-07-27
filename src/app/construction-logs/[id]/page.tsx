@@ -56,12 +56,6 @@ type ConstructionLogDetail = {
     recommendation?: string;
     matchedKeywords?: string[];
   };
-  risk_doc?: {
-    id: number;
-    title?: string | null;
-    tags?: string[] | string | null;
-    updated_at?: string | null;
-  } | null;
 };
 
 const riskLevelLabels: Record<RiskLevel, string> = {
@@ -103,12 +97,6 @@ function riskClass(level?: RiskLevel | null) {
   if (level === 'high') return 'border-[#F53F3F] bg-[#FFF1F0] text-[#C62828]';
   if (level === 'medium') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
   return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
-}
-
-function normalizeTags(tags?: string[] | string | null) {
-  if (Array.isArray(tags)) return tags.map(String);
-  if (typeof tags === 'string') return tags.split(',').map(tag => tag.trim()).filter(Boolean);
-  return [];
 }
 
 function formatFileSize(size?: number | null) {
@@ -169,8 +157,6 @@ export default function ConstructionLogDetailPage() {
     };
   }, [params.id]);
 
-  const riskTags = useMemo(() => normalizeTags(detail?.risk_doc?.tags), [detail?.risk_doc?.tags]);
-  const riskStatus = riskTags.find(tag => tag.startsWith('风险状态:'))?.replace('风险状态:', '') || '待确认';
   const photoAttachments = useMemo(() => (
     (detail?.attachments || []).filter(attachment => (
       attachment.type === 'image'
@@ -412,7 +398,7 @@ export default function ConstructionLogDetailPage() {
             </section>
 
             <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <h2 className="text-sm font-semibold text-[#1D2129]">风险识别与沉淀状态</h2>
+              <h2 className="text-sm font-semibold text-[#1D2129]">风险识别提醒</h2>
               {detail.risk?.hasRisk ? (
                 <div className="mt-3 space-y-3">
                   <p className="text-sm text-[#4E5969]">{detail.risk.summary}</p>
@@ -420,15 +406,10 @@ export default function ConstructionLogDetailPage() {
                     {(detail.risk.types || []).map(type => (
                       <span key={type} className="rounded-full bg-[#F2F3F5] px-2.5 py-1 text-xs text-[#4E5969]">{riskTypeLabels[type] || type}</span>
                     ))}
-                    <span className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">风险状态：{riskStatus}</span>
+                    <span className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">仅作提醒确认</span>
                   </div>
                   {detail.risk.recommendation && (
                     <p className="rounded-lg bg-[#FAFBFF] px-3 py-2 text-sm text-[#4E5969]">建议：{detail.risk.recommendation}</p>
-                  )}
-                  {detail.risk_doc?.id && (
-                    <Link href={`/knowledge/${detail.risk_doc.id}`} className="inline-flex text-sm font-medium text-[#165DFF] hover:underline">
-                      查看已沉淀知识
-                    </Link>
                   )}
                 </div>
               ) : (

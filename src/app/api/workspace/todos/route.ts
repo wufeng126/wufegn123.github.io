@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { getTodoProjectIds } from '@/lib/api-project-access';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { detectConstructionLogRisk, getRiskWorkflowStatusFromTags } from '@/lib/construction-log-risk';
+import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
 import { normalizeKnowledgeTags } from '@/lib/knowledge-taxonomy';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
@@ -57,11 +57,6 @@ function hasProjectAccess(projectId: unknown, accessibleProjectIds: number[] | n
   return accessibleProjectIds.includes(Number(projectId));
 }
 
-function getLogIdFromSourceRef(sourceRef?: string | null) {
-  const match = String(sourceRef || '').match(/^cl:(\d+)$/);
-  return match ? Number(match[1]) : null;
-}
-
 function getProjectIdFromMonthlySourceRef(sourceRef?: string | null) {
   const match = String(sourceRef || '').match(/^monthly:(\d+):\d{4}-\d{2}$/);
   return match ? Number(match[1]) : null;
@@ -113,7 +108,7 @@ async function countWithFallback(label: string, countFn: () => Promise<number>) 
   }
 }
 
-async function countPendingConstructionLogRiskDocs(client: SupabaseClient, accessibleProjectIds: number[] | null) {
+async function countPendingConstructionLogRiskLogs(client: SupabaseClient, accessibleProjectIds: number[] | null) {
   if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) return 0;
 
   let logsQuery = client
@@ -134,27 +129,7 @@ async function countPendingConstructionLogRiskDocs(client: SupabaseClient, acces
   );
   if (riskLogs.length === 0) return 0;
 
-  const sourceRefs = riskLogs.map((log) => `cl:${log.id}`);
-  const { data: docs, error: docError } = await client
-    .from('ai_knowledge_docs')
-    .select('source_ref,tags')
-    .eq('source_type', 'construction_log')
-    .eq('status', 'active')
-    .in('source_ref', sourceRefs);
-
-  if (docError) throw new Error(docError.message);
-
-  const docsByLogId = new Map<number, KnowledgeDocRow>();
-  ((docs || []) as KnowledgeDocRow[]).forEach((doc) => {
-    const logId = getLogIdFromSourceRef(doc.source_ref);
-    if (logId) docsByLogId.set(logId, doc);
-  });
-
-  return riskLogs.filter((log) => {
-    const doc = docsByLogId.get(Number(log.id));
-    const workflowStatus = getRiskWorkflowStatusFromTags(normalizeKnowledgeTags(doc?.tags));
-    return workflowStatus === 'pending';
-  }).length;
+  return riskLogs.length;
 }
 
 async function countPendingConstructionLogRisks(
@@ -175,7 +150,7 @@ async function countPendingConstructionLogRisks(
 
   const { data, error } = await query.limit(1000);
   if (error && isMissingRecipientColumn(error)) {
-    return countPendingConstructionLogRiskDocs(client, accessibleProjectIds);
+    return countPendingConstructionLogRiskLogs(client, accessibleProjectIds);
   }
   if (error) throw new Error(error.message);
   return ((data || []) as NotificationRow[]).filter((item) => isUnread(item.is_read)).length;

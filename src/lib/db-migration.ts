@@ -1100,6 +1100,10 @@ ON CONFLICT (setting_key) DO NOTHING;
 
 ALTER TABLE IF EXISTS roles ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT FALSE;
 
+DELETE FROM ai_knowledge_docs
+WHERE source_type = 'construction_log'
+   OR (COALESCE(source_type, '') <> 'manual' AND source_ref LIKE 'cl:%');
+
 NOTIFY pgrst, 'reload schema';
 `;
 

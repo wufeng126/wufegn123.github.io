@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const { data: docs } = await supabase
       .from('ai_knowledge_docs')
-      .select('id,title,content,category,source_type')
+      .select('id,title,content,category,source_type,source_ref')
       .eq('status', 'active')
       .neq('title', '__sync_status__')
       .neq('source_type', 'auto_sync');
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     let reIndexed = 0;
     if (docs && docs.length > 0) {
       for (const doc of docs) {
+        if (doc.source_type === 'construction_log' || String(doc.source_ref || '').startsWith('cl:')) continue;
         if (doc.content && doc.content.length > 10) {
           const success = await addKnowledgeDoc(
             doc.title,
