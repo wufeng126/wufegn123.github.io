@@ -15,6 +15,10 @@ type EvidenceInput = {
   source?: string;
   importance?: string;
   follow_status?: string;
+  handling_result?: string;
+  linked_visa_id?: number | string | null;
+  linked_visa_number?: string;
+  handling_note?: string;
   amount_direction?: string;
   estimated_amount?: number | string | null;
   summary?: string;
@@ -128,10 +132,30 @@ async function assertProjectAccess(
   return true;
 }
 
+async function assertLinkedVisa(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  linkedVisaId: number | null,
+  projectId: number
+) {
+  if (!linkedVisaId) return { ok: true as const, visaNumber: null };
+
+  const { data, error } = await supabase
+    .from('visas')
+    .select('id, project_id, visa_number')
+    .eq('id', linkedVisaId)
+    .single();
+
+  if (error || !data) return { ok: false as const, error: '关联的签证单不存在' };
+  if (Number(data.project_id) !== projectId) return { ok: false as const, error: '关联签证单必须属于同一个项目' };
+  return { ok: true as const, visaNumber: String(data.visa_number || '') || null };
+}
+
 function normalizePayload(body: EvidenceInput, user: { id: number; name?: string; username?: string }) {
   const projectId = parseId(body.project_id);
   const title = String(body.title || '').trim();
   const eventDate = String(body.event_date || '').trim();
+  const handlingResult = String(body.handling_result || '待判断').trim() || '待判断';
+  const linkedVisaId = handlingResult === '走签证' ? parseId(body.linked_visa_id) : null;
 
   if (!projectId) return { error: '请选择所属项目' as const };
   if (!eventDate) return { error: '请选择事件日期' as const };
@@ -146,6 +170,10 @@ function normalizePayload(body: EvidenceInput, user: { id: number; name?: string
       source: String(body.source || '').trim() || null,
       importance: String(body.importance || '重点关注').trim(),
       follow_status: String(body.follow_status || '未处理').trim(),
+      handling_result: handlingResult,
+      linked_visa_id: linkedVisaId,
+      linked_visa_number: linkedVisaId ? String(body.linked_visa_number || '').trim() || null : null,
+      handling_note: String(body.handling_note || '').trim() || null,
       amount_direction: String(body.amount_direction || '仅留痕/暂不确定').trim(),
       estimated_amount: toNumberOrNull(body.estimated_amount),
       summary: String(body.summary || '').trim() || null,
@@ -240,6 +268,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const hasAccess = await assertProjectAccess(supabase, auth.user, normalized.data.project_id);
     if (!hasAccess) return apiForbidden('无权维护该项目结算证据链');
+    const linkedVisa = await assertLinkedVisa(supabase, normalized.data.linked_visa_id, normalized.data.project_id);
+    if (!linkedVisa.ok) return apiBadRequest(linkedVisa.error);
+    if (linkedVisa.visaNumber) normalized.data.linked_visa_number = linkedVisa.visaNumber;
 
     const { data, error } = await insertWithSequenceFix('settlement_evidence_records', {
       ...normalized.data,
@@ -278,6 +309,9 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseClient();
     const hasAccess = await assertProjectAccess(supabase, auth.user, normalized.data.project_id);
     if (!hasAccess) return apiForbidden('无权维护该项目结算证据链');
+    const linkedVisa = await assertLinkedVisa(supabase, normalized.data.linked_visa_id, normalized.data.project_id);
+    if (!linkedVisa.ok) return apiBadRequest(linkedVisa.error);
+    if (linkedVisa.visaNumber) normalized.data.linked_visa_number = linkedVisa.visaNumber;
 
     const { data, error } = await supabase
       .from('settlement_evidence_records')

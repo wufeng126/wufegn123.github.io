@@ -598,6 +598,10 @@ CREATE TABLE IF NOT EXISTS settlement_evidence_records (
   source VARCHAR(200),
   importance VARCHAR(30) DEFAULT '重点关注',
   follow_status VARCHAR(30) DEFAULT '未处理',
+  handling_result VARCHAR(50) DEFAULT '待判断',
+  linked_visa_id INTEGER REFERENCES visas(id) ON DELETE SET NULL,
+  linked_visa_number VARCHAR(100),
+  handling_note TEXT,
   amount_direction VARCHAR(50) DEFAULT '仅留痕/暂不确定',
   estimated_amount NUMERIC(14,2),
   summary TEXT,
@@ -619,6 +623,10 @@ ALTER TABLE IF EXISTS settlement_evidence_records
   ADD COLUMN IF NOT EXISTS source VARCHAR(200),
   ADD COLUMN IF NOT EXISTS importance VARCHAR(30) DEFAULT '重点关注',
   ADD COLUMN IF NOT EXISTS follow_status VARCHAR(30) DEFAULT '未处理',
+  ADD COLUMN IF NOT EXISTS handling_result VARCHAR(50) DEFAULT '待判断',
+  ADD COLUMN IF NOT EXISTS linked_visa_id INTEGER REFERENCES visas(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS linked_visa_number VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS handling_note TEXT,
   ADD COLUMN IF NOT EXISTS amount_direction VARCHAR(50) DEFAULT '仅留痕/暂不确定',
   ADD COLUMN IF NOT EXISTS estimated_amount NUMERIC(14,2),
   ADD COLUMN IF NOT EXISTS summary TEXT,
@@ -637,10 +645,15 @@ WHERE event_date IS NULL;
 UPDATE settlement_evidence_records
 SET title = COALESCE(NULLIF(title, ''), '结算证据-' || id::TEXT)
 WHERE title IS NULL OR title = '';
+UPDATE settlement_evidence_records
+SET handling_result = COALESCE(NULLIF(handling_result, ''), '待判断')
+WHERE handling_result IS NULL OR handling_result = '';
 CREATE INDEX IF NOT EXISTS settlement_evidence_project_id_idx ON settlement_evidence_records(project_id);
 CREATE INDEX IF NOT EXISTS settlement_evidence_event_date_idx ON settlement_evidence_records(event_date DESC);
 CREATE INDEX IF NOT EXISTS settlement_evidence_type_idx ON settlement_evidence_records(evidence_type);
 CREATE INDEX IF NOT EXISTS settlement_evidence_status_idx ON settlement_evidence_records(follow_status);
+CREATE INDEX IF NOT EXISTS settlement_evidence_handling_result_idx ON settlement_evidence_records(handling_result);
+CREATE INDEX IF NOT EXISTS settlement_evidence_linked_visa_id_idx ON settlement_evidence_records(linked_visa_id);
 CREATE INDEX IF NOT EXISTS settlement_evidence_importance_idx ON settlement_evidence_records(importance);
 CREATE INDEX IF NOT EXISTS settlement_evidence_owner_idx ON settlement_evidence_records(owner_user_id);
 

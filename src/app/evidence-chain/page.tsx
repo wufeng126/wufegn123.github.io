@@ -31,6 +31,14 @@ type ProjectOption = {
   name: string;
 };
 
+type VisaOption = {
+  id: number;
+  visa_number: string | null;
+  visa_name: string | null;
+  visa_amount: number | string | null;
+  status: string | null;
+};
+
 type EvidenceAttachment =
   | string
   | {
@@ -53,6 +61,10 @@ type EvidenceRecord = {
   source: string | null;
   importance: string;
   follow_status: string;
+  handling_result: string | null;
+  linked_visa_id: number | null;
+  linked_visa_number: string | null;
+  handling_note: string | null;
   amount_direction: string;
   estimated_amount: number | null;
   summary: string | null;
@@ -81,6 +93,10 @@ type EvidenceForm = {
   source: string;
   importance: string;
   follow_status: string;
+  handling_result: string;
+  linked_visa_id: string;
+  linked_visa_number: string;
+  handling_note: string;
   amount_direction: string;
   estimated_amount: string;
   summary: string;
@@ -93,6 +109,7 @@ type EvidenceForm = {
 const EVIDENCE_TYPES = ['甲方回复', '图纸答疑', '设计变更', '合同外施工', '会议纪要', '结算争议', '现场照片', '其他'];
 const IMPORTANCE_OPTIONS = ['普通留痕', '重点关注', '必须结算', '争议风险'];
 const STATUS_OPTIONS = ['未处理', '待补资料', '已形成签证', '已进入结算', '已关闭'];
+const HANDLING_RESULT_OPTIONS = ['待判断', '走签证', '走补充协议', '无需处理'];
 const AMOUNT_OPTIONS = ['可能增加收入', '可能减少收入', '仅留痕/暂不确定'];
 const QUICK_TAGS = ['甲方确认', '合同外', '需签证', '待补资料', '争议风险', '结算可用'];
 
@@ -105,6 +122,10 @@ function emptyForm(): EvidenceForm {
     source: '',
     importance: '重点关注',
     follow_status: '未处理',
+    handling_result: '待判断',
+    linked_visa_id: '',
+    linked_visa_number: '',
+    handling_note: '',
     amount_direction: '可能增加收入',
     estimated_amount: '',
     summary: '',
@@ -193,6 +214,13 @@ function toneForStatus(value: string) {
   return 'bg-orange-50 text-orange-700 ring-orange-100';
 }
 
+function toneForHandlingResult(value: string | null | undefined) {
+  if (value === '走签证') return 'bg-violet-50 text-violet-700 ring-violet-100';
+  if (value === '走补充协议') return 'bg-indigo-50 text-indigo-700 ring-indigo-100';
+  if (value === '无需处理') return 'bg-slate-100 text-slate-600 ring-slate-200';
+  return 'bg-amber-50 text-amber-700 ring-amber-100';
+}
+
 function toneForAmount(value: string) {
   if (value === '可能增加收入') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
   if (value === '可能减少收入') return 'bg-rose-50 text-rose-700 ring-rose-100';
@@ -206,6 +234,7 @@ function evidenceCompleteness(record: EvidenceRecord) {
   if ((record.attachments || []).length > 0) score += 20;
   if ((record.related || []).length > 0) score += 10;
   if ((record.tags || []).length > 0) score += 10;
+  if (record.handling_result && record.handling_result !== '待判断') score += 10;
   return Math.min(100, score);
 }
 
@@ -219,6 +248,10 @@ function toForm(record: EvidenceRecord): EvidenceForm {
     source: record.source || '',
     importance: record.importance || '重点关注',
     follow_status: record.follow_status || '未处理',
+    handling_result: record.handling_result || '待判断',
+    linked_visa_id: record.linked_visa_id ? String(record.linked_visa_id) : '',
+    linked_visa_number: record.linked_visa_number || '',
+    handling_note: record.handling_note || '',
     amount_direction: record.amount_direction || '可能增加收入',
     estimated_amount: record.estimated_amount ? String(record.estimated_amount) : '',
     summary: record.summary || '',
@@ -250,6 +283,8 @@ export default function EvidenceChainPage() {
   const [needsMigration, setNeedsMigration] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<EvidenceForm>(emptyForm);
+  const [visaOptions, setVisaOptions] = useState<VisaOption[]>([]);
+  const [loadingVisas, setLoadingVisas] = useState(false);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => {
@@ -319,6 +354,30 @@ export default function EvidenceChainPage() {
     }
   }
 
+  async function loadVisaOptions(projectIdValue: string) {
+    if (!projectIdValue) {
+      setVisaOptions([]);
+      return;
+    }
+
+    setLoadingVisas(true);
+    try {
+      const params = new URLSearchParams({
+        projectId: projectIdValue,
+        pageSize: '100',
+      });
+      const res = await fetch(`/api/visas?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '加载签证单失败');
+      setVisaOptions(Array.isArray(data.visas) ? data.visas : []);
+    } catch (error) {
+      console.error('加载签证单失败:', error);
+      setVisaOptions([]);
+    } finally {
+      setLoadingVisas(false);
+    }
+  }
+
   async function loadRecords() {
     setLoading(true);
     try {
@@ -357,8 +416,29 @@ export default function EvidenceChainPage() {
     return () => window.clearTimeout(timer);
   }, [projectId, keyword, typeFilter, statusFilter]);
 
+  useEffect(() => {
+    if (!drawerOpen || form.handling_result !== '走签证') {
+      setVisaOptions([]);
+      setLoadingVisas(false);
+      return;
+    }
+    const timer = window.setTimeout(() => loadVisaOptions(form.project_id), 200);
+    return () => window.clearTimeout(timer);
+  }, [drawerOpen, form.project_id, form.handling_result]);
+
   function patchForm<K extends keyof EvidenceForm>(key: K, value: EvidenceForm[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'project_id') {
+        next.linked_visa_id = '';
+        next.linked_visa_number = '';
+      }
+      if (key === 'handling_result' && value !== '走签证') {
+        next.linked_visa_id = '';
+        next.linked_visa_number = '';
+      }
+      return next;
+    });
   }
 
   function openCreate() {
@@ -424,6 +504,7 @@ export default function EvidenceChainPage() {
       const payload = {
         ...form,
         project_id: Number(form.project_id),
+        linked_visa_id: form.linked_visa_id ? Number(form.linked_visa_id) : null,
         estimated_amount: form.estimated_amount ? Number(form.estimated_amount) : null,
         attachments: form.attachments.map(sanitizeAttachmentForSave),
         related: splitLines(form.related),
@@ -732,6 +813,9 @@ export default function EvidenceChainPage() {
                               <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForStatus(record.follow_status))}>
                                 {record.follow_status || '未处理'}
                               </span>
+                              <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForHandlingResult(record.handling_result))}>
+                                {record.handling_result || '待判断'}
+                              </span>
                             </div>
                             <h3 className="mt-3 line-clamp-2 text-base font-semibold leading-6 text-slate-950">{record.title}</h3>
                             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -768,6 +852,9 @@ export default function EvidenceChainPage() {
                     <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForStatus(selectedRecord.follow_status))}>
                       {selectedRecord.follow_status || '未处理'}
                     </span>
+                    <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForHandlingResult(selectedRecord.handling_result))}>
+                      {selectedRecord.handling_result || '待判断'}
+                    </span>
                   </div>
                   <div className="mt-4 flex items-start justify-between gap-4">
                     <div>
@@ -798,6 +885,28 @@ export default function EvidenceChainPage() {
                     <h3 className="mb-2 text-sm font-semibold text-slate-950">事件说明</h3>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">
                       {selectedRecord.summary || '暂无事件说明'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold text-slate-950">处理结果</h3>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForHandlingResult(selectedRecord.handling_result))}>
+                          {selectedRecord.handling_result || '待判断'}
+                        </span>
+                        {selectedRecord.handling_result === '走签证' && selectedRecord.linked_visa_number ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-100">
+                            <Link2 className="h-3.5 w-3.5" />
+                            {selectedRecord.linked_visa_number}
+                          </span>
+                        ) : null}
+                      </div>
+                      {selectedRecord.handling_note ? (
+                        <div className="mt-2 text-sm leading-6 text-slate-600">{selectedRecord.handling_note}</div>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-400">暂无处理备注</div>
+                      )}
                     </div>
                   </div>
 
@@ -1011,6 +1120,65 @@ export default function EvidenceChainPage() {
                     onChange={(event) => patchForm('estimated_amount', event.target.value)}
                     placeholder="0"
                     className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-blue-400"
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-slate-700">处理结果</span>
+                    <select
+                      value={form.handling_result}
+                      onChange={(event) => patchForm('handling_result', event.target.value)}
+                      className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
+                    >
+                      {HANDLING_RESULT_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {form.handling_result === '走签证' ? (
+                    <label className="space-y-1">
+                      <span className="text-sm font-medium text-slate-700">关联签证单</span>
+                      <select
+                        value={form.linked_visa_id}
+                        onChange={(event) => {
+                          const visaId = event.target.value;
+                          const visa = visaOptions.find((item) => String(item.id) === visaId);
+                          setForm((current) => ({
+                            ...current,
+                            linked_visa_id: visaId,
+                            linked_visa_number: visa?.visa_number || '',
+                          }));
+                        }}
+                        disabled={!form.project_id || loadingVisas}
+                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        <option value="">{loadingVisas ? '正在加载签证单...' : '暂不关联具体签证单'}</option>
+                        {visaOptions.map((visa) => (
+                          <option key={visa.id} value={visa.id}>
+                            {visa.visa_number || `签证-${visa.id}`} / {visa.visa_name || '未命名'} / {visa.status || '未处理'} / {formatMoney(Number(visa.visa_amount) || null)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
+
+                <label className="mt-4 block space-y-1">
+                  <span className="text-sm font-medium text-slate-700">
+                    {form.handling_result === '走补充协议' ? '补充协议说明' : '处理备注'}
+                  </span>
+                  <textarea
+                    value={form.handling_note}
+                    onChange={(event) => patchForm('handling_note', event.target.value)}
+                    rows={3}
+                    placeholder={form.handling_result === '走补充协议' ? '例如：后续按补充协议方式与甲方确认范围、单价和金额' : '记录后续处理口径、责任人或需要补充的资料'}
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-blue-400"
                   />
                 </label>
               </div>
