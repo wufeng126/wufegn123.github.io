@@ -28,7 +28,8 @@ import {
 import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
-  Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers
+  Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers,
+  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 
@@ -75,6 +76,32 @@ interface ProjectInternalAddon {
   total_amount?: string;
 }
 
+type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
+
+interface ProjectDashboardRow {
+  project: Project;
+  itemCount: number;
+  budgetAmount: number;
+  reportAmount: number;
+  settlementBudgetAmount: number;
+  settlementAmount: number;
+  reportRemainingAmount: number;
+  settlementRemainingAmount: number;
+  reportProgress: number;
+  settlementProgress: number;
+  amountGap: number;
+  quantityGap: number;
+  status: DashboardStatus;
+  warning: string;
+}
+
+const toNumber = (value: string | number | null | undefined) => {
+  const parsed = typeof value === 'number' ? value : parseFloat(value || '0');
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const clampProgress = (value: number) => Math.max(0, Math.min(value, 100));
+
 export default function WorkItemsPage() {
   return (
     <Suspense fallback={
@@ -101,6 +128,7 @@ function WorkItemsContent() {
   
   // 当前选中的项目
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [dashboardKeyword, setDashboardKeyword] = useState('');
   
   // 预警筛选模式
   const [warningFilter, setWarningFilter] = useState<string>('');
@@ -744,6 +772,109 @@ function WorkItemsContent() {
       addonItems: addonRows.length,
     };
   }, [analysisStats, projectStats.totalBudget, subitems]);
+
+  const projectDashboardRows = useMemo<ProjectDashboardRow[]>(() => {
+    return projects.map(project => {
+      const items = allSubitems.filter(item => item.project_id === project.id);
+      const summary = items.reduce((acc, item) => {
+        const budgetQty = toNumber(item.budget_quantity);
+        const reportedQty = toNumber(item.completed_quantity);
+        const settledQty = toNumber(item.settlement_quantity);
+        const contractPrice = toNumber(item.contract_price);
+        const settlementPrice = toNumber(item.limit_price || item.contract_price);
+
+        acc.budgetAmount += budgetQty * contractPrice;
+        acc.reportAmount += reportedQty * contractPrice;
+        acc.settlementBudgetAmount += budgetQty * settlementPrice;
+        acc.settlementAmount += settledQty * settlementPrice;
+        return acc;
+      }, {
+        budgetAmount: 0,
+        reportAmount: 0,
+        settlementBudgetAmount: 0,
+        settlementAmount: 0,
+      });
+
+      const reportRemainingAmount = summary.budgetAmount - summary.reportAmount;
+      const settlementRemainingAmount = summary.settlementBudgetAmount - summary.settlementAmount;
+      const reportProgress = summary.budgetAmount > 0 ? (summary.reportAmount / summary.budgetAmount) * 100 : 0;
+      const settlementProgress = summary.settlementBudgetAmount > 0 ? (summary.settlementAmount / summary.settlementBudgetAmount) * 100 : 0;
+      const amountGap = summary.reportAmount - summary.settlementAmount;
+      const quantityGap = reportProgress - settlementProgress;
+
+      let status: DashboardStatus = '正常';
+      let warning = '对上报量与对下结算节奏基本匹配。';
+      if (settlementProgress >= 100 && reportProgress < 95) {
+        status = '重点关注';
+        warning = '对下结算已接近或超过预算，对上报量仍未跟上，建议逐项核查。';
+      } else if (settlementProgress - reportProgress >= 10 || summary.settlementAmount > summary.reportAmount) {
+        status = '对下偏快';
+        warning = '对下结算进度高于对上报量，需关注少报多结风险。';
+      } else if (reportProgress < 50 && settlementProgress < 50 && items.length > 0) {
+        status = '对上偏慢';
+        warning = '累计报量比例偏低，建议推动当月完成量确认。';
+      }
+
+      return {
+        project,
+        itemCount: items.length,
+        budgetAmount: summary.budgetAmount,
+        reportAmount: summary.reportAmount,
+        settlementBudgetAmount: summary.settlementBudgetAmount,
+        settlementAmount: summary.settlementAmount,
+        reportRemainingAmount,
+        settlementRemainingAmount,
+        reportProgress,
+        settlementProgress,
+        amountGap,
+        quantityGap,
+        status,
+        warning,
+      };
+    }).sort((a, b) => {
+      const priority: Record<DashboardStatus, number> = { '重点关注': 0, '对下偏快': 1, '对上偏慢': 2, '正常': 3 };
+      return priority[a.status] - priority[b.status] || b.budgetAmount - a.budgetAmount;
+    });
+  }, [projects, allSubitems]);
+
+  const filteredProjectDashboardRows = useMemo(() => {
+    const keyword = dashboardKeyword.trim().toLowerCase();
+    if (!keyword) return projectDashboardRows;
+    return projectDashboardRows.filter(row => (
+      row.project.name.toLowerCase().includes(keyword) ||
+      row.project.status.toLowerCase().includes(keyword) ||
+      row.status.toLowerCase().includes(keyword)
+    ));
+  }, [dashboardKeyword, projectDashboardRows]);
+
+  const dashboardTotals = useMemo(() => {
+    const budgetAmount = projectDashboardRows.reduce((sum, row) => sum + row.budgetAmount, 0);
+    const reportAmount = projectDashboardRows.reduce((sum, row) => sum + row.reportAmount, 0);
+    const settlementAmount = projectDashboardRows.reduce((sum, row) => sum + row.settlementAmount, 0);
+    const riskCount = projectDashboardRows.filter(row => row.status !== '正常').length;
+    return {
+      budgetAmount,
+      reportAmount,
+      settlementAmount,
+      amountGap: reportAmount - settlementAmount,
+      riskCount,
+    };
+  }, [projectDashboardRows]);
+
+  const selectedDashboardRow = useMemo(() => (
+    projectDashboardRows.find(row => row.project.id.toString() === selectedProjectId) || projectDashboardRows[0] || null
+  ), [projectDashboardRows, selectedProjectId]);
+
+  const dashboardDetailRows = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase();
+    return analysisStats.rows
+      .filter(row => !keyword || row.subitem_name.toLowerCase().includes(keyword) || row.risks.join('').toLowerCase().includes(keyword))
+      .sort((a, b) => {
+        const aRisk = a.risks.length > 0 ? 0 : 1;
+        const bRisk = b.risks.length > 0 ? 0 : 1;
+        return aRisk - bRisk || Math.abs(b.amountGap) - Math.abs(a.amountGap);
+      });
+  }, [analysisStats.rows, searchKeyword]);
 
   // 刷新数据
   const refreshSubitems = async () => {
@@ -1894,6 +2025,19 @@ function WorkItemsContent() {
     return 'bg-blue-500';
   };
 
+  const getDashboardStatusClass = (status: DashboardStatus) => {
+    if (status === '重点关注') return 'bg-rose-50 text-rose-700 ring-rose-100';
+    if (status === '对下偏快') return 'bg-amber-50 text-amber-700 ring-amber-100';
+    if (status === '对上偏慢') return 'bg-sky-50 text-sky-700 ring-sky-100';
+    return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  };
+
+  const getGapTextClass = (value: number) => {
+    if (value < 0) return 'text-rose-700';
+    if (value > 0) return 'text-emerald-700';
+    return 'text-gray-700';
+  };
+
   const selectedProject = projects.find(p => p.id.toString() === selectedProjectId);
 
   if (loading) {
@@ -1926,77 +2070,276 @@ function WorkItemsContent() {
         </Button>
       </div>
 
-      {/* 总体统计卡片 */}
-      <div className={`grid grid-cols-2 gap-3 transition-all duration-500 delay-100 md:grid-cols-5 md:gap-4 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <Card className="group bg-gradient-to-br from-[#1A58B3]/5 to-[#1A58B3]/10 border-[#1A58B3]/20 hover:shadow-lg hover:shadow-[#1A58B3]/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+      {/* 总览统计卡片 */}
+      <div className={`grid grid-cols-2 gap-3 transition-all duration-500 delay-100 lg:grid-cols-4 lg:gap-4 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <Card className="group border-[#1A58B3]/20 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#1A58B3]/10">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-[#1A58B3] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <Building2 className="w-5 h-5 text-white" />
+                <Layers className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">项目总数</p>
-                <AnimatedNumber value={overallStats.totalProjects} className="text-xl font-bold text-[#1A58B3]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/50 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <ListTree className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">分项工程</p>
-                <AnimatedNumber value={overallStats.totalSubitems} className="text-xl font-bold text-emerald-600" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">预算工程量金额</p>
+                <AnimatedNumber value={dashboardTotals.budgetAmount} format={formatCurrency} className="text-lg font-bold text-[#1A58B3]" />
+                <p className="mt-0.5 text-xs text-gray-400">{overallStats.totalSubitems} 个清单项</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/50 hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+        <Card className="group border-cyan-200/70 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-500/10">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <Target className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <ArrowUpRight className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">预算总额</p>
-                <AnimatedNumber value={overallStats.totalBudget} format={formatCurrency} className="text-lg font-bold text-blue-600" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">累计对上报量</p>
+                <AnimatedNumber value={dashboardTotals.reportAmount} format={formatCurrency} className="text-lg font-bold text-cyan-700" />
+                <p className="mt-0.5 text-xs text-gray-400">已向甲方报量</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200/50 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+        <Card className="group border-amber-200/70 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <CheckCircle2 className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <ArrowDownRight className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">完成总额</p>
-                <AnimatedNumber value={overallStats.totalCompleted} format={formatCurrency} className="text-lg font-bold text-purple-600" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">累计对下结算</p>
+                <AnimatedNumber value={dashboardTotals.settlementAmount} format={formatCurrency} className="text-lg font-bold text-amber-700" />
+                <p className={`mt-0.5 text-xs font-medium ${getGapTextClass(dashboardTotals.amountGap)}`}>对上 - 对下：{formatCurrency(dashboardTotals.amountGap)}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-gradient-to-br from-[#E67E22]/5 to-[#E67E22]/10 border-[#E67E22]/20 hover:shadow-lg hover:shadow-[#E67E22]/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+        <Card className="group border-rose-200/70 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-rose-500/10">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#E67E22] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <TrendingUp className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-rose-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <ShieldAlert className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">在施项目</p>
-                <AnimatedNumber value={overallStats.activeProjects} className="text-xl font-bold text-[#E67E22]" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">需关注项目</p>
+                <AnimatedNumber value={dashboardTotals.riskCount} className="text-xl font-bold text-rose-700" />
+                <p className="mt-0.5 text-xs text-gray-400">共 {overallStats.totalProjects} 个项目</p>
               </div>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* 项目汇总驾驶舱 */}
+      <div className={`grid gap-4 transition-all duration-500 delay-125 xl:grid-cols-[1.05fr_1.45fr] ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <section className="rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">项目汇总对比</h2>
+                <p className="mt-1 text-xs text-gray-500">点击项目后，下方录入区和右侧清单明细会同步切换</p>
+              </div>
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="搜索项目或状态"
+                  value={dashboardKeyword}
+                  onChange={(e) => setDashboardKeyword(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="max-h-[560px] space-y-3 overflow-y-auto p-3">
+            {filteredProjectDashboardRows.length > 0 ? filteredProjectDashboardRows.map(row => {
+              const active = selectedProjectId === row.project.id.toString();
+              return (
+                <button
+                  key={row.project.id}
+                  type="button"
+                  onClick={() => setSelectedProjectId(row.project.id.toString())}
+                  className={`w-full rounded-lg border p-4 text-left transition ${
+                    active ? 'border-[#1A58B3] bg-[#F7FAFF] shadow-sm' : 'border-gray-200 bg-white hover:border-[#1A58B3]/40 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900">{row.project.name}</p>
+                      <p className="mt-1 text-xs text-gray-500">{row.project.year} 年 · {row.itemCount} 个清单项</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getDashboardStatusClass(row.status)}`}>
+                      {row.status}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                        <span>对上报量</span>
+                        <span>{formatPercent(row.reportProgress)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100">
+                        <div className="h-2 rounded-full bg-[#1A58B3]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                        <span>对下结算</span>
+                        <span>{formatPercent(row.settlementProgress)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100">
+                        <div className="h-2 rounded-full bg-amber-500" style={{ width: `${clampProgress(row.settlementProgress)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-lg bg-gray-50 p-2">
+                      <p className="text-gray-500">对上剩余</p>
+                      <p className="mt-1 font-semibold text-gray-900">{formatCurrency(row.reportRemainingAmount)}</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-2">
+                      <p className="text-gray-500">对下剩余</p>
+                      <p className="mt-1 font-semibold text-gray-900">{formatCurrency(row.settlementRemainingAmount)}</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-2">
+                      <p className="text-gray-500">金额差异</p>
+                      <p className={`mt-1 font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-gray-600">
+                    {row.status === '正常' ? <ChevronRight className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />}
+                    {row.warning}
+                  </p>
+                </button>
+              );
+            }) : (
+              <div className="py-12 text-center text-sm text-gray-500">暂无匹配项目</div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold text-gray-900">{selectedDashboardRow?.project.name || '清单项下钻'}</h2>
+                <p className="mt-1 text-xs text-gray-500">查看预算量、累计对上、累计对下、剩余量和差异提醒</p>
+              </div>
+              <div className="relative w-full lg:w-64">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="搜索清单项或风险"
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  className="pl-9"
+                  disabled={!selectedProjectId}
+                />
+              </div>
+            </div>
+          </div>
+          {!selectedProjectId ? (
+            <div className="py-16 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1A58B3]/10">
+                <ListTree className="h-7 w-7 text-[#1A58B3]/50" />
+              </div>
+              <p className="text-sm text-gray-500">请选择项目查看清单项明细</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 border-b border-gray-100 p-4 md:grid-cols-4">
+                <div className="rounded-lg bg-blue-50 p-3">
+                  <p className="text-xs text-blue-700">预算金额</p>
+                  <p className="mt-1 text-base font-semibold text-blue-900">{formatCurrency(selectedDashboardRow?.budgetAmount || 0)}</p>
+                </div>
+                <div className="rounded-lg bg-cyan-50 p-3">
+                  <p className="text-xs text-cyan-700">累计对上</p>
+                  <p className="mt-1 text-base font-semibold text-cyan-900">{formatCurrency(selectedDashboardRow?.reportAmount || 0)}</p>
+                </div>
+                <div className="rounded-lg bg-amber-50 p-3">
+                  <p className="text-xs text-amber-700">累计对下</p>
+                  <p className="mt-1 text-base font-semibold text-amber-900">{formatCurrency(selectedDashboardRow?.settlementAmount || 0)}</p>
+                </div>
+                <div className="rounded-lg bg-rose-50 p-3">
+                  <p className="text-xs text-rose-700">风险清单项</p>
+                  <p className="mt-1 text-base font-semibold text-rose-900">{analysisStats.riskCount} 项</p>
+                </div>
+              </div>
+              <div className="hidden overflow-x-auto lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead>清单项</TableHead>
+                      <TableHead>单位</TableHead>
+                      <TableHead className="text-right">预算量</TableHead>
+                      <TableHead className="text-right">累计对上</TableHead>
+                      <TableHead className="text-right">对上剩余</TableHead>
+                      <TableHead className="text-right">累计对下</TableHead>
+                      <TableHead className="text-right">对下剩余</TableHead>
+                      <TableHead className="text-right">金额差异</TableHead>
+                      <TableHead>提醒</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardDetailRows.length > 0 ? dashboardDetailRows.map(row => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <div className="font-medium text-gray-900">{row.subitem_name}</div>
+                          {row.isAddon && <div className="mt-1 text-xs text-orange-600">内部附加清单</div>}
+                        </TableCell>
+                        <TableCell>{row.unit || '-'}</TableCell>
+                        <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</TableCell>
+                        <TableCell className="text-right text-blue-700">{row.isAddon ? '-' : formatQuantity(row.totalReportedQty)}</TableCell>
+                        <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.reportRemainingQty)}</TableCell>
+                        <TableCell className="text-right text-amber-700">{formatQuantity(row.totalSettledQty)}</TableCell>
+                        <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.settleRemainingQty)}</TableCell>
+                        <TableCell className={`text-right font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</TableCell>
+                        <TableCell>
+                          {row.risks.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {row.risks.map((risk: string) => <Badge key={risk} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{risk}</Badge>)}
+                            </div>
+                          ) : <span className="text-xs text-gray-400">正常</span>}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={9} className="py-12 text-center text-gray-500">暂无清单项数据</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 p-3 lg:hidden">
+                {dashboardDetailRows.length > 0 ? dashboardDetailRows.map(row => (
+                  <div key={row.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900">{row.subitem_name}</p>
+                        <p className="mt-1 text-xs text-gray-500">{row.unit || '-'}{row.isAddon ? ' · 内部附加清单' : ''}</p>
+                      </div>
+                      <span className={`shrink-0 text-sm font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-gray-50 p-2"><p className="text-gray-500">预算量</p><p className="mt-1 font-semibold">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</p></div>
+                      <div className="rounded bg-blue-50 p-2"><p className="text-blue-700">累计对上</p><p className="mt-1 font-semibold">{row.isAddon ? '-' : formatQuantity(row.totalReportedQty)}</p></div>
+                      <div className="rounded bg-amber-50 p-2"><p className="text-amber-700">累计对下</p><p className="mt-1 font-semibold">{formatQuantity(row.totalSettledQty)}</p></div>
+                      <div className="rounded bg-gray-50 p-2"><p className="text-gray-500">对下剩余</p><p className="mt-1 font-semibold">{row.isAddon ? '-' : formatQuantity(row.settleRemainingQty)}</p></div>
+                    </div>
+                    {row.risks.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {row.risks.map((risk: string) => <Badge key={risk} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{risk}</Badge>)}
+                      </div>
+                    )}
+                  </div>
+                )) : (
+                  <div className="py-12 text-center text-sm text-gray-500">暂无清单项数据</div>
+                )}
+              </div>
+            </>
+          )}
+        </section>
       </div>
 
       {/* 项目选择器 */}
