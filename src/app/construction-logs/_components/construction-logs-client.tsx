@@ -9,11 +9,16 @@ import {
   CalendarDays,
   CalendarClock,
   Camera,
+  CheckCircle2,
   ChevronDown,
   ClipboardList,
+  Eye,
   FileCheck2,
   FileText,
+  Filter,
   Plus,
+  RotateCcw,
+  Search,
   Trash2,
   UserRoundCheck,
   Users,
@@ -94,6 +99,8 @@ type StatsSummary = {
 };
 
 type Project = { id: number; name: string };
+type LogViewStatus = 'all' | 'risk' | 'late' | 'pending';
+type RiskLevelFilter = 'all' | RiskLevel;
 
 type SubmitterUser = {
   id: number;
@@ -134,6 +141,13 @@ function statusClass(status: WorkflowStatus) {
   if (status === 'pending') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
   if (status === 'confirmed') return 'border-[#10B981] bg-[#E8FFEA] text-[#047857]';
   return 'border-[#C9CDD4] bg-[#F7F8FA] text-[#4E5969]';
+}
+
+function riskLevelWeight(level?: RiskLevel | null) {
+  if (level === 'high') return 3;
+  if (level === 'medium') return 2;
+  if (level === 'low') return 1;
+  return 0;
 }
 
 function logStatusLabel(log: LogItem) {
@@ -205,6 +219,45 @@ function groupLogsByDate(items: LogItem[]) {
     });
 }
 
+function getProjectBreakdown(logs: LogItem[], projectNameById: Map<number, string>) {
+  const counts = new Map<string, number>();
+  logs.forEach(log => {
+    const name = projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name, count }));
+}
+
+function includesKeyword(log: LogItem, projectName: string, keyword: string) {
+  if (!keyword) return true;
+  const target = [
+    projectName,
+    log.user_name,
+    log.location,
+    log.content,
+    log.issues,
+    log.risk_summary,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return target.includes(keyword.toLowerCase());
+}
+
+function includesRiskKeyword(risk: RiskItem, keyword: string) {
+  if (!keyword) return true;
+  const target = [
+    risk.project_name,
+    risk.user_name,
+    risk.location,
+    risk.content,
+    risk.issues,
+    risk.risk_summary,
+    risk.risk_recommendation,
+    ...(risk.risk_types || []).map(type => RISK_TYPE_LABELS[type] || type),
+  ].filter(Boolean).join(' ').toLowerCase();
+  return target.includes(keyword.toLowerCase());
+}
+
 export default function ConstructionLogsClient() {
   const { hasPermission, user, isSuperAdmin } = usePermission();
   const canViewAttendance = hasPermission('construction_attendance:view');
@@ -240,6 +293,14 @@ export default function ConstructionLogsClient() {
   );
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [statsProjectId, setStatsProjectId] = useState('all');
+  const [logProjectId, setLogProjectId] = useState(searchParams.get('projectId') || 'all');
+  const [logDateFrom, setLogDateFrom] = useState(searchParams.get('dateFrom') || '');
+  const [logDateTo, setLogDateTo] = useState(searchParams.get('dateTo') || '');
+  const [logViewStatus, setLogViewStatus] = useState<LogViewStatus>('all');
+  const [logKeyword, setLogKeyword] = useState('');
+  const [riskProjectId, setRiskProjectId] = useState('all');
+  const [riskLevelFilter, setRiskLevelFilter] = useState<RiskLevelFilter>('all');
+  const [riskKeyword, setRiskKeyword] = useState('');
   const [riskStatus, setRiskStatus] = useState<'all' | WorkflowStatus>(
     statusParam === 'pending' || statusParam === 'confirmed'
       ? statusParam
@@ -411,8 +472,38 @@ export default function ConstructionLogsClient() {
   const highRisks = statsSummary.high_risk_total;
   const pendingRisks = risks.filter(risk => risk.workflow_status === 'pending').length;
   const submittedProjects = statsSummary.submitted_projects;
+  const filteredLogs = useMemo(() => logs.filter(log => {
+    const date = getLogDate(log);
+    const projectName = projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`;
+    if (logProjectId !== 'all' && String(log.project_id) !== logProjectId) return false;
+    if (logDateFrom && date < logDateFrom) return false;
+    if (logDateTo && date > logDateTo) return false;
+    if (logViewStatus === 'risk' && !log.risk_level) return false;
+    if (logViewStatus === 'late' && log.submission_status !== 'late') return false;
+    if (logViewStatus === 'pending' && log.status !== 'pending') return false;
+    return includesKeyword(log, projectName, logKeyword.trim());
+  }), [logDateFrom, logDateTo, logKeyword, logProjectId, logViewStatus, logs, projectNameById]);
+  const hasActiveLogFilter = logProjectId !== 'all' || Boolean(logDateFrom) || Boolean(logDateTo) || logViewStatus !== 'all' || Boolean(logKeyword.trim());
   const hasMoreLogs = logTotal > logs.length;
-  const logDateGroups = useMemo(() => groupLogsByDate(logs), [logs]);
+  const logDateGroups = useMemo(() => groupLogsByDate(filteredLogs), [filteredLogs]);
+  const visibleLogDateGroups = useMemo(() => logDateGroups.map(group => ({
+    ...group,
+    projectBreakdown: getProjectBreakdown(group.logs, projectNameById),
+  })), [logDateGroups, projectNameById]);
+  const filteredRisks = useMemo(() => risks
+    .filter(risk => {
+      if (riskProjectId !== 'all' && String(risk.project_id) !== riskProjectId) return false;
+      if (riskLevelFilter !== 'all' && risk.risk_level !== riskLevelFilter) return false;
+      return includesRiskKeyword(risk, riskKeyword.trim());
+    })
+    .sort((a, b) => {
+      if (a.workflow_status !== b.workflow_status) return a.workflow_status === 'pending' ? -1 : 1;
+      const levelDiff = riskLevelWeight(b.risk_level) - riskLevelWeight(a.risk_level);
+      if (levelDiff !== 0) return levelDiff;
+      return getLogSortTime(b) - getLogSortTime(a);
+    }), [riskKeyword, riskLevelFilter, riskProjectId, risks]);
+  const hasActiveRiskFilter = riskProjectId !== 'all' || riskLevelFilter !== 'all' || Boolean(riskKeyword.trim());
+  const highRiskReminders = risks.filter(risk => risk.risk_level === 'high').length;
 
   async function handleRiskAction(logId: number) {
     setActionBusy(logId);
@@ -579,30 +670,79 @@ export default function ConstructionLogsClient() {
 
         {tab === 'risks' && (
           <div className="space-y-3">
-            <div className="flex flex-col gap-3 rounded-xl border border-[#E5E6EB] bg-white p-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="font-semibold text-[#1D2129]">风险提醒</h2>
-                <p className="mt-1 text-xs text-[#86909C]">风险池只做提醒确认，不再沉淀为知识库内容</p>
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm">
+              <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="font-semibold text-[#1D2129]">风险提醒</h2>
+                  <p className="mt-1 text-xs text-[#86909C]">当前显示 {filteredRisks.length}/{risks.length} 条，待确认风险会优先排在前面</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs sm:flex sm:flex-wrap">
+                  <span className="rounded-lg bg-[#FFF7E8] px-3 py-2 font-medium text-[#B45309]">待确认 {pendingRisks}</span>
+                  <span className="rounded-lg bg-[#FFF1F0] px-3 py-2 font-medium text-[#C62828]">高风险 {highRiskReminders}</span>
+                </div>
               </div>
-              <select value={riskStatus} onChange={event => setRiskStatus(event.target.value as 'all' | WorkflowStatus)} className="h-9 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
-                <option value="all">全部状态</option>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </div>
+              <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1.6fr_auto]">
+                <select
+                  value={riskProjectId}
+                  onChange={event => setRiskProjectId(event.target.value)}
+                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value="all">全部项目</option>
+                  {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
+                </select>
+                <select value={riskStatus} onChange={event => setRiskStatus(event.target.value as 'all' | WorkflowStatus)} className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                  <option value="all">全部状态</option>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <select
+                  value={riskLevelFilter}
+                  onChange={event => setRiskLevelFilter(event.target.value as RiskLevelFilter)}
+                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value="all">全部等级</option>
+                  <option value="high">高风险</option>
+                  <option value="medium">中风险</option>
+                  <option value="low">低风险</option>
+                </select>
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                  <input
+                    value={riskKeyword}
+                    onChange={event => setRiskKeyword(event.target.value)}
+                    placeholder="搜索项目、部位、内容、建议"
+                    className="h-10 w-full rounded-lg border border-[#E5E6EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
+                  />
+                </label>
+                {hasActiveRiskFilter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRiskProjectId('all');
+                      setRiskLevelFilter('all');
+                      setRiskKeyword('');
+                    }}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    重置
+                  </button>
+                )}
+              </div>
+            </section>
 
             {riskLoading ? (
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">加载中...</div>
             ) : risks.length === 0 ? (
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">暂无符合条件的风险记录</div>
-            ) : risks.map(risk => (
-              <div key={risk.log_id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 transition hover:border-[#165DFF]/30">
+            ) : filteredRisks.length === 0 ? (
+              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">没有符合筛选条件的风险提醒</div>
+            ) : filteredRisks.map(risk => {
+              const isPending = risk.workflow_status === 'pending';
+              return (
+              <div key={risk.log_id} className={`rounded-xl border bg-white p-4 transition ${isPending ? 'border-[#F59E0B]/50 shadow-sm hover:border-[#F59E0B]' : 'border-[#E5E6EB] hover:border-[#165DFF]/30'}`}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#86909C]">
-                      <span>{risk.project_name}</span>
-                      <span className="h-3 w-px bg-[#E5E6EB]" />
-                      <span>{risk.log_date}</span>
-                      <span>{risk.location || '未填部位'}</span>
                       <span className={`rounded-full border px-2 py-0.5 font-medium ${statusClass(risk.workflow_status)}`}>
                         {risk.workflow_status_label || STATUS_LABELS[risk.workflow_status]}
                       </span>
@@ -611,9 +751,13 @@ export default function ConstructionLogsClient() {
                           {RISK_LEVEL_LABELS[risk.risk_level]}风险
                         </span>
                       )}
+                      <span>{risk.project_name}</span>
+                      <span className="h-3 w-px bg-[#E5E6EB]" />
+                      <span>{risk.log_date}</span>
+                      <span>{risk.location || '未填部位'}</span>
                     </div>
-                    <p className="text-sm font-medium text-[#1D2129]">{risk.risk_summary}</p>
-                    <p className="mt-2 text-sm text-[#4E5969]">{risk.content}</p>
+                    <p className="text-sm font-semibold text-[#1D2129]">{risk.risk_summary || '施工日志风险提醒'}</p>
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#4E5969]">{risk.content}</p>
                     {risk.issues && <p className="mt-2 text-sm text-[#C62828]">异常：{risk.issues}</p>}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {risk.risk_types.map(type => (
@@ -629,17 +773,19 @@ export default function ConstructionLogsClient() {
                     )}
                   </div>
                   <div className="flex flex-col gap-2 md:min-w-[150px]">
-                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
+                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
+                      <Eye className="h-3.5 w-3.5" />
                       查看详情
                     </Link>
-                    <button disabled={actionBusy === risk.log_id || risk.workflow_status !== 'pending'} onClick={() => handleRiskAction(risk.log_id)} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#10B981] px-3 text-xs font-medium text-[#047857] disabled:cursor-not-allowed disabled:opacity-50">
-                      <FileCheck2 className="h-3.5 w-3.5" />
+                    <button disabled={actionBusy === risk.log_id || !isPending} onClick={() => handleRiskAction(risk.log_id)} className={`inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg px-3 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-70 ${isPending ? 'border border-[#10B981] bg-[#10B981] text-white hover:bg-[#059669]' : 'border border-[#10B981]/30 bg-[#E8FFEA] text-[#047857]'}`}>
+                      {isPending ? <FileCheck2 className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       {risk.workflow_status === 'confirmed' ? '已确认' : '确认提醒'}
                     </button>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -791,13 +937,87 @@ export default function ConstructionLogsClient() {
 
         {tab === 'logs' && (
           <div className="space-y-3">
+            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969]">
+                    <Filter className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-semibold text-[#1D2129]">日志筛选</h2>
+                    <p className="mt-0.5 text-xs text-[#86909C]">当前显示 {filteredLogs.length}/{logs.length} 条，最新日期在上</p>
+                  </div>
+                </div>
+                {hasActiveLogFilter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogProjectId('all');
+                      setLogDateFrom('');
+                      setLogDateTo('');
+                      setLogViewStatus('all');
+                      setLogKeyword('');
+                    }}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    重置筛选
+                  </button>
+                )}
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1.4fr]">
+                <select
+                  value={logProjectId}
+                  onChange={event => setLogProjectId(event.target.value)}
+                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value="all">全部项目</option>
+                  {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
+                </select>
+                <input
+                  type="date"
+                  value={logDateFrom}
+                  onChange={event => setLogDateFrom(event.target.value)}
+                  className="h-10 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                  aria-label="开始日期"
+                />
+                <input
+                  type="date"
+                  value={logDateTo}
+                  onChange={event => setLogDateTo(event.target.value)}
+                  className="h-10 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                  aria-label="结束日期"
+                />
+                <select
+                  value={logViewStatus}
+                  onChange={event => setLogViewStatus(event.target.value as LogViewStatus)}
+                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value="all">全部状态</option>
+                  <option value="risk">有风险</option>
+                  <option value="late">逾期补交</option>
+                  <option value="pending">待提交</option>
+                </select>
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                  <input
+                    value={logKeyword}
+                    onChange={event => setLogKeyword(event.target.value)}
+                    placeholder="搜索项目、人员、部位、内容"
+                    className="h-10 w-full rounded-lg border border-[#E5E6EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
+                  />
+                </label>
+              </div>
+            </section>
             {loading ? (
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">加载中...</div>
             ) : logs.length === 0 ? (
               <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">暂无日志记录</div>
+            ) : filteredLogs.length === 0 ? (
+              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">没有符合筛选条件的日志</div>
             ) : (
               <>
-                {logDateGroups.map((group, index) => (
+                {visibleLogDateGroups.map((group, index) => (
               <details key={group.date} open={index === 0} className="group rounded-xl border border-[#E5E6EB] bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition hover:bg-[#F7F8FA] md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
@@ -812,6 +1032,18 @@ export default function ConstructionLogsClient() {
                       <p className="mt-1 text-sm text-[#86909C]">
                         共 {group.logs.length} 篇，涉及 {group.projectCount} 个项目，{group.submitterCount} 人提交
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {group.projectBreakdown.slice(0, 4).map(item => (
+                          <span key={item.name} className="rounded-full bg-white px-2 py-0.5 text-xs text-[#4E5969] ring-1 ring-[#E5E6EB]">
+                            {item.name} {item.count}篇
+                          </span>
+                        ))}
+                        {group.projectBreakdown.length > 4 && (
+                          <span className="rounded-full bg-white px-2 py-0.5 text-xs text-[#86909C] ring-1 ring-[#E5E6EB]">
+                            +{group.projectBreakdown.length - 4} 项目
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 md:justify-end">
