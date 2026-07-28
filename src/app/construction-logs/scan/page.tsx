@@ -4,7 +4,11 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Camera, CheckCircle2, ImageIcon, Loader2, RotateCcw, Search, Send, UserPlus, UsersRound } from 'lucide-react';
-import { getDefaultConstructionLogDate } from '@/lib/construction-log-deadline';
+import {
+  formatLogWindowText,
+  getConstructionLogSubmissionWindow,
+  getDefaultConstructionLogDate,
+} from '@/lib/construction-log-deadline';
 import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 import { isPublicLogRestrictedUser } from '@/lib/construction-log-role-rules';
 import { usePermission } from '@/contexts/permission-context';
@@ -184,6 +188,12 @@ export default function ConstructionLogScanPage() {
     .filter(workerId => !scopedSet.has(workerId))
     .filter(workerId => !scopeWorkerIds.includes(workerId)), [attendanceWorkerIds, scopedSet, scopeWorkerIds]);
   const displayedHeadcount = attendanceWorkerIds.length > 0 ? String(attendanceWorkerIds.length) : headcount;
+  const submissionWindow = useMemo(() => getConstructionLogSubmissionWindow(logDate), [logDate]);
+  const attendanceValidation = useMemo(() => validateAttendanceCountConsistency({
+    content,
+    selectedCount: attendanceWorkerIds.length,
+  }), [attendanceWorkerIds.length, content]);
+  const canSubmit = Boolean(projectId && logDate && content.trim() && submissionWindow.allowed);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
@@ -283,6 +293,10 @@ export default function ConstructionLogScanPage() {
       setMessage('项目、日期和施工内容为必填项');
       return;
     }
+    if (!submissionWindow.allowed) {
+      setMessage(submissionWindow.message);
+      return;
+    }
 
     const invalidHours = attendanceWorkerIds.some((workerId) => {
       const hours = Number(getWorkerHours(workerId));
@@ -292,15 +306,6 @@ export default function ConstructionLogScanPage() {
       setMessage('\u51fa\u52e4\u5de5\u65f6\u9700\u5927\u4e8e0\u4e14\u4e0d\u8d85\u8fc724\u5c0f\u65f6');
       return;
     }
-    const attendanceValidation = validateAttendanceCountConsistency({
-      content,
-      selectedCount: attendanceWorkerIds.length,
-    });
-    if (!attendanceValidation.ok && attendanceValidation.message) {
-      setMessage(attendanceValidation.message);
-      return;
-    }
-
     setSaving(true);
     setMessage('');
     try {
@@ -441,6 +446,17 @@ export default function ConstructionLogScanPage() {
                 <input type="date" value={logDate} onChange={event => setLogDate(event.target.value)} className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm outline-none focus:border-[#165DFF]" />
               </div>
             </div>
+            <div className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
+              submissionWindow.status === 'late'
+                ? 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]'
+                : submissionWindow.allowed
+                  ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]'
+                  : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+            }`}>
+              <div className="font-medium">{submissionWindow.label}</div>
+              <div className="mt-1 text-xs">{submissionWindow.message}</div>
+              <div className="mt-1 text-xs opacity-80">{formatLogWindowText(logDate)}</div>
+            </div>
 
             <div className="mt-3">
               <label className="mb-1 block text-sm font-medium text-[#1D2129]">施工部位</label>
@@ -450,6 +466,11 @@ export default function ConstructionLogScanPage() {
             <div className="mt-3">
               <label className="mb-1 block text-sm font-medium text-[#1D2129]">施工内容 <span className="text-[#F53F3F]">*</span></label>
               <textarea value={content} onChange={event => setContent(event.target.value)} placeholder="识别后会自动填入，可人工修改" rows={7} className="w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3 text-sm outline-none focus:border-[#165DFF]" />
+              {!attendanceValidation.ok && attendanceValidation.message && (
+                <div className="mt-2 rounded-lg border border-[#F59E0B] bg-[#FFF7E8] px-3 py-2 text-xs text-[#B45309]">
+                  {attendanceValidation.message}
+                </div>
+              )}
             </div>
 
             <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -639,7 +660,11 @@ export default function ConstructionLogScanPage() {
 
             {message && <div className="mt-4 rounded-xl border border-[#E5E6EB] bg-[#FAFBFF] p-3 text-sm text-[#4E5969]">{message}</div>}
 
-            <button type="submit" disabled={saving || recognizing} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
+            <div className="mt-4 rounded-xl border border-[#E5E6EB] bg-[#FAFBFF] px-3 py-2 text-xs text-[#4E5969]">
+              本次将提交 1 个项目日志，已选 {attendanceWorkerIds.length} 名出勤人员，照片 {recognizedFiles.filter(file => file.storageKey).length} 张
+            </div>
+
+            <button type="submit" disabled={saving || recognizing || !canSubmit} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {saving ? '提交中...' : '确认提交施工日志'}
             </button>

@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CalendarClock, Camera, ClipboardList, ImageIcon, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarClock, Camera, CheckCircle2, ClipboardList, ImageIcon, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import {
   formatLogWindowText,
   getConstructionLogSubmissionWindow,
@@ -120,6 +120,24 @@ function getProjectName(projects: Project[], projectId: string) {
   return projects.find((project) => String(project.id) === projectId)?.name || '';
 }
 
+function hasDraftInput(draft: ProjectLogDraft) {
+  return Boolean(
+    draft.location.trim()
+    || draft.content.trim()
+    || draft.issues.trim()
+    || draft.attendance_worker_ids.length > 0
+    || draft.attachments.length > 0
+  );
+}
+
+function getDraftHoursIssue(draft: ProjectLogDraft) {
+  const invalid = draft.attendance_worker_ids.some((workerId) => {
+    const hours = Number(getWorkerHours(draft, workerId));
+    return !Number.isFinite(hours) || hours <= 0 || hours > 24;
+  });
+  return invalid ? '出勤工时需大于0且不超过24小时' : '';
+}
+
 export default function NewConstructionLogPage() {
   const router = useRouter();
   const { user, isSuperAdmin } = usePermission();
@@ -197,6 +215,45 @@ export default function NewConstructionLogPage() {
     return getConstructionLogSubmissionWindow(logDate, new Date(scheduledSubmitAt));
   }, [logDate, scheduleEnabled, scheduledSubmitAt, submissionWindow]);
   const isUploadingPhotos = useMemo(() => Object.values(photoUploading).some(Boolean), [photoUploading]);
+  const projectIdCounts = useMemo(() => drafts.reduce<Record<string, number>>((acc, draft) => {
+    if (!draft.project_id) return acc;
+    acc[draft.project_id] = (acc[draft.project_id] || 0) + 1;
+    return acc;
+  }, {}), [drafts]);
+  const draftSubmitSummaries = useMemo(() => drafts.map((draft, index) => {
+    const messages: string[] = [];
+    const warnings: string[] = [];
+    const touched = hasDraftInput(draft);
+    if (!draft.project_id && touched) messages.push('请选择项目');
+    if (!draft.content.trim() && (touched || drafts.length === 1)) messages.push('填写施工内容');
+    if (draft.project_id && projectIdCounts[draft.project_id] > 1) messages.push('同一份日志中项目重复');
+    const hoursIssue = getDraftHoursIssue(draft);
+    if (hoursIssue) messages.push(hoursIssue);
+    const attendanceValidation = validateAttendanceCountConsistency({
+      content: draft.content,
+      selectedCount: draft.attendance_worker_ids.length,
+    });
+    if (!attendanceValidation.ok && attendanceValidation.message) warnings.push(attendanceValidation.message);
+
+    const ready = Boolean(draft.project_id && draft.content.trim() && messages.length === 0);
+    return {
+      id: draft.id,
+      index,
+      projectName: getProjectName(projects, draft.project_id) || `项目明细 ${index + 1}`,
+      status: ready ? 'ready' : messages.length > 0 ? 'warning' : 'empty',
+      label: ready ? '可提交' : messages.length > 0 ? '待完善' : '未填写',
+      messages,
+      warnings,
+      touched,
+    };
+  }), [drafts, projectIdCounts, projects]);
+  const blockingSummary = useMemo(() => draftSubmitSummaries.find(summary => (
+    summary.status === 'warning' && summary.touched
+  )), [draftSubmitSummaries]);
+  const readyDraftCount = useMemo(() => draftSubmitSummaries.filter(summary => summary.status === 'ready').length, [draftSubmitSummaries]);
+  const submitProjectCount = useMemo(() => drafts.filter(draft => draft.project_id && draft.content.trim()).length, [drafts]);
+  const attendanceTotal = useMemo(() => drafts.reduce((sum, draft) => sum + draft.attendance_worker_ids.length, 0), [drafts]);
+  const attachmentTotal = useMemo(() => drafts.reduce((sum, draft) => sum + draft.attachments.length, 0), [drafts]);
 
   function updateDraft(id: string, patch: Partial<ProjectLogDraft>) {
     setDrafts(current => current.map(draft => draft.id === id ? { ...draft, ...patch } : draft));
@@ -322,6 +379,10 @@ export default function NewConstructionLogPage() {
       setError('请至少填写一个项目的施工内容');
       return;
     }
+    if (blockingSummary) {
+      setError(`项目明细 ${blockingSummary.index + 1}：${blockingSummary.messages[0]}`);
+      return;
+    }
     if (uniqueProjectIds.size !== projectIds.length) {
       setError('同一份施工日志中不能重复选择同一个项目');
       return;
@@ -356,21 +417,6 @@ export default function NewConstructionLogPage() {
     }));
     if (invalidHours) {
       setError('出勤工时需大于0且不超过24小时');
-      return;
-    }
-
-    const mismatchDraft = validDrafts
-      .map((draft) => ({
-        draft,
-        validation: validateAttendanceCountConsistency({
-          content: draft.content,
-          selectedCount: draft.attendance_worker_ids.length,
-        }),
-      }))
-      .find((item) => !item.validation.ok);
-    if (mismatchDraft?.validation.message) {
-      const projectName = getProjectName(projects, mismatchDraft.draft.project_id);
-      setError(projectName ? `${projectName}\uff1a${mismatchDraft.validation.message}` : mismatchDraft.validation.message);
       return;
     }
 
@@ -461,6 +507,20 @@ export default function NewConstructionLogPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg bg-[#F7F8FA] px-3 py-2">
+                <div className="text-xs text-[#86909C]">本次提交项目</div>
+                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{submitProjectCount}</div>
+              </div>
+              <div className="rounded-lg bg-[#F7F8FA] px-3 py-2">
+                <div className="text-xs text-[#86909C]">已选出勤人员</div>
+                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{attendanceTotal}</div>
+              </div>
+              <div className="rounded-lg bg-[#F7F8FA] px-3 py-2">
+                <div className="text-xs text-[#86909C]">现场照片</div>
+                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{attachmentTotal}</div>
+              </div>
+            </div>
             <div className="grid gap-3 md:grid-cols-[220px_1fr]">
               <div>
                 <label className="mb-1 block text-sm font-medium text-[#1D2129]">日志日期 <span className="text-[#F53F3F]">*</span></label>
@@ -549,7 +609,19 @@ export default function NewConstructionLogPage() {
             return (
               <section key={draft.id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
                 <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                  <h2 className="text-base font-semibold text-[#1D2129]">项目明细 {index + 1}</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-semibold text-[#1D2129]">项目明细 {index + 1}</h2>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+                      draftSubmitSummaries[index]?.status === 'ready'
+                        ? 'bg-[#E8FFEA] text-[#00A870]'
+                        : draftSubmitSummaries[index]?.status === 'warning'
+                          ? 'bg-[#FFF7E8] text-[#D46B08]'
+                          : 'bg-[#F2F3F5] text-[#86909C]'
+                    }`}>
+                      {draftSubmitSummaries[index]?.status === 'ready' ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                      {draftSubmitSummaries[index]?.label}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeDraft(draft.id)}
@@ -592,6 +664,11 @@ export default function NewConstructionLogPage() {
                     rows={4}
                     className="w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3 text-sm outline-none focus:border-[#165DFF]"
                   />
+                  {draftSubmitSummaries[index]?.warnings.some(message => message.includes('出勤')) && (
+                    <div className="mt-2 rounded-lg border border-[#F59E0B] bg-[#FFF7E8] px-3 py-2 text-xs text-[#B45309]">
+                      {draftSubmitSummaries[index]?.warnings.find(message => message.includes('出勤'))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3">
@@ -845,7 +922,15 @@ export default function NewConstructionLogPage() {
             );
           })}
 
-          {error && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#B91C1C]">{error}</div>}
+          {(error || blockingSummary) && (
+            <div className={`rounded-xl border p-3 text-sm ${
+              error
+                ? 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+                : 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]'
+            }`}>
+              {error || `项目明细 ${blockingSummary?.index !== undefined ? blockingSummary.index + 1 : ''}：${blockingSummary?.messages[0] || '请完善后再提交'}`}
+            </div>
+          )}
 
           <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:flex-row sm:items-center">
             <button
@@ -855,14 +940,19 @@ export default function NewConstructionLogPage() {
             >
               <Plus className="h-4 w-4" />添加项目明细
             </button>
-            <button
-              type="submit"
-              disabled={saving || isUploadingPhotos || !(scheduleEnabled ? scheduledWindow.allowed : submissionWindow.allowed)}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:w-auto sm:min-w-[160px]"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : scheduleEnabled ? '保存并预约' : '提交日志'}
-            </button>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <div className="text-xs text-[#86909C]">
+                {readyDraftCount > 0 ? `已准备 ${readyDraftCount} 个项目明细` : '请先填写项目和施工内容'}
+              </div>
+              <button
+                type="submit"
+                disabled={saving || isUploadingPhotos || Boolean(blockingSummary) || readyDraftCount === 0 || !(scheduleEnabled ? scheduledWindow.allowed : submissionWindow.allowed)}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:w-auto sm:min-w-[160px]"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : scheduleEnabled ? '保存并预约' : '提交日志'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

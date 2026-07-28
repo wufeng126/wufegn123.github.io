@@ -16,7 +16,6 @@ import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
 import { canUserSubmitConstructionLog, hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
-import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 
 type ConstructionLogDraft = {
   project_id: number;
@@ -148,7 +147,7 @@ async function updateConstructionLogWithColumnFallback(
   requiredStatus: string,
   payload: Record<string, unknown>,
 ) {
-  let updatePayload = { ...payload };
+  const updatePayload = { ...payload };
   const removedColumns = new Set<string>();
 
   for (let attempt = 0; attempt <= OPTIONAL_CONSTRUCTION_LOG_COLUMNS.length; attempt += 1) {
@@ -491,14 +490,6 @@ export async function POST(request: NextRequest) {
     if (uniqueProjectIds.length !== drafts.length) {
       return apiBadRequest('同一份施工日志中不能重复选择同一个项目');
     }
-
-    const attendanceMismatch = drafts
-      .map((draft) => validateAttendanceCountConsistency({
-        content: draft.content,
-        selectedCount: Array.isArray(draft.attendance_worker_ids) ? draft.attendance_worker_ids.length : 0,
-      }))
-      .find((result) => !result.ok);
-    if (attendanceMismatch?.message) return apiBadRequest(attendanceMismatch.message);
 
     const submissionWindow = getConstructionLogSubmissionWindow(log_date, scheduledSubmitDate || new Date());
     if (!submissionWindow.allowed || !submissionWindow.submissionStatus) {
