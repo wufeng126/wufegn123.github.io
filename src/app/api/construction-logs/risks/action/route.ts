@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { requireApiWritePermission } from '@/lib/api-auth';
-import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
+import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 function isMissingColumn(error: unknown, column: string) {
@@ -25,17 +26,22 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const { data: log, error: logError } = await supabase
       .from('construction_logs')
-      .select('id,content,issues')
+      .select('id,project_id,content,issues')
       .eq('id', logId)
       .single();
 
     if (logError || !log) throw new Error(logError?.message || '施工日志不存在');
 
+    const accessibleProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
+    if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(Number(log.project_id))) {
+      return apiForbidden('无权确认该项目施工日志风险提醒');
+    }
+
     const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
     if (!risk.hasRisk) return apiBadRequest('该日志未识别到风险，无需确认');
 
     const now = new Date().toISOString();
-    let query = supabase
+    const query = supabase
       .from('notifications')
       .update({ is_read: true, read_at: now })
       .eq('type', 'construction_log_alert')

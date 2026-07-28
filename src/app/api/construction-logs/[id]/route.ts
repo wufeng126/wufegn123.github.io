@@ -19,6 +19,11 @@ type LogAttachment = {
   url?: string;
 };
 
+type NotificationRow = {
+  is_read?: boolean | string | number | null;
+  recipient_user_id?: number | null;
+};
+
 function asPayload(value: unknown) {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
@@ -34,6 +39,16 @@ function isPendingBeforeSchedule(log: { status?: string | null; scheduled_submit
   const scheduledAt = new Date(log.scheduled_submit_at);
   if (Number.isNaN(scheduledAt.getTime())) return true;
   return scheduledAt.getTime() > Date.now();
+}
+
+function isUnread(value: unknown) {
+  return value === false || value === 'false' || value === 0 || value === '0' || value === null || value === undefined;
+}
+
+function isMissingColumn(error: unknown, column: string) {
+  const err = error as { message?: string; details?: string; code?: string } | null;
+  const message = String(err?.message || err?.details || '').toLowerCase();
+  return err?.code === '42703' || message.includes(column.toLowerCase());
 }
 
 function createStorage() {
@@ -65,6 +80,43 @@ async function attachSignedUrls(attachments: unknown) {
       return { ...attachment, storageKey: attachment.storageKey || key };
     }
   }));
+}
+
+async function loadRiskWorkflowStatus(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  logId: number,
+  userId: number,
+) {
+  let result: {
+    data: NotificationRow[] | null;
+    error: { message: string; details?: string; code?: string } | null;
+  } = await supabase
+    .from('notifications')
+    .select('is_read,recipient_user_id')
+    .eq('type', 'construction_log_alert')
+    .eq('related_type', 'construction_log')
+    .eq('related_id', logId);
+
+  if (result.error && isMissingColumn(result.error, 'recipient_user_id')) {
+    result = await supabase
+      .from('notifications')
+      .select('is_read')
+      .eq('type', 'construction_log_alert')
+      .eq('related_type', 'construction_log')
+      .eq('related_id', logId);
+  }
+
+  if (result.error) throw new Error(result.error.message);
+
+  const rows = (result.data || []).filter((row) => (
+    !row.recipient_user_id || Number(row.recipient_user_id) === Number(userId)
+  ));
+  const confirmed = rows.length > 0 && rows.every((row) => !isUnread(row.is_read));
+  return {
+    workflow_status: confirmed ? 'confirmed' : 'pending',
+    workflow_status_label: confirmed ? '已确认' : '待确认',
+    can_acknowledge: !confirmed,
+  };
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -104,6 +156,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (attendanceError) console.warn('[construction-logs] attendance workers load failed', attendanceError.message);
 
     const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
+    const riskWorkflow = risk.hasRisk
+      ? await loadRiskWorkflowStatus(supabase, logId, Number(auth.user.id))
+      : {
+        workflow_status: 'none',
+        workflow_status_label: '无风险',
+        can_acknowledge: false,
+      };
     const attachments = await attachSignedUrls(log.attachments);
 
     return apiSuccess({
@@ -111,7 +170,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       attachments,
       project: project || null,
       attendance_workers: attendanceWorkers || [],
-      risk,
+      risk: {
+        ...risk,
+        ...riskWorkflow,
+      },
       risk_doc: null,
       can_edit_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
       can_cancel_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),

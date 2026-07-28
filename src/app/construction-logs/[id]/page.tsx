@@ -3,10 +3,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, CalendarClock, CalendarDays, FileText, ImageIcon, MapPin, Save, Users, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarClock, CalendarDays, CheckCircle2, FileText, ImageIcon, MapPin, Save, Users, XCircle } from 'lucide-react';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
+type RiskWorkflowStatus = 'pending' | 'confirmed' | 'none';
 
 type ConstructionLogDetail = {
   id: number;
@@ -55,6 +56,9 @@ type ConstructionLogDetail = {
     summary?: string;
     recommendation?: string;
     matchedKeywords?: string[];
+    workflow_status?: RiskWorkflowStatus | string;
+    workflow_status_label?: string;
+    can_acknowledge?: boolean;
   };
 };
 
@@ -99,6 +103,12 @@ function riskClass(level?: RiskLevel | null) {
   return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
 }
 
+function statusClass(status?: string | null) {
+  if (status === 'confirmed') return 'border-[#10B981]/30 bg-[#E8FFEA] text-[#047857]';
+  if (status === 'pending') return 'border-[#F59E0B]/30 bg-[#FFF7E8] text-[#B45309]';
+  return 'border-[#E5E6EB] bg-[#F7F8FA] text-[#4E5969]';
+}
+
 function formatFileSize(size?: number | null) {
   const value = Number(size || 0);
   if (!Number.isFinite(value) || value <= 0) return '';
@@ -126,6 +136,8 @@ export default function ConstructionLogDetailPage() {
   const [editContent, setEditContent] = useState('');
   const [editIssues, setEditIssues] = useState('');
   const [editScheduledAt, setEditScheduledAt] = useState('');
+  const [acknowledgingRisk, setAcknowledgingRisk] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -198,6 +210,39 @@ export default function ConstructionLogDetailPage() {
     }
   }
 
+  async function handleAcknowledgeRisk() {
+    if (!detail?.risk?.hasRisk) return;
+    setAcknowledgingRisk(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/construction-logs/risks/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          logId: detail.id,
+          action: 'acknowledge',
+          note: '风险提醒已人工确认',
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '确认失败');
+      setDetail(current => current ? {
+        ...current,
+        risk: current.risk ? {
+          ...current.risk,
+          workflow_status: 'confirmed',
+          workflow_status_label: '已确认',
+          can_acknowledge: false,
+        } : current.risk,
+      } : current);
+      setMessage('已确认该风险提醒');
+    } catch (actionError) {
+      setMessage(actionError instanceof Error ? actionError.message : '确认失败');
+    } finally {
+      setAcknowledgingRisk(false);
+    }
+  }
+
   return (
     <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-4xl">
@@ -214,6 +259,11 @@ export default function ConstructionLogDetailPage() {
           <div className="rounded-xl border border-[#E5E6EB] bg-white p-10 text-center text-sm text-[#4E5969]">{error || '未找到施工日志'}</div>
         ) : (
           <div className="space-y-4">
+            {message && (
+              <div className="rounded-xl border border-[#E5E6EB] bg-white px-4 py-3 text-sm text-[#4E5969]">
+                {message}
+              </div>
+            )}
             <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
@@ -398,19 +448,52 @@ export default function ConstructionLogDetailPage() {
             </section>
 
             <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <h2 className="text-sm font-semibold text-[#1D2129]">风险识别提醒</h2>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-sm font-semibold text-[#1D2129]">风险识别提醒</h2>
+                <Link href="/construction-logs?tab=risks" className="text-xs font-medium text-[#165DFF] hover:underline">
+                  返回风险池
+                </Link>
+              </div>
               {detail.risk?.hasRisk ? (
                 <div className="mt-3 space-y-3">
-                  <p className="text-sm text-[#4E5969]">{detail.risk.summary}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(detail.risk.workflow_status)}`}>
+                      {detail.risk.workflow_status_label || '待确认'}
+                    </span>
+                    {detail.risk.level && (
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${riskClass(detail.risk.level)}`}>
+                        {riskLevelLabels[detail.risk.level]}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-[#1D2129]">{detail.risk.summary || '施工日志风险提醒'}</p>
                   <div className="flex flex-wrap gap-2">
                     {(detail.risk.types || []).map(type => (
                       <span key={type} className="rounded-full bg-[#F2F3F5] px-2.5 py-1 text-xs text-[#4E5969]">{riskTypeLabels[type] || type}</span>
                     ))}
-                    <span className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">仅作提醒确认</span>
+                    {(detail.risk.matchedKeywords || []).slice(0, 6).map(keyword => (
+                      <span key={keyword} className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">{keyword}</span>
+                    ))}
                   </div>
                   {detail.risk.recommendation && (
                     <p className="rounded-lg bg-[#FAFBFF] px-3 py-2 text-sm text-[#4E5969]">建议：{detail.risk.recommendation}</p>
                   )}
+                  <div className="flex flex-col gap-2 border-t border-[#F2F3F5] pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-[#86909C]">该提醒只用于确认已知晓，后续签证、月报、结算资料仍按业务页面办理。</p>
+                    <button
+                      type="button"
+                      disabled={acknowledgingRisk || detail.risk.workflow_status === 'confirmed' || !detail.risk.can_acknowledge}
+                      onClick={handleAcknowledgeRisk}
+                      className={`inline-flex h-9 items-center justify-center gap-1 rounded-lg px-3 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-70 ${
+                        detail.risk.workflow_status === 'confirmed'
+                          ? 'border border-[#10B981]/30 bg-[#E8FFEA] text-[#047857]'
+                          : 'border border-[#10B981] bg-[#10B981] text-white hover:bg-[#059669]'
+                      }`}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {detail.risk.workflow_status === 'confirmed' ? '已确认' : acknowledgingRisk ? '确认中...' : '确认提醒'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-[#86909C]">该日志暂未识别到风险提醒。</p>
