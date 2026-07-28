@@ -77,6 +77,7 @@ interface ProjectInternalAddon {
 }
 
 type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
+type DashboardRiskFilter = '全部' | '多结少报' | '对下超结' | '本月漏报' | '对上余量不足' | '资金/利润风险' | '漏报风险' | '内部附加成本';
 
 interface ProjectDashboardRow {
   project: Project;
@@ -101,6 +102,8 @@ const toNumber = (value: string | number | null | undefined) => {
 };
 
 const clampProgress = (value: number) => Math.max(0, Math.min(value, 100));
+
+const DASHBOARD_RISK_FILTERS: DashboardRiskFilter[] = ['全部', '多结少报', '对下超结', '本月漏报', '对上余量不足', '资金/利润风险', '漏报风险', '内部附加成本'];
 
 export default function WorkItemsPage() {
   return (
@@ -129,6 +132,7 @@ function WorkItemsContent() {
   // 当前选中的项目
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [dashboardKeyword, setDashboardKeyword] = useState('');
+  const [dashboardRiskFilter, setDashboardRiskFilter] = useState<DashboardRiskFilter>('全部');
   
   // 预警筛选模式
   const [warningFilter, setWarningFilter] = useState<string>('');
@@ -865,16 +869,29 @@ function WorkItemsContent() {
     projectDashboardRows.find(row => row.project.id.toString() === selectedProjectId) || projectDashboardRows[0] || null
   ), [projectDashboardRows, selectedProjectId]);
 
+  const dashboardRiskOptions = useMemo(() => {
+    return DASHBOARD_RISK_FILTERS.map(label => ({
+      label,
+      count: label === '全部'
+        ? analysisStats.rows.length
+        : analysisStats.rows.filter(row => row.risks.includes(label)).length,
+    }));
+  }, [analysisStats.rows]);
+
   const dashboardDetailRows = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
     return analysisStats.rows
-      .filter(row => !keyword || row.subitem_name.toLowerCase().includes(keyword) || row.risks.join('').toLowerCase().includes(keyword))
+      .filter(row => {
+        const matchKeyword = !keyword || row.subitem_name.toLowerCase().includes(keyword) || row.risks.join('').toLowerCase().includes(keyword);
+        const matchRisk = dashboardRiskFilter === '全部' || row.risks.includes(dashboardRiskFilter);
+        return matchKeyword && matchRisk;
+      })
       .sort((a, b) => {
         const aRisk = a.risks.length > 0 ? 0 : 1;
         const bRisk = b.risks.length > 0 ? 0 : 1;
         return aRisk - bRisk || Math.abs(b.amountGap) - Math.abs(a.amountGap);
       });
-  }, [analysisStats.rows, searchKeyword]);
+  }, [analysisStats.rows, dashboardRiskFilter, searchKeyword]);
 
   // 刷新数据
   const refreshSubitems = async () => {
@@ -2266,6 +2283,39 @@ function WorkItemsContent() {
                   <p className="mt-1 text-base font-semibold text-rose-900">{analysisStats.riskCount} 项</p>
                 </div>
               </div>
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
+                {dashboardRiskOptions.map(option => {
+                  const active = dashboardRiskFilter === option.label;
+                  return (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => setDashboardRiskFilter(option.label)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+                        active
+                          ? 'bg-[#1A58B3] text-white ring-[#1A58B3]'
+                          : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {option.label}
+                      <span className={active ? 'ml-1 text-white/80' : 'ml-1 text-gray-400'}>{option.count}</span>
+                    </button>
+                  );
+                })}
+                {(dashboardRiskFilter !== '全部' || searchKeyword) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDashboardRiskFilter('全部');
+                      setSearchKeyword('');
+                    }}
+                    className="ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    清除筛选
+                  </button>
+                )}
+              </div>
               <div className="hidden overflow-x-auto lg:block">
                 <Table>
                   <TableHeader>
@@ -2298,7 +2348,20 @@ function WorkItemsContent() {
                         <TableCell>
                           {row.risks.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
-                              {row.risks.map((risk: string) => <Badge key={risk} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{risk}</Badge>)}
+                              {row.risks.map((risk: string) => (
+                                <button
+                                  key={risk}
+                                  type="button"
+                                  onClick={() => {
+                                    if (DASHBOARD_RISK_FILTERS.includes(risk as DashboardRiskFilter)) {
+                                      setDashboardRiskFilter(risk as DashboardRiskFilter);
+                                    }
+                                  }}
+                                  className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 transition hover:bg-amber-100"
+                                >
+                                  {risk}
+                                </button>
+                              ))}
                             </div>
                           ) : <span className="text-xs text-gray-400">正常</span>}
                         </TableCell>
@@ -2329,7 +2392,20 @@ function WorkItemsContent() {
                     </div>
                     {row.risks.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1">
-                        {row.risks.map((risk: string) => <Badge key={risk} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{risk}</Badge>)}
+                        {row.risks.map((risk: string) => (
+                          <button
+                            key={risk}
+                            type="button"
+                            onClick={() => {
+                              if (DASHBOARD_RISK_FILTERS.includes(risk as DashboardRiskFilter)) {
+                                setDashboardRiskFilter(risk as DashboardRiskFilter);
+                              }
+                            }}
+                            className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 transition hover:bg-amber-100"
+                          >
+                            {risk}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
