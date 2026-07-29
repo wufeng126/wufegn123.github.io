@@ -1,25 +1,29 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertCircle,
+  Archive,
   BadgeDollarSign,
-  CalendarDays,
+  BookOpenCheck,
+  BriefcaseBusiness,
+  Building2,
   CheckCircle2,
   ChevronRight,
   Download,
   Edit3,
   ExternalLink,
   FileArchive,
+  FileSpreadsheet,
   FileText,
   Filter,
+  Image,
   Link2,
   Loader2,
+  MessageSquareText,
   Paperclip,
   Plus,
   Save,
   Search,
-  ShieldAlert,
   Tag,
   Trash2,
   UploadCloud,
@@ -109,9 +113,18 @@ type EvidenceForm = {
 const EVIDENCE_TYPES = ['甲方回复', '图纸答疑', '设计变更', '合同外施工', '会议纪要', '结算争议', '现场照片', '其他'];
 const IMPORTANCE_OPTIONS = ['普通留痕', '重点关注', '必须结算', '争议风险'];
 const STATUS_OPTIONS = ['未处理', '待补资料', '已形成签证', '已进入结算', '已关闭'];
-const HANDLING_RESULT_OPTIONS = ['待判断', '走签证', '走补充协议', '无需处理'];
+const HANDLING_RESULT_OPTIONS = ['待判断', '走签证', '走补充协议', '纳入结算', '无需处理'];
 const AMOUNT_OPTIONS = ['可能增加收入', '可能减少收入', '仅留痕/暂不确定'];
 const QUICK_TAGS = ['甲方确认', '合同外', '需签证', '待补资料', '争议风险', '结算可用'];
+
+const EVIDENCE_TYPE_GUIDES = [
+  { name: '甲方回复', example: '群聊、函件、邮件、书面确认' },
+  { name: '图纸答疑', example: '设计回复、答疑纪要、技术核定' },
+  { name: '设计变更', example: '变更图纸、图纸签收、方案调整' },
+  { name: '合同外施工', example: '新增工序、临时指令、赶工措施' },
+  { name: '会议纪要', example: '现场会议、专题会议、结算沟通' },
+  { name: '结算争议', example: '扣减争议、口径分歧、商务回复' },
+];
 
 function emptyForm(): EvidenceForm {
   return {
@@ -148,6 +161,13 @@ function formatMoney(value: number | null | undefined) {
 function formatDate(value: string | null | undefined) {
   if (!value) return '-';
   return String(value).slice(0, 10);
+}
+
+function formatTimelineDate(value: string | null | undefined) {
+  const formatted = formatDate(value);
+  if (formatted === '-') return { year: '-', monthDay: '-' };
+  const [year, month, day] = formatted.split('-');
+  return { year, monthDay: `${month}.${day}` };
 }
 
 function formatFileSize(size: number | null | undefined) {
@@ -199,13 +219,6 @@ function toneForImportance(value: string) {
   return 'bg-slate-100 text-slate-600 ring-slate-200';
 }
 
-function dotToneForImportance(value: string) {
-  if (value === '必须结算') return 'border-emerald-500 bg-emerald-50';
-  if (value === '争议风险') return 'border-rose-500 bg-rose-50';
-  if (value === '重点关注') return 'border-blue-500 bg-blue-50';
-  return 'border-slate-300 bg-white';
-}
-
 function toneForStatus(value: string) {
   if (value === '已进入结算') return 'bg-cyan-50 text-cyan-700 ring-cyan-100';
   if (value === '已形成签证') return 'bg-violet-50 text-violet-700 ring-violet-100';
@@ -217,6 +230,7 @@ function toneForStatus(value: string) {
 function toneForHandlingResult(value: string | null | undefined) {
   if (value === '走签证') return 'bg-violet-50 text-violet-700 ring-violet-100';
   if (value === '走补充协议') return 'bg-indigo-50 text-indigo-700 ring-indigo-100';
+  if (value === '纳入结算') return 'bg-cyan-50 text-cyan-700 ring-cyan-100';
   if (value === '无需处理') return 'bg-slate-100 text-slate-600 ring-slate-200';
   return 'bg-amber-50 text-amber-700 ring-amber-100';
 }
@@ -236,6 +250,14 @@ function evidenceCompleteness(record: EvidenceRecord) {
   if ((record.tags || []).length > 0) score += 10;
   if (record.handling_result && record.handling_result !== '待判断') score += 10;
   return Math.min(100, score);
+}
+
+function attachmentIcon(attachment: EvidenceAttachment) {
+  const name = getAttachmentName(attachment).toLowerCase();
+  const type = typeof attachment === 'string' ? '' : String(attachment.type || '').toLowerCase();
+  if (type.includes('image') || /\.(png|jpg|jpeg|webp|gif|bmp)$/.test(name)) return Image;
+  if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) return FileSpreadsheet;
+  return FileText;
 }
 
 function toForm(record: EvidenceRecord): EvidenceForm {
@@ -304,46 +326,7 @@ export default function EvidenceChainPage() {
     return timelineRecords.find((record) => record.id === selectedId) || timelineRecords[0];
   }, [timelineRecords, selectedId]);
 
-  const projectOverview = useMemo(() => {
-    const map = new Map<number, { project_id: number; name: string; count: number; amount: number; completeness: number }>();
-    timelineRecords.forEach((record) => {
-      const item = map.get(record.project_id) || {
-        project_id: record.project_id,
-        name: record.project_name || '未命名项目',
-        count: 0,
-        amount: 0,
-        completeness: 0,
-      };
-      item.count += 1;
-      item.amount += Number(record.estimated_amount) || 0;
-      item.completeness += evidenceCompleteness(record);
-      map.set(record.project_id, item);
-    });
-
-    return Array.from(map.values())
-      .map((item) => ({
-        ...item,
-        completeness: item.count ? Math.round(item.completeness / item.count) : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount || b.count - a.count)
-      .slice(0, 5);
-  }, [timelineRecords]);
-
-  const monthFocus = useMemo(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const priority = (record: EvidenceRecord) => {
-      if (record.importance === '争议风险') return 4;
-      if (record.importance === '必须结算') return 3;
-      if (record.follow_status === '待补资料') return 2;
-      return 1;
-    };
-    return timelineRecords
-      .filter((record) => formatDate(record.event_date).startsWith(currentMonth) || record.importance === '争议风险' || record.importance === '必须结算')
-      .sort((a, b) => priority(b) - priority(a))
-      .slice(0, 3);
-  }, [timelineRecords]);
-
-  async function loadProjects() {
+  const loadProjects = useCallback(async () => {
     try {
       const res = await fetch('/api/projects');
       const data = await res.json();
@@ -352,9 +335,9 @@ export default function EvidenceChainPage() {
     } catch (error) {
       console.error('加载项目失败:', error);
     }
-  }
+  }, []);
 
-  async function loadVisaOptions(projectIdValue: string) {
+  const loadVisaOptions = useCallback(async (projectIdValue: string) => {
     if (!projectIdValue) {
       setVisaOptions([]);
       return;
@@ -376,9 +359,9 @@ export default function EvidenceChainPage() {
     } finally {
       setLoadingVisas(false);
     }
-  }
+  }, []);
 
-  async function loadRecords() {
+  const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -405,26 +388,29 @@ export default function EvidenceChainPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [keyword, projectId, statusFilter, typeFilter]);
 
   useEffect(() => {
-    loadProjects();
-  }, []);
+    const timer = window.setTimeout(loadProjects, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadProjects]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadRecords, 250);
     return () => window.clearTimeout(timer);
-  }, [projectId, keyword, typeFilter, statusFilter]);
+  }, [loadRecords]);
 
   useEffect(() => {
-    if (!drawerOpen || form.handling_result !== '走签证') {
-      setVisaOptions([]);
-      setLoadingVisas(false);
-      return;
-    }
-    const timer = window.setTimeout(() => loadVisaOptions(form.project_id), 200);
+    const timer = window.setTimeout(() => {
+      if (!drawerOpen || form.handling_result !== '走签证') {
+        setVisaOptions([]);
+        setLoadingVisas(false);
+        return;
+      }
+      void loadVisaOptions(form.project_id);
+    }, 200);
     return () => window.clearTimeout(timer);
-  }, [drawerOpen, form.project_id, form.handling_result]);
+  }, [drawerOpen, form.project_id, form.handling_result, loadVisaOptions]);
 
   function patchForm<K extends keyof EvidenceForm>(key: K, value: EvidenceForm[K]) {
     setForm((current) => {
@@ -545,194 +531,176 @@ export default function EvidenceChainPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#f5f7fb] p-3 text-slate-950 md:p-5">
-      <div className="mx-auto max-w-[1500px] space-y-4">
-        <section className="rounded-lg border border-blue-100 bg-gradient-to-r from-white via-blue-50/50 to-white px-5 py-4 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <main className="min-h-full bg-[#f6f7f9] text-slate-950">
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 md:px-6 xl:px-8">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm text-slate-500">
-                <FileArchive className="h-4 w-4 text-blue-600" />
+                <Archive className="h-4 w-4" />
                 项目管理 / 结算证据链
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950">结算证据链</h1>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                按项目沉淀变更、甲方回复、图纸答疑、会议纪要和测算文件，后期结算时可直接按时间线追溯。
-              </p>
             </div>
-            <div className="min-w-[300px] rounded-lg border border-blue-100 bg-white/80 px-4 py-3 shadow-sm">
-              <div className="flex items-start justify-between gap-6">
-                <div>
-                  <div className="text-xs text-slate-500">预计影响金额</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-950">{formatMoney(summary.estimated_amount)}</div>
-                </div>
-                <BadgeDollarSign className="h-5 w-5 text-blue-600" />
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                <span>必须结算 {summary.required_count} 项</span>
-                <span>争议风险 {summary.risk_count} 项</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">
-          <div className="grid gap-3 lg:grid-cols-[220px_1fr_auto_auto_auto]">
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-slate-500">项目</span>
-              <select
-                value={projectId}
-                onChange={(event) => setProjectId(event.target.value)}
-                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
-              >
-                <option value="all">全部项目</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-slate-500">关键词</span>
-              <span className="relative block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="搜索甲方回复、变更、签证、金额、附件名称"
-                  className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400"
-                />
-              </span>
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-slate-500">类型</span>
-              <select
-                value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value)}
-                className="h-10 w-full min-w-[120px] rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
-              >
-                <option value="all">全部类型</option>
-                {EVIDENCE_TYPES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-slate-500">状态</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-10 w-full min-w-[120px] rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
-              >
-                <option value="all">全部状态</option>
-                {STATUS_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={exportExcel}
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                导出台账
+              </button>
+              <button
+                type="button"
+                onClick={exportExcel}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
               >
                 <Download className="h-4 w-4" />
-                导出
+                附件清单
               </button>
               <button
                 type="button"
                 onClick={openCreate}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-medium text-white hover:bg-slate-800"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
               >
                 <Plus className="h-4 w-4" />
-                新增
+                新增证据
               </button>
             </div>
           </div>
-        </section>
 
+          <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:grid-cols-4">
+            <div>
+              <span className="text-slate-500">证据</span>
+              <span className="ml-2 font-semibold text-slate-950">{summary.count} 条</span>
+            </div>
+            <div>
+              <span className="text-slate-500">必须结算</span>
+              <span className="ml-2 font-semibold text-emerald-700">{summary.required_count} 条</span>
+            </div>
+            <div>
+              <span className="text-slate-500">争议风险</span>
+              <span className="ml-2 font-semibold text-rose-700">{summary.risk_count} 条</span>
+            </div>
+            <div>
+              <span className="text-slate-500">预计影响</span>
+              <span className="ml-2 font-semibold text-slate-950">{formatMoney(summary.estimated_amount)}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-[1500px] px-4 py-5 md:px-6 xl:px-8">
         {needsMigration && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             数据表还未创建，请先执行系统数据库迁移后再使用结算证据链。
           </div>
         )}
 
-        <section className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_420px]">
-          <aside className="space-y-3">
-            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-950">项目概览</h2>
-                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{projectOverview.length} 个</span>
-              </div>
-              <div className="space-y-2">
-                {projectOverview.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-slate-200 p-4 text-center text-sm text-slate-400">暂无项目证据</div>
-                ) : (
-                  projectOverview.map((project) => (
-                    <button
-                      key={project.project_id}
-                      type="button"
-                      onClick={() => setProjectId(String(project.project_id))}
-                      className={cx(
-                        'w-full rounded-md border p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/40',
-                        projectId === String(project.project_id) ? 'border-blue-200 bg-blue-50/60' : 'border-transparent bg-slate-50'
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="line-clamp-1 text-sm font-semibold text-slate-950">{project.name}</span>
-                        <span className="text-xs font-semibold text-blue-700">{project.count}</span>
-                      </div>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-blue-600" style={{ width: `${project.completeness}%` }} />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                        <span>影响 {formatMoney(project.amount)}</span>
-                        <span>完整度 {project.completeness}%</span>
-                      </div>
-                    </button>
-                  ))
-                )}
+        <section className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_400px]">
+          <aside className="h-fit rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Filter className="h-4 w-4" />
+              筛选
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-500">项目</span>
+                <select
+                  value={projectId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                  className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                >
+                  <option value="all">全部项目</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-500">类型</span>
+                <select
+                  value={typeFilter}
+                  onChange={(event) => setTypeFilter(event.target.value)}
+                  className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                >
+                  <option value="all">全部类型</option>
+                  {EVIDENCE_TYPES.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-500">状态</span>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                >
+                  <option value="all">全部状态</option>
+                  {STATUS_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-slate-500">关键词</span>
+                <div className="mt-1 flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3">
+                  <Search className="h-4 w-4 text-slate-400" />
+                  <input
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    placeholder="标题、附件、标签"
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <div className="text-xs font-medium text-slate-500">常用标签</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {QUICK_TAGS.slice(0, 5).map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setKeyword(tag)}
+                    className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200"
+                  >
+                    {tag}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <h2 className="text-sm font-semibold text-slate-950">本月关注</h2>
+            <div className="mt-5 rounded-md bg-slate-950 p-3 text-white">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <FileArchive className="h-4 w-4" />
+                结算资料包
               </div>
-              <div className="space-y-2">
-                {monthFocus.length === 0 ? (
-                  <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-400">暂无重点事项</div>
-                ) : (
-                  monthFocus.map((record) => (
-                    <button
-                      key={record.id}
-                      type="button"
-                      onClick={() => setSelectedId(record.id)}
-                      className="w-full rounded-md bg-slate-50 p-3 text-left text-sm leading-6 text-slate-700 hover:bg-blue-50"
-                    >
-                      <span className="line-clamp-2">{record.title}</span>
-                    </button>
-                  ))
-                )}
-              </div>
+              <div className="mt-2 text-xs leading-5 text-slate-300">当前支持导出 Excel 台账，附件名称会随台账记录。</div>
             </div>
           </aside>
 
-          <main className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 md:flex-row md:items-start md:justify-between">
+          <section className="rounded-md border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-slate-950">证据时间线</h2>
-                  <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{timelineRecords.length} 条</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">按事件日期倒序排列，点击记录查看完整附件和关联业务。</p>
+                <h2 className="text-sm font-semibold text-slate-950">项目时间线</h2>
+                <p className="mt-1 text-xs text-slate-500">按发生日期倒序排列，证据不折叠。</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-sm text-slate-500">{timelineRecords.length} 条</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -774,38 +742,50 @@ export default function EvidenceChainPage() {
               </div>
             </div>
 
-            <div className="max-h-[760px] overflow-y-auto px-4 py-4">
+            <div className="max-h-[760px] overflow-y-auto p-5">
               {loading ? (
                 <div className="flex h-56 items-center justify-center text-sm text-slate-500">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   正在加载证据链
                 </div>
               ) : timelineRecords.length === 0 ? (
-                <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 text-center">
-                  <FileArchive className="h-8 w-8 text-slate-300" />
-                  <div className="mt-2 text-sm font-medium text-slate-700">暂无结算证据</div>
-                  <div className="mt-1 text-xs text-slate-400">点击新增证据，把后期可用于结算的资料先沉淀下来。</div>
+                <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-center">
+                  <BookOpenCheck className="h-9 w-9 text-slate-300" />
+                  <div className="mt-3 text-sm font-medium text-slate-900">暂无匹配证据</div>
+                  <div className="mt-1 text-xs text-slate-500">调整筛选条件或新增一条结算证据。</div>
                 </div>
               ) : (
-                <div className="relative space-y-4 pl-6">
-                  <div className="absolute bottom-2 left-[9px] top-2 w-px bg-slate-200" />
+                <div className="relative pl-4">
+                  <div className="absolute bottom-2 left-[5px] top-2 w-px bg-slate-200" />
+                  <div className="space-y-3">
                   {timelineRecords.map((record) => {
                     const selected = selectedRecord?.id === record.id;
+                    const date = formatTimelineDate(record.event_date);
                     return (
                       <button
                         key={record.id}
                         type="button"
                         onClick={() => setSelectedId(record.id)}
                         className={cx(
-                          'relative w-full rounded-lg border bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30',
-                          selected ? 'border-blue-200 bg-blue-50/40 ring-1 ring-blue-100' : 'border-slate-200'
+                          'group relative w-full rounded-md border bg-white p-4 text-left transition',
+                          selected
+                            ? 'border-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.08)]'
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                         )}
                       >
-                        <span className={cx('absolute -left-[27px] top-6 h-5 w-5 rounded-full border-4', dotToneForImportance(record.importance))} />
-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <span
+                          className={cx(
+                            'absolute -left-[18px] top-5 h-3 w-3 rounded-full border-2 bg-white',
+                            selected ? 'border-slate-950' : 'border-slate-300 group-hover:border-slate-500'
+                          )}
+                        />
+                        <div className="grid gap-4 md:grid-cols-[74px_minmax(0,1fr)_150px]">
+                          <div>
+                            <div className="text-lg font-semibold text-slate-950">{date.monthDay}</div>
+                            <div className="text-xs text-slate-500">{date.year}</div>
+                          </div>
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-semibold text-slate-950">{formatDate(record.event_date)}</span>
                               <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{record.evidence_type || '其他'}</span>
                               <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForImportance(record.importance))}>
                                 {record.importance || '普通留痕'}
@@ -817,29 +797,44 @@ export default function EvidenceChainPage() {
                                 {record.handling_result || '待判断'}
                               </span>
                             </div>
-                            <h3 className="mt-3 line-clamp-2 text-base font-semibold leading-6 text-slate-950">{record.title}</h3>
-                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                              <span>{record.project_name || '未命名项目'}</span>
-                              <span>附件 {(record.attachments || []).length}</span>
-                              <span>关联 {(record.related || []).length}</span>
+                            <h3 className="mt-2 truncate text-base font-semibold text-slate-950">{record.title}</h3>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1">
+                                <Building2 className="h-3.5 w-3.5" />
+                                {record.project_name || '未命名项目'}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Paperclip className="h-3.5 w-3.5" />
+                                {(record.attachments || []).length} 个附件
+                              </span>
+                              {(record.tags || []).length > 0 ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <Tag className="h-3.5 w-3.5" />
+                                  {record.tags.slice(0, 2).join(' / ')}
+                                </span>
+                              ) : null}
                             </div>
+                            <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{record.summary || '暂无事件说明'}</p>
                           </div>
-                          <div className="shrink-0 text-left md:text-right">
-                            <div className="text-xs text-slate-400">预计影响</div>
-                            <div className="mt-1 text-lg font-semibold text-slate-950">{formatMoney(record.estimated_amount)}</div>
-                            <div className="mt-2 flex items-center gap-1 text-xs text-blue-600 md:justify-end">
-                              <span>{evidenceCompleteness(record)}%完整</span>
-                              <ChevronRight className="h-3.5 w-3.5" />
+                          <div className="flex flex-col items-start justify-between gap-3 md:items-end">
+                            <span className={cx('rounded-md px-2 py-1 text-xs font-medium ring-1', toneForAmount(record.amount_direction))}>
+                              {record.amount_direction || '仅留痕/暂不确定'}
+                            </span>
+                            <div className="text-left md:text-right">
+                              <div className="text-xs text-slate-500">预计影响金额</div>
+                              <div className="mt-1 text-lg font-semibold text-slate-950">{formatMoney(record.estimated_amount)}</div>
                             </div>
+                            <ChevronRight className={cx('h-4 w-4', selected ? 'text-slate-900' : 'text-slate-300')} />
                           </div>
                         </div>
                       </button>
                     );
                   })}
+                  </div>
                 </div>
               )}
             </div>
-          </main>
+          </section>
 
           <aside className="rounded-lg border border-slate-200 bg-white shadow-sm">
             {selectedRecord ? (
@@ -932,9 +927,11 @@ export default function EvidenceChainPage() {
                       ) : (
                         selectedRecord.attachments.map((attachment, index) => {
                           const url = getAttachmentUrl(attachment);
+                          const Icon = attachmentIcon(attachment);
                           return (
                             <div key={`${getAttachmentName(attachment)}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                              <div className="min-w-0">
+                              <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                              <div className="min-w-0 flex-1">
                                 <div className="line-clamp-1 text-sm font-medium text-slate-800">{getAttachmentName(attachment)}</div>
                                 <div className="text-xs text-slate-400">{formatFileSize(getAttachmentSize(attachment))}</div>
                               </div>
@@ -1030,7 +1027,34 @@ export default function EvidenceChainPage() {
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+                <div className="space-y-2">
+                  {EVIDENCE_TYPE_GUIDES.map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() => patchForm('evidence_type', item.name)}
+                      className={cx(
+                        'w-full rounded-md border px-3 py-3 text-left transition',
+                        form.evidence_type === item.name
+                          ? 'border-slate-950 bg-slate-950 text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      )}
+                    >
+                      <div className="text-sm font-medium">{item.name}</div>
+                      <div className={cx('mt-1 text-xs', form.evidence_type === item.name ? 'text-slate-300' : 'text-slate-500')}>
+                        {item.example}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <BriefcaseBusiness className="h-4 w-4" />
+                基础信息
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-1">
                   <span className="text-sm font-medium text-slate-700">所属项目</span>
@@ -1124,7 +1148,11 @@ export default function EvidenceChainPage() {
                 </label>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+              <div className="rounded-md border border-slate-200 p-4">
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <BadgeDollarSign className="h-4 w-4" />
+                  金额与处理
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-1">
                     <span className="text-sm font-medium text-slate-700">处理结果</span>
@@ -1195,6 +1223,10 @@ export default function EvidenceChainPage() {
 
               <label className="block space-y-1">
                 <span className="text-sm font-medium text-slate-700">事件说明</span>
+                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <MessageSquareText className="h-4 w-4" />
+                  证据摘要
+                </div>
                 <textarea
                   value={form.summary}
                   onChange={(event) => patchForm('summary', event.target.value)}
@@ -1301,6 +1333,8 @@ export default function EvidenceChainPage() {
                   {form.follow_status}
                 </span>
               </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
@@ -1320,6 +1354,6 @@ export default function EvidenceChainPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

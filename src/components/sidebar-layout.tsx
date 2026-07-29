@@ -129,7 +129,7 @@ export default function SidebarLayout({
   const router = useRouter();
 
   const { user, isSuperAdmin, isLoading, permissions } = usePermission();
-  const isLoginPage = pathname === '/login' || pathname === '/dingtalk' || pathname === '/ui-preview';
+  const isLoginPage = pathname === '/login' || pathname === '/dingtalk' || pathname === '/ui-preview' || pathname.startsWith('/ui-preview/');
 
   useEffect(() => {
     const checkMobile = () => {

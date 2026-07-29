@@ -41,7 +41,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
   const isCheckingRef = useRef(false);
 
   // 同步初始化：如果缓存有效，直接放行，无需等待任何异步操作
-  const isPublicPage = PUBLIC_PAGES.includes(pathname) || pathname === '/login';
+  const isPublicPage = PUBLIC_PAGES.includes(pathname) || pathname === '/login' || pathname.startsWith('/ui-preview/');
   const initialCheck = useMemo(() => {
     if (isPublicPage) return { checking: false, permitted: true, error: '' };
     const cached = checkCachedPermission(pathname);
