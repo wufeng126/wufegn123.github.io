@@ -18,7 +18,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
-  Plus, Trash2, Receipt, AlertTriangle, Lock, CheckCircle, Clock, FileText, Edit, Upload
+  Plus, Trash2, AlertTriangle, Lock, CheckCircle, Clock, FileText, Upload
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -27,6 +27,11 @@ interface Supplier {
   id: number;
   name: string;
   type?: string;
+}
+
+interface Project {
+  id: number;
+  name: string;
 }
 
 interface Contract {
@@ -68,6 +73,24 @@ interface Settlement {
   created_at: string;
 }
 
+interface SupplierPayment {
+  id: number;
+  payment_no?: string;
+  payment_amount: number;
+  payment_date?: string;
+  payment_method?: string;
+  payment_type?: string;
+  status?: string;
+  remark?: string;
+  settlement_id?: number | null;
+  settlement?: {
+    id: number;
+    settlement_no?: string;
+    settlement_type?: string;
+    payable_amount?: number;
+  } | null;
+}
+
 interface Stats {
   totalSettlements: number; // 结算单数
   totalAmount: number; // 累计结算金额 = 各期结算金额之和
@@ -84,6 +107,25 @@ interface ImportResult {
   errors: string[];
   message?: string;
 }
+
+type ExcelRow = Record<string, unknown>;
+
+type ImportFailure = {
+  row?: number;
+  error?: string;
+};
+
+type ImportApiResult = {
+  success?: number;
+  failed?: number;
+  error?: string;
+  errors?: string[];
+  message?: string;
+  results?: {
+    success?: unknown[];
+    failed?: ImportFailure[];
+  };
+};
 
 // ============ 工具函数 ============
 const formatCurrency = (value: number | null | undefined) => {
@@ -140,19 +182,24 @@ const calculateStatsFromSettlements = (rows: Settlement[]): Stats => {
 export default function SettlementPage() {
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
 
   // 筛选状态
+  const [filterProject, setFilterProject] = useState<string>('all');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [filterContract, setFilterContract] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
+  const [detailPayments, setDetailPayments] = useState<SupplierPayment[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // 对话框状态
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
-  const [editingSettlement, setEditingSettlement] = useState<Settlement | null>(null);
+  const [editingSettlement] = useState<Settlement | null>(null);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   
   // 导入对话框状态
@@ -162,7 +209,7 @@ export default function SettlementPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   // Excel导入辅助函数
-  const parseExcelFile = async (file: File): Promise<any[]> => {
+  const parseExcelFile = async (file: File): Promise<ExcelRow[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -171,7 +218,7 @@ export default function SettlementPage() {
           const workbook = XLSX.read(data, { type: 'binary' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const json = XLSX.utils.sheet_to_json(worksheet);
+          const json = XLSX.utils.sheet_to_json<ExcelRow>(worksheet);
           resolve(json);
         } catch (error) {
           reject(error);
@@ -196,12 +243,12 @@ export default function SettlementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settlements: data }),
       });
-      const result = await response.json();
+      const result = await response.json() as ImportApiResult;
       const normalizedResult: ImportResult = {
         success: Array.isArray(result.results?.success) ? result.results.success.length : Number(result.success || 0),
         failed: Array.isArray(result.results?.failed) ? result.results.failed.length : Number(result.failed || 0),
         errors: Array.isArray(result.results?.failed)
-          ? result.results.failed.map((item: any) => `第${item.row}行：${item.error}`)
+          ? result.results.failed.map((item) => `第${item.row || '-'}行：${item.error || '导入失败'}`)
           : (Array.isArray(result.errors) ? result.errors : (result.error ? [result.error] : [])),
         message: result.message,
       };
@@ -215,8 +262,8 @@ export default function SettlementPage() {
         setImportDialogOpen(false);
         setImportFile(null);
       }
-    } catch (error: any) {
-      setImportResult({ success: 0, failed: 1, errors: [error.message] });
+    } catch (error) {
+      setImportResult({ success: 0, failed: 1, errors: [error instanceof Error ? error.message : '导入失败'] });
     } finally {
       setImporting(false);
     }
@@ -224,7 +271,7 @@ export default function SettlementPage() {
 
   // 合同对话框状态
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
-  const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [editingContract] = useState<Contract | null>(null);
   const [contractForm, setContractForm] = useState({
     id: null as number | null,
     supplier_id: '',
@@ -259,16 +306,26 @@ export default function SettlementPage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await fetch('/api/projects', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data.projects || []);
+      }
+    } catch (e) { console.error(e); }
+  }, []);
+
   const fetchContracts = useCallback(async () => {
     try {
       const res = await fetch('/api/supplier-contracts', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        const contractsData = data.contracts || [];
+        const contractsData: Contract[] = data.contracts || [];
         
         // 获取每个合同的决算状态
         const contractsWithFinalSettlement = await Promise.all(
-          contractsData.map(async (contract: any) => {
+          contractsData.map(async (contract) => {
             try {
               const settlementRes = await fetch(`/api/supplier-contracts/settlements/summary?contract_id=${contract.id}`, { credentials: 'include' });
               if (settlementRes.ok) {
@@ -327,28 +384,8 @@ export default function SettlementPage() {
         const data = await res.json();
         toast.error(data.error || '保存失败');
       }
-    } catch (e) {
+    } catch {
       toast.error('保存失败');
-    }
-  };
-
-  // 删除合同
-  const handleDeleteContract = async (id: number) => {
-    if (!confirm('确定要删除此合同吗？删除后将同时删除关联的结算单和付款记录。')) return;
-    try {
-      const res = await fetch(`/api/supplier-contracts/${id}`, {
-        method: 'DELETE',
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('删除成功');
-        fetchContracts();
-        fetchSettlements();
-      } else {
-        toast.error(data.error || '删除失败');
-      }
-    } catch (e) {
-      toast.error('删除失败，请重试');
     }
   };
 
@@ -356,6 +393,7 @@ export default function SettlementPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      if (filterProject !== 'all') params.set('project_id', filterProject);
       if (filterSupplier !== 'all') params.set('supplier_id', filterSupplier);
       if (filterContract !== 'all') params.set('contract_id', filterContract);
       if (filterType !== 'all') params.set('settlement_type', filterType);
@@ -368,25 +406,20 @@ export default function SettlementPage() {
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [filterSupplier, filterContract, filterType]);
+  }, [filterProject, filterSupplier, filterContract, filterType]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSuppliers();
+    fetchProjects();
     fetchContracts();
-  }, [fetchSuppliers, fetchContracts]);
+  }, [fetchSuppliers, fetchProjects, fetchContracts]);
 
   useEffect(() => {
     fetchSettlements();
   }, [fetchSettlements]);
 
   // ============ 计算逻辑 ============
-  // 获取合同已累计结算金额
-  const getContractTotalSettlement = (contractId: number): number => {
-    return settlements
-      .filter(s => s.contract_id === contractId)
-      .reduce((sum, s) => sum + Number(s.settlement_amount), 0);
-  };
-
   // 检查是否已有总结算
   const hasFinalSettlement = (contractId: number): boolean => {
     return settlements.some(s => s.contract_id === contractId && s.settlement_type === 'final');
@@ -395,18 +428,6 @@ export default function SettlementPage() {
   // 检查合同是否被锁定（总结算后）
   const isContractLocked = (contractId: number): boolean => {
     return hasFinalSettlement(contractId);
-  };
-
-  // 获取合同已付金额
-  const getContractPaidAmount = async (contractId: number): Promise<number> => {
-    try {
-      const res = await fetch(`/api/supplier-contracts/payments?contract_id=${contractId}`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        return (data.payments || []).reduce((sum: number, p: any) => sum + Number(p.payment_amount), 0);
-      }
-    } catch (e) { console.error(e); }
-    return 0;
   };
 
   // ============ 表单处理 ============
@@ -507,7 +528,7 @@ export default function SettlementPage() {
       });
       fetchSettlements();
       fetchContracts();
-    } catch (e) {
+    } catch {
       toast.error('保存失败');
     }
   };
@@ -527,25 +548,55 @@ export default function SettlementPage() {
         const result = await res.json();
         toast.error(result.error || '删除失败');
       }
-    } catch (e) {
+    } catch {
       toast.error('删除失败，请重试');
     }
   };
 
+  const projectNameById = useMemo(() => {
+    return new Map(projects.map((project) => [Number(project.id), project.name]));
+  }, [projects]);
+
+  const getProjectName = useCallback((settlement: Settlement) => {
+    const projectId = settlement.contract?.project_id;
+    if (!projectId) return '-';
+    return settlement.contract?.project_name || projectNameById.get(Number(projectId)) || '-';
+  }, [projectNameById]);
+
+  const openSettlementDetail = useCallback(async (settlement: Settlement) => {
+    setSelectedSettlement(settlement);
+    setDetailPayments([]);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/supplier-contracts/payments?contract_id=${settlement.contract_id}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setDetailPayments(data.payments || []);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('付款记录加载失败');
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
   // 筛选数据
   const filteredSettlements = settlements.filter(s => {
+    if (filterProject !== 'all' && s.contract?.project_id !== Number(filterProject)) return false;
     if (filterSupplier !== 'all' && s.contract?.supplier_id !== Number(filterSupplier)) return false;
     if (searchKeyword) {
       const kw = searchKeyword.toLowerCase();
       const match = (v: string) => v?.toLowerCase().includes(kw);
       if (!match(s.supplier_name || '') && !match(s.settlement_no || '') &&
-        !match(s.contract?.contract_name || '')) return false;
+        !match(s.contract?.contract_name || '') && !match(getProjectName(s))) return false;
     }
     return true;
   });
 
   // 获取可用的合同列表（按供应商筛选）
   const availableContracts = contracts.filter(c => {
+    if (filterProject !== 'all' && c.project_id !== Number(filterProject)) return false;
     if (filterSupplier !== 'all' && c.supplier_id !== Number(filterSupplier)) return false;
     return true;
   });
@@ -556,11 +607,18 @@ export default function SettlementPage() {
     [filteredSettlements]
   );
 
+  const detailPaidTotal = useMemo(() => {
+    return detailPayments.reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
+  }, [detailPayments]);
+
   return (
     <div className="container mx-auto space-y-4 px-3 py-4 sm:px-4">
       {/* 头部 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h1 className="text-xl font-bold">结算管理</h1>
+        <div>
+          <h1 className="text-xl font-bold">供应商结算台账</h1>
+          <p className="mt-1 text-sm text-muted-foreground">按项目、供应商和合同核对结算、应付、已付和未付金额。</p>
+        </div>
         <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
           <Button onClick={() => {
             setSettlementForm({
@@ -623,6 +681,18 @@ export default function SettlementPage() {
       <Card>
         <CardContent className="pt-3 px-3">
           <div className="mobile-filter-grid sm:flex sm:flex-wrap sm:gap-2">
+            <Select value={filterProject} onValueChange={(v) => { setFilterProject(v); setFilterContract('all'); }}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder="项目" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部项目</SelectItem>
+                {projects.map(p => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={filterSupplier} onValueChange={(v) => { setFilterSupplier(v); setFilterContract('all'); }}>
               <SelectTrigger className="w-full sm:w-[140px]">
                 <SelectValue placeholder="供应商" />
@@ -661,7 +731,7 @@ export default function SettlementPage() {
             </Select>
 
             <Input
-              placeholder="搜索结算单号/供应商..."
+              placeholder="搜索项目/结算单号/供应商/合同..."
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               className="w-full sm:min-w-[150px] sm:flex-1"
@@ -678,32 +748,38 @@ export default function SettlementPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>结算单号</TableHead>
-                  <TableHead>供应商</TableHead>
-                  <TableHead>合同</TableHead>
+                  <TableHead>项目</TableHead>
+                  <TableHead>供应商 / 合同</TableHead>
                   <TableHead>类型</TableHead>
                   <TableHead className="text-right">本次结算</TableHead>
+                  <TableHead className="text-right">付款比例</TableHead>
                   <TableHead className="text-right">本次应付</TableHead>
+                  <TableHead className="text-right">合同累计结算</TableHead>
+                  <TableHead className="text-right">进度应付</TableHead>
                   <TableHead className="text-right">合同累计已付</TableHead>
                   <TableHead className="text-right">合同进度未付</TableHead>
                   <TableHead className="text-right">合同100%未付</TableHead>
-                  <TableHead className="text-right">付款比例</TableHead>
                   <TableHead>结算日期</TableHead>
-                  <TableHead>状态</TableHead>
                   <TableHead className="text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={13} className="text-center py-8">加载中...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={14} className="text-center py-8">加载中...</TableCell></TableRow>
                 ) : filteredSettlements.length === 0 ? (
-                  <TableRow><TableCell colSpan={13} className="text-center py-8">暂无数据</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={14} className="text-center py-8">暂无数据</TableCell></TableRow>
                 ) : (
                   filteredSettlements.map(s => (
-                    <TableRow key={s.id}>
+                    <TableRow key={s.id} className="cursor-pointer hover:bg-muted/40" onClick={() => openSettlementDetail(s)}>
                       <TableCell className="font-mono text-sm">{s.settlement_no}</TableCell>
-                      <TableCell>{s.supplier_name}</TableCell>
-                      <TableCell className="max-w-[150px] truncate" title={s.contract?.contract_name}>
-                        {s.contract?.contract_name}
+                      <TableCell className="max-w-[160px] truncate" title={getProjectName(s)}>
+                        {getProjectName(s)}
+                      </TableCell>
+                      <TableCell className="max-w-[220px]">
+                        <div className="truncate font-medium" title={s.supplier_name}>{s.supplier_name || '-'}</div>
+                        <div className="truncate text-xs text-muted-foreground" title={s.contract?.contract_name}>
+                          {s.contract?.contract_name || '-'}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={s.settlement_type === 'final' ? 'default' : 'secondary'}>
@@ -711,19 +787,19 @@ export default function SettlementPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(s.settlement_amount)}</TableCell>
+                      <TableCell className="text-right">{formatPercent(s.payment_ratio)}</TableCell>
                       <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.payable_amount)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(s.contract_total_settlement_amount)}</TableCell>
+                      <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.contract_total_payable_amount)}</TableCell>
                       <TableCell className="text-right text-green-600 font-bold">{formatCurrency(s.contract_paid_amount)}</TableCell>
                       <TableCell className="text-right text-orange-600 font-bold">{formatCurrency(s.contract_progress_pending_amount)}</TableCell>
                       <TableCell className="text-right text-red-600 font-bold">{formatCurrency(s.contract_final_pending_amount)}</TableCell>
-                      <TableCell className="text-right">{formatPercent(s.payment_ratio)}</TableCell>
                       <TableCell>{formatDate(s.settlement_date)}</TableCell>
-                      <TableCell>
-                        <Badge variant={s.status === '已确认' ? 'default' : 'outline'}>
-                          {s.status || '待确认'}
-                        </Badge>
-                      </TableCell>
                       <TableCell className="text-center">
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteSettlement(s.id)}>
+                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); openSettlementDetail(s); }}>
+                          <FileText className="w-4 h-4 text-blue-600" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }}>
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       </TableCell>
@@ -740,7 +816,16 @@ export default function SettlementPage() {
               <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-gray-500">暂无数据</div>
             ) : (
               filteredSettlements.map(s => (
-                <div key={s.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                <div
+                  key={s.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openSettlementDetail(s)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') openSettlementDetail(s);
+                  }}
+                  className="w-full rounded-lg border border-gray-100 bg-white p-3 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-gray-900">{s.supplier_name || '-'}</p>
@@ -750,7 +835,10 @@ export default function SettlementPage() {
                       {s.settlement_type === 'progress' ? '进度结算' : '总结算'}
                     </Badge>
                   </div>
-                  <div className="mt-2 truncate text-xs text-gray-500">{s.contract?.contract_name || '-'}</div>
+                  <div className="mt-2 space-y-1 text-xs text-gray-500">
+                    <div className="truncate">项目：{getProjectName(s)}</div>
+                    <div className="truncate">合同：{s.contract?.contract_name || '-'}</div>
+                  </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <p className="text-gray-500">本次结算</p>
@@ -761,11 +849,12 @@ export default function SettlementPage() {
                       <p className="mt-0.5 font-semibold text-blue-600">{formatCurrency(s.payable_amount)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">合同累计已付</p>
-                      <p className="mt-0.5 font-semibold text-green-600">{formatCurrency(s.contract_paid_amount)}</p>
+                      <p className="text-gray-500">进度应付</p>
+                      <p className="mt-0.5 font-semibold text-blue-600">{formatCurrency(s.contract_total_payable_amount)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">合同进度未付</p>
+                      <p className="text-gray-500">已付 / 进度未付</p>
+                      <p className="mt-0.5 font-semibold text-green-600">{formatCurrency(s.contract_paid_amount)}</p>
                       <p className="mt-0.5 font-semibold text-orange-600">{formatCurrency(s.contract_progress_pending_amount)}</p>
                     </div>
                     <div>
@@ -781,7 +870,13 @@ export default function SettlementPage() {
                     <Badge variant={s.status === '已确认' ? 'default' : 'outline'}>
                       {s.status || '待确认'}
                     </Badge>
-                    <Button variant="outline" size="sm" onClick={() => handleDeleteSettlement(s.id)} className="text-red-600">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }}
+                      className="text-red-600"
+                    >
                       <Trash2 className="mr-1 h-4 w-4" />删除
                     </Button>
                   </div>
@@ -791,6 +886,115 @@ export default function SettlementPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!selectedSettlement} onOpenChange={(open) => { if (!open) setSelectedSettlement(null); }}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>结算详情核对</DialogTitle>
+          </DialogHeader>
+          {selectedSettlement && (
+            <div className="space-y-5">
+              <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm font-semibold">{selectedSettlement.settlement_no}</span>
+                      <Badge variant={selectedSettlement.settlement_type === 'final' ? 'default' : 'secondary'}>
+                        {selectedSettlement.settlement_type === 'progress' ? '进度结算' : '总结算'}
+                      </Badge>
+                      <Badge variant={selectedSettlement.status === '已确认' ? 'default' : 'outline'}>
+                        {selectedSettlement.status || '待确认'}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 text-sm text-gray-600">
+                      {getProjectName(selectedSettlement)} / {selectedSettlement.supplier_name || '-'}
+                    </div>
+                    <div className="mt-1 truncate text-sm text-gray-500">
+                      {selectedSettlement.contract?.contract_name || '-'}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    结算日期：<span className="font-medium text-gray-900">{formatDate(selectedSettlement.settlement_date)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-gray-100 p-3">
+                  <div className="text-xs text-muted-foreground">本次结算 / 本次应付</div>
+                  <div className="mt-1 text-base font-semibold">{formatCurrency(selectedSettlement.settlement_amount)}</div>
+                  <div className="mt-1 text-sm font-semibold text-blue-600">{formatCurrency(selectedSettlement.payable_amount)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-3">
+                  <div className="text-xs text-muted-foreground">合同累计结算 / 进度应付</div>
+                  <div className="mt-1 text-base font-semibold">{formatCurrency(selectedSettlement.contract_total_settlement_amount)}</div>
+                  <div className="mt-1 text-sm font-semibold text-blue-600">{formatCurrency(selectedSettlement.contract_total_payable_amount)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-3">
+                  <div className="text-xs text-muted-foreground">合同累计已付 / 付款比例</div>
+                  <div className="mt-1 text-base font-semibold text-green-600">{formatCurrency(selectedSettlement.contract_paid_amount)}</div>
+                  <div className="mt-1 text-sm text-gray-600">{formatPercent(selectedSettlement.payment_ratio)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-3">
+                  <div className="text-xs text-muted-foreground">进度未付 / 100%未付</div>
+                  <div className="mt-1 text-base font-semibold text-orange-600">{formatCurrency(selectedSettlement.contract_progress_pending_amount)}</div>
+                  <div className="mt-1 text-sm font-semibold text-red-600">{formatCurrency(selectedSettlement.contract_final_pending_amount)}</div>
+                </div>
+              </div>
+
+              {selectedSettlement.remark && (
+                <div className="rounded-lg border border-gray-100 p-3 text-sm text-gray-600">
+                  <div className="mb-1 text-xs text-muted-foreground">备注</div>
+                  {selectedSettlement.remark}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold">同合同付款记录</div>
+                    <div className="text-xs text-muted-foreground">合计 {formatCurrency(detailPaidTotal)}，用于核对该合同已付金额。</div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-gray-100">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>付款单号</TableHead>
+                        <TableHead>关联结算</TableHead>
+                        <TableHead>付款日期</TableHead>
+                        <TableHead>方式</TableHead>
+                        <TableHead className="text-right">付款金额</TableHead>
+                        <TableHead>状态</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detailLoading ? (
+                        <TableRow><TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">付款记录加载中...</TableCell></TableRow>
+                      ) : detailPayments.length === 0 ? (
+                        <TableRow><TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">暂无付款记录</TableCell></TableRow>
+                      ) : (
+                        detailPayments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell className="font-mono text-xs">{payment.payment_no || '-'}</TableCell>
+                            <TableCell>{payment.settlement?.settlement_no || (payment.settlement_id ? `#${payment.settlement_id}` : '未指定结算单')}</TableCell>
+                            <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                            <TableCell>{payment.payment_method || '-'}</TableCell>
+                            <TableCell className="text-right font-semibold text-green-600">{formatCurrency(payment.payment_amount)}</TableCell>
+                            <TableCell>
+                              <Badge variant={payment.status === 'voided' ? 'outline' : 'default'}>{payment.status || '有效'}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 新增合同对话框 */}
       <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
@@ -954,7 +1158,7 @@ export default function SettlementPage() {
                   })}
                 </SelectContent>
               </Select>
-              {selectedContract && (hasFinalSettlement(selectedContract.id) || (selectedContract as any).has_final_settlement) && (
+              {selectedContract && (hasFinalSettlement(selectedContract.id) || selectedContract.has_final_settlement) && (
                 <div className="text-orange-600 text-sm flex items-center gap-1">
                   <Lock className="w-4 h-4" /> 该合同已完成决算，无法新增结算记录
                 </div>
