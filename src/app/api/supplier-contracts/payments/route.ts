@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { logSecurityEvent } from '@/lib/security-log';
@@ -15,18 +16,47 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const contractId = searchParams.get('contract_id');
     const settlementId = searchParams.get('settlement_id');
+    const supplierId = searchParams.get('supplier_id');
+    const projectId = searchParams.get('project_id');
+
+    let scopedContractIds: number[] | null = null;
+    if ((supplierId && supplierId !== 'all') || (projectId && projectId !== 'all')) {
+      let contractScopeQuery = supabase
+        .from('supplier_contracts')
+        .select('id');
+
+      if (supplierId && supplierId !== 'all') {
+        contractScopeQuery = contractScopeQuery.eq('supplier_id', parseInt(supplierId));
+      }
+      if (projectId && projectId !== 'all') {
+        contractScopeQuery = contractScopeQuery.eq('project_id', parseInt(projectId));
+      }
+
+      const { data: scopedContracts, error: scopeError } = await contractScopeQuery;
+      if (scopeError) throw scopeError;
+      scopedContractIds = (scopedContracts || []).map((contract: any) => Number(contract.id)).filter(Boolean);
+
+      if (scopedContractIds.length === 0) {
+        return NextResponse.json({
+          payments: [],
+          summary: { totalPayments: 0, totalAmount: 0 },
+        });
+      }
+    }
 
     let query = supabase
       .from('supplier_payments')
       .select(`
         *,
-        contract:contract_id(id, contract_name, contract_no, supplier_id),
+        contract:contract_id(id, contract_name, contract_no, supplier_id, project_id),
         settlement:settlement_id(id, settlement_no, settlement_type, payable_amount)
       `)
       .order('payment_date', { ascending: false });
 
     if (contractId && contractId !== 'all') {
       query = query.eq('contract_id', parseInt(contractId));
+    } else if (scopedContractIds) {
+      query = query.in('contract_id', scopedContractIds);
     }
     if (settlementId && settlementId !== 'all') {
       query = query.eq('settlement_id', parseInt(settlementId));
@@ -36,7 +66,9 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     const supplierIds = [...new Set((data || []).map((p: any) => p.contract?.supplier_id).filter(Boolean))];
+    const projectIds = [...new Set((data || []).map((p: any) => p.project_id || p.contract?.project_id).filter(Boolean))];
     const suppliersMap: Record<number, any> = {};
+    const projectsMap: Record<number, any> = {};
 
     if (supplierIds.length > 0) {
       const { data: suppliers } = await supabase
@@ -49,9 +81,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (projectIds.length > 0) {
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('id, name')
+        .in('id', projectIds);
+
+      (projects || []).forEach((project: any) => {
+        projectsMap[project.id] = project;
+      });
+    }
+
     const paymentsWithDetails = (data || []).map((payment: any) => ({
       ...payment,
       supplier_name: suppliersMap[payment.contract?.supplier_id]?.name || '',
+      project_id: payment.project_id || payment.contract?.project_id || null,
+      project_name: projectsMap[payment.project_id || payment.contract?.project_id]?.name || '',
     }));
 
     const summary = {
