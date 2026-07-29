@@ -186,6 +186,23 @@ export default function PaymentsPage() {
     return settlements.filter((settlement) => Number(settlement.contract_id) === Number(formData.contract_id));
   }, [settlements, formData.contract_id]);
 
+  const selectedFormSettlement = useMemo(() => {
+    if (!formData.settlement_id) return null;
+    return settlements.find((settlement) => Number(settlement.id) === Number(formData.settlement_id)) || null;
+  }, [formData.settlement_id, settlements]);
+
+  const selectedFormSettlementPaid = useMemo(() => {
+    if (!formData.settlement_id) return 0;
+    return payments
+      .filter((payment) => Number(payment.settlement_id) === Number(formData.settlement_id) && isEffectivePayment(payment))
+      .reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
+  }, [formData.settlement_id, payments]);
+
+  const selectedFormSettlementRemaining = useMemo(() => {
+    if (!selectedFormSettlement) return 0;
+    return Math.max(0, Number(selectedFormSettlement.payable_amount || 0) - selectedFormSettlementPaid);
+  }, [selectedFormSettlement, selectedFormSettlementPaid]);
+
   const fetchProjects = useCallback(async () => {
     try {
       const res = await fetch('/api/projects', { credentials: 'include' });
@@ -765,6 +782,43 @@ export default function PaymentsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {selectedFormSettlement && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">结算应付</div>
+                      <div className="mt-1 font-semibold text-blue-700">{formatCurrency(selectedFormSettlement.payable_amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">已登记付款</div>
+                      <div className="mt-1 font-semibold text-green-700">{formatCurrency(selectedFormSettlementPaid)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">剩余未付</div>
+                      <div className="mt-1 font-semibold text-orange-700">{formatCurrency(selectedFormSettlementRemaining)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-xs text-muted-foreground">付款金额仍需按实际付款录入，系统会继续做超付校验。</div>
+                    {selectedFormSettlementRemaining > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="bg-white"
+                        onClick={() => setFormData((prev) => ({ ...prev, amount: String(selectedFormSettlementRemaining) }))}
+                      >
+                        填入剩余未付
+                      </Button>
+                    )}
+                  </div>
+                  {Number(formData.amount || 0) > selectedFormSettlementRemaining && selectedFormSettlementRemaining > 0 && (
+                    <div className="mt-2 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-700">
+                      当前付款金额大于该结算单剩余未付，请核对是否存在重复付款。
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
