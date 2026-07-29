@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
@@ -180,6 +181,8 @@ const calculateStatsFromSettlements = (rows: Settlement[]): Stats => {
 
 // ============ 主组件 ============
 export default function SettlementPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -188,10 +191,10 @@ export default function SettlementPage() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   // 筛选状态
-  const [filterProject, setFilterProject] = useState<string>('all');
-  const [filterSupplier, setFilterSupplier] = useState<string>('all');
-  const [filterContract, setFilterContract] = useState<string>('all');
-  const [filterType, setFilterType] = useState<string>('all');
+  const [filterProject, setFilterProject] = useState<string>(() => searchParams.get('project_id') || 'all');
+  const [filterSupplier, setFilterSupplier] = useState<string>(() => searchParams.get('supplier_id') || 'all');
+  const [filterContract, setFilterContract] = useState<string>(() => searchParams.get('contract_id') || 'all');
+  const [filterType, setFilterType] = useState<string>(() => searchParams.get('settlement_type') || 'all');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
   const [detailPayments, setDetailPayments] = useState<SupplierPayment[]>([]);
@@ -611,6 +614,37 @@ export default function SettlementPage() {
     return detailPayments.reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
   }, [detailPayments]);
 
+  useEffect(() => {
+    const targetSettlementId = searchParams.get('settlement_id');
+    if (!targetSettlementId || selectedSettlement) return;
+    const target = settlements.find((settlement) => Number(settlement.id) === Number(targetSettlementId));
+    if (target) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void openSettlementDetail(target);
+    }
+  }, [openSettlementDetail, searchParams, selectedSettlement, settlements]);
+
+  const goToPaymentsLedger = useCallback((settlement: Settlement, settlementOnly = false) => {
+    const params = new URLSearchParams();
+    params.set('tab', 'payments');
+    if (settlement.contract?.project_id) params.set('project_id', String(settlement.contract.project_id));
+    if (settlement.contract?.supplier_id) params.set('supplier_id', String(settlement.contract.supplier_id));
+    params.set('contract_id', String(settlement.contract_id));
+    if (settlementOnly) params.set('settlement_id', String(settlement.id));
+    router.push(`/supplier-expense?${params.toString()}`);
+  }, [router]);
+
+  const goToNewPayment = useCallback((settlement: Settlement) => {
+    const params = new URLSearchParams();
+    params.set('tab', 'payments');
+    params.set('new', '1');
+    if (settlement.contract?.project_id) params.set('project_id', String(settlement.contract.project_id));
+    if (settlement.contract?.supplier_id) params.set('supplier_id', String(settlement.contract.supplier_id));
+    params.set('contract_id', String(settlement.contract_id));
+    params.set('settlement_id', String(settlement.id));
+    router.push(`/supplier-expense?${params.toString()}`);
+  }, [router]);
+
   return (
     <div className="container mx-auto space-y-4 px-3 py-4 sm:px-4">
       {/* 头部 */}
@@ -950,10 +984,18 @@ export default function SettlementPage() {
               )}
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-sm font-semibold">同合同付款记录</div>
                     <div className="text-xs text-muted-foreground">合计 {formatCurrency(detailPaidTotal)}，用于核对该合同已付金额。</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={() => goToPaymentsLedger(selectedSettlement)}>
+                      查看付款台账
+                    </Button>
+                    <Button type="button" size="sm" onClick={() => goToNewPayment(selectedSettlement)}>
+                      新增关联付款
+                    </Button>
                   </div>
                 </div>
                 <div className="overflow-x-auto rounded-lg border border-gray-100">
@@ -975,7 +1017,18 @@ export default function SettlementPage() {
                         <TableRow><TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">暂无付款记录</TableCell></TableRow>
                       ) : (
                         detailPayments.map((payment) => (
-                          <TableRow key={payment.id}>
+                          <TableRow
+                            key={payment.id}
+                            className="cursor-pointer hover:bg-muted/40"
+                            onClick={() => {
+                              const params = new URLSearchParams();
+                              params.set('tab', 'payments');
+                              params.set('contract_id', String(selectedSettlement.contract_id));
+                              params.set('payment_id', String(payment.id));
+                              if (payment.settlement_id) params.set('settlement_id', String(payment.settlement_id));
+                              router.push(`/supplier-expense?${params.toString()}`);
+                            }}
+                          >
                             <TableCell className="font-mono text-xs">{payment.payment_no || '-'}</TableCell>
                             <TableCell>{payment.settlement?.settlement_no || (payment.settlement_id ? `#${payment.settlement_id}` : '未指定结算单')}</TableCell>
                             <TableCell>{formatDate(payment.payment_date)}</TableCell>

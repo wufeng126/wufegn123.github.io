@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -109,6 +110,9 @@ const csvCell = (value: string | number | null | undefined) => {
 };
 
 export default function PaymentsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const newPaymentQueryAppliedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -117,9 +121,10 @@ export default function PaymentsPage() {
   const [settlements, setSettlements] = useState<SettlementOption[]>([]);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
-  const [filterProject, setFilterProject] = useState<string>('all');
-  const [filterSupplier, setFilterSupplier] = useState<string>('all');
-  const [filterContract, setFilterContract] = useState<string>('all');
+  const [filterProject, setFilterProject] = useState<string>(() => searchParams.get('project_id') || 'all');
+  const [filterSupplier, setFilterSupplier] = useState<string>(() => searchParams.get('supplier_id') || 'all');
+  const [filterContract, setFilterContract] = useState<string>(() => searchParams.get('contract_id') || 'all');
+  const [filterSettlement, setFilterSettlement] = useState<string>(() => searchParams.get('settlement_id') || 'all');
   const [filterType, setFilterType] = useState<string>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
 
@@ -156,6 +161,18 @@ export default function PaymentsPage() {
       return true;
     });
   }, [contracts, filterProject, filterSupplier]);
+
+  const availableFilterSettlements = useMemo(() => {
+    return settlements.filter((settlement) => {
+      if (filterContract !== 'all' && Number(settlement.contract_id) !== Number(filterContract)) return false;
+      if (filterContract === 'all') {
+        const contract = contracts.find((item) => Number(item.id) === Number(settlement.contract_id));
+        if (filterProject !== 'all' && Number(contract?.project_id) !== Number(filterProject)) return false;
+        if (filterSupplier !== 'all' && Number(contract?.supplier_id) !== Number(filterSupplier)) return false;
+      }
+      return true;
+    });
+  }, [contracts, filterContract, filterProject, filterSupplier, settlements]);
 
   const formContracts = useMemo(() => {
     return contracts.filter((contract) => {
@@ -224,6 +241,7 @@ export default function PaymentsPage() {
       if (filterProject !== 'all') params.set('project_id', filterProject);
       if (filterSupplier !== 'all') params.set('supplier_id', filterSupplier);
       if (filterContract !== 'all') params.set('contract_id', filterContract);
+      if (filterSettlement !== 'all') params.set('settlement_id', filterSettlement);
       const res = await fetch(`/api/supplier-contracts/payments?${params}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
@@ -234,7 +252,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterProject, filterSupplier, filterContract]);
+  }, [filterProject, filterSupplier, filterContract, filterSettlement]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -248,6 +266,43 @@ export default function PaymentsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPayments();
   }, [fetchPayments]);
+
+  useEffect(() => {
+    const targetPaymentId = searchParams.get('payment_id');
+    if (!targetPaymentId || selectedPayment) return;
+    const target = payments.find((payment) => Number(payment.id) === Number(targetPaymentId));
+    if (target) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedPayment(target);
+    }
+  }, [payments, searchParams, selectedPayment]);
+
+  useEffect(() => {
+    if (newPaymentQueryAppliedRef.current || searchParams.get('new') !== '1') return;
+    const contractId = searchParams.get('contract_id');
+    if (!contractId || contracts.length === 0) return;
+    const contract = contracts.find((item) => Number(item.id) === Number(contractId));
+    if (!contract) return;
+
+    const settlementId = searchParams.get('settlement_id') || '';
+    const settlement = settlementId
+      ? settlements.find((item) => Number(item.id) === Number(settlementId))
+      : null;
+
+    newPaymentQueryAppliedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormData({
+      supplier_id: String(contract.supplier_id),
+      contract_id: String(contract.id),
+      settlement_id: settlementId,
+      amount: '',
+      payment_date: new Date().toISOString().split('T')[0],
+      payment_type: settlement?.settlement_type || 'progress',
+      payment_method: '閾惰杞处',
+      remark: settlement?.settlement_no ? `关联结算单：${settlement.settlement_no}` : '',
+    });
+    setDialogOpen(true);
+  }, [contracts, searchParams, settlements]);
 
   const filteredData = useMemo(() => {
     return payments.filter((payment) => {
@@ -371,6 +426,18 @@ export default function PaymentsPage() {
     }
   };
 
+  const goToSettlementLedger = useCallback((payment: Payment) => {
+    const params = new URLSearchParams();
+    params.set('tab', 'settlements');
+    const projectId = payment.project_id || payment.contract?.project_id;
+    const supplierId = payment.supplier_id || payment.contract?.supplier_id;
+    if (projectId) params.set('project_id', String(projectId));
+    if (supplierId) params.set('supplier_id', String(supplierId));
+    params.set('contract_id', String(payment.contract_id));
+    if (payment.settlement_id) params.set('settlement_id', String(payment.settlement_id));
+    router.push(`/supplier-expense?${params.toString()}`);
+  }, [router]);
+
   const handleExport = () => {
     const headers = ['项目', '供应商', '合同', '付款单号', '关联结算单', '付款日期', '付款类型', '付款金额', '付款方式', '状态', '备注'];
     const rows = filteredData.map((payment) => [
@@ -440,26 +507,37 @@ export default function PaymentsPage() {
       <Card>
         <CardContent className="px-3 pt-3">
           <div className="grid gap-2 sm:flex sm:flex-wrap">
-            <Select value={filterProject} onValueChange={(value) => { setFilterProject(value); setFilterContract('all'); }}>
+            <Select value={filterProject} onValueChange={(value) => { setFilterProject(value); setFilterContract('all'); setFilterSettlement('all'); }}>
               <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="项目" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部项目</SelectItem>
                 {projects.map((project) => <SelectItem key={project.id} value={String(project.id)}>{project.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterSupplier} onValueChange={(value) => { setFilterSupplier(value); setFilterContract('all'); }}>
+            <Select value={filterSupplier} onValueChange={(value) => { setFilterSupplier(value); setFilterContract('all'); setFilterSettlement('all'); }}>
               <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="供应商" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部供应商</SelectItem>
                 {suppliers.map((supplier) => <SelectItem key={supplier.id} value={String(supplier.id)}>{supplier.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterContract} onValueChange={setFilterContract}>
+            <Select value={filterContract} onValueChange={(value) => { setFilterContract(value); setFilterSettlement('all'); }}>
               <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="合同" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部合同</SelectItem>
                 {availableContracts.map((contract) => (
                   <SelectItem key={contract.id} value={String(contract.id)}>{contract.contract_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterSettlement} onValueChange={setFilterSettlement}>
+              <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="关联结算" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部结算单</SelectItem>
+                {availableFilterSettlements.map((settlement) => (
+                  <SelectItem key={settlement.id} value={String(settlement.id)}>
+                    {settlement.settlement_no}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -621,6 +699,12 @@ export default function PaymentsPage() {
                     付款日期：<span className="font-medium text-gray-900">{formatDate(selectedPayment.payment_date)}</span>
                   </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => goToSettlementLedger(selectedPayment)}>
+                  查看关联结算
+                </Button>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
