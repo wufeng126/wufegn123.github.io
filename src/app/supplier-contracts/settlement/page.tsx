@@ -777,8 +777,8 @@ export default function SettlementPage() {
       {/* 表格 */}
       <Card>
         <CardContent className="p-0">
-          <div className="hidden overflow-x-auto md:block">
-            <Table>
+          <div className="hidden md:block [&_[data-slot=table-container]]:max-h-[calc(100vh-280px)] [&_[data-slot=table-container]]:min-h-[320px] [&_[data-slot=table-container]]:overflow-auto [&_table]:min-w-[1500px] [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-white">
+            <Table className="border-separate border-spacing-0">
               <TableHeader>
                 <TableRow>
                   <TableHead>结算单号</TableHead>
