@@ -11,7 +11,6 @@ import {
   Clock3,
   CloudSun,
   FileText,
-  HardHat,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -178,31 +177,6 @@ function getCompanyHighlights(summary: ReportSummary) {
     summary.company.issue_count > 0 ? `记录 ${summary.company.issue_count} 条问题异常。` : '未记录明显质量、安全异常。',
     '各项目可展开查看施工进展、资源投入、风险提醒和明日计划。',
   ];
-}
-
-function StatCard({
-  label,
-  value,
-  note,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  note: string;
-  icon: LucideIcon;
-  tone: string;
-}) {
-  return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ring-1 ${tone}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-950">{value}</div>
-      <div className="mt-1 text-xs text-slate-500">{note}</div>
-    </article>
-  );
 }
 
 function SectionBlock({
@@ -435,37 +409,6 @@ export default function ConstructionDailyReportsPage() {
           </div>
         ) : summary ? (
           <>
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="项目覆盖"
-                value={`${summary.company.submitted_projects}/${summary.company.total_projects} 个`}
-                note="当日有施工动态的项目"
-                icon={HardHat}
-                tone="bg-blue-50 text-blue-700 ring-blue-100"
-              />
-              <StatCard
-                label="现场出勤"
-                value={`${summary.company.headcount_total} 人`}
-                note="按施工日志汇总"
-                icon={UsersRound}
-                tone="bg-emerald-50 text-emerald-700 ring-emerald-100"
-              />
-              <StatCard
-                label="日志数量"
-                value={`${summary.company.log_count} 条`}
-                note="当天已提交施工日志"
-                icon={FileText}
-                tone="bg-violet-50 text-violet-700 ring-violet-100"
-              />
-              <StatCard
-                label="风险提醒"
-                value={`${summary.company.issue_count} 条`}
-                note="日志中提取的问题异常"
-                icon={AlertTriangle}
-                tone="bg-rose-50 text-rose-700 ring-rose-100"
-              />
-            </section>
-
             <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
               <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
