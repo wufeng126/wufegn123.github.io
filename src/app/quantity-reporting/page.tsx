@@ -78,6 +78,7 @@ interface ProjectInternalAddon {
 
 type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
 type DashboardRiskFilter = '全部' | '多结少报' | '对下超结' | '本月漏报' | '对上余量不足' | '资金/利润风险' | '漏报风险' | '内部附加成本';
+type EntryWorkbenchMode = 'client' | 'internal' | 'additional';
 
 interface ProjectDashboardRow {
   project: Project;
@@ -104,6 +105,32 @@ const toNumber = (value: string | number | null | undefined) => {
 const clampProgress = (value: number) => Math.max(0, Math.min(value, 100));
 
 const DASHBOARD_RISK_FILTERS: DashboardRiskFilter[] = ['全部', '多结少报', '对下超结', '本月漏报', '对上余量不足', '资金/利润风险', '漏报风险', '内部附加成本'];
+
+const ENTRY_WORKBENCH_MODES: Array<{
+  key: EntryWorkbenchMode;
+  label: string;
+  description: string;
+  activeClass: string;
+}> = [
+  {
+    key: 'client',
+    label: '对上报量',
+    description: '按合同清单录入本月向甲方报量',
+    activeClass: 'border-blue-500 bg-blue-50 text-blue-700',
+  },
+  {
+    key: 'internal',
+    label: '对下结算',
+    description: '按预算工程量清单录入本月对下结算',
+    activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-700',
+  },
+  {
+    key: 'additional',
+    label: '内部附加清单',
+    description: '只参与金额统计，不参与工程量差异',
+    activeClass: 'border-amber-500 bg-amber-50 text-amber-700',
+  },
+];
 
 export default function WorkItemsPage() {
   return (
@@ -253,6 +280,7 @@ function WorkItemsContent() {
   const [analysisSettlements, setAnalysisSettlements] = useState<any[]>([]);
   const [analysisAddonSettlements, setAnalysisAddonSettlements] = useState<any[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [entryWorkbenchMode, setEntryWorkbenchMode] = useState<EntryWorkbenchMode>('client');
 
   useEffect(() => {
     fetchData();
@@ -892,6 +920,49 @@ function WorkItemsContent() {
         return aRisk - bRisk || Math.abs(b.amountGap) - Math.abs(a.amountGap);
       });
   }, [analysisStats.rows, dashboardRiskFilter, searchKeyword]);
+
+  const entryWorkbenchRows = useMemo(() => {
+    return analysisStats.rows
+      .filter(row => {
+        if (entryWorkbenchMode === 'additional') return row.isAddon;
+        return !row.isAddon;
+      })
+      .sort((a, b) => {
+        const aRisk = a.risks.length > 0 ? 0 : 1;
+        const bRisk = b.risks.length > 0 ? 0 : 1;
+        return aRisk - bRisk || Math.abs(b.amountGap) - Math.abs(a.amountGap);
+      })
+      .slice(0, 8)
+      .map(row => {
+        const cumulativeQty = entryWorkbenchMode === 'client' ? row.totalReportedQty : row.totalSettledQty;
+        const remainingQty = row.isAddon
+          ? 0
+          : entryWorkbenchMode === 'client'
+            ? row.reportRemainingQty
+            : row.settleRemainingQty;
+        const unitPrice = entryWorkbenchMode === 'client' ? row.contractPrice : row.limitPrice;
+        const amount = entryWorkbenchMode === 'client' ? row.reportAmount : row.settlementAmount;
+
+        return {
+          ...row,
+          cumulativeQty,
+          remainingQty,
+          unitPrice,
+          amount,
+          riskLabel: row.risks[0] || '正常',
+        };
+      });
+  }, [analysisStats.rows, entryWorkbenchMode]);
+
+  const entryWorkbenchSummary = useMemo(() => {
+    const totalAmount = entryWorkbenchRows.reduce((sum, row) => sum + row.amount, 0);
+    const riskCount = entryWorkbenchRows.filter(row => row.risks.length > 0).length;
+    return {
+      totalAmount,
+      riskCount,
+      rowCount: entryWorkbenchRows.length,
+    };
+  }, [entryWorkbenchRows]);
 
   // 刷新数据
   const refreshSubitems = async () => {
@@ -2487,6 +2558,220 @@ function WorkItemsContent() {
       )}
 
       {/* 数据录入区域 */}
+      {selectedProjectId && (
+        <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-slate-950">项目录入工作台</h2>
+                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                      {selectedProject?.name || '当前项目'}
+                    </Badge>
+                    {selectedProject?.status && (
+                      <Badge className={getStatusStyle(selectedProject.status)}>
+                        {selectedProject.status}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">
+                    先确认当前项目和月份，再进入对上报量、对下结算或内部附加清单，录入前先看到累计、剩余和风险。
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 xl:w-[680px]">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">预算金额</p>
+                    <p className="mt-1 font-semibold text-slate-950">{formatCurrency(projectComparisonSummary.budgetAmount)}</p>
+                  </div>
+                  <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
+                    <p className="text-xs text-blue-700">对上剩余</p>
+                    <p className="mt-1 font-semibold text-blue-900">{formatCurrency(projectComparisonSummary.reportRemainingAmount)}</p>
+                  </div>
+                  <div className="rounded-md border border-amber-100 bg-amber-50 p-3">
+                    <p className="text-xs text-amber-700">对下剩余</p>
+                    <p className="mt-1 font-semibold text-amber-900">{formatCurrency(projectComparisonSummary.settlementRemainingAmount)}</p>
+                  </div>
+                  <div className={`rounded-md border p-3 ${projectComparisonSummary.amountGap < 0 ? 'border-rose-100 bg-rose-50' : 'border-emerald-100 bg-emerald-50'}`}>
+                    <p className={`text-xs ${projectComparisonSummary.amountGap < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>对上对下差额</p>
+                    <p className={`mt-1 font-semibold ${getGapTextClass(projectComparisonSummary.amountGap)}`}>
+                      {formatCurrency(projectComparisonSummary.amountGap)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0 space-y-4">
+                <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    {ENTRY_WORKBENCH_MODES.map(mode => {
+                      const active = entryWorkbenchMode === mode.key;
+                      return (
+                        <button
+                          key={mode.key}
+                          type="button"
+                          onClick={() => setEntryWorkbenchMode(mode.key)}
+                          className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+                            active ? mode.activeClass : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="font-medium">{mode.label}</div>
+                          <div className="mt-0.5 text-xs opacity-80">{mode.description}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600">
+                      <Calendar className="h-4 w-4 text-slate-400" />
+                      <Input
+                        type="month"
+                        value={analysisYearMonth}
+                        onChange={(event) => setAnalysisYearMonth(event.target.value)}
+                        className="h-8 w-32 border-0 p-0 shadow-none focus-visible:ring-0"
+                      />
+                    </label>
+                    <Button
+                      onClick={() => {
+                        if (entryWorkbenchMode === 'client') {
+                          openMonthlyReportDialog();
+                        } else if (entryWorkbenchMode === 'internal') {
+                          openMonthlySettlementDialog();
+                        } else {
+                          openProjectAddonDialog();
+                        }
+                      }}
+                      className="gap-2 bg-slate-950 hover:bg-slate-800"
+                    >
+                      <Save className="h-4 w-4" />
+                      {entryWorkbenchMode === 'additional' ? '维护附加清单' : '录入本月数据'}
+                    </Button>
+                    <Button variant="outline" onClick={() => setBatchDialogOpen(true)} className="gap-2">
+                      <Upload className="h-4 w-4" />
+                      批量导入
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <Table className="min-w-[980px]">
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="sticky left-0 z-10 bg-slate-50">清单项</TableHead>
+                        <TableHead>单位</TableHead>
+                        <TableHead className="text-right">预算量</TableHead>
+                        <TableHead className="text-right">累计量</TableHead>
+                        <TableHead className="text-right">剩余量</TableHead>
+                        <TableHead className="text-right">单价</TableHead>
+                        <TableHead className="text-right">累计金额</TableHead>
+                        <TableHead>校验</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entryWorkbenchRows.length > 0 ? entryWorkbenchRows.map(row => (
+                        <TableRow key={row.id}>
+                          <TableCell className="sticky left-0 z-10 bg-white">
+                            <div className="font-medium text-slate-950">{row.subitem_name}</div>
+                            <div className="mt-0.5 text-xs text-slate-500">
+                              {row.isAddon ? '内部附加清单' : '预算工程量清单'}
+                            </div>
+                          </TableCell>
+                          <TableCell>{row.unit || '-'}</TableCell>
+                          <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</TableCell>
+                          <TableCell className="text-right font-medium text-slate-900">{formatQuantity(row.cumulativeQty)}</TableCell>
+                          <TableCell className={`text-right ${row.remainingQty < 0 ? 'font-semibold text-rose-700' : 'text-slate-700'}`}>
+                            {row.isAddon ? '-' : formatQuantity(row.remainingQty)}
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.unitPrice)}</TableCell>
+                          <TableCell className="text-right font-semibold text-slate-950">{formatCurrency(row.amount)}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={row.risks.length > 0 ? 'outline' : 'secondary'}
+                              className={row.risks.length > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}
+                            >
+                              {row.riskLabel}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow>
+                          <TableCell colSpan={8} className="py-10 text-center text-sm text-slate-500">
+                            当前项目暂无可展示清单，请先维护预算工程量或内部附加清单。
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <aside className="space-y-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-950">
+                    <FileText className="h-4 w-4 text-slate-500" />
+                    当前录入上下文
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-md bg-white p-3">
+                      <p className="text-xs text-slate-500">录入类型</p>
+                      <p className="mt-1 font-semibold text-slate-950">
+                        {ENTRY_WORKBENCH_MODES.find(mode => mode.key === entryWorkbenchMode)?.label}
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-white p-3">
+                      <p className="text-xs text-slate-500">当前月份</p>
+                      <p className="mt-1 font-semibold text-slate-950">{analysisYearMonth || '-'}</p>
+                    </div>
+                    <div className="rounded-md bg-white p-3">
+                      <p className="text-xs text-slate-500">展示清单</p>
+                      <p className="mt-1 font-semibold text-slate-950">{entryWorkbenchSummary.rowCount} 项</p>
+                    </div>
+                    <div className="rounded-md bg-white p-3">
+                      <p className="text-xs text-slate-500">累计金额</p>
+                      <p className="mt-1 font-semibold text-slate-950">{formatCurrency(entryWorkbenchSummary.totalAmount)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+                    <ShieldAlert className="h-4 w-4" />
+                    录入前风险提醒
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-amber-800">
+                    <div className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2">
+                      <span>对下超结</span>
+                      <span className="font-semibold">{projectComparisonSummary.overSettledItems} 项</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2">
+                      <span>本月可能漏报</span>
+                      <span className="font-semibold">{projectComparisonSummary.possibleMissedReportItems} 项</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2">
+                      <span>内部附加成本</span>
+                      <span className="font-semibold">{projectComparisonSummary.addonItems} 项</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2">
+                      <span>当前列表提醒</span>
+                      <span className="font-semibold">{entryWorkbenchSummary.riskCount} 项</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-3 w-full border-amber-200 bg-white text-amber-800 hover:bg-amber-100"
+                    onClick={() => setDashboardRiskFilter('全部')}
+                  >
+                    查看下方差异分析
+                  </Button>
+                </div>
+              </aside>
+            </div>
+          </section>
+        </div>
+      )}
+
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {loading ? (
           <div className="text-center py-16">
