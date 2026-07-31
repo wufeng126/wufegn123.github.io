@@ -29,7 +29,7 @@ import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
   Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers,
-  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight
+  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 
@@ -79,6 +79,7 @@ interface ProjectInternalAddon {
 type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
 type DashboardRiskFilter = '全部' | '多结少报' | '对下超结' | '本月漏报' | '对上余量不足' | '资金/利润风险' | '漏报风险' | '内部附加成本';
 type EntryWorkbenchMode = 'client' | 'internal' | 'additional';
+type QuantityView = 'summary' | 'entry';
 
 interface ProjectDashboardRow {
   project: Project;
@@ -157,6 +158,7 @@ function WorkItemsContent() {
   const [showContent, setShowContent] = useState(false);
   
   // 当前选中的项目
+  const [quantityView, setQuantityView] = useState<QuantityView>('summary');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [dashboardKeyword, setDashboardKeyword] = useState('');
   const [dashboardRiskFilter, setDashboardRiskFilter] = useState<DashboardRiskFilter>('全部');
@@ -294,6 +296,7 @@ function WorkItemsContent() {
     
     if (projectIdParam) {
       setSelectedProjectId(projectIdParam);
+      setQuantityView('entry');
     }
     if (warningParam) {
       setWarningFilter(warningParam);
@@ -2159,6 +2162,8 @@ function WorkItemsContent() {
       </div>
 
       {/* 总览统计卡片 */}
+      {quantityView === 'summary' && (
+        <>
       <div className={`grid grid-cols-2 gap-3 transition-all duration-500 delay-100 lg:grid-cols-4 lg:gap-4 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <Card className="group border-[#1A58B3]/20 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#1A58B3]/10">
           <CardContent className="pt-4 pb-4">
@@ -2248,7 +2253,10 @@ function WorkItemsContent() {
                 <button
                   key={row.project.id}
                   type="button"
-                  onClick={() => setSelectedProjectId(row.project.id.toString())}
+                  onClick={() => {
+                    setSelectedProjectId(row.project.id.toString());
+                    setQuantityView('entry');
+                  }}
                   className={`w-full rounded-lg border p-4 text-left transition ${
                     active ? 'border-[#1A58B3] bg-[#F7FAFF] shadow-sm' : 'border-gray-200 bg-white hover:border-[#1A58B3]/40 hover:bg-gray-50'
                   }`}
@@ -2490,9 +2498,23 @@ function WorkItemsContent() {
       </div>
 
       {/* 项目选择器 */}
+        </>
+      )}
+
+      {quantityView === 'entry' && (
+        <>
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <Card className="border-[#1A58B3]/20">
           <CardContent className="py-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setQuantityView('summary')}
+              className="mb-3 gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              返回项目汇总
+            </Button>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-[#1A58B3]" />
@@ -3866,6 +3888,8 @@ function WorkItemsContent() {
           </Tabs>
         )}
       </div>
+        </>
+      )}
 
       {/* 新增预算工程量对话框 */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
