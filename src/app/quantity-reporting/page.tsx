@@ -29,7 +29,7 @@ import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
   Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers,
-  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft
+  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 
@@ -77,7 +77,6 @@ interface ProjectInternalAddon {
 }
 
 type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
-type DashboardRiskFilter = '全部' | '多结少报' | '对下超结' | '本月漏报' | '对上余量不足' | '资金/利润风险' | '漏报风险' | '内部附加成本';
 type EntryWorkbenchMode = 'client' | 'internal' | 'additional';
 type QuantityView = 'summary' | 'entry';
 
@@ -104,8 +103,6 @@ const toNumber = (value: string | number | null | undefined) => {
 };
 
 const clampProgress = (value: number) => Math.max(0, Math.min(value, 100));
-
-const DASHBOARD_RISK_FILTERS: DashboardRiskFilter[] = ['全部', '多结少报', '对下超结', '本月漏报', '对上余量不足', '资金/利润风险', '漏报风险', '内部附加成本'];
 
 const ENTRY_WORKBENCH_MODES: Array<{
   key: EntryWorkbenchMode;
@@ -161,7 +158,6 @@ function WorkItemsContent() {
   const [quantityView, setQuantityView] = useState<QuantityView>('summary');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [dashboardKeyword, setDashboardKeyword] = useState('');
-  const [dashboardRiskFilter, setDashboardRiskFilter] = useState<DashboardRiskFilter>('全部');
   
   // 预警筛选模式
   const [warningFilter, setWarningFilter] = useState<string>('');
@@ -895,34 +891,6 @@ function WorkItemsContent() {
       riskCount,
     };
   }, [projectDashboardRows]);
-
-  const selectedDashboardRow = useMemo(() => (
-    projectDashboardRows.find(row => row.project.id.toString() === selectedProjectId) || projectDashboardRows[0] || null
-  ), [projectDashboardRows, selectedProjectId]);
-
-  const dashboardRiskOptions = useMemo(() => {
-    return DASHBOARD_RISK_FILTERS.map(label => ({
-      label,
-      count: label === '全部'
-        ? analysisStats.rows.length
-        : analysisStats.rows.filter(row => row.risks.includes(label)).length,
-    }));
-  }, [analysisStats.rows]);
-
-  const dashboardDetailRows = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase();
-    return analysisStats.rows
-      .filter(row => {
-        const matchKeyword = !keyword || row.subitem_name.toLowerCase().includes(keyword) || row.risks.join('').toLowerCase().includes(keyword);
-        const matchRisk = dashboardRiskFilter === '全部' || row.risks.includes(dashboardRiskFilter);
-        return matchKeyword && matchRisk;
-      })
-      .sort((a, b) => {
-        const aRisk = a.risks.length > 0 ? 0 : 1;
-        const bRisk = b.risks.length > 0 ? 0 : 1;
-        return aRisk - bRisk || Math.abs(b.amountGap) - Math.abs(a.amountGap);
-      });
-  }, [analysisStats.rows, dashboardRiskFilter, searchKeyword]);
 
   const entryWorkbenchRows = useMemo(() => {
     return analysisStats.rows
@@ -2152,8 +2120,14 @@ function WorkItemsContent() {
       {/* 顶部区域 */}
       <div className={`flex flex-col gap-3 transition-all duration-500 sm:flex-row sm:items-center sm:justify-between ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight text-gray-900">报量管理</h1>
-          <p className="text-gray-500 mt-1 text-sm">以预算工程量为统一基准，管理对上报量、对下结算和差异提醒</p>
+          <h1 className="text-xl font-semibold tracking-tight text-gray-900">
+            {quantityView === 'summary' ? '项目汇总对比' : '项目录入工作台'}
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm">
+            {quantityView === 'summary'
+              ? '先按项目查看对上、对下和剩余差异，再进入单个项目录入。'
+              : '只处理当前项目的对上报量、对下结算和内部附加清单。'}
+          </p>
         </div>
         <Button variant="outline" onClick={fetchData} className="w-full gap-2 sm:w-auto">
           <RefreshCw className="w-4 h-4" />
@@ -2226,276 +2200,177 @@ function WorkItemsContent() {
         </Card>
       </div>
 
-      {/* 项目汇总驾驶舱 */}
-      <div className={`grid gap-4 transition-all duration-500 delay-125 xl:grid-cols-[1.05fr_1.45fr] ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <section className="rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-100 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">项目汇总对比</h2>
-                <p className="mt-1 text-xs text-gray-500">点击项目后，下方录入区和右侧清单明细会同步切换</p>
-              </div>
-              <div className="relative w-full sm:w-56">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input
-                  placeholder="搜索项目或状态"
-                  value={dashboardKeyword}
-                  onChange={(e) => setDashboardKeyword(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
+      {/* 项目台账 */}
+      <section className={`overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all duration-500 delay-125 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-950">项目台账</h2>
+            <p className="mt-0.5 text-xs text-slate-500">按项目先判断差异，再进入录入，不把工作台堆在首页。</p>
           </div>
-          <div className="max-h-[560px] space-y-3 overflow-y-auto p-3">
-            {filteredProjectDashboardRows.length > 0 ? filteredProjectDashboardRows.map(row => {
-              const active = selectedProjectId === row.project.id.toString();
-              return (
-                <button
-                  key={row.project.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedProjectId(row.project.id.toString());
-                    setQuantityView('entry');
-                  }}
-                  className={`w-full rounded-lg border p-4 text-left transition ${
-                    active ? 'border-[#1A58B3] bg-[#F7FAFF] shadow-sm' : 'border-gray-200 bg-white hover:border-[#1A58B3]/40 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-900">{row.project.name}</p>
-                      <p className="mt-1 text-xs text-gray-500">{row.project.year} 年 · {row.itemCount} 个清单项</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getDashboardStatusClass(row.status)}`}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="搜索项目或状态"
+                value={dashboardKeyword}
+                onChange={(e) => setDashboardKeyword(e.target.value)}
+                className="h-9 pl-9"
+              />
+            </div>
+            <Button variant="outline" size="sm" className="h-9 gap-2">
+              <FileText className="h-4 w-4" />
+              历史报量
+            </Button>
+          </div>
+        </div>
+
+        <div className="hidden overflow-x-auto lg:block">
+          <Table className="min-w-[1120px]">
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead className="px-4 py-3">项目名称</TableHead>
+                <TableHead className="px-3 py-3">年度 / 清单项</TableHead>
+                <TableHead className="px-3 py-3">状态</TableHead>
+                <TableHead className="px-3 py-3">对上进度</TableHead>
+                <TableHead className="px-3 py-3">对下进度</TableHead>
+                <TableHead className="px-3 py-3 text-right">对上剩余</TableHead>
+                <TableHead className="px-3 py-3 text-right">对下剩余</TableHead>
+                <TableHead className="px-3 py-3 text-right">差额</TableHead>
+                <TableHead className="px-4 py-3">风险提示</TableHead>
+                <TableHead className="px-4 py-3 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredProjectDashboardRows.length > 0 ? filteredProjectDashboardRows.map(row => (
+                <TableRow key={row.project.id} className="hover:bg-slate-50">
+                  <TableCell className="px-4 py-4">
+                    <div className="font-medium text-slate-950">{row.project.name}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">合同额 {formatCurrency(toNumber(row.project.contract_amount))}</div>
+                  </TableCell>
+                  <TableCell className="px-3 py-4 text-slate-600">
+                    {row.project.year} 年 / {row.itemCount} 项
+                  </TableCell>
+                  <TableCell className="px-3 py-4">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getDashboardStatusClass(row.status)}`}>
                       {row.status}
                     </span>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    <div>
-                      <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
-                        <span>对上报量</span>
-                        <span>{formatPercent(row.reportProgress)}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-gray-100">
+                  </TableCell>
+                  <TableCell className="px-3 py-4">
+                    <div className="flex min-w-[130px] items-center gap-2">
+                      <div className="h-2 flex-1 rounded-full bg-slate-100">
                         <div className="h-2 rounded-full bg-[#1A58B3]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
                       </div>
+                      <span className="w-12 text-right text-xs text-slate-500">{formatPercent(row.reportProgress)}</span>
                     </div>
-                    <div>
-                      <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
-                        <span>对下结算</span>
-                        <span>{formatPercent(row.settlementProgress)}</span>
+                  </TableCell>
+                  <TableCell className="px-3 py-4">
+                    <div className="flex min-w-[130px] items-center gap-2">
+                      <div className="h-2 flex-1 rounded-full bg-slate-100">
+                        <div className={`h-2 rounded-full ${row.settlementProgress > row.reportProgress ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${clampProgress(row.settlementProgress)}%` }} />
                       </div>
-                      <div className="h-2 rounded-full bg-gray-100">
-                        <div className="h-2 rounded-full bg-amber-500" style={{ width: `${clampProgress(row.settlementProgress)}%` }} />
-                      </div>
+                      <span className="w-12 text-right text-xs text-slate-500">{formatPercent(row.settlementProgress)}</span>
                     </div>
-                  </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                    <div className="rounded-lg bg-gray-50 p-2">
-                      <p className="text-gray-500">对上剩余</p>
-                      <p className="mt-1 font-semibold text-gray-900">{formatCurrency(row.reportRemainingAmount)}</p>
+                  </TableCell>
+                  <TableCell className="px-3 py-4 text-right text-slate-700">{formatCurrency(row.reportRemainingAmount)}</TableCell>
+                  <TableCell className="px-3 py-4 text-right text-slate-700">{formatCurrency(row.settlementRemainingAmount)}</TableCell>
+                  <TableCell className={`px-3 py-4 text-right font-semibold ${getGapTextClass(row.amountGap)}`}>
+                    {formatCurrency(row.amountGap)}
+                  </TableCell>
+                  <TableCell className="max-w-[260px] px-4 py-4 text-sm leading-5 text-slate-600">
+                    <div className="flex items-start gap-2">
+                      {row.status === '正常' ? <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />}
+                      <span>{row.warning}</span>
                     </div>
-                    <div className="rounded-lg bg-gray-50 p-2">
-                      <p className="text-gray-500">对下剩余</p>
-                      <p className="mt-1 font-semibold text-gray-900">{formatCurrency(row.settlementRemainingAmount)}</p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-2">
-                      <p className="text-gray-500">金额差异</p>
-                      <p className={`mt-1 font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-gray-600">
-                    {row.status === '正常' ? <ChevronRight className="mt-0.5 h-3.5 w-3.5 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />}
-                    {row.warning}
-                  </p>
-                </button>
-              );
-            }) : (
-              <div className="py-12 text-center text-sm text-gray-500">暂无匹配项目</div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-100 p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <h2 className="truncate text-base font-semibold text-gray-900">{selectedDashboardRow?.project.name || '清单项下钻'}</h2>
-                <p className="mt-1 text-xs text-gray-500">查看预算量、累计对上、累计对下、剩余量和差异提醒</p>
-              </div>
-              <div className="relative w-full lg:w-64">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input
-                  placeholder="搜索清单项或风险"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="pl-9"
-                  disabled={!selectedProjectId}
-                />
-              </div>
-            </div>
-          </div>
-          {!selectedProjectId ? (
-            <div className="py-16 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1A58B3]/10">
-                <ListTree className="h-7 w-7 text-[#1A58B3]/50" />
-              </div>
-              <p className="text-sm text-gray-500">请选择项目查看清单项明细</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 border-b border-gray-100 p-4 md:grid-cols-4">
-                <div className="rounded-lg bg-blue-50 p-3">
-                  <p className="text-xs text-blue-700">预算金额</p>
-                  <p className="mt-1 text-base font-semibold text-blue-900">{formatCurrency(selectedDashboardRow?.budgetAmount || 0)}</p>
-                </div>
-                <div className="rounded-lg bg-cyan-50 p-3">
-                  <p className="text-xs text-cyan-700">累计对上</p>
-                  <p className="mt-1 text-base font-semibold text-cyan-900">{formatCurrency(selectedDashboardRow?.reportAmount || 0)}</p>
-                </div>
-                <div className="rounded-lg bg-amber-50 p-3">
-                  <p className="text-xs text-amber-700">累计对下</p>
-                  <p className="mt-1 text-base font-semibold text-amber-900">{formatCurrency(selectedDashboardRow?.settlementAmount || 0)}</p>
-                </div>
-                <div className="rounded-lg bg-rose-50 p-3">
-                  <p className="text-xs text-rose-700">风险清单项</p>
-                  <p className="mt-1 text-base font-semibold text-rose-900">{analysisStats.riskCount} 项</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-                {dashboardRiskOptions.map(option => {
-                  const active = dashboardRiskFilter === option.label;
-                  return (
-                    <button
-                      key={option.label}
-                      type="button"
-                      onClick={() => setDashboardRiskFilter(option.label)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
-                        active
-                          ? 'bg-[#1A58B3] text-white ring-[#1A58B3]'
-                          : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'
-                      }`}
+                  </TableCell>
+                  <TableCell className="px-4 py-4 text-right">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProjectId(row.project.id.toString());
+                        setQuantityView('entry');
+                      }}
+                      className="h-9 gap-2 bg-slate-950 hover:bg-slate-800"
                     >
-                      {option.label}
-                      <span className={active ? 'ml-1 text-white/80' : 'ml-1 text-gray-400'}>{option.count}</span>
-                    </button>
-                  );
-                })}
-                {(dashboardRiskFilter !== '全部' || searchKeyword) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDashboardRiskFilter('全部');
-                      setSearchKeyword('');
-                    }}
-                    className="ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    清除筛选
-                  </button>
-                )}
+                      进入录入
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={10} className="py-12 text-center text-slate-500">暂无匹配项目</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="space-y-3 p-3 lg:hidden">
+          {filteredProjectDashboardRows.length > 0 ? filteredProjectDashboardRows.map(row => (
+            <div key={row.project.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">{row.project.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">{row.project.year} 年 / {row.itemCount} 项 · 合同额 {formatCurrency(toNumber(row.project.contract_amount))}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getDashboardStatusClass(row.status)}`}>
+                  {row.status}
+                </span>
               </div>
-              <div className="hidden overflow-x-auto lg:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead>清单项</TableHead>
-                      <TableHead>单位</TableHead>
-                      <TableHead className="text-right">预算量</TableHead>
-                      <TableHead className="text-right">累计对上</TableHead>
-                      <TableHead className="text-right">对上剩余</TableHead>
-                      <TableHead className="text-right">累计对下</TableHead>
-                      <TableHead className="text-right">对下剩余</TableHead>
-                      <TableHead className="text-right">金额差异</TableHead>
-                      <TableHead>提醒</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dashboardDetailRows.length > 0 ? dashboardDetailRows.map(row => (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <div className="font-medium text-gray-900">{row.subitem_name}</div>
-                          {row.isAddon && <div className="mt-1 text-xs text-orange-600">内部附加清单</div>}
-                        </TableCell>
-                        <TableCell>{row.unit || '-'}</TableCell>
-                        <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</TableCell>
-                        <TableCell className="text-right text-blue-700">{row.isAddon ? '-' : formatQuantity(row.totalReportedQty)}</TableCell>
-                        <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.reportRemainingQty)}</TableCell>
-                        <TableCell className="text-right text-amber-700">{formatQuantity(row.totalSettledQty)}</TableCell>
-                        <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.settleRemainingQty)}</TableCell>
-                        <TableCell className={`text-right font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</TableCell>
-                        <TableCell>
-                          {row.risks.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {row.risks.map((risk: string) => (
-                                <button
-                                  key={risk}
-                                  type="button"
-                                  onClick={() => {
-                                    if (DASHBOARD_RISK_FILTERS.includes(risk as DashboardRiskFilter)) {
-                                      setDashboardRiskFilter(risk as DashboardRiskFilter);
-                                    }
-                                  }}
-                                  className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 transition hover:bg-amber-100"
-                                >
-                                  {risk}
-                                </button>
-                              ))}
-                            </div>
-                          ) : <span className="text-xs text-gray-400">正常</span>}
-                        </TableCell>
-                      </TableRow>
-                    )) : (
-                      <TableRow>
-                        <TableCell colSpan={9} className="py-12 text-center text-gray-500">暂无清单项数据</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="space-y-3 p-3 lg:hidden">
-                {dashboardDetailRows.length > 0 ? dashboardDetailRows.map(row => (
-                  <div key={row.id} className="rounded-lg border border-gray-200 bg-white p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900">{row.subitem_name}</p>
-                        <p className="mt-1 text-xs text-gray-500">{row.unit || '-'}{row.isAddon ? ' · 内部附加清单' : ''}</p>
-                      </div>
-                      <span className={`shrink-0 text-sm font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-gray-50 p-2"><p className="text-gray-500">预算量</p><p className="mt-1 font-semibold">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</p></div>
-                      <div className="rounded bg-blue-50 p-2"><p className="text-blue-700">累计对上</p><p className="mt-1 font-semibold">{row.isAddon ? '-' : formatQuantity(row.totalReportedQty)}</p></div>
-                      <div className="rounded bg-amber-50 p-2"><p className="text-amber-700">累计对下</p><p className="mt-1 font-semibold">{formatQuantity(row.totalSettledQty)}</p></div>
-                      <div className="rounded bg-gray-50 p-2"><p className="text-gray-500">对下剩余</p><p className="mt-1 font-semibold">{row.isAddon ? '-' : formatQuantity(row.settleRemainingQty)}</p></div>
-                    </div>
-                    {row.risks.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {row.risks.map((risk: string) => (
-                          <button
-                            key={risk}
-                            type="button"
-                            onClick={() => {
-                              if (DASHBOARD_RISK_FILTERS.includes(risk as DashboardRiskFilter)) {
-                                setDashboardRiskFilter(risk as DashboardRiskFilter);
-                              }
-                            }}
-                            className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 transition hover:bg-amber-100"
-                          >
-                            {risk}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+              <div className="mt-4 space-y-2">
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                    <span>对上进度</span>
+                    <span>{formatPercent(row.reportProgress)}</span>
                   </div>
-                )) : (
-                  <div className="py-12 text-center text-sm text-gray-500">暂无清单项数据</div>
-                )}
+                  <div className="h-2 rounded-full bg-slate-100">
+                    <div className="h-2 rounded-full bg-[#1A58B3]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                    <span>对下进度</span>
+                    <span>{formatPercent(row.settlementProgress)}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100">
+                    <div className={`h-2 rounded-full ${row.settlementProgress > row.reportProgress ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${clampProgress(row.settlementProgress)}%` }} />
+                  </div>
+                </div>
               </div>
-            </>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-md bg-slate-50 p-2">
+                  <p className="text-slate-500">对上剩余</p>
+                  <p className="mt-1 font-semibold text-slate-950">{formatCurrency(row.reportRemainingAmount)}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 p-2">
+                  <p className="text-slate-500">对下剩余</p>
+                  <p className="mt-1 font-semibold text-slate-950">{formatCurrency(row.settlementRemainingAmount)}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 p-2">
+                  <p className="text-slate-500">差额</p>
+                  <p className={`mt-1 font-semibold ${getGapTextClass(row.amountGap)}`}>{formatCurrency(row.amountGap)}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-start gap-2 rounded-md bg-slate-50 p-2 text-xs leading-5 text-slate-600">
+                {row.status === '正常' ? <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />}
+                <span>{row.warning}</span>
+              </div>
+              <Button
+                onClick={() => {
+                  setSelectedProjectId(row.project.id.toString());
+                  setQuantityView('entry');
+                }}
+                className="mt-3 h-9 w-full gap-2 bg-slate-950 hover:bg-slate-800"
+              >
+                进入录入
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )) : (
+            <div className="py-12 text-center text-sm text-slate-500">暂无匹配项目</div>
           )}
-        </section>
-      </div>
+        </div>
+      </section>
 
       {/* 项目选择器 */}
         </>
@@ -2783,7 +2658,7 @@ function WorkItemsContent() {
                   <Button
                     variant="outline"
                     className="mt-3 w-full border-amber-200 bg-white text-amber-800 hover:bg-amber-100"
-                    onClick={() => setDashboardRiskFilter('全部')}
+                    onClick={() => document.getElementById('quantity-detail-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                   >
                     查看下方差异分析
                   </Button>
@@ -2811,7 +2686,7 @@ function WorkItemsContent() {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="subitems" className="space-y-4">
+          <Tabs id="quantity-detail-tabs" defaultValue="subitems" className="space-y-4">
             <div className="overflow-x-auto pb-1">
               <TabsList className="min-w-max bg-white border">
               <TabsTrigger value="subitems" className="gap-2">
