@@ -139,6 +139,8 @@ function buildBusinessSummary(params: {
       return compactText(`${yearMonth ? `${yearMonth} ` : ''}${workerName || '工人'}工资发放${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
     case 'construction_log_alert':
       return compactText(`${projectName || '项目'}施工日志风险${riskLevel ? `（${riskLevel}）` : ''}：${content}`);
+    case 'construction_log_comment':
+      return compactText(`${projectName || '项目'}施工日志新增评论${date ? `，日期${date}` : ''}：${content}`);
     case 'construction_daily_report':
       return compactText(`${date || pickText(metadata, ['reportDate']) || '当日'}项目日报汇总：${content}`);
     case 'monthly_analysis_workflow':
@@ -263,6 +265,7 @@ export async function pushBusinessNotification(params: {
       'supplier_payment_reminder_enabled',
       'cost_warning_enabled',
       'visa_reminder_enabled',
+      'construction_log_comment_reminder_enabled',
     ]);
     const configuredRecipientIds = parseRecipientBindings(notificationSettings.dingtalk_recipient_bindings?.value)[type] || [];
     const resolvedRecipientIds = recipientUserIds && recipientUserIds.length > 0
@@ -332,6 +335,7 @@ export async function pushBusinessNotification(params: {
     if (type === 'cost_warning' && isTypeEnabled('cost_warning_enabled')) shouldSend = true;
     if (type === 'monthly_analysis_workflow' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
     if (type === 'construction_log_alert' && (isTypeEnabled('cost_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    if (type === 'construction_log_comment' && (isTypeEnabled('construction_log_comment_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
     if (type === 'construction_daily_report' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
     if (['visa_workflow', 'visa_workflow_overdue'].includes(type) && (isTypeEnabled('visa_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
 

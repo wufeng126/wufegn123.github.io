@@ -132,6 +132,25 @@ CREATE INDEX IF NOT EXISTS construction_log_attendance_project_id_idx ON constru
 CREATE INDEX IF NOT EXISTS construction_log_attendance_worker_id_idx ON construction_log_attendance(worker_id);
 CREATE INDEX IF NOT EXISTS construction_log_attendance_project_worker_idx ON construction_log_attendance(project_id, worker_id);
 
+CREATE TABLE IF NOT EXISTS construction_log_comments (
+  id SERIAL PRIMARY KEY,
+  log_id INTEGER NOT NULL REFERENCES construction_logs(id) ON DELETE CASCADE,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_name VARCHAR(100),
+  content TEXT NOT NULL,
+  mentioned_user_ids INTEGER[] DEFAULT '{}'::integer[],
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+ALTER TABLE IF EXISTS construction_log_comments
+  ADD COLUMN IF NOT EXISTS mentioned_user_ids INTEGER[] DEFAULT '{}'::integer[],
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS construction_log_comments_log_id_idx ON construction_log_comments(log_id);
+CREATE INDEX IF NOT EXISTS construction_log_comments_project_id_idx ON construction_log_comments(project_id);
+CREATE INDEX IF NOT EXISTS construction_log_comments_user_id_idx ON construction_log_comments(user_id);
+CREATE INDEX IF NOT EXISTS construction_log_comments_log_created_idx ON construction_log_comments(log_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS construction_daily_reports (
   id SERIAL PRIMARY KEY,
   report_date VARCHAR(10) NOT NULL UNIQUE,

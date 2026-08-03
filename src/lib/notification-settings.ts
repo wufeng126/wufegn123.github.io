@@ -14,6 +14,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS = [
   { key: 'payment_warning_enabled', value: '', enabled: true, description: '付款预警提醒' },
   { key: 'client_payment_reminder_enabled', value: '', enabled: true, description: '甲方回款提醒' },
   { key: 'supplier_payment_reminder_enabled', value: '', enabled: true, description: '供应商付款提醒' },
+  { key: 'construction_log_comment_reminder_enabled', value: '', enabled: true, description: '施工日志评论提醒' },
   { key: 'settlement_reminder_enabled', value: '', enabled: true, description: '结算单提醒' },
   { key: 'certificate_reminder_enabled', value: '', enabled: true, description: '证件到期提醒' },
 ];

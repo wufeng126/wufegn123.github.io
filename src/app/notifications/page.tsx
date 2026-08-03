@@ -26,6 +26,7 @@ import {
   TrendingDown,
   CreditCard,
   ChevronRight,
+  MessageSquare,
   X,
   Save,
   TestTube,
@@ -111,6 +112,7 @@ const recipientBindingTypes = [
   { type: 'new_worker_salary', title: '工资核算导入', desc: '工资核算数据导入成功后自动推送' },
   { type: 'new_worker_payment', title: '工资发放导入', desc: '工资发放数据导入成功后自动推送' },
   { type: 'construction_log_alert', title: '施工日志风险', desc: '施工日志识别出风险后自动推送' },
+  { type: 'construction_log_comment', title: '施工日志评论', desc: '施工日志新增评论后自动推送' },
   { type: 'monthly_analysis_workflow', title: '月度分析流转', desc: '月度分析提交、确认、退回等节点推送' },
   { type: 'visa_workflow', title: '签证流程流转', desc: '签证提交、签字、确认等节点推送' },
   { type: 'visa_workflow_overdue', title: '签证超期推进', desc: '签证超过期限未推进时自动推送' },
@@ -153,6 +155,15 @@ const notificationRules = [
     target: '项目绑定预算员',
     channel: '站内待办 + 钉钉个人工作通知',
     detail: '按项目身份中的预算员接收，不因超级管理员可看全部项目而默认接收全部提醒。',
+  },
+  {
+    settingKey: 'construction_log_comment_reminder_enabled',
+    title: '施工日志评论',
+    mode: '实时触发',
+    trigger: '施工日志新增评论后立即推送',
+    target: '项目预算员 / 项目经理 / 日志作者',
+    channel: '站内待办 + 钉钉个人工作通知',
+    detail: '用于让施工日志里的讨论及时落到相关负责人身上，避免评论留在页面里没人看。',
   },
   {
     settingKey: 'new_record_reminder_enabled',
@@ -248,6 +259,9 @@ function getNotificationIcon(type: string, severity: string) {
   }
   if (type === 'new_supplier_payment') {
     return <CreditCard className="w-5 h-5 text-orange-500" />;
+  }
+  if (type === 'construction_log_comment') {
+    return <MessageSquare className="w-5 h-5 text-indigo-500" />;
   }
   return <Bell className="w-5 h-5 text-gray-500" />;
 }
@@ -603,6 +617,7 @@ export default function NotificationsPage() {
     if (type === 'new_worker_salary') return '/workers/salaries';
     if (type === 'new_client_payment') return '/client-payments';
     if (type === 'new_supplier_payment') return '/data-board/supplier-cost';
+    if (type === 'construction_log_comment') return `/construction-logs/${related_id || ''}`;
     return '/notifications';
   };
 
@@ -775,6 +790,7 @@ export default function NotificationsPage() {
                 { key: 'cost_warning_enabled', label: '成本预警', desc: '成本超支或利润为负时发送预警' },
                 { key: 'client_payment_reminder_enabled', label: '甲方回款提醒', desc: '新增甲方回款时发送钉钉通知' },
                 { key: 'supplier_payment_reminder_enabled', label: '供应商付款提醒', desc: '新增供应商付款时发送钉钉通知' },
+                { key: 'construction_log_comment_reminder_enabled', label: '施工日志评论提醒', desc: '新增施工日志评论时发送钉钉通知' },
               ].map((item) => (
                 <div key={item.key} className="flex items-center justify-between p-3 rounded-lg" style={{ background: '#F7F8FA' }}>
                   <div>
