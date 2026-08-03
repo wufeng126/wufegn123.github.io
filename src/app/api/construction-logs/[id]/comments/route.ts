@@ -176,10 +176,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .eq('id', Number(log.project_id))
         .maybeSingle();
 
+      const projectName = project?.name || '项目';
+      const commenterDisplayName = userName || '未知用户';
+      const notificationTitle = `${projectName} 施工日志评论`;
+      const notificationContent = `${commenterDisplayName} 评论了 ${projectName} ${log.log_date || ''} 的施工日志：${content}`;
+
       await pushBusinessNotification({
         type: 'construction_log_comment',
-        title: '施工日志评论提醒',
-        content: `${project?.name || '项目'} ${log.log_date || ''} 收到新评论：${content}`,
+        title: notificationTitle,
+        content: notificationContent,
         severity: 'info',
         projectId: Number(log.project_id),
         relatedId: Number(log.id),
@@ -188,9 +193,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         metadata: {
           projectName: project?.name || '',
           logDate: log.log_date || '',
-          commenterName: userName || '',
+          commenterName: commenterDisplayName,
           commentContent: content,
-          businessSummary: `${project?.name || '项目'} ${log.log_date || ''} 施工日志新增评论：${content}`,
+          businessSummary: `${projectName} ${log.log_date || ''} 施工日志：${commenterDisplayName} 评论了「${content.length > 50 ? content.slice(0, 50) + '...' : content}」`,
         },
       });
     }

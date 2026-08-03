@@ -139,8 +139,10 @@ function buildBusinessSummary(params: {
       return compactText(`${yearMonth ? `${yearMonth} ` : ''}${workerName || '工人'}工资发放${amount ? `，金额${amount}` : ''}${date ? `，日期${date}` : ''}`);
     case 'construction_log_alert':
       return compactText(`${projectName || '项目'}施工日志风险${riskLevel ? `（${riskLevel}）` : ''}：${content}`);
-    case 'construction_log_comment':
-      return compactText(`${projectName || '项目'}施工日志新增评论${date ? `，日期${date}` : ''}：${content}`);
+    case 'construction_log_comment': {
+      const commenter = pickText(metadata, ['commenterName', 'commenter_name']);
+      return compactText(`${projectName || '项目'}施工日志${date ? `（${date}）` : ''}${commenter ? ` ${commenter} 评论：` : ' 新增评论：'}${content}`);
+    }
     case 'construction_daily_report':
       return compactText(`${date || pickText(metadata, ['reportDate']) || '当日'}项目日报汇总：${content}`);
     case 'monthly_analysis_workflow':
@@ -189,6 +191,8 @@ export function buildNotificationExtra(params: {
     'certificate_type',
     'visaNumber',
     'visa_number',
+    'commenterName',
+    'commenter_name',
   ]);
   if (businessObject) extra['业务对象'] = businessObject;
 
