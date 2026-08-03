@@ -908,6 +908,14 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 		submissionStatus: varchar("submission_status", { length: 20 }).default('normal'),
 		sourceType: varchar("source_type", { length: 20 }).default('manual'),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+		// 天气信息
+		weatherCondition: varchar("weather_condition", { length: 50 }),
+		weatherTemperature: numeric("weather_temperature", { precision: 4, scale: 1 }),
+		weatherWind: varchar("weather_wind", { length: 50 }),
+		weatherHumidity: integer("weather_humidity"),
+		weatherManual: boolean("weather_manual").default(false),
+		// 明日计划
+		tomorrowPlan: text("tomorrow_plan"),
 	}, (table) => [
 		index("construction_logs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 		index("construction_logs_user_id_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),

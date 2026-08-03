@@ -61,6 +61,7 @@ type ConstructionLogDetail = {
   content?: string | null;
   headcount?: number | null;
   issues?: string | null;
+  tomorrow_plan?: string | null;
   created_at?: string | null;
   status?: 'submitted' | 'pending' | 'cancelled' | null;
   scheduled_submit_at?: string | null;
@@ -585,6 +586,19 @@ export default function ConstructionLogDetailPage() {
               {Number(detail.attachments_original_count || 0) > 0 && (
                 <div className="mt-4 rounded-lg border border-[#F7BA1E]/30 bg-[#FFF7E8] px-4 py-3 text-sm text-[#B45309]">
                   原有 {Number(detail.attachments_original_count || 0)} 张照片，已于 {formatDateOnly(detail.attachments_cleaned_at)} 项目归档时清理。
+                </div>
+              )}
+
+              {/* Tomorrow Plan */}
+              {detail.tomorrow_plan && (
+                <div className="mt-4 rounded-lg border border-[#E8F3FF] bg-[#F0F7FF] p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4 text-[#165DFF]" />
+                    <span className="text-sm font-medium text-[#1D2129]">明日计划</span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-[#1D2129]">
+                    {detail.tomorrow_plan}
+                  </p>
                 </div>
               )}
 

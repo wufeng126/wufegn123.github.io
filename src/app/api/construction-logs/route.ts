@@ -17,6 +17,14 @@ import { getUserDisplayName } from '@/lib/user-display-name';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
 import { canUserSubmitConstructionLog, hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
 
+type WeatherData = {
+  condition?: string | null;
+  temperature?: number | null;
+  wind?: string | null;
+  humidity?: number | null;
+  manual?: boolean;
+};
+
 type ConstructionLogDraft = {
   project_id: number;
   location?: string | null;
@@ -27,6 +35,8 @@ type ConstructionLogDraft = {
   attendance_workers?: AttendanceWorkerDraft[];
   scope_worker_ids?: number[];
   issues?: string | null;
+  weather?: WeatherData | null;
+  tomorrow_plan?: string | null;
 };
 
 type LogAttachment = {
@@ -35,6 +45,7 @@ type LogAttachment = {
   storageKey?: string;
   type?: string;
   uploadedAt?: string;
+  locationTag?: string | null;
 };
 
 type AttendanceWorkerDraft = {
@@ -77,6 +88,12 @@ const OPTIONAL_CONSTRUCTION_LOG_COLUMNS = [
   'source_type',
   'daily_group_id',
   'submission_status',
+  'weather_condition',
+  'weather_temperature',
+  'weather_wind',
+  'weather_humidity',
+  'weather_manual',
+  'tomorrow_plan',
 ] as const;
 
 function getMissingConstructionLogColumn(error: { message?: string; code?: string } | null | undefined) {
@@ -263,9 +280,22 @@ function normalizeAttachments(value: unknown): LogAttachment[] {
         storageKey,
         type: payload.type ? String(payload.type) : 'image',
         uploadedAt: payload.uploadedAt ? String(payload.uploadedAt) : new Date().toISOString(),
+        locationTag: payload.locationTag ? String(payload.locationTag) : null,
       };
     })
     .filter((item): item is LogAttachment => item !== null);
+}
+
+function normalizeWeather(value: unknown): WeatherData | null {
+  if (!value || typeof value !== 'object') return null;
+  const payload = asPayload(value);
+  return {
+    condition: payload.condition ? String(payload.condition) : null,
+    temperature: Number.isFinite(Number(payload.temperature)) ? Number(payload.temperature) : null,
+    wind: payload.wind ? String(payload.wind) : null,
+    humidity: Number.isFinite(Number(payload.humidity)) ? Number(payload.humidity) : null,
+    manual: Boolean(payload.manual),
+  };
 }
 
 function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[] {
@@ -287,6 +317,8 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
           attendance_workers: attendanceWorkers,
           scope_worker_ids: normalizeOptionalIdList(payload.scope_worker_ids),
           issues: payload.issues ? String(payload.issues) : null,
+          weather: normalizeWeather(payload.weather),
+          tomorrow_plan: payload.tomorrow_plan ? String(payload.tomorrow_plan) : null,
         };
       })
       .filter((item: ConstructionLogDraft) => item.project_id && item.content);
@@ -304,6 +336,8 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
     attendance_workers: attendanceWorkers,
     scope_worker_ids: normalizeOptionalIdList(body.scope_worker_ids),
     issues: body.issues ? String(body.issues) : null,
+    weather: normalizeWeather(body.weather),
+    tomorrow_plan: body.tomorrow_plan ? String(body.tomorrow_plan) : null,
   }].filter((item) => item.project_id && item.content);
 }
 
@@ -600,6 +634,14 @@ export async function POST(request: NextRequest) {
       submission_status: isScheduled ? null : submissionWindow.submissionStatus,
       submitted_at: isScheduled ? null : submittedAt,
       source_type: sourceType,
+      // 天气信息
+      weather_condition: draft.weather?.condition || null,
+      weather_temperature: draft.weather?.temperature ?? null,
+      weather_wind: draft.weather?.wind || null,
+      weather_humidity: draft.weather?.humidity ?? null,
+      weather_manual: draft.weather?.manual || false,
+      // 明日计划
+      tomorrow_plan: draft.tomorrow_plan || null,
     }));
 
     const { data, error } = await insertConstructionLogsWithColumnFallback(supabase, insertRows);

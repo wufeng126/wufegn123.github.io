@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, ArrowLeft, CalendarClock, Camera, CheckCircle2, ClipboardList, ImageIcon, Loader2, Plus, Search, Send, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarClock, Camera, CheckCircle2, ClipboardList, Cloud, ImageIcon, Loader2, Plus, RefreshCw, Search, Send, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
 import {
   formatLogWindowText,
   getConstructionLogSubmissionWindow,
@@ -52,6 +52,15 @@ type ProjectLogDraft = {
   worker_search: string;
   issues: string;
   attachments: LogAttachment[];
+  tomorrow_plan: string;
+};
+
+type WeatherInfo = {
+  condition: string;
+  temperature: number | null;
+  wind: string;
+  humidity: number | null;
+  isManual: boolean;
 };
 
 const EMPTY_WORK_TYPE = '__empty_work_type__';
@@ -78,6 +87,7 @@ function createDraft(projectId = ''): ProjectLogDraft {
     worker_search: '',
     issues: '',
     attachments: [],
+    tomorrow_plan: '',
   };
 }
 
@@ -154,6 +164,36 @@ export default function NewConstructionLogPage() {
   const [submittedStatus, setSubmittedStatus] = useState('');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledSubmitAt, setScheduledSubmitAt] = useState('');
+  const [weather, setWeather] = useState<WeatherInfo | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState('');
+
+  // Auto-fetch weather when date changes
+  useEffect(() => {
+    if (!logDate) return;
+    const fetchWeather = async () => {
+      setWeatherLoading(true);
+      setWeatherError('');
+      try {
+        const res = await fetch(`/api/weather?date=${logDate}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          setWeather({
+            condition: json.data.condition || '',
+            temperature: json.data.temperature,
+            wind: json.data.wind || '',
+            humidity: json.data.humidity,
+            isManual: false,
+          });
+        }
+      } catch {
+        // Silent fail - weather is optional
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+    fetchWeather();
+  }, [logDate]);
 
   useEffect(() => {
     fetch('/api/projects?includePublicLog=1')
@@ -429,6 +469,13 @@ export default function NewConstructionLogPage() {
         body: JSON.stringify({
           log_date: logDate,
           scheduled_submit_at: scheduleEnabled ? scheduledSubmitAt : undefined,
+          weather: weather ? {
+            condition: weather.condition,
+            temperature: weather.temperature,
+            wind: weather.wind,
+            humidity: weather.humidity,
+            is_manual: weather.isManual,
+          } : undefined,
           project_logs: validDrafts.map(draft => ({
             project_id: draft.project_id,
             location: draft.location,
@@ -445,6 +492,7 @@ export default function NewConstructionLogPage() {
               uploadedAt: attachment.uploadedAt,
             })),
             issues: draft.issues,
+            tomorrow_plan: draft.tomorrow_plan,
           })),
           source_type: 'manual',
         }),
@@ -543,6 +591,66 @@ export default function NewConstructionLogPage() {
                 <div className="mt-1 text-xs opacity-80">{formatLogWindowText(logDate)}</div>
               </div>
             </div>
+
+            {/* Weather Section */}
+            <div className="mt-4 rounded-xl border border-[#E5E6EB] bg-[#F7F8FA] p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cloud className="h-4 w-4 text-[#165DFF]" />
+                  <span className="text-sm font-medium text-[#1D2129]">天气信息</span>
+                  {weatherLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#86909C]" />}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeatherLoading(true);
+                    fetch(`/api/weather?date=${logDate}`)
+                      .then(r => r.json())
+                      .then(json => {
+                        if (json.success && json.data) {
+                          setWeather({
+                            condition: json.data.condition || '',
+                            temperature: json.data.temperature,
+                            wind: json.data.wind || '',
+                            humidity: json.data.humidity,
+                            isManual: false,
+                          });
+                        }
+                      })
+                      .catch(() => {})
+                      .finally(() => setWeatherLoading(false));
+                  }}
+                  className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs text-[#165DFF] hover:bg-[#E8F3FF]"
+                >
+                  <RefreshCw className="h-3 w-3" />刷新
+                </button>
+              </div>
+              {weather ? (
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg bg-white px-3 py-2">
+                    <div className="text-xs text-[#86909C]">天气状况</div>
+                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.condition || '-'}</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2">
+                    <div className="text-xs text-[#86909C]">温度</div>
+                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.temperature !== null ? `${weather.temperature}°C` : '-'}</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2">
+                    <div className="text-xs text-[#86909C]">风力</div>
+                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.wind || '-'}</div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2">
+                    <div className="text-xs text-[#86909C]">湿度</div>
+                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.humidity !== null ? `${weather.humidity}%` : '-'}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-white px-3 py-4 text-center text-sm text-[#86909C]">
+                  {weatherLoading ? '正在获取天气信息...' : '暂无天气信息'}
+                </div>
+              )}
+            </div>
+
             {canScheduleSubmit && (
               <div className="mt-4 rounded-xl border border-[#D6E4FF] bg-[#FAFCFF] p-3">
                 <label className="flex items-center gap-2 text-sm font-medium text-[#1D2129]">
@@ -669,6 +777,21 @@ export default function NewConstructionLogPage() {
                       {draftSubmitSummaries[index]?.warnings.find(message => message.includes('出勤'))}
                     </div>
                   )}
+                </div>
+
+                {/* Tomorrow Plan Section */}
+                <div className="mt-3">
+                  <label className="mb-2 flex items-center gap-2 text-sm font-medium text-[#1D2129]">
+                    <CalendarClock className="h-4 w-4 text-[#165DFF]" />
+                    明日计划
+                  </label>
+                  <textarea
+                    value={draft.tomorrow_plan}
+                    onChange={e => updateDraft(draft.id, { tomorrow_plan: e.target.value })}
+                    placeholder="请输入明日施工计划，如：明日计划进行2层梁板钢筋绑扎..."
+                    rows={2}
+                    className="w-full rounded-xl border border-[#E5E6EB] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#165DFF] focus:ring-2 focus:ring-[#165DFF]/20"
+                  />
                 </div>
 
                 <div className="mt-3">
