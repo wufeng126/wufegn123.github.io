@@ -60,7 +60,12 @@ function getWeatherColor(condition: string | null | undefined) {
   return 'text-muted-foreground';
 }
 
-export default function ConstructionLogCalendar({ projectId }: { projectId?: number }) {
+type Project = {
+  id: number;
+  name: string;
+};
+
+export default function ConstructionLogCalendar() {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -68,12 +73,33 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+
+  // 获取项目列表
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        const res = await fetch('/api/projects?includePublicLog=1');
+        const json = await res.json();
+        if (json.success && json.data?.projects) {
+          setProjects(json.data.projects.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch projects:', err);
+      }
+    }
+    fetchProjects();
+  }, []);
 
   const fetchCalendar = useCallback(async () => {
+    if (!selectedProjectId) {
+      setCalendarData(null);
+      return;
+    }
     setLoading(true);
     try {
-      const params = new URLSearchParams({ month: currentMonth });
-      if (projectId) params.set('project_id', String(projectId));
+      const params = new URLSearchParams({ month: currentMonth, project_id: selectedProjectId });
       const res = await fetch(`/api/construction-logs/calendar?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -84,7 +110,7 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
     } finally {
       setLoading(false);
     }
-  }, [currentMonth, projectId]);
+  }, [currentMonth, selectedProjectId]);
 
   useEffect(() => {
     fetchCalendar();
@@ -145,6 +171,21 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
 
   return (
     <div className="space-y-4">
+      {/* Project Selector */}
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium text-foreground">选择项目：</label>
+        <select
+          value={selectedProjectId}
+          onChange={(e) => setSelectedProjectId(e.target.value)}
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          <option value="">请选择项目</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -193,7 +234,11 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
       </div>
 
       {/* Stats */}
-      {calendarData && (
+      {!selectedProjectId ? (
+        <div className="rounded-lg border border-border bg-card p-8 text-center">
+          <p className="text-muted-foreground">请先选择一个项目以查看日历</p>
+        </div>
+      ) : calendarData && (
         <div className="grid grid-cols-5 gap-3">
           <div className="rounded-lg border border-border bg-card p-3">
             <div className="text-sm text-muted-foreground">日志总数</div>
@@ -219,6 +264,7 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
       )}
 
       {/* Calendar Grid */}
+      {selectedProjectId && (
       <div className="rounded-lg border border-border bg-card">
         {/* Weekday headers */}
         <div className="grid grid-cols-7 border-b border-border">
@@ -234,7 +280,9 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
 
         {/* Calendar cells */}
         <div className="grid grid-cols-7">
-          {calendarGrid.map((day, i) => {
+          {loading ? (
+            <div className="col-span-7 py-12 text-center text-muted-foreground">加载中...</div>
+          ) : calendarGrid.map((day, i) => {
             if (!day) {
               return <div key={`empty-${i}`} className="min-h-[100px] border-b border-r border-border bg-muted/30"></div>;
             }
@@ -302,6 +350,7 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
           })}
         </div>
       </div>
+      )}
 
       {/* Selected Day Detail */}
       {selectedDay && (
@@ -355,7 +404,7 @@ export default function ConstructionLogCalendar({ projectId }: { projectId?: num
               </span>
               {!isPast(selectedDay.date) && (
                 <a
-                  href={`/construction-logs/new?date=${selectedDay.date}${projectId ? `&project_id=${projectId}` : ''}`}
+                  href={`/construction-logs/new?date=${selectedDay.date}${selectedProjectId ? `&project_id=${selectedProjectId}` : ''}`}
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   去填写 →
