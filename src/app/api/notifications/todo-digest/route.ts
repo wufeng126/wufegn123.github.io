@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
+import { NOTIFICATION_ROUTE_RULES } from '@/lib/notification-routing';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 type NotificationRow = {
@@ -90,7 +91,14 @@ export async function POST(request: NextRequest) {
 
     if (error) throw new Error(error.message);
 
-    const unreadRows = ((rows || []) as NotificationRow[]).filter((item) => item.recipient_user_id && isUnread(item.is_read));
+    const digestTypes = new Set(
+      NOTIFICATION_ROUTE_RULES
+        .filter((rule) => rule.includeInTodoDigest && rule.channel === 'personal' && rule.workbenchTodoKey)
+        .map((rule) => rule.type),
+    );
+    const unreadRows = ((rows || []) as NotificationRow[]).filter((item) =>
+      item.recipient_user_id && item.type && digestTypes.has(item.type) && isUnread(item.is_read)
+    );
     const grouped = new Map<number, NotificationRow[]>();
     unreadRows.forEach((item) => {
       const userId = Number(item.recipient_user_id);

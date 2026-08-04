@@ -3,11 +3,8 @@ import { requireAuth } from '@/lib/api-auth';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
+import { shouldUsePersonalWorkNotice, shouldUseRobotBroadcast } from '@/lib/notification-routing';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-
-function shouldUseRobotBroadcast(type: string) {
-  return ['construction_daily_report'].includes(type);
-}
 
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseClient();
@@ -162,7 +159,7 @@ export async function POST(request: NextRequest) {
       const dingtalkUserId = notification.recipient_user_id
         ? dingtalkUserBySystemUserId.get(notification.recipient_user_id)
         : null;
-      if (dingtalkUserId) {
+      if (dingtalkUserId && shouldUsePersonalWorkNotice(notification.type)) {
         const workResult = await sendDingTalkWorkNotification([dingtalkUserId], params);
         sent = sent || workResult.success;
       }

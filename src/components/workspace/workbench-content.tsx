@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import { usePermission } from '@/contexts/permission-context';
 import { PageHeader, StatsBar } from '@/components/business/page-layout';
+import type { WorkbenchTodoKey } from '@/lib/notification-routing';
 import {
   AlertCircle,
   AlertTriangle,
@@ -33,7 +34,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 
-type TodoKey = 'constructionLogsPending' | 'monthlyReportsPending' | 'visasPending' | 'knowledgePending';
+type TodoKey = WorkbenchTodoKey;
 type RoleKey = 'site' | 'budget' | 'manager' | 'boss';
 type Tone = 'blue' | 'emerald' | 'amber' | 'rose' | 'violet' | 'slate' | 'teal';
 
@@ -45,6 +46,8 @@ type TodoItem = {
   count: number;
   unit: string;
   href: string;
+  notificationTypes?: string[];
+  dingtalkChannels?: string[];
 };
 
 type TodoResponse = {
@@ -98,9 +101,9 @@ const fallbackTodos: TodoItem[] = [
   },
   {
     key: 'monthlyReportsPending',
-    label: '月报待填报',
-    desc: '当前权限项目中，本月还有未完成的月度经营分析',
-    action: '去填报',
+    label: '月度分析待处理',
+    desc: '预算员看待填报项目；项目经理和老板看流转到本人名下的确认事项',
+    action: '去处理',
     count: 0,
     unit: '项',
     href: '/reports/monthly?todo=pending',
@@ -122,6 +125,15 @@ const fallbackTodos: TodoItem[] = [
     count: 0,
     unit: '条',
     href: '/knowledge?status=pending',
+  },
+  {
+    key: 'businessNotificationsPending',
+    label: '经营消息待查看',
+    desc: '供应商结算、付款、回款、工资等与经营数据相关的自动提醒',
+    action: '去查看',
+    count: 0,
+    unit: '条',
+    href: '/notifications',
   },
 ];
 
@@ -184,7 +196,7 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       { title: '工资异常核对', desc: '核对导入失败、未建档和发放差异', href: '/workers/salaries', icon: UserRoundCheck, tone: 'violet' },
       { title: '查找经验', desc: '查询投标、签证、结算复盘经验', href: '/knowledge', icon: Search, tone: 'slate' },
     ],
-    todoKeys: ['constructionLogsPending', 'monthlyReportsPending', 'visasPending', 'knowledgePending'],
+    todoKeys: ['constructionLogsPending', 'monthlyReportsPending', 'visasPending', 'knowledgePending', 'businessNotificationsPending'],
     todoTitle: '预算员待处理',
     todoDesc: '按负责项目和岗位权限展示，不把超级管理员全部项目默认塞进来。',
     noticeTitle: '钉钉业务摘要',
@@ -262,7 +274,7 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       { title: '风险项目', desc: '查看滞后、超付、资料缺口和账期风险', href: '/business-analysis?tab=overview', icon: AlertTriangle, tone: 'rose' },
       { title: '审批确认', desc: '只处理需要老板确认的事项', href: '/notifications', icon: ShieldCheck, tone: 'slate' },
     ],
-    todoKeys: ['monthlyReportsPending', 'visasPending', 'knowledgePending'],
+    todoKeys: ['monthlyReportsPending', 'visasPending', 'knowledgePending', 'businessNotificationsPending'],
     todoTitle: '老板待确认',
     todoDesc: '只显示经营确认、风险提醒和与本人相关的事项。',
     noticeTitle: '经营提醒摘要',
@@ -289,6 +301,7 @@ const todoVisuals: Record<TodoKey, { icon: LucideIcon; tone: Tone; valueTone: st
   monthlyReportsPending: { icon: FileText, tone: 'emerald', valueTone: 'text-emerald-700' },
   visasPending: { icon: FileCheck2, tone: 'amber', valueTone: 'text-amber-700' },
   knowledgePending: { icon: BookOpen, tone: 'violet', valueTone: 'text-violet-700' },
+  businessNotificationsPending: { icon: BriefcaseBusiness, tone: 'slate', valueTone: 'text-slate-700' },
 };
 
 function toneClass(tone: Tone) {
@@ -553,6 +566,11 @@ export default function WorkbenchContent() {
                             <span className="text-xs text-slate-400">{item.unit}</span>
                           </div>
                           <p className="mt-1 text-sm leading-6 text-slate-500">{item.desc}</p>
+                          {item.dingtalkChannels?.length ? (
+                            <p className="mt-1 text-xs text-slate-400">
+                              钉钉对应：{item.dingtalkChannels.join(' / ')}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <span className="inline-flex items-center justify-end gap-1 text-sm font-medium text-blue-700">

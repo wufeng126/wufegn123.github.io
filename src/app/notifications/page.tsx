@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
+import { NOTIFICATION_ROUTE_RULES, getNotificationRouteRule } from '@/lib/notification-routing';
 
 // 类型定义
 interface Notification {
@@ -105,123 +106,23 @@ function parseRecipientBindings(value?: string | null): RecipientBindings {
   }
 }
 
-const recipientBindingTypes = [
-  { type: 'new_settlement', title: '供应商结算新增', desc: '新增供应商结算单后自动推送' },
-  { type: 'new_supplier_payment', title: '供应商付款新增', desc: '新增供应商付款记录后自动推送' },
-  { type: 'new_client_payment', title: '甲方回款新增', desc: '新增甲方回款记录后自动推送' },
-  { type: 'new_worker_salary', title: '工资核算导入', desc: '工资核算数据导入成功后自动推送' },
-  { type: 'new_worker_payment', title: '工资发放导入', desc: '工资发放数据导入成功后自动推送' },
-  { type: 'construction_log_alert', title: '施工日志风险', desc: '施工日志识别出风险后自动推送' },
-  { type: 'construction_log_comment', title: '施工日志评论', desc: '施工日志新增评论后自动推送' },
-  { type: 'monthly_analysis_workflow', title: '月度分析流转', desc: '月度分析提交、确认、退回等节点推送' },
-  { type: 'visa_workflow', title: '签证流程流转', desc: '签证提交、签字、确认等节点推送' },
-  { type: 'visa_workflow_overdue', title: '签证超期推进', desc: '签证超过期限未推进时自动推送' },
-];
+const recipientBindingTypes = NOTIFICATION_ROUTE_RULES
+  .filter((rule) => rule.bindingConfigurable)
+  .map((rule) => ({ type: rule.type, title: rule.label, desc: rule.description }));
 
-const notificationRules = [
-  {
-    settingKey: 'new_record_reminder_enabled',
-    title: '月度分析流转',
-    mode: '实时触发',
-    trigger: '预算员、项目经理、老板提交下一步时立即推送',
-    target: '当前流程节点负责人',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '预算员提交给手动选择的项目经理；项目经理确认后返回原预算员；预算员再选择老板。',
-  },
-  {
-    settingKey: 'visa_reminder_enabled',
-    title: '签证办理流转',
-    mode: '实时触发',
-    trigger: '签证提交、签字、商务确认、预算员确认计入结算时立即推送',
-    target: '项目经理 / 原发起预算员',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '预算员发起后推给项目经理；项目经理完成线下签字后推回预算员确认计入结算。',
-  },
-  {
-    settingKey: 'visa_reminder_enabled',
-    title: '签证超期推进',
-    mode: '定时检测',
-    trigger: '定时调用通知检测接口，发现超过 7 天未推进时推送',
-    target: '当前负责人',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '超过 7 天未进入下一状态时，只提醒当前负责推进的人。',
-    cron: '/api/notifications/check?force=true',
-  },
-  {
-    settingKey: 'cost_warning_enabled',
-    title: '施工日志风险',
-    mode: '实时触发',
-    trigger: '施工日志提交后识别到风险内容时立即推送',
-    target: '项目绑定预算员',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '按项目身份中的预算员接收，不因超级管理员可看全部项目而默认接收全部提醒。',
-  },
-  {
-    settingKey: 'construction_log_comment_reminder_enabled',
-    title: '施工日志评论',
-    mode: '实时触发',
-    trigger: '施工日志新增评论后立即推送',
-    target: '项目预算员 / 项目经理 / 日志作者',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '用于让施工日志里的讨论及时落到相关负责人身上，避免评论留在页面里没人看。',
-  },
-  {
-    settingKey: 'new_record_reminder_enabled',
-    title: '项目日报汇总',
-    mode: '定时生成',
-    trigger: '每天 12 点截止后调用日报生成接口，生成后推送',
-    target: '公司广播',
-    channel: '站内通知 + 钉钉群机器人',
-    detail: '用于每日 12 点后自动汇总推送；后续可再缩小为项目相关人员。',
-    cron: '/api/construction-daily-reports/generate',
-  },
-  {
-    settingKey: 'salary_reminder_enabled',
-    title: '工资核算/发放',
-    mode: '实时触发',
-    trigger: '工资核算或工资发放导入成功后立即推送',
-    target: '相关项目预算员、财务或流程负责人',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '工资类提醒不发群，避免工资信息扩散。',
-  },
-  {
-    settingKey: 'supplier_payment_reminder_enabled',
-    title: '供应商付款/结算',
-    mode: '实时触发',
-    trigger: '新增供应商结算或付款记录后立即推送',
-    target: '相关业务负责人',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '供应商付款和结算按业务记录接收人推送。',
-  },
-  {
-    settingKey: 'client_payment_reminder_enabled',
-    title: '甲方回款提醒',
-    mode: '实时触发',
-    trigger: '新增甲方回款记录后立即推送',
-    target: '相关业务负责人',
-    channel: '站内待办 + 钉钉个人工作通知',
-    detail: '用于让预算、财务及时知道项目回款已发生。',
-  },
-  {
-    settingKey: 'todo_digest_enabled',
-    title: '待办事项汇总',
-    mode: '定时汇总',
-    trigger: '定时汇总每个人未读待办，再按个人推送',
-    target: '当前待办负责人',
-    channel: '钉钉个人工作通知',
-    detail: '适合每天上班前或下午固定时间提醒，不会推给无关人员。',
-    cron: '/api/notifications/todo-digest',
-  },
-  {
-    settingKey: 'dingtalk_robot_broadcast_enabled',
-    title: '公司级广播',
-    mode: '通道开关',
-    trigger: '被日报汇总、系统公告等公司级消息调用',
-    target: '钉钉群',
-    channel: '钉钉群机器人',
-    detail: '仅用于日报汇总、系统公告这类适合公开广播的消息。',
-  },
-];
+const notificationRules = NOTIFICATION_ROUTE_RULES.map((rule) => ({
+  type: rule.type,
+  settingKey: rule.settingKeys[0],
+  settingKeys: rule.settingKeys,
+  title: rule.label,
+  mode: rule.mode,
+  trigger: rule.trigger,
+  target: rule.target,
+  channel: rule.workbenchTodoLabel ? `工作台待办：${rule.workbenchTodoLabel} + ${rule.channelLabel}` : rule.channelLabel,
+  detail: rule.detail,
+  cron: rule.cron,
+  workbenchTodoLabel: rule.workbenchTodoLabel,
+}));
 
 // 获取通知图标
 function getNotificationIcon(type: string, severity: string) {
@@ -605,7 +506,12 @@ export default function NotificationsPage() {
 
   // 获取跳转链接
   const getLink = (notification: Notification): string => {
-    const { type, project_id, related_id } = notification;
+    const { type, related_id } = notification;
+    const routeRule = getNotificationRouteRule(type);
+    if (routeRule?.href) {
+      if (type === 'construction_log_comment' && related_id) return `/construction-logs/${related_id}`;
+      return routeRule.href;
+    }
     if (type.includes('certificate')) return '/certificates';
     if (type.includes('visa')) return '/visas';
     if (type === 'new_report') return '/client-reports';
@@ -925,15 +831,16 @@ export default function NotificationsPage() {
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {notificationRules.map((rule) => {
-                  const enabled = settings[rule.settingKey]?.enabled ?? true;
+                  const enabled = rule.settingKeys.some((key) => settings[key]?.enabled ?? true);
                   const isScheduled = rule.mode.includes('定时');
                   return (
-                    <div key={`${rule.settingKey}-${rule.title}`} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
+                    <div key={rule.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
                             <Badge variant={isScheduled ? 'secondary' : 'outline'}>{rule.mode}</Badge>
+                            {rule.workbenchTodoLabel && <Badge variant="outline">工作台：{rule.workbenchTodoLabel}</Badge>}
                           </div>
                           <p className="mt-1 text-xs" style={{ color: '#4E5969' }}>接收对象：{rule.target}</p>
                         </div>

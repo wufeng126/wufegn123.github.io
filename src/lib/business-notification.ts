@@ -2,6 +2,11 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
+import {
+  isNotificationTypeEnabled,
+  shouldUsePersonalWorkNotice,
+  shouldUseRobotBroadcast,
+} from '@/lib/notification-routing';
 
 type NotificationSeverity = 'info' | 'warning' | 'danger';
 type NotificationRow = { id?: number | string; recipient_user_id?: number | null };
@@ -34,10 +39,6 @@ function getPriority(severity: NotificationSeverity) {
   if (severity === 'danger') return 2;
   if (severity === 'warning') return 1;
   return 0;
-}
-
-function shouldUseRobotBroadcast(type: string) {
-  return ['construction_daily_report'].includes(type);
 }
 
 function toText(value: unknown): string {
@@ -329,19 +330,13 @@ export async function pushBusinessNotification(params: {
 
     const isTypeEnabled = (key: string) => notificationSettings[key]?.enabled !== false;
 
-    let shouldSend = false;
-    if (['new_report', 'new_worker'].includes(type) && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
-    if (type === 'new_settlement' && (isTypeEnabled('settlement_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (['new_worker_salary', 'new_salary'].includes(type) && (isTypeEnabled('salary_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (type === 'new_worker_payment' && (isTypeEnabled('salary_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (type === 'new_client_payment' && (isTypeEnabled('client_payment_reminder_enabled') || isTypeEnabled('payment_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (type === 'new_supplier_payment' && (isTypeEnabled('supplier_payment_reminder_enabled') || isTypeEnabled('payment_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (type === 'cost_warning' && isTypeEnabled('cost_warning_enabled')) shouldSend = true;
-    if (type === 'monthly_analysis_workflow' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
-    if (type === 'construction_log_alert' && (isTypeEnabled('cost_warning_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (type === 'construction_log_comment' && (isTypeEnabled('construction_log_comment_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
-    if (type === 'construction_daily_report' && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
-    if (['visa_workflow', 'visa_workflow_overdue'].includes(type) && (isTypeEnabled('visa_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+    const routedEnabled = isNotificationTypeEnabled(type, notificationSettings);
+    let shouldSend = routedEnabled ?? false;
+    if (routedEnabled === null) {
+      if (['new_report', 'new_worker'].includes(type) && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
+      if (['new_worker_salary', 'new_salary'].includes(type) && (isTypeEnabled('salary_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;
+      if (type === 'cost_warning' && isTypeEnabled('cost_warning_enabled')) shouldSend = true;
+    }
 
     if (!isNotificationSettingEnabled(notificationSettings.dingtalk_enabled?.enabled, true)) shouldSend = false;
 
@@ -396,7 +391,7 @@ export async function pushBusinessNotification(params: {
       notificationIds.forEach((id) => sentNotificationIds.add(id));
     }
 
-    if (uniqueRecipientIds.length > 0) {
+    if (uniqueRecipientIds.length > 0 && shouldUsePersonalWorkNotice(type)) {
       const { data: recipientUsers, error: recipientError } = await supabase
         .from('users')
         .select('id,dingtalk_user_id,is_disabled,dingtalk_active')
