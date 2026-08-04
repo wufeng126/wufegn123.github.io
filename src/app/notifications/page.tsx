@@ -66,6 +66,7 @@ interface Stats {
   danger: number;
   warning: number;
   info: number;
+  categoryCounts?: Record<NotificationCategory | 'other', number>;
 }
 
 interface Settings {
@@ -170,6 +171,21 @@ const notificationSettings = [
   { key: 'construction_log_comment_reminder_enabled', label: '施工日志评论提醒', desc: '新增施工日志评论时发送钉钉通知' },
 ];
 
+const notificationListTabs: Array<{
+  value: string;
+  label: string;
+  category?: NotificationCategory;
+  countKey?: NotificationCategory;
+}> = [
+  { value: 'all', label: '全部' },
+  { value: 'unread', label: '未读' },
+  { value: 'warning', label: '预警' },
+  { value: 'todo', label: '待办', category: 'todo', countKey: 'todo' },
+  { value: 'risk', label: '风险', category: 'risk', countKey: 'risk' },
+  { value: 'result', label: '结果', category: 'result', countKey: 'result' },
+  { value: 'cc', label: '抄送', category: 'cc', countKey: 'cc' },
+];
+
 function getSampleSummary(type: string) {
   switch (type) {
     case 'construction_log_alert':
@@ -256,6 +272,28 @@ function getSeverityStyle(severity: string) {
   }
 }
 
+function getSeverityLabel(severity: string) {
+  switch (severity) {
+    case 'danger':
+      return '紧急';
+    case 'warning':
+      return '预警';
+    default:
+      return '普通';
+  }
+}
+
+function getNotificationCategoryMeta(type?: string | null) {
+  const routeRule = getNotificationRouteRule(type);
+  const group = notificationCategoryGroups.find((item) => item.category === routeRule?.category);
+  return {
+    label: routeRule?.categoryLabel || '其他',
+    tone: group?.tone || '#86909C',
+    actionLabel: routeRule?.actionLabel || '查看详情',
+    workbenchTodoLabel: routeRule?.workbenchTodoLabel,
+  };
+}
+
 // 格式化时间
 function formatTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -275,7 +313,15 @@ function formatTime(dateStr: string): string {
 export default function NotificationsPage() {
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, unread: 0, today: 0, danger: 0, warning: 0, info: 0 });
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    unread: 0,
+    today: 0,
+    danger: 0,
+    warning: 0,
+    info: 0,
+    categoryCounts: { todo: 0, risk: 0, result: 0, cc: 0, other: 0 },
+  });
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -303,14 +349,23 @@ export default function NotificationsPage() {
     try {
       const params = new URLSearchParams();
       if (activeTab === 'unread') params.append('isRead', 'false');
-      if (activeTab === 'danger') params.append('type', 'danger');
+      if (activeTab === 'warning') params.append('severity', 'warning,danger');
+      if (notificationListTabs.some((tab) => tab.category === activeTab)) params.append('category', activeTab);
       params.append('page', page.toString());
       params.append('pageSize', '20');
 
       const res = await fetch(`/api/notifications?${params}`);
       const data = await res.json();
       setNotifications(data.notifications || []);
-      setStats(data.stats || { total: 0, unread: 0, today: 0, danger: 0, warning: 0, info: 0 });
+      setStats(data.stats || {
+        total: 0,
+        unread: 0,
+        today: 0,
+        danger: 0,
+        warning: 0,
+        info: 0,
+        categoryCounts: { todo: 0, risk: 0, result: 0, cc: 0, other: 0 },
+      });
       setTotalPages(data.pagination?.totalPages || 1);
     } catch (error) {
       console.error('获取数据失败:', error);
@@ -352,6 +407,19 @@ export default function NotificationsPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeTab, page]);
+
+  const switchListTab = (value: string) => {
+    setActiveTab(value);
+    setPage(1);
+  };
+
+  const getListTabCount = (tab: (typeof notificationListTabs)[number]) => {
+    if (tab.value === 'all') return stats.total;
+    if (tab.value === 'unread') return stats.unread;
+    if (tab.value === 'warning') return stats.warning + stats.danger;
+    if (tab.countKey) return stats.categoryCounts?.[tab.countKey] || 0;
+    return 0;
+  };
 
   // 标记已读
   const markAsRead = async (id: number) => {
@@ -997,11 +1065,17 @@ export default function NotificationsPage() {
       <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
         <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full justify-start sm:w-auto">
-                <TabsTrigger value="all">全部</TabsTrigger>
-                <TabsTrigger value="unread">未读 {stats.unread > 0 && `(${stats.unread})`}</TabsTrigger>
-                <TabsTrigger value="danger">预警</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={switchListTab} className="min-w-0">
+              <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+                {notificationListTabs.map((tab) => {
+                  const count = getListTabCount(tab);
+                  return (
+                    <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
+                      {tab.label}
+                      {count > 0 && <span className="ml-1 text-xs opacity-70">({count})</span>}
+                    </TabsTrigger>
+                  );
+                })}
               </TabsList>
             </Tabs>
             {stats.unread > 0 && (
@@ -1027,6 +1101,7 @@ export default function NotificationsPage() {
             <div className="divide-y" style={{ borderColor: '#E5E6EB' }}>
               {notifications.map((notification) => {
                 const severityStyle = getSeverityStyle(notification.severity);
+                const categoryMeta = getNotificationCategoryMeta(notification.type);
                 return (
                   <div
                     key={notification.id}
@@ -1043,21 +1118,46 @@ export default function NotificationsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium" style={{ color: '#1D2129' }}>
-                            {notification.title}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium" style={{ color: '#1D2129' }}>
+                              {notification.title}
+                            </p>
+                            <span
+                              className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+                              style={{ background: `${categoryMeta.tone}14`, color: categoryMeta.tone }}
+                            >
+                              {categoryMeta.label}
+                            </span>
+                            <span
+                              className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+                              style={{ background: severityStyle.bg, color: severityStyle.color }}
+                            >
+                              {getSeverityLabel(notification.severity)}
+                            </span>
                             {!notification.is_read && (
-                              <Badge variant="secondary" className="ml-2 text-xs">新</Badge>
+                              <Badge variant="secondary" className="text-xs">新</Badge>
                             )}
                             {notification.priority === 2 && (
-                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">紧急</span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">高优先级</span>
                             )}
                             {notification.priority === 1 && (
-                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700">重要</span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700">重要</span>
                             )}
-                          </p>
+                          </div>
                           <p className="text-sm mt-1 whitespace-pre-line" style={{ color: '#4E5969' }}>
                             {notification.content}
                           </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: '#86909C' }}>
+                            {categoryMeta.workbenchTodoLabel && (
+                              <span className="rounded bg-gray-100 px-2 py-0.5">工作台：{categoryMeta.workbenchTodoLabel}</span>
+                            )}
+                            <span className="rounded bg-gray-100 px-2 py-0.5">
+                              钉钉：{notification.is_sent ? '已推送' : '未推送'}
+                            </span>
+                            <span className="rounded bg-gray-100 px-2 py-0.5">
+                              动作：{categoryMeta.actionLabel}
+                            </span>
+                          </div>
                         </div>
                         <span className="text-xs whitespace-nowrap" style={{ color: '#86909C' }}>
                           {formatTime(notification.created_at)}

@@ -2,8 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { getAssignedProjectIds } from '@/lib/api-project-access';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { NOTIFICATION_ROUTE_RULES, type NotificationCategory } from '@/lib/notification-routing';
 
 type SupabaseErrorLike = { message?: string; details?: string } | null;
+type NotificationSeverity = 'info' | 'warning' | 'danger';
+
+const notificationTypesByCategory = NOTIFICATION_ROUTE_RULES.reduce<Record<NotificationCategory, string[]>>(
+  (acc, rule) => {
+    acc[rule.category].push(rule.type);
+    return acc;
+  },
+  { todo: [], risk: [], result: [], cc: [] },
+);
+
+const notificationCategoryByType = new Map(
+  NOTIFICATION_ROUTE_RULES.map((rule) => [rule.type, rule.category]),
+);
+
+function isNotificationCategory(value: string | null): value is NotificationCategory {
+  return value === 'todo' || value === 'risk' || value === 'result' || value === 'cc';
+}
+
+function parseSeverityFilter(value: string | null): NotificationSeverity[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item): item is NotificationSeverity => item === 'info' || item === 'warning' || item === 'danger');
+}
 
 function isMissingRecipientColumn(error: unknown) {
   const err = error as SupabaseErrorLike;
@@ -43,6 +69,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
+    const category = searchParams.get('category');
+    const severity = parseSeverityFilter(searchParams.get('severity'));
     const isRead = searchParams.get('isRead');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || searchParams.get('limit') || '20', 10);
@@ -53,6 +81,10 @@ export async function GET(request: NextRequest) {
       let query = client.from('notifications').select('*', { count: 'exact' });
 
       if (type && type !== 'all') query = query.eq('type', type);
+      if ((!type || type === 'all') && isNotificationCategory(category)) {
+        query = query.in('type', notificationTypesByCategory[category]);
+      }
+      if (severity.length > 0) query = query.in('severity', severity);
       if (isRead !== null && isRead !== 'all') query = query.eq('is_read', isRead === 'true');
       if (useRecipientScope) {
         query = query.or(buildRecipientScopeFilter(auth.user.id, notificationProjectScope));
@@ -95,6 +127,15 @@ export async function GET(request: NextRequest) {
 
     const statsData = statsResult.data || [];
     const today = new Date().toDateString();
+    const categoryCounts = statsData.reduce(
+      (acc, notification: { type?: string | null }) => {
+        const categoryKey = notification.type ? notificationCategoryByType.get(notification.type) : undefined;
+        if (categoryKey) acc[categoryKey] += 1;
+        else acc.other += 1;
+        return acc;
+      },
+      { todo: 0, risk: 0, result: 0, cc: 0, other: 0 },
+    );
     const stats = {
       total: statsData.length,
       unread: statsData.filter((notification: { is_read: unknown }) => isUnread(notification.is_read)).length,
@@ -102,6 +143,7 @@ export async function GET(request: NextRequest) {
       danger: statsData.filter((notification: { severity: string }) => notification.severity === 'danger').length,
       warning: statsData.filter((notification: { severity: string }) => notification.severity === 'warning').length,
       info: statsData.filter((notification: { severity: string }) => notification.severity === 'info').length,
+      categoryCounts,
     };
 
     return NextResponse.json({
