@@ -9,6 +9,8 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   ImageIcon,
   MapPin,
@@ -52,6 +54,16 @@ type ConstructionLogComment = {
   updated_at?: string | null;
 };
 
+type ConstructionLogNavItem = {
+  id: number;
+  project_id: number;
+  project_name?: string | null;
+  log_date?: string | null;
+  user_name?: string | null;
+  location?: string | null;
+  status?: string | null;
+};
+
 type ConstructionLogDetail = {
   id: number;
   project_id: number;
@@ -91,6 +103,10 @@ type ConstructionLogDetail = {
     workflow_status_label?: string;
     can_acknowledge?: boolean;
   };
+  navigation?: {
+    previous?: ConstructionLogNavItem | null;
+    next?: ConstructionLogNavItem | null;
+  } | null;
 };
 
 const riskLevelLabels: Record<RiskLevel, string> = {
@@ -167,6 +183,56 @@ function logStatusTone(status?: string | null) {
   if (status === 'pending') return 'pending';
   if (status === 'cancelled') return 'confirmed';
   return null;
+}
+
+function navDescription(item?: ConstructionLogNavItem | null) {
+  if (!item) return '';
+  return [
+    item.log_date,
+    item.project_name || `项目${item.project_id}`,
+    item.user_name,
+    item.location,
+  ].filter(Boolean).join(' · ');
+}
+
+function NavigationLink({
+  item,
+  direction,
+}: {
+  item?: ConstructionLogNavItem | null;
+  direction: 'previous' | 'next';
+}) {
+  const isPrevious = direction === 'previous';
+  const label = isPrevious ? '上一篇' : '下一篇';
+  if (!item) {
+    return (
+      <div className="flex min-h-[64px] items-center justify-center rounded-xl border border-dashed border-[#DDE2EB] bg-white px-4 py-3 text-sm text-[#A9AEB8]">
+        {isPrevious ? '已经是最新一篇' : '已经是最后一篇'}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/construction-logs/${item.id}`}
+      className="group flex min-h-[64px] items-center gap-3 rounded-xl border border-[#E5E6EB] bg-white px-4 py-3 transition hover:border-[#165DFF]/45 hover:bg-[#FBFCFF]"
+    >
+      {isPrevious && (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969] transition group-hover:bg-[#E8F3FF] group-hover:text-[#165DFF]">
+          <ChevronLeft className="h-4 w-4" />
+        </span>
+      )}
+      <span className={`min-w-0 flex-1 ${isPrevious ? '' : 'text-right'}`}>
+        <span className="block text-xs font-medium text-[#86909C]">{label}</span>
+        <span className="mt-1 block truncate text-sm font-semibold text-[#1D2129]">{navDescription(item)}</span>
+      </span>
+      {!isPrevious && (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969] transition group-hover:bg-[#E8F3FF] group-hover:text-[#165DFF]">
+          <ChevronRight className="h-4 w-4" />
+        </span>
+      )}
+    </Link>
+  );
 }
 
 export default function ConstructionLogDetailPage() {
@@ -463,6 +529,11 @@ export default function ConstructionLogDetailPage() {
                   )}
                 </div>
               </div>
+            </section>
+
+            <section className="grid gap-3 md:grid-cols-2">
+              <NavigationLink item={detail.navigation?.previous} direction="previous" />
+              <NavigationLink item={detail.navigation?.next} direction="next" />
             </section>
 
             {editing && detail.can_edit_schedule && (
@@ -776,6 +847,11 @@ export default function ConstructionLogDetailPage() {
                   <div className="rounded-lg bg-[#F7F8FA] p-4 text-sm text-[#86909C]">暂无评论，先留下第一条吧。</div>
                 )}
               </div>
+            </section>
+
+            <section className="grid gap-3 pb-2 md:grid-cols-2">
+              <NavigationLink item={detail.navigation?.previous} direction="previous" />
+              <NavigationLink item={detail.navigation?.next} direction="next" />
             </section>
           </div>
         )}

@@ -24,6 +24,16 @@ type NotificationRow = {
   recipient_user_id?: number | null;
 };
 
+type ConstructionLogNavRow = {
+  id: number;
+  project_id: number;
+  log_date?: string | null;
+  created_at?: string | null;
+  user_name?: string | null;
+  location?: string | null;
+  status?: string | null;
+};
+
 function asPayload(value: unknown) {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
@@ -80,6 +90,74 @@ async function attachSignedUrls(attachments: unknown) {
       return { ...attachment, storageKey: attachment.storageKey || key };
     }
   }));
+}
+
+function toNavSummary(
+  row: ConstructionLogNavRow | null | undefined,
+  projectNameById: Map<number, string>,
+) {
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    project_id: Number(row.project_id),
+    project_name: projectNameById.get(Number(row.project_id)) || `项目${row.project_id}`,
+    log_date: row.log_date || '',
+    user_name: row.user_name || '',
+    location: row.location || '',
+    status: row.status || '',
+  };
+}
+
+async function loadAdjacentConstructionLogs(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  currentLog: ConstructionLogNavRow,
+  accessibleProjectIds: number[] | null,
+) {
+  if (Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) {
+    return { previous: null, next: null };
+  }
+
+  let query = supabase
+    .from('construction_logs')
+    .select('id,project_id,log_date,created_at,user_name,location,status')
+    .order('log_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(5000);
+
+  if (Array.isArray(accessibleProjectIds)) {
+    query = query.in('project_id', accessibleProjectIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('[construction-logs] adjacent logs load failed', error.message);
+    return { previous: null, next: null };
+  }
+
+  const rows = (data || []) as ConstructionLogNavRow[];
+  const currentIndex = rows.findIndex((row) => Number(row.id) === Number(currentLog.id));
+  if (currentIndex < 0) return { previous: null, next: null };
+
+  const candidates = [rows[currentIndex - 1], rows[currentIndex + 1]].filter(Boolean);
+  const projectIds = Array.from(new Set(candidates.map((row) => Number(row.project_id)).filter(Number.isFinite)));
+  const projectNameById = new Map<number, string>();
+  if (projectIds.length > 0) {
+    const { data: projects, error: projectError } = await supabase
+      .from('projects')
+      .select('id,name')
+      .in('id', projectIds);
+    if (!projectError) {
+      (projects || []).forEach((project) => {
+        projectNameById.set(Number(project.id), String(project.name || `项目${project.id}`));
+      });
+    }
+  }
+
+  return {
+    previous: toNavSummary(rows[currentIndex - 1], projectNameById),
+    next: toNavSummary(rows[currentIndex + 1], projectNameById),
+  };
 }
 
 async function loadRiskWorkflowStatus(
@@ -155,6 +233,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .order('worker_name', { ascending: true });
     if (attendanceError) console.warn('[construction-logs] attendance workers load failed', attendanceError.message);
 
+    const adjacentLogs = await loadAdjacentConstructionLogs(
+      supabase,
+      log as ConstructionLogNavRow,
+      accessibleProjectIds,
+    );
     const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
     const riskWorkflow = risk.hasRisk
       ? await loadRiskWorkflowStatus(supabase, logId, Number(auth.user.id))
@@ -174,6 +257,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ...risk,
         ...riskWorkflow,
       },
+      navigation: adjacentLogs,
       risk_doc: null,
       can_edit_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
       can_cancel_schedule: Number(log.user_id) === Number(auth.user.id) && isPendingBeforeSchedule(log),
