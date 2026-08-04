@@ -34,7 +34,11 @@ import {
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
-import { NOTIFICATION_ROUTE_RULES, getNotificationRouteRule } from '@/lib/notification-routing';
+import {
+  NOTIFICATION_ROUTE_RULES,
+  getNotificationRouteRule,
+  type NotificationCategory,
+} from '@/lib/notification-routing';
 
 // 类型定义
 interface Notification {
@@ -108,7 +112,17 @@ function parseRecipientBindings(value?: string | null): RecipientBindings {
 
 const recipientBindingTypes = NOTIFICATION_ROUTE_RULES
   .filter((rule) => rule.bindingConfigurable)
-  .map((rule) => ({ type: rule.type, title: rule.label, desc: rule.description }));
+  .map((rule) => ({
+    type: rule.type,
+    title: rule.label,
+    desc: rule.description,
+    category: rule.category,
+    categoryLabel: rule.categoryLabel,
+    channelLabel: rule.channelLabel,
+    actionLabel: rule.actionLabel,
+    href: rule.href,
+    target: rule.target,
+  }));
 
 const notificationRules = NOTIFICATION_ROUTE_RULES.map((rule) => ({
   type: rule.type,
@@ -118,11 +132,74 @@ const notificationRules = NOTIFICATION_ROUTE_RULES.map((rule) => ({
   mode: rule.mode,
   trigger: rule.trigger,
   target: rule.target,
+  category: rule.category,
+  categoryLabel: rule.categoryLabel,
+  actionLabel: rule.actionLabel,
+  href: rule.href,
   channel: rule.workbenchTodoLabel ? `工作台待办：${rule.workbenchTodoLabel} + ${rule.channelLabel}` : rule.channelLabel,
   detail: rule.detail,
   cron: rule.cron,
   workbenchTodoLabel: rule.workbenchTodoLabel,
 }));
+
+const notificationCategoryGroups: Array<{
+  category: NotificationCategory;
+  label: string;
+  desc: string;
+  tone: string;
+}> = [
+  { category: 'todo', label: '待办', desc: '需要某个人继续处理，进入工作台待办', tone: '#165DFF' },
+  { category: 'risk', label: '风险', desc: '异常、超期、风险确认类提醒，要求尽快确认', tone: '#F53F3F' },
+  { category: 'result', label: '结果', desc: '结算、付款、回款、工资等业务结果同步', tone: '#00A870' },
+  { category: 'cc', label: '抄送', desc: '公司级广播或结果知会，不进入个人待办', tone: '#722ED1' },
+];
+
+const notificationSettings = [
+  { key: 'dingtalk_enabled', label: '钉钉消息推送', desc: '开启后将通过钉钉发送通知消息' },
+  { key: 'dingtalk_robot_broadcast_enabled', label: '群机器人广播', desc: '仅用于项目日报汇总、系统公告等公司级广播' },
+  { key: 'certificate_reminder_enabled', label: '证件到期提醒', desc: '证件即将到期时发送钉钉通知' },
+  { key: 'visa_reminder_enabled', label: '签证流程提醒', desc: '签证提交、推进、超期和预算员确认时发送提醒' },
+  { key: 'settlement_reminder_enabled', label: '结算单提醒', desc: '新增结算单时发送钉钉通知' },
+  { key: 'new_record_reminder_enabled', label: '业务流转提醒', desc: '新增记录、月度分析、日报汇总等业务节点通知' },
+  { key: 'todo_digest_enabled', label: '待办汇总提醒', desc: '定时汇总每个人未读待办并推送到钉钉个人通知' },
+  { key: 'salary_reminder_enabled', label: '工资发放提醒', desc: '新增工资发放记录时发送钉钉通知' },
+  { key: 'payment_warning_enabled', label: '应付款预警', desc: '应付款到期、超期欠款时发送预警' },
+  { key: 'cost_warning_enabled', label: '成本预警', desc: '成本超支或利润为负时发送预警' },
+  { key: 'client_payment_reminder_enabled', label: '甲方回款提醒', desc: '新增甲方回款时发送钉钉通知' },
+  { key: 'supplier_payment_reminder_enabled', label: '供应商付款提醒', desc: '新增供应商付款时发送钉钉通知' },
+  { key: 'construction_log_comment_reminder_enabled', label: '施工日志评论提醒', desc: '新增施工日志评论时发送钉钉通知' },
+];
+
+function getSampleSummary(type: string) {
+  switch (type) {
+    case 'construction_log_alert':
+      return '南京中交智慧港施工日志识别到风险内容，需预算员确认。';
+    case 'construction_log_comment':
+      return '项目经理评论了今日施工日志，请相关人员补充说明。';
+    case 'monthly_analysis_workflow':
+      return '7月月度分析已流转到当前负责人，请处理。';
+    case 'visa_workflow':
+      return '签证单进入下一处理节点，请负责人办理。';
+    case 'visa_workflow_overdue':
+      return '签证单超过7天未推进，请负责人尽快处理。';
+    case 'construction_daily_report':
+      return '今日项目日报已生成，公司群内广播查看。';
+    case 'new_settlement':
+      return '某供应商新增结算，金额¥128,000，需经营人员知晓。';
+    case 'new_supplier_payment':
+      return '某供应商新增付款，金额¥50,000，已同步经营消息。';
+    case 'new_client_payment':
+      return '项目收到甲方回款，金额¥300,000，已同步经营消息。';
+    case 'new_worker_salary':
+      return '7月工资核算导入完成，已同步经营消息。';
+    case 'new_worker_payment':
+      return '7月工资发放导入完成，已同步经营消息。';
+    case 'todo_digest':
+      return '汇总当前未读待办，提醒负责人打开工作台处理。';
+    default:
+      return '业务动作触发后自动生成清晰摘要。';
+  }
+}
 
 // 获取通知图标
 function getNotificationIcon(type: string, severity: string) {
@@ -214,6 +291,13 @@ export default function NotificationsPage() {
   const [recipientUsers, setRecipientUsers] = useState<RecipientUser[]>([]);
   const [recipientBindings, setRecipientBindings] = useState<RecipientBindings>({});
   const [savingRecipientBindings, setSavingRecipientBindings] = useState(false);
+
+  const enabledRuleCount = notificationRules.filter((rule) =>
+    rule.settingKeys.some((key) => settings[key]?.enabled ?? true),
+  ).length;
+  const scheduledRuleCount = notificationRules.filter((rule) => Boolean(rule.cron)).length;
+  const availableRecipientCount = recipientUsers.filter((user) => user.dingtalkBound && user.dingtalkActive).length;
+  const boundRecipientCount = new Set(Object.values(recipientBindings).flat()).size;
 
   const fetchData = async () => {
     try {
@@ -680,118 +764,67 @@ export default function NotificationsPage() {
               </p>
             </div>
 
-            {/* 通知开关 */}
-            <div className="space-y-3 pt-2">
-              <p className="text-sm font-medium" style={{ color: '#1D2129' }}>通知开关</p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                { key: 'dingtalk_enabled', label: '钉钉消息推送', desc: '开启后将通过钉钉发送通知消息' },
-                { key: 'dingtalk_robot_broadcast_enabled', label: '群机器人广播', desc: '仅用于项目日报汇总、系统公告等公司级广播' },
-                { key: 'certificate_reminder_enabled', label: '证件到期提醒', desc: '证件即将到期时发送钉钉通知' },
-                { key: 'visa_reminder_enabled', label: '签证流程提醒', desc: '签证提交、推进、超期和预算员确认时发送提醒' },
-                { key: 'settlement_reminder_enabled', label: '结算单提醒', desc: '新增结算单时发送钉钉通知' },
-                { key: 'new_record_reminder_enabled', label: '业务流转提醒', desc: '新增记录、月度分析、日报汇总等业务节点通知' },
-                { key: 'todo_digest_enabled', label: '待办汇总提醒', desc: '定时汇总每个人未读待办并推送到钉钉个人通知' },
-                { key: 'salary_reminder_enabled', label: '工资发放提醒', desc: '新增工资发放记录时发送钉钉通知' },
-                { key: 'payment_warning_enabled', label: '应付款预警', desc: '应付款到期、超期欠款时发送预警' },
-                { key: 'cost_warning_enabled', label: '成本预警', desc: '成本超支或利润为负时发送预警' },
-                { key: 'client_payment_reminder_enabled', label: '甲方回款提醒', desc: '新增甲方回款时发送钉钉通知' },
-                { key: 'supplier_payment_reminder_enabled', label: '供应商付款提醒', desc: '新增供应商付款时发送钉钉通知' },
-                { key: 'construction_log_comment_reminder_enabled', label: '施工日志评论提醒', desc: '新增施工日志评论时发送钉钉通知' },
+                {
+                  label: '自动规则',
+                  value: `${enabledRuleCount}/${notificationRules.length}`,
+                  desc: '已启用 / 全部',
+                  color: '#165DFF',
+                },
+                {
+                  label: '可接收人员',
+                  value: `${availableRecipientCount}`,
+                  desc: '已绑定且未停用',
+                  color: '#00A870',
+                },
+                {
+                  label: '已绑定接收人',
+                  value: `${boundRecipientCount}`,
+                  desc: '消息类型已勾选',
+                  color: '#722ED1',
+                },
+                {
+                  label: '定时任务',
+                  value: `${scheduledRuleCount}`,
+                  desc: '需部署平台定时调用',
+                  color: '#FF7D00',
+                },
               ].map((item) => (
-                <div key={item.key} className="flex items-center justify-between p-3 rounded-lg" style={{ background: '#F7F8FA' }}>
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{item.label}</p>
-                    <p className="text-xs" style={{ color: '#86909C' }}>{item.desc}</p>
+                <div key={item.label} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs" style={{ color: '#86909C' }}>{item.label}</p>
+                      <p className="mt-1 text-xl font-semibold" style={{ color: item.color }}>{item.value}</p>
+                    </div>
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
                   </div>
-                  <Switch
-                    checked={settings[item.key]?.enabled ?? false}
-                    onCheckedChange={(checked) => toggleSetting(item.key, checked)}
-                    className="data-[state=checked]:bg-blue-500"
-                  />
+                  <p className="mt-2 text-xs" style={{ color: '#86909C' }}>{item.desc}</p>
                 </div>
               ))}
             </div>
 
-            {/* 消息接收人绑定 */}
+            {/* 通知开关 */}
             <div className="space-y-3 pt-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>消息接收人绑定</p>
-                  <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
-                    用于没有明确流程负责人的业务消息。已指定流程负责人的消息，仍优先推送给流程节点负责人。
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={saveRecipientBindings}
-                  disabled={savingRecipientBindings}
-                  className="flex items-center gap-1"
-                >
-                  {savingRecipientBindings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  保存接收人配置
-                </Button>
+              <p className="text-sm font-medium" style={{ color: '#1D2129' }}>通知开关</p>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {notificationSettings.map((item) => (
+                  <div key={item.key} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ background: '#F7F8FA' }}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{item.label}</p>
+                      <p className="text-xs leading-5" style={{ color: '#86909C' }}>{item.desc}</p>
+                    </div>
+                    <Switch
+                      checked={settings[item.key]?.enabled ?? false}
+                      onCheckedChange={(checked) => toggleSetting(item.key, checked)}
+                      className="shrink-0 data-[state=checked]:bg-blue-500"
+                    />
+                  </div>
+                ))}
               </div>
-
-              {recipientUsers.length === 0 ? (
-                <div className="rounded-lg border p-4 text-sm" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
-                  暂无可绑定用户，请先在用户与权限中维护人员。
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  {recipientBindingTypes.map((item) => {
-                    const selectedIds = recipientBindings[item.type] || [];
-                    return (
-                      <div key={item.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{item.title}</p>
-                              <Badge variant="outline">{selectedIds.length} 人</Badge>
-                            </div>
-                            <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{item.desc}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                          {recipientUsers.map((user) => {
-                            const disabled = !user.dingtalkBound || !user.dingtalkActive;
-                            const checked = selectedIds.includes(user.id);
-                            return (
-                              <label
-                                key={`${item.type}-${user.id}`}
-                                className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${
-                                  disabled ? 'opacity-60' : 'cursor-pointer hover:bg-gray-50'
-                                }`}
-                                style={{ borderColor: checked ? '#165DFF' : '#E5E6EB', background: checked ? '#F4F9FF' : '#FFFFFF' }}
-                              >
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <Checkbox
-                                    checked={checked}
-                                    disabled={disabled}
-                                    onCheckedChange={(value) => toggleRecipientBinding(item.type, user.id, value === true)}
-                                  />
-                                  <div className="min-w-0">
-                                    <p className="truncate font-medium" style={{ color: '#1D2129' }}>{user.name || user.username}</p>
-                                    <p className="truncate text-xs" style={{ color: '#86909C' }}>{user.role || '未设置角色'}</p>
-                                  </div>
-                                </div>
-                                {disabled && (
-                                  <Badge variant="secondary" className="shrink-0">
-                                    {!user.dingtalkBound ? '未绑定钉钉' : '已停用'}
-                                  </Badge>
-                                )}
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-4 pt-2">
               <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#BEDAFF', background: '#F4F9FF' }}>
                 <div>
                   <p className="text-sm font-medium" style={{ color: '#1D2129' }}>自动推送生效条件</p>
@@ -823,37 +856,134 @@ export default function NotificationsPage() {
                 </div>
               </div>
 
-              <div>
-                <p className="text-sm font-medium" style={{ color: '#1D2129' }}>自动推送规则台账</p>
-                <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
-                  用来核对“什么动作会推送、推给谁、走哪个钉钉通道”。标记为定时的规则，需要在部署平台配置定时调用。
-                </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>消息类型与接收人</p>
+                  <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
+                    按待办、风险、结果、抄送分组核对自动推送规则；可绑定接收人的消息可在对应卡片里直接勾选。
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={saveRecipientBindings}
+                  disabled={savingRecipientBindings}
+                  className="flex items-center gap-1"
+                >
+                  {savingRecipientBindings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  保存接收人配置
+                </Button>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {notificationRules.map((rule) => {
-                  const enabled = rule.settingKeys.some((key) => settings[key]?.enabled ?? true);
-                  const isScheduled = rule.mode.includes('定时');
+
+              {recipientUsers.length === 0 && (
+                <div className="rounded-lg border p-4 text-sm" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                  暂无可绑定用户，请先在用户与权限中维护人员。已有流程负责人或项目角色的消息仍会按业务规则推送。
+                </div>
+              )}
+
+              <div className="grid gap-4">
+                {notificationCategoryGroups.map((group) => {
+                  const rules = notificationRules.filter((rule) => rule.category === group.category);
+                  const enabledCount = rules.filter((rule) => rule.settingKeys.some((key) => settings[key]?.enabled ?? true)).length;
+                  if (rules.length === 0) return null;
+
                   return (
-                    <div key={rule.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={group.category} className="rounded-lg border" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
+                      <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB', background: '#FAFBFC' }}>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
-                            <Badge variant={isScheduled ? 'secondary' : 'outline'}>{rule.mode}</Badge>
-                            {rule.workbenchTodoLabel && <Badge variant="outline">工作台：{rule.workbenchTodoLabel}</Badge>}
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ background: group.tone }} />
+                            <p className="text-sm font-semibold" style={{ color: '#1D2129' }}>{group.label}</p>
+                            <Badge variant="outline">{enabledCount}/{rules.length} 已启用</Badge>
                           </div>
-                          <p className="mt-1 text-xs" style={{ color: '#4E5969' }}>接收对象：{rule.target}</p>
+                          <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{group.desc}</p>
                         </div>
-                        <Badge variant={enabled ? 'default' : 'secondary'}>{enabled ? '已启用' : '已停用'}</Badge>
+                        <Badge variant="secondary">{rules.length} 类消息</Badge>
                       </div>
-                      <div className="mt-3 space-y-2 rounded-md px-3 py-2 text-xs" style={{ background: '#F7F8FA', color: '#4E5969' }}>
-                        <p>触发条件：{rule.trigger}</p>
-                        <p>推送通道：{rule.channel}</p>
-                        {rule.cron && (
-                          <p className="break-all" style={{ color: '#165DFF' }}>定时接口：{rule.cron}</p>
-                        )}
+
+                      <div className="grid gap-3 p-3 lg:grid-cols-2">
+                        {rules.map((rule) => {
+                          const enabled = rule.settingKeys.some((key) => settings[key]?.enabled ?? true);
+                          const isScheduled = rule.mode.includes('定时');
+                          const bindingItem = recipientBindingTypes.find((item) => item.type === rule.type);
+                          const selectedIds = recipientBindings[rule.type] || [];
+
+                          return (
+                            <div key={rule.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: enabled ? '#FFFFFF' : '#F7F8FA' }}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
+                                    <Badge variant={isScheduled ? 'secondary' : 'outline'}>{rule.mode}</Badge>
+                                    {rule.workbenchTodoLabel && <Badge variant="outline">工作台：{rule.workbenchTodoLabel}</Badge>}
+                                  </div>
+                                  <p className="mt-1 text-xs leading-5" style={{ color: '#86909C' }}>{rule.detail}</p>
+                                </div>
+                                <Badge variant={enabled ? 'default' : 'secondary'} className="shrink-0">{enabled ? '已启用' : '已停用'}</Badge>
+                              </div>
+
+                              <div className="mt-3 grid gap-2 rounded-md px-3 py-2 text-xs" style={{ background: '#F7F8FA', color: '#4E5969' }}>
+                                <p>触发条件：{rule.trigger}</p>
+                                <p>接收对象：{rule.target}</p>
+                                <p>推送通道：{rule.channel}</p>
+                                <p>建议动作：{rule.actionLabel}</p>
+                                <p className="break-all">处理入口：{rule.href}</p>
+                                {rule.cron && (
+                                  <p className="break-all" style={{ color: '#165DFF' }}>定时接口：{rule.cron}</p>
+                                )}
+                              </div>
+
+                              <div className="mt-3 rounded-md border px-3 py-2 text-xs" style={{ borderColor: '#BEDAFF', background: '#F4F9FF', color: '#4E5969' }}>
+                                <p className="font-medium" style={{ color: '#1D2129' }}>钉钉样例</p>
+                                <p className="mt-1">【{rule.categoryLabel}】{rule.title}</p>
+                                <p className="mt-1">摘要：{getSampleSummary(rule.type)}</p>
+                                <p className="mt-1">入口：{rule.href}</p>
+                              </div>
+
+                              {bindingItem && recipientUsers.length > 0 && (
+                                <div className="mt-3">
+                                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                                    <p className="text-xs font-medium" style={{ color: '#1D2129' }}>绑定接收人</p>
+                                    <Badge variant="outline">{selectedIds.length} 人</Badge>
+                                  </div>
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    {recipientUsers.map((user) => {
+                                      const disabled = !user.dingtalkBound || !user.dingtalkActive;
+                                      const checked = selectedIds.includes(user.id);
+                                      return (
+                                        <label
+                                          key={`${rule.type}-${user.id}`}
+                                          className={`flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-xs ${
+                                            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-gray-50'
+                                          }`}
+                                          style={{ borderColor: checked ? '#165DFF' : '#E5E6EB', background: checked ? '#F4F9FF' : '#FFFFFF' }}
+                                        >
+                                          <div className="flex min-w-0 items-center gap-2">
+                                            <Checkbox
+                                              checked={checked}
+                                              disabled={disabled}
+                                              onCheckedChange={(value) => toggleRecipientBinding(rule.type, user.id, value === true)}
+                                            />
+                                            <div className="min-w-0">
+                                              <p className="truncate font-medium" style={{ color: '#1D2129' }}>{user.name || user.username}</p>
+                                              <p className="truncate" style={{ color: '#86909C' }}>{user.role || '未设置角色'}</p>
+                                            </div>
+                                          </div>
+                                          {disabled && (
+                                            <Badge variant="secondary" className="shrink-0">
+                                              {!user.dingtalkBound ? '未绑定' : '停用'}
+                                            </Badge>
+                                          )}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <p className="mt-2 text-xs leading-5" style={{ color: '#86909C' }}>{rule.detail}</p>
                     </div>
                   );
                 })}
