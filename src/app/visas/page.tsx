@@ -190,6 +190,7 @@ export default function VisasPage() {
   const searchParams = useSearchParams();
   const statusFromUrl = searchParams.get('status');
   const todoFromUrl = searchParams.get('todo');
+  const targetVisaId = searchParams.get('visa_id') || searchParams.get('visaId');
   const { toast } = useToast();
   const [visas, setVisas] = useState<Visa[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -214,6 +215,7 @@ export default function VisasPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [currentVisa, setCurrentVisa] = useState<Visa | null>(null);
+  const [openedVisaId, setOpenedVisaId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // 附件相关状态
@@ -594,6 +596,37 @@ export default function VisasPage() {
     }, 300); // 300ms 防抖
     return () => clearTimeout(timer);
   }, [searchKeyword, selectedProjectId, startDate, endDate]);
+
+  // 通知入口自动打开签证详情
+  useEffect(() => {
+    if (!targetVisaId || loading || openedVisaId === targetVisaId) return;
+
+    const openTargetVisa = async () => {
+      const listTarget = visas.find(visa => visa.id.toString() === targetVisaId);
+      if (listTarget) {
+        setCurrentVisa(listTarget);
+        setViewDialogOpen(true);
+        setOpenedVisaId(targetVisaId);
+        await loadAttachments(String(listTarget.id));
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/visas/${targetVisaId}`, { credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok || !data.visa) return;
+
+        setCurrentVisa(data.visa);
+        setViewDialogOpen(true);
+        setOpenedVisaId(targetVisaId);
+        await loadAttachments(String(data.visa.id));
+      } catch (error) {
+        console.error('打开通知签证详情失败:', error);
+      }
+    };
+
+    void openTargetVisa();
+  }, [targetVisaId, loading, openedVisaId, visas]);
 
   // 生成签证编号
   const generateVisaNumber = () => {

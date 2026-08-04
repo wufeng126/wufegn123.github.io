@@ -2,6 +2,7 @@
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, Search, RefreshCw, Trash2, Download, Upload, Filter, X, DollarSign, CreditCard, FileText, CheckCircle, ChevronRight, ChevronDown, FolderOpen, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -102,7 +103,18 @@ const emptyImportSummary: ImportSummary = {
   missingSalary: 0,
 };
 
+const normalizeYearMonthParam = (value?: string | null) => {
+  const match = /^(\d{4})-(\d{1,2})/.exec(value || '');
+  if (!match) return '';
+  return `${match[1]}-${match[2].padStart(2, '0')}`;
+};
+
 export default function WorkerPaymentsPage() {
+  const searchParams = useSearchParams();
+  const monthFromUrl = normalizeYearMonthParam(
+    searchParams.get('month') || searchParams.get('year_month') || searchParams.get('yearMonth')
+  );
+  const projectFromUrl = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
   const { toast } = useToast();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -126,8 +138,8 @@ export default function WorkerPaymentsPage() {
     remark: '',
   });
 
-  const [filterProject, setFilterProject] = useState('all');
-  const [filterYearMonth, setFilterYearMonth] = useState('all');
+  const [filterProject, setFilterProject] = useState(projectFromUrl);
+  const [filterYearMonth, setFilterYearMonth] = useState(monthFromUrl || 'all');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [workerSearchOpen, setWorkerSearchOpen] = useState(false);
 
@@ -138,6 +150,16 @@ export default function WorkerPaymentsPage() {
   useEffect(() => {
     setShowContent(true);
   }, []);
+
+  useEffect(() => {
+    const nextProject = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+    const nextMonth = normalizeYearMonthParam(
+      searchParams.get('month') || searchParams.get('year_month') || searchParams.get('yearMonth')
+    );
+
+    setFilterProject(prev => (prev === nextProject ? prev : nextProject));
+    if (nextMonth) setFilterYearMonth(prev => (prev === nextMonth ? prev : nextMonth));
+  }, [searchParams]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -457,6 +479,35 @@ export default function WorkerPaymentsPage() {
   }, [filteredPayments]);
 
   // 可选年月列表
+  useEffect(() => {
+    const nextProject = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+    const nextMonth = normalizeYearMonthParam(
+      searchParams.get('month') || searchParams.get('year_month') || searchParams.get('yearMonth')
+    );
+    if ((nextProject === 'all' && !nextMonth) || projectGroups.length === 0) return;
+
+    setExpandedProjects(prev => {
+      const next = new Set(prev);
+      projectGroups.forEach(group => {
+        const projectKey = group.projectId?.toString() || '__none__';
+        if (nextProject === 'all' || projectKey === nextProject) next.add(projectKey);
+      });
+      return next.size === prev.size ? prev : next;
+    });
+
+    setExpandedBatches(prev => {
+      const next = new Set(prev);
+      projectGroups.forEach(group => {
+        const projectKey = group.projectId?.toString() || '__none__';
+        if (nextProject !== 'all' && projectKey !== nextProject) return;
+        group.batches.forEach(batch => {
+          if (!nextMonth || batch.yearMonth === nextMonth) next.add(`${projectKey}_${batch.yearMonth}`);
+        });
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [projectGroups, searchParams]);
+
   const yearMonthOptions = useMemo(() => {
     const set = new Set<string>();
     payments.forEach(p => {

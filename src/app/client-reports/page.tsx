@@ -2,6 +2,7 @@
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -41,10 +42,14 @@ interface ChartData {
 }
 
 export default function ClientReportsPage() {
+  const searchParams = useSearchParams();
+  const projectFromUrl = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+  const targetReportId = searchParams.get('report_id') || searchParams.get('reportId');
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>(projectFromUrl);
   const [reports, setReports] = useState<ClientReport[]>([]);
+  const [highlightReportId, setHighlightReportId] = useState<number | null>(null);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -105,6 +110,26 @@ export default function ClientReportsPage() {
   useEffect(() => {
     fetchReports();
   }, [selectedProject]);
+
+  useEffect(() => {
+    const nextProject = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+    setSelectedProject(prev => (prev === nextProject ? prev : nextProject));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!targetReportId || loading || reports.length === 0) return;
+    const target = reports.find(report => report.id.toString() === targetReportId);
+    if (!target) return;
+
+    setHighlightReportId(target.id);
+    const timer = window.setTimeout(() => {
+      document.getElementById(`client-report-${target.id}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [reports, loading, targetReportId]);
 
   // 项目选择变更时更新税率
   useEffect(() => {
@@ -683,7 +708,11 @@ export default function ClientReportsPage() {
                   </TableHeader>
                   <TableBody>
                     {reports.map((report) => (
-                      <TableRow key={report.id}>
+                      <TableRow
+                        key={report.id}
+                        id={`client-report-${report.id}`}
+                        className={highlightReportId === report.id ? 'bg-blue-50 ring-1 ring-blue-200' : undefined}
+                      >
                         <TableCell className="font-medium">{report.project_name}</TableCell>
                         <TableCell>{report.report_date?.split('T')[0]}</TableCell>
                         <TableCell className="text-right font-medium text-blue-600">
@@ -737,7 +766,11 @@ export default function ClientReportsPage() {
               </div>
               <div className="space-y-3 md:hidden">
                 {reports.map((report) => (
-                  <div key={report.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                  <div
+                    key={report.id}
+                    id={`client-report-${report.id}`}
+                    className={`rounded-lg border bg-white p-3 shadow-sm ${highlightReportId === report.id ? 'border-blue-300 bg-blue-50 ring-1 ring-blue-200' : ''}`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="truncate font-medium text-gray-900">{report.project_name}</div>

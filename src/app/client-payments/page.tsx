@@ -2,6 +2,7 @@
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -43,10 +44,14 @@ interface TrendData {
 }
 
 export default function ClientPaymentsPage() {
+  const searchParams = useSearchParams();
+  const projectFromUrl = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+  const targetPaymentId = searchParams.get('payment_id') || searchParams.get('paymentId');
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>(projectFromUrl);
   const [payments, setPayments] = useState<ClientPayment[]>([]);
+  const [highlightPaymentId, setHighlightPaymentId] = useState<number | null>(null);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [totalAmount, setTotalAmount] = useState('0');
@@ -99,6 +104,26 @@ export default function ClientPaymentsPage() {
   useEffect(() => {
     fetchPayments();
   }, [selectedProject]);
+
+  useEffect(() => {
+    const nextProject = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+    setSelectedProject(prev => (prev === nextProject ? prev : nextProject));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!targetPaymentId || loading || payments.length === 0) return;
+    const target = payments.find(payment => payment.id.toString() === targetPaymentId);
+    if (!target) return;
+
+    setHighlightPaymentId(target.id);
+    const timer = window.setTimeout(() => {
+      document.getElementById(`client-payment-${target.id}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [payments, loading, targetPaymentId]);
 
   const fetchProjects = async () => {
     try {
@@ -594,7 +619,11 @@ export default function ClientPaymentsPage() {
                   </TableHeader>
                   <TableBody>
                     {payments.map((payment) => (
-                      <TableRow key={payment.id}>
+                      <TableRow
+                        key={payment.id}
+                        id={`client-payment-${payment.id}`}
+                        className={highlightPaymentId === payment.id ? 'bg-blue-50 ring-1 ring-blue-200' : undefined}
+                      >
                         <TableCell className="font-medium">{payment.project_name}</TableCell>
                         <TableCell>{payment.payment_date?.split('T')[0]}</TableCell>
                         <TableCell className="text-right font-medium text-green-600">
@@ -630,7 +659,11 @@ export default function ClientPaymentsPage() {
               </div>
               <div className="space-y-3 md:hidden">
                 {payments.map((payment) => (
-                  <div key={payment.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                  <div
+                    key={payment.id}
+                    id={`client-payment-${payment.id}`}
+                    className={`rounded-lg border bg-white p-3 shadow-sm ${highlightPaymentId === payment.id ? 'border-blue-300 bg-blue-50 ring-1 ring-blue-200' : ''}`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="truncate font-medium text-gray-900">{payment.project_name}</div>

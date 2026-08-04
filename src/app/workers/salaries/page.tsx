@@ -3,6 +3,7 @@ import React from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -67,7 +68,17 @@ interface SalaryImportIssue {
   reason: string;
 }
 
+const parseYearMonthParam = (value?: string | null) => {
+  const match = /^(\d{4})-(\d{1,2})/.exec(value || '');
+  if (!match) return { year: '', month: '' };
+  return { year: match[1], month: String(Number(match[2])) };
+};
+
 export default function WorkerSalariesPage() {
+  const searchParams = useSearchParams();
+  const monthFromUrl = searchParams.get('month') || searchParams.get('year_month') || searchParams.get('yearMonth');
+  const urlYearMonth = parseYearMonthParam(monthFromUrl);
+  const projectFromUrl = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
   const { toast } = useToast();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -78,9 +89,9 @@ export default function WorkerSalariesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
   
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
-  const [filterMonth, setFilterMonth] = useState((new Date().getMonth() + 1).toString());
-  const [filterProject, setFilterProject] = useState('all');
+  const [filterYear, setFilterYear] = useState(urlYearMonth.year || new Date().getFullYear().toString());
+  const [filterMonth, setFilterMonth] = useState(urlYearMonth.month || (new Date().getMonth() + 1).toString());
+  const [filterProject, setFilterProject] = useState(projectFromUrl);
   const [searchWorker, setSearchWorker] = useState('');
   
   const [formData, setFormData] = useState({
@@ -142,6 +153,17 @@ export default function WorkerSalariesPage() {
   useEffect(() => {
     fetchSalaries();
   }, [filterYear, filterMonth, filterProject]);
+
+  useEffect(() => {
+    const nextProject = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+    const nextYearMonth = parseYearMonthParam(
+      searchParams.get('month') || searchParams.get('year_month') || searchParams.get('yearMonth')
+    );
+
+    setFilterProject(prev => (prev === nextProject ? prev : nextProject));
+    if (nextYearMonth.year) setFilterYear(prev => (prev === nextYearMonth.year ? prev : nextYearMonth.year));
+    if (nextYearMonth.month) setFilterMonth(prev => (prev === nextYearMonth.month ? prev : nextYearMonth.month));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!loading) {
