@@ -29,6 +29,7 @@ import {
   MessageSquare,
   X,
   Save,
+  Search,
   TestTube,
   Zap,
 } from 'lucide-react';
@@ -87,6 +88,7 @@ interface RecipientUser {
 }
 
 type RecipientBindings = Record<string, number[]>;
+type RuleFilter = 'all' | 'enabled' | 'needsBinding';
 
 function parseRecipientBindings(value?: string | null): RecipientBindings {
   if (!value) return {};
@@ -109,6 +111,14 @@ function parseRecipientBindings(value?: string | null): RecipientBindings {
   } catch {
     return {};
   }
+}
+
+function normalizeRecipientBindings(bindings: RecipientBindings): RecipientBindings {
+  return Object.entries(bindings).reduce<RecipientBindings>((acc, [type, ids]) => {
+    const normalizedIds = Array.from(new Set(ids)).sort((a, b) => a - b);
+    if (normalizedIds.length > 0) acc[type] = normalizedIds;
+    return acc;
+  }, {});
 }
 
 const recipientBindingTypes = NOTIFICATION_ROUTE_RULES
@@ -185,6 +195,8 @@ const notificationListTabs: Array<{
   { value: 'result', label: '结果', category: 'result', countKey: 'result' },
   { value: 'cc', label: '抄送', category: 'cc', countKey: 'cc' },
 ];
+
+type NotificationRuleItem = (typeof notificationRules)[number];
 
 function getSampleSummary(type: string) {
   switch (type) {
@@ -336,14 +348,26 @@ export default function NotificationsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [recipientUsers, setRecipientUsers] = useState<RecipientUser[]>([]);
   const [recipientBindings, setRecipientBindings] = useState<RecipientBindings>({});
+  const [savedRecipientBindings, setSavedRecipientBindings] = useState<RecipientBindings>({});
+  const [ruleKeyword, setRuleKeyword] = useState('');
+  const [ruleFilter, setRuleFilter] = useState<RuleFilter>('all');
   const [savingRecipientBindings, setSavingRecipientBindings] = useState(false);
 
   const enabledRuleCount = notificationRules.filter((rule) =>
     rule.settingKeys.some((key) => settings[key]?.enabled ?? true),
   ).length;
   const scheduledRuleCount = notificationRules.filter((rule) => Boolean(rule.cron)).length;
-  const availableRecipientCount = recipientUsers.filter((user) => user.dingtalkBound && user.dingtalkActive).length;
+  const availableRecipientIds = recipientUsers
+    .filter((user) => user.dingtalkBound && user.dingtalkActive)
+    .map((user) => user.id);
+  const availableRecipientCount = availableRecipientIds.length;
   const boundRecipientCount = new Set(Object.values(recipientBindings).flat()).size;
+  const hasRecipientBindingChanges = JSON.stringify(normalizeRecipientBindings(recipientBindings)) !== JSON.stringify(normalizeRecipientBindings(savedRecipientBindings));
+  const unconfiguredBindingRuleCount = notificationRules.filter((rule) => {
+    const enabled = rule.settingKeys.some((key) => settings[key]?.enabled ?? true);
+    const configurable = recipientBindingTypes.some((item) => item.type === rule.type);
+    return enabled && configurable && (recipientBindings[rule.type] || []).length === 0;
+  }).length;
 
   const fetchData = async () => {
     try {
@@ -381,7 +405,9 @@ export default function NotificationsPage() {
       setSettings(data.settings || {});
       setWebhookUrl(data.settings?.dingtalk_webhook?.value || '');
       setDingtalkSecret(data.settings?.dingtalk_secret?.value || '');
-      setRecipientBindings(parseRecipientBindings(data.settings?.dingtalk_recipient_bindings?.value));
+      const parsedBindings = parseRecipientBindings(data.settings?.dingtalk_recipient_bindings?.value);
+      setRecipientBindings(parsedBindings);
+      setSavedRecipientBindings(parsedBindings);
     } catch (error) {
       console.error('获取设置失败:', error);
     }
@@ -402,11 +428,17 @@ export default function NotificationsPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       fetchData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, page]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
       fetchSettings();
       fetchRecipientUsers();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [activeTab, page]);
+  }, []);
 
   const switchListTab = (value: string) => {
     setActiveTab(value);
@@ -419,6 +451,56 @@ export default function NotificationsPage() {
     if (tab.value === 'warning') return stats.warning + stats.danger;
     if (tab.countKey) return stats.categoryCounts?.[tab.countKey] || 0;
     return 0;
+  };
+
+  const isRuleBindingConfigurable = (type: string) => recipientBindingTypes.some((item) => item.type === type);
+
+  const matchesNotificationRule = (rule: NotificationRuleItem) => {
+    const keyword = ruleKeyword.trim().toLowerCase();
+    const enabled = rule.settingKeys.some((key) => settings[key]?.enabled ?? true);
+    const needsBinding = isRuleBindingConfigurable(rule.type) && enabled && (recipientBindings[rule.type] || []).length === 0;
+    const text = [
+      rule.title,
+      rule.categoryLabel,
+      rule.mode,
+      rule.trigger,
+      rule.target,
+      rule.channel,
+      rule.actionLabel,
+      rule.detail,
+      rule.href,
+    ].join(' ').toLowerCase();
+
+    if (ruleFilter === 'enabled' && !enabled) return false;
+    if (ruleFilter === 'needsBinding' && !needsBinding) return false;
+    return !keyword || text.includes(keyword);
+  };
+
+  const filteredNotificationCategoryGroups = notificationCategoryGroups
+    .map((group) => {
+      const allRules = notificationRules.filter((rule) => rule.category === group.category);
+      return {
+        ...group,
+        allRules,
+        rules: allRules.filter(matchesNotificationRule),
+      };
+    })
+    .filter((group) => group.allRules.length > 0 && group.rules.length > 0);
+
+  const visibleRuleCount = filteredNotificationCategoryGroups.reduce((total, group) => total + group.rules.length, 0);
+
+  const setRuleRecipients = (messageType: string, mode: 'all' | 'none') => {
+    setRecipientBindings((prev) => {
+      if (mode === 'none') {
+        const rest = { ...prev };
+        delete rest[messageType];
+        return rest;
+      }
+      return {
+        ...prev,
+        [messageType]: availableRecipientIds,
+      };
+    });
   };
 
   // 标记已读
@@ -931,16 +1013,21 @@ export default function NotificationsPage() {
                     按待办、风险、结果、抄送分组核对自动推送规则；可绑定接收人的消息可在对应卡片里直接勾选。
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={saveRecipientBindings}
-                  disabled={savingRecipientBindings}
-                  className="flex items-center gap-1"
-                >
-                  {savingRecipientBindings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  保存接收人配置
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasRecipientBindingChanges && (
+                    <Badge variant="secondary" className="bg-orange-50 text-orange-700">有未保存修改</Badge>
+                  )}
+                  <Button
+                    variant={hasRecipientBindingChanges ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={saveRecipientBindings}
+                    disabled={savingRecipientBindings || !hasRecipientBindingChanges}
+                    className="flex items-center gap-1"
+                  >
+                    {savingRecipientBindings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    保存接收人配置
+                  </Button>
+                </div>
               </div>
 
               {recipientUsers.length === 0 && (
@@ -949,12 +1036,50 @@ export default function NotificationsPage() {
                 </div>
               )}
 
-              <div className="grid gap-4">
-                {notificationCategoryGroups.map((group) => {
-                  const rules = notificationRules.filter((rule) => rule.category === group.category);
-                  const enabledCount = rules.filter((rule) => rule.settingKeys.some((key) => settings[key]?.enabled ?? true)).length;
-                  if (rules.length === 0) return null;
+              {unconfiguredBindingRuleCount > 0 && (
+                <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#FFD8B8', background: '#FFF7E8', color: '#AD5A00' }}>
+                  还有 {unconfiguredBindingRuleCount} 类已启用消息没有绑定固定接收人；如业务流程已有负责人仍会按负责人推送。
+                </div>
+              )}
 
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: '#86909C' }} />
+                  <Input
+                    value={ruleKeyword}
+                    onChange={(event) => setRuleKeyword(event.target.value)}
+                    placeholder="搜索消息类型、触发条件、接收对象"
+                    className="pl-9"
+                  />
+                </div>
+                <div className="flex gap-2 overflow-x-auto">
+                  {[
+                    { value: 'all', label: '全部规则' },
+                    { value: 'enabled', label: '已启用' },
+                    { value: 'needsBinding', label: '未配接收人' },
+                  ].map((item) => (
+                    <Button
+                      key={item.value}
+                      type="button"
+                      variant={ruleFilter === item.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setRuleFilter(item.value as RuleFilter)}
+                      className="shrink-0"
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {visibleRuleCount === 0 && (
+                  <div className="rounded-lg border p-4 text-sm" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                    没有匹配的消息规则，请调整搜索关键词或筛选条件。
+                  </div>
+                )}
+                {filteredNotificationCategoryGroups.map((group) => {
+                  const enabledCount = group.allRules.filter((rule) => rule.settingKeys.some((key) => settings[key]?.enabled ?? true)).length;
                   return (
                     <div key={group.category} className="rounded-lg border" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
                       <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB', background: '#FAFBFC' }}>
@@ -962,19 +1087,23 @@ export default function NotificationsPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="h-2.5 w-2.5 rounded-full" style={{ background: group.tone }} />
                             <p className="text-sm font-semibold" style={{ color: '#1D2129' }}>{group.label}</p>
-                            <Badge variant="outline">{enabledCount}/{rules.length} 已启用</Badge>
+                            <Badge variant="outline">{enabledCount}/{group.allRules.length} 已启用</Badge>
+                            {group.rules.length !== group.allRules.length && (
+                              <Badge variant="secondary">当前显示 {group.rules.length}</Badge>
+                            )}
                           </div>
                           <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{group.desc}</p>
                         </div>
-                        <Badge variant="secondary">{rules.length} 类消息</Badge>
+                        <Badge variant="secondary">{group.allRules.length} 类消息</Badge>
                       </div>
 
                       <div className="grid gap-3 p-3 lg:grid-cols-2">
-                        {rules.map((rule) => {
+                        {group.rules.map((rule) => {
                           const enabled = rule.settingKeys.some((key) => settings[key]?.enabled ?? true);
                           const isScheduled = rule.mode.includes('定时');
                           const bindingItem = recipientBindingTypes.find((item) => item.type === rule.type);
                           const selectedIds = recipientBindings[rule.type] || [];
+                          const needsBinding = Boolean(bindingItem) && enabled && selectedIds.length === 0;
 
                           return (
                             <div key={rule.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: enabled ? '#FFFFFF' : '#F7F8FA' }}>
@@ -984,6 +1113,7 @@ export default function NotificationsPage() {
                                     <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
                                     <Badge variant={isScheduled ? 'secondary' : 'outline'}>{rule.mode}</Badge>
                                     {rule.workbenchTodoLabel && <Badge variant="outline">工作台：{rule.workbenchTodoLabel}</Badge>}
+                                    {needsBinding && <Badge variant="secondary" className="bg-orange-50 text-orange-700">未配接收人</Badge>}
                                   </div>
                                   <p className="mt-1 text-xs leading-5" style={{ color: '#86909C' }}>{rule.detail}</p>
                                 </div>
@@ -1013,6 +1143,26 @@ export default function NotificationsPage() {
                                   <div className="mb-2 flex flex-wrap items-center gap-2">
                                     <p className="text-xs font-medium" style={{ color: '#1D2129' }}>绑定接收人</p>
                                     <Badge variant="outline">{selectedIds.length} 人</Badge>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setRuleRecipients(rule.type, 'all')}
+                                      disabled={availableRecipientIds.length === 0}
+                                      className="h-7 px-2 text-xs"
+                                    >
+                                      全选可接收
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setRuleRecipients(rule.type, 'none')}
+                                      disabled={selectedIds.length === 0}
+                                      className="h-7 px-2 text-xs"
+                                    >
+                                      清空
+                                    </Button>
                                   </div>
                                   <div className="grid gap-2 sm:grid-cols-2">
                                     {recipientUsers.map((user) => {
