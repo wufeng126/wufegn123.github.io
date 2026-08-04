@@ -6,6 +6,7 @@ export type WorkbenchTodoKey =
   | 'businessNotificationsPending';
 
 export type DingTalkChannel = 'personal' | 'robot' | 'none';
+export type NotificationCategory = 'todo' | 'risk' | 'result' | 'cc';
 
 export type NotificationRouteRule = {
   type: string;
@@ -17,6 +18,9 @@ export type NotificationRouteRule = {
   target: string;
   channel: DingTalkChannel;
   channelLabel: string;
+  category: NotificationCategory;
+  categoryLabel: string;
+  actionLabel: string;
   detail: string;
   href: string;
   workbenchTodoKey?: WorkbenchTodoKey;
@@ -37,6 +41,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '项目绑定预算员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'risk',
+    categoryLabel: '风险',
+    actionLabel: '去确认',
     detail: '按项目角色中的预算员接收，不因超级管理员可看全部项目而默认接收全部提醒。',
     href: '/construction-logs?tab=risks&status=pending',
     workbenchTodoKey: 'constructionLogsPending',
@@ -54,6 +61,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '日志作者、项目预算员、项目经理等相关人员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'todo',
+    categoryLabel: '待办',
+    actionLabel: '查看评论',
     detail: '评论提醒落到施工日志待办，提醒相关人员及时查看和补充说明。',
     href: '/construction-logs?tab=logs',
     workbenchTodoKey: 'constructionLogsPending',
@@ -71,6 +81,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '当前流程节点负责人',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'todo',
+    categoryLabel: '待办',
+    actionLabel: '去处理',
     detail: '按流程当前负责人推送，工作台进入月度分析待处理，避免和普通知识库经验混在一起。',
     href: '/knowledge?status=pending',
     workbenchTodoKey: 'monthlyReportsPending',
@@ -88,6 +101,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '项目经理 / 原发起预算员 / 当前负责人',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'todo',
+    categoryLabel: '待办',
+    actionLabel: '去办理',
     detail: '签证流转只提醒当前需要推进的人，工作台进入签证待办理。',
     href: '/visas?todo=mine',
     workbenchTodoKey: 'visasPending',
@@ -105,6 +121,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '当前负责人',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'risk',
+    categoryLabel: '风险',
+    actionLabel: '去推进',
     detail: '用于催办长时间停滞的签证事项，仍按当前负责人精准推送。',
     href: '/visas?todo=mine',
     workbenchTodoKey: 'visasPending',
@@ -123,6 +142,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '公司全员查看，群内广播',
     channel: 'robot',
     channelLabel: '钉钉群机器人',
+    category: 'cc',
+    categoryLabel: '抄送',
+    actionLabel: '查看日报',
     detail: '日报汇总属于公司级信息，只走群机器人广播，不进入个人待办，避免每个人收到重复个人催办。',
     href: '/construction-logs?tab=daily-reports',
     cron: '/api/construction-daily-reports/generate',
@@ -137,6 +159,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '消息类型绑定接收人，或业务流程指定人员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'result',
+    categoryLabel: '结果',
+    actionLabel: '查看结算',
     detail: '消息内容带供应商、项目、结算金额摘要，工作台进入经营消息待查看。',
     href: '/supplier-contracts/settlement',
     workbenchTodoKey: 'businessNotificationsPending',
@@ -154,6 +179,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '消息类型绑定接收人，或业务流程指定人员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'result',
+    categoryLabel: '结果',
+    actionLabel: '查看付款',
     detail: '用于让经营、预算、财务及时知道供应商付款变化。',
     href: '/supplier-contracts/payment',
     workbenchTodoKey: 'businessNotificationsPending',
@@ -171,6 +199,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '消息类型绑定接收人，或业务流程指定人员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'result',
+    categoryLabel: '结果',
+    actionLabel: '查看回款',
     detail: '用于同步项目回款变化，消息摘要带项目和回款金额。',
     href: '/client-payments',
     workbenchTodoKey: 'businessNotificationsPending',
@@ -188,6 +219,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '消息类型绑定接收人，或业务流程指定人员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'result',
+    categoryLabel: '结果',
+    actionLabel: '查看工资核算',
     detail: '工资类消息不发群，避免工资信息扩散。',
     href: '/workers/salaries',
     workbenchTodoKey: 'businessNotificationsPending',
@@ -205,6 +239,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '消息类型绑定接收人，或业务流程指定人员',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'result',
+    categoryLabel: '结果',
+    actionLabel: '查看工资发放',
     detail: '工资发放消息只推个人工作通知，不进入群广播。',
     href: '/workers/payments',
     workbenchTodoKey: 'businessNotificationsPending',
@@ -222,6 +259,9 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     target: '当前待办负责人',
     channel: 'personal',
     channelLabel: '钉钉个人工作通知',
+    category: 'todo',
+    categoryLabel: '待办',
+    actionLabel: '打开工作台',
     detail: '汇总内容只包含能在工作台承接的未读事项，减少杂乱消息。',
     href: '/workspace',
     cron: '/api/notifications/todo-digest',

@@ -5,6 +5,7 @@
  */
 
 import * as crypto from 'crypto';
+import { getNotificationRouteRule } from '@/lib/notification-routing';
 
 // 钉钉消息签名（加签模式）
 function sign(secret: string): { timestamp: string; sign: string } {
@@ -111,34 +112,85 @@ export interface NotificationParams {
   extra?: Record<string, string>;
 }
 
+function getSeverityLabel(severity: NotificationParams['severity']) {
+  if (severity === 'danger') return '严重';
+  if (severity === 'warning') return '警告';
+  return '普通';
+}
+
+function compactMessageText(value: string, maxLength = 180) {
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function normalizeTitle(categoryLabel: string, title: string) {
+  const cleanTitle = title.replace(/^【[^】]+】/, '').trim();
+  return `【${categoryLabel}】${cleanTitle}`;
+}
+
+function getFallbackCategoryLabel(severity: NotificationParams['severity']) {
+  if (severity === 'danger' || severity === 'warning') return '风险';
+  return '通知';
+}
+
 /**
  * 根据通知类型生成钉钉 Markdown 内容
  */
 export function formatDingTalkMessage(params: NotificationParams): { title: string; text: string } {
   const { type, title, content, severity, projectName, extra } = params;
+  const routeRule = getNotificationRouteRule(type);
+  const categoryLabel = extra?.消息分类 || routeRule?.categoryLabel || getFallbackCategoryLabel(severity);
+  const messageTitle = normalizeTitle(categoryLabel, title);
+  const severityLabel = getSeverityLabel(severity);
+  const summary = extra?.业务摘要 || compactMessageText(content);
+  const responsibility = extra?.责任人 || extra?.提醒对象 || routeRule?.target || '';
+  const actionLabel = extra?.建议动作 || routeRule?.actionLabel || '';
+  const actionHref = extra?.处理入口 || routeRule?.href || '';
+  const amount = extra?.金额 || '';
 
-  const severityEmoji = severity === 'danger' ? '🔴' : severity === 'warning' ? '🟡' : '🔵';
-  const severityLabel = severity === 'danger' ? '严重' : severity === 'warning' ? '警告' : '信息';
-
-  let md = `### ${severityEmoji} ${title}\n\n`;
-  md += `> **级别**: ${severityLabel}\n\n`;
+  let md = `### ${messageTitle}\n\n`;
+  md += `**摘要**：${summary}\n\n`;
+  md += `- **消息分类**：${categoryLabel}\n`;
+  md += `- **级别**：${severityLabel}\n`;
 
   if (projectName) {
-    md += `> **项目**: ${projectName}\n\n`;
+    md += `- **项目**：${projectName}\n`;
   }
 
-  md += `${content}\n\n`;
+  if (amount) {
+    md += `- **金额**：${amount}\n`;
+  }
+
+  if (responsibility) {
+    md += `- **责任人**：${responsibility}\n`;
+  }
+
+  if (actionLabel) {
+    md += `- **建议动作**：${actionLabel}\n`;
+  }
+
+  if (actionHref) {
+    md += `- **处理入口**：${actionHref}\n`;
+  }
+
+  const compactContent = compactMessageText(content, 300);
+  if (compactContent && compactContent !== summary) {
+    md += `\n**详情**：${compactContent}\n`;
+  }
 
   if (extra) {
+    const shownKeys = new Set(['消息分类', '业务摘要', '责任人', '提醒对象', '金额', '建议动作', '处理入口']);
+    const extraLines = Object.entries(extra).filter(([key, value]) => !shownKeys.has(key) && value);
+    if (extraLines.length > 0) md += '\n';
     for (const [key, value] of Object.entries(extra)) {
-      md += `- **${key}**: ${value}\n`;
+      if (shownKeys.has(key) || !value) continue;
+      md += `- **${key}**：${value}\n`;
     }
-    md += '\n';
   }
 
-  md += `---\n⏰ ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
+  md += `\n---\n时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
 
-  return { title, text: md };
+  return { title: messageTitle, text: md };
 }
 
 // ===== 业务通知快捷方法 =====

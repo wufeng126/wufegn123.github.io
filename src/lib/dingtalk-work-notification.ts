@@ -1,6 +1,7 @@
 import { getDingTalkConfig } from '@/lib/dingtalk-config';
 import { callDingTalkApi } from '@/lib/dingtalk-service';
 import { type NotificationParams } from '@/lib/dingtalk';
+import { getNotificationRouteRule } from '@/lib/notification-routing';
 
 type Severity = NotificationParams['severity'];
 
@@ -20,9 +21,19 @@ interface DingTalkAsyncSendResponse {
 }
 
 function getSeverityLabel(severity: Severity) {
-  if (severity === 'danger') return '紧急';
-  if (severity === 'warning') return '重要';
+  if (severity === 'danger') return '严重';
+  if (severity === 'warning') return '警告';
   return '通知';
+}
+
+function compactText(value: string, maxLength = 220) {
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function normalizeTitle(categoryLabel: string, title: string) {
+  const cleanTitle = title.replace(/^【[^】]+】/, '').trim();
+  return `【${categoryLabel}】${cleanTitle}`;
 }
 
 function chunk<T>(items: T[], size: number) {
@@ -39,14 +50,30 @@ export function isDingTalkWorkNotificationConfigured() {
 }
 
 export function formatDingTalkWorkText(params: NotificationParams) {
+  const routeRule = getNotificationRouteRule(params.type);
+  const categoryLabel = params.extra?.消息分类 || routeRule?.categoryLabel || getSeverityLabel(params.severity);
+  const summary = params.extra?.业务摘要 || compactText(params.content);
+  const responsibility = params.extra?.责任人 || params.extra?.提醒对象 || routeRule?.target || '';
+  const actionLabel = params.extra?.建议动作 || routeRule?.actionLabel || '';
+  const actionHref = params.extra?.处理入口 || routeRule?.href || '';
+  const amount = params.extra?.金额 || '';
+  const shownKeys = new Set(['消息分类', '业务摘要', '责任人', '提醒对象', '金额', '建议动作', '处理入口']);
+
   const lines = [
-    `【${getSeverityLabel(params.severity)}】${params.title}`,
+    normalizeTitle(categoryLabel, params.title),
+    `摘要：${summary}`,
+    `消息分类：${categoryLabel}`,
+    `级别：${getSeverityLabel(params.severity)}`,
     params.projectName ? `项目：${params.projectName}` : '',
-    '',
-    params.content,
-    '',
+    amount ? `金额：${amount}` : '',
+    responsibility ? `责任人：${responsibility}` : '',
+    actionLabel ? `建议动作：${actionLabel}` : '',
+    actionHref ? `处理入口：${actionHref}` : '',
+    compactText(params.content) !== summary ? `详情：${compactText(params.content, 300)}` : '',
     ...(params.extra
-      ? Object.entries(params.extra).map(([key, value]) => `${key}：${value}`)
+      ? Object.entries(params.extra)
+        .filter(([key, value]) => !shownKeys.has(key) && value)
+        .map(([key, value]) => `${key}：${value}`)
       : []),
     `时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`,
   ].filter((line) => line !== '');

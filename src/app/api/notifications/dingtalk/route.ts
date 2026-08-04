@@ -5,6 +5,7 @@ import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
 import { shouldUsePersonalWorkNotice, shouldUseRobotBroadcast } from '@/lib/notification-routing';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { buildNotificationExtra } from '@/lib/business-notification';
 
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseClient();
@@ -135,12 +136,22 @@ export async function POST(request: NextRequest) {
 
     for (const notification of notifications) {
       const projectName = notification.project_id ? projectMap.get(notification.project_id) : undefined;
+      const metadata = notification.metadata && typeof notification.metadata === 'object' && !Array.isArray(notification.metadata)
+        ? notification.metadata as Record<string, unknown>
+        : undefined;
       const params: NotificationParams = {
         type: notification.type,
         title: notification.title,
         content: notification.content,
         severity: notification.severity || 'info',
         projectName,
+        extra: buildNotificationExtra({
+          type: notification.type,
+          title: notification.title,
+          content: notification.content,
+          projectName,
+          metadata,
+        }),
       };
 
       const { title, text } = formatDingTalkMessage(params);

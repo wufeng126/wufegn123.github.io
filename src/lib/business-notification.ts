@@ -3,6 +3,7 @@ import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParam
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
 import {
+  getNotificationRouteRule,
   isNotificationTypeEnabled,
   shouldUsePersonalWorkNotice,
   shouldUseRobotBroadcast,
@@ -169,13 +170,17 @@ export function buildNotificationExtra(params: {
 }): Record<string, string> | undefined {
   const { metadata } = params;
   const extra: Record<string, string> = {};
+  const routeRule = getNotificationRouteRule(params.type);
+
+  if (routeRule?.categoryLabel) extra['消息分类'] = routeRule.categoryLabel;
+
   const summary = buildBusinessSummary(params);
   if (summary) extra['业务摘要'] = summary;
 
   const targetNames = Array.isArray(metadata?.targetNames)
     ? metadata.targetNames.map(toText).filter(Boolean).join('、')
     : '';
-  if (targetNames) extra['提醒对象'] = targetNames;
+  if (targetNames) extra['责任人'] = targetNames;
 
   const businessObject = pickText(metadata, [
     'supplierName',
@@ -219,6 +224,11 @@ export function buildNotificationExtra(params: {
 
   const status = pickText(metadata, ['status', 'state', 'to', 'workflowState', 'workflow_state']);
   if (status) extra['当前状态'] = status;
+
+  const customAction = pickText(metadata, ['actionLabel', 'action_label']);
+  const customHref = pickText(metadata, ['actionHref', 'action_href', 'href', 'url']);
+  if (customAction || routeRule?.actionLabel) extra['建议动作'] = customAction || routeRule?.actionLabel || '';
+  if (customHref || routeRule?.href) extra['处理入口'] = customHref || routeRule?.href || '';
 
   return Object.keys(extra).length > 0 ? extra : undefined;
 }
