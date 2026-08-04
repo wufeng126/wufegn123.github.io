@@ -183,7 +183,7 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     categoryLabel: '结果',
     actionLabel: '查看付款',
     detail: '用于让经营、预算、财务及时知道供应商付款变化。',
-    href: '/supplier-contracts/payment',
+    href: '/payments',
     workbenchTodoKey: 'businessNotificationsPending',
     workbenchTodoLabel: '经营消息待查看',
     bindingConfigurable: true,

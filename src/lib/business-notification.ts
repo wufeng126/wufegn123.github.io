@@ -8,6 +8,7 @@ import {
   shouldUsePersonalWorkNotice,
   shouldUseRobotBroadcast,
 } from '@/lib/notification-routing';
+import { buildNotificationActionHref } from '@/lib/notification-link';
 
 type NotificationSeverity = 'info' | 'warning' | 'danger';
 type NotificationRow = { id?: number | string; recipient_user_id?: number | null };
@@ -166,6 +167,9 @@ export function buildNotificationExtra(params: {
   title: string;
   content: string;
   projectName?: string;
+  projectId?: number | string | null;
+  relatedId?: number | string | null;
+  relatedType?: string | null;
   metadata?: Record<string, unknown>;
 }): Record<string, string> | undefined {
   const { metadata } = params;
@@ -226,9 +230,15 @@ export function buildNotificationExtra(params: {
   if (status) extra['当前状态'] = status;
 
   const customAction = pickText(metadata, ['actionLabel', 'action_label']);
-  const customHref = pickText(metadata, ['actionHref', 'action_href', 'href', 'url']);
+  const actionHref = buildNotificationActionHref({
+    type: params.type,
+    projectId: params.projectId,
+    relatedId: params.relatedId,
+    relatedType: params.relatedType,
+    metadata,
+  });
   if (customAction || routeRule?.actionLabel) extra['建议动作'] = customAction || routeRule?.actionLabel || '';
-  if (customHref || routeRule?.href) extra['处理入口'] = customHref || routeRule?.href || '';
+  if (actionHref) extra['处理入口'] = actionHref;
 
   return Object.keys(extra).length > 0 ? extra : undefined;
 }
@@ -362,7 +372,16 @@ export async function pushBusinessNotification(params: {
       projectName = project?.name;
     }
 
-    const extra = buildNotificationExtra({ type, title, content, projectName, metadata });
+    const extra = buildNotificationExtra({
+      type,
+      title,
+      content,
+      projectName,
+      projectId,
+      relatedId,
+      relatedType,
+      metadata,
+    });
     const notifParams: NotificationParams = {
       type,
       title,

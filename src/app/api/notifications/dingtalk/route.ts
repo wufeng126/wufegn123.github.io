@@ -150,6 +150,9 @@ export async function POST(request: NextRequest) {
           title: notification.title,
           content: notification.content,
           projectName,
+          projectId: notification.project_id,
+          relatedId: notification.related_id,
+          relatedType: notification.related_type,
           metadata,
         }),
       };

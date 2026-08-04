@@ -40,6 +40,7 @@ import {
   getNotificationRouteRule,
   type NotificationCategory,
 } from '@/lib/notification-routing';
+import { buildNotificationActionHref } from '@/lib/notification-link';
 
 // 类型定义
 interface Notification {
@@ -740,25 +741,7 @@ export default function NotificationsPage() {
 
   // 获取跳转链接
   const getLink = (notification: Notification): string => {
-    const { type, related_id } = notification;
-    const routeRule = getNotificationRouteRule(type);
-    if (routeRule?.href) {
-      if (type === 'construction_log_comment' && related_id) return `/construction-logs/${related_id}`;
-      return routeRule.href;
-    }
-    if (type.includes('certificate')) return '/certificates';
-    if (type.includes('visa')) return '/visas';
-    if (type === 'new_report') return '/client-reports';
-    if (type === 'new_payment') return '/client-payments';
-    if (type === 'new_worker') return '/workers/roster';
-    if (type === 'cost_warning') return '/cost-center';
-    if (type === 'new_settlement') return '/data-board/supplier-cost';
-    if (type === 'new_worker_payment') return '/workers/payments';
-    if (type === 'new_worker_salary') return '/workers/salaries';
-    if (type === 'new_client_payment') return '/client-payments';
-    if (type === 'new_supplier_payment') return '/data-board/supplier-cost';
-    if (type === 'construction_log_comment') return `/construction-logs/${related_id || ''}`;
-    return '/notifications';
+    return buildNotificationActionHref(notification);
   };
 
   return (

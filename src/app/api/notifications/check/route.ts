@@ -125,7 +125,16 @@ async function createAndPushNotification(client: any, type: string, title: strin
           content,
           severity: severity as 'info' | 'warning' | 'danger',
           projectName,
-          extra: buildNotificationExtra({ type, title, content, projectName, metadata }),
+          extra: buildNotificationExtra({
+            type,
+            title,
+            content,
+            projectName,
+            projectId,
+            relatedId,
+            relatedType,
+            metadata,
+          }),
         };
         const { title: msgTitle, text } = formatDingTalkMessage(params);
         const result = await sendDingTalkNotification(dingtalkSetting.setting_value, secretSetting?.setting_value, msgTitle, text);
