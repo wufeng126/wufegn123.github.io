@@ -79,6 +79,23 @@ function compactText(value: string, maxLength = 120): string {
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
+function withNotificationId(href: string, notificationId?: number | string | null) {
+  const id = Number(notificationId);
+  if (!href || !href.startsWith('/') || !Number.isInteger(id) || id <= 0) return href;
+
+  const hashIndex = href.indexOf('#');
+  const beforeHash = hashIndex >= 0 ? href.slice(0, hashIndex) : href;
+  const hash = hashIndex >= 0 ? href.slice(hashIndex) : '';
+  const queryIndex = beforeHash.indexOf('?');
+  const path = queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash;
+  const query = queryIndex >= 0 ? beforeHash.slice(queryIndex + 1) : '';
+  const searchParams = new URLSearchParams(query);
+  searchParams.set('notification_id', String(id));
+
+  const queryString = searchParams.toString();
+  return `${path}${queryString ? `?${queryString}` : ''}${hash}`;
+}
+
 function buildBusinessSummary(params: {
   type: string;
   title: string;
@@ -170,6 +187,7 @@ export function buildNotificationExtra(params: {
   projectId?: number | string | null;
   relatedId?: number | string | null;
   relatedType?: string | null;
+  notificationId?: number | string | null;
   metadata?: Record<string, unknown>;
 }): Record<string, string> | undefined {
   const { metadata } = params;
@@ -239,6 +257,12 @@ export function buildNotificationExtra(params: {
   });
   if (customAction || routeRule?.actionLabel) extra['建议动作'] = customAction || routeRule?.actionLabel || '';
   if (actionHref) extra['处理入口'] = actionHref;
+
+  if (actionHref && params.notificationId) {
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value === actionHref) extra[key] = withNotificationId(actionHref, params.notificationId);
+    });
+  }
 
   return Object.keys(extra).length > 0 ? extra : undefined;
 }
@@ -391,10 +415,26 @@ export async function pushBusinessNotification(params: {
       extra,
     };
 
-    const { title: msgTitle, text } = formatDingTalkMessage(notifParams);
     const notificationIds = notificationRows
       .map((notification) => notification.id)
       .filter((id): id is number | string => id !== undefined && id !== null);
+    const robotParams: NotificationParams = notificationIds.length === 1
+      ? {
+          ...notifParams,
+          extra: buildNotificationExtra({
+            type,
+            title,
+            content,
+            projectName,
+            projectId,
+            relatedId,
+            relatedType,
+            notificationId: notificationIds[0],
+            metadata,
+          }),
+        }
+      : notifParams;
+    const { title: msgTitle, text } = formatDingTalkMessage(robotParams);
 
     let robotSent = false;
     const canSendRobotBroadcast =
@@ -429,34 +469,49 @@ export async function pushBusinessNotification(params: {
       if (recipientError) {
         console.error('[DingTalk Work] Failed to query recipients:', recipientError);
       } else {
-        const systemUserIdByDingTalkId = new Map<string, number>();
-        const dingtalkUserIds = (recipientUsers || [])
+        const notificationByRecipientId = new Map<number, NotificationRow>();
+        notificationRows.forEach((notification) => {
+          if (notification.recipient_user_id) {
+            notificationByRecipientId.set(notification.recipient_user_id, notification);
+          }
+        });
+
+        const dingtalkRecipients = (recipientUsers || [])
           .filter((user: { dingtalk_user_id?: string | null; is_disabled?: boolean | null; dingtalk_active?: boolean | null }) => {
             if (!user.dingtalk_user_id) return false;
             if (user.is_disabled === true) return false;
             if (user.dingtalk_active === false) return false;
             return true;
           })
-          .map((user: { id: number; dingtalk_user_id: string }) => {
-            systemUserIdByDingTalkId.set(String(user.dingtalk_user_id), user.id);
-            return String(user.dingtalk_user_id);
-          });
+          .map((user: { id: number; dingtalk_user_id: string }) => ({
+            systemUserId: user.id,
+            dingtalkUserId: String(user.dingtalk_user_id),
+            notification: notificationByRecipientId.get(user.id),
+          }));
 
-        const workResult = await sendDingTalkWorkNotification(dingtalkUserIds, notifParams);
-        if (!workResult.success && workResult.errmsg && !workResult.missingConfig) {
-          console.error('[DingTalk Work] Send failed:', workResult.errmsg);
-        }
-
-        const sentSystemUserIds = new Set(
-          workResult.sentUserIds
-            .map((dingtalkUserId) => systemUserIdByDingTalkId.get(dingtalkUserId))
-            .filter((id): id is number => Boolean(id))
-        );
-        notificationRows.forEach((notification) => {
-          if (notification.id && notification.recipient_user_id && sentSystemUserIds.has(notification.recipient_user_id)) {
-            sentNotificationIds.add(notification.id);
+        for (const recipient of dingtalkRecipients) {
+          const personalParams: NotificationParams = {
+            ...notifParams,
+            extra: buildNotificationExtra({
+              type,
+              title,
+              content,
+              projectName,
+              projectId,
+              relatedId,
+              relatedType,
+              notificationId: recipient.notification?.id,
+              metadata,
+            }),
+          };
+          const workResult = await sendDingTalkWorkNotification([recipient.dingtalkUserId], personalParams);
+          if (!workResult.success && workResult.errmsg && !workResult.missingConfig) {
+            console.error('[DingTalk Work] Send failed:', workResult.errmsg);
           }
-        });
+          if (workResult.success && recipient.notification?.id) {
+            sentNotificationIds.add(recipient.notification.id);
+          }
+        }
       }
     }
 

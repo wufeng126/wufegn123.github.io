@@ -3,10 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Bell, AlertTriangle, FileText, CreditCard, type LucideIcon } from 'lucide-react';
+import { buildNotificationActionHref } from '@/lib/notification-link';
+import { emitNotificationsUpdated, markNotificationRead, NOTIFICATIONS_UPDATED_EVENT, withNotificationId } from '@/lib/notification-client';
 
 interface NotifItem {
   id: number; title: string; content: string; type: string;
   severity: string; is_read: boolean; created_at: string; related_type: string; related_id: number;
+  project_id?: number | null; metadata?: Record<string, unknown> | null;
 }
 
 const iconMap: Record<string, LucideIcon> = {
@@ -47,11 +50,17 @@ export default function NotificationBell() {
       fetchUnread();
     });
     const timer = setInterval(fetchUnread, 30000); // 每30秒刷新
-    return () => clearInterval(timer);
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, fetchUnread);
+    window.addEventListener('focus', fetchUnread);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, fetchUnread);
+      window.removeEventListener('focus', fetchUnread);
+    };
   }, []);
 
   async function markRead(id: number) {
-    await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, isRead: true }) });
+    await markNotificationRead(id);
     fetchUnread();
   }
 
@@ -77,7 +86,7 @@ export default function NotificationBell() {
             <span className="text-sm font-semibold text-[#1D2129]">消息通知</span>
             <div className="flex items-center gap-2">
               {count > 0 && (
-                <button onClick={async () => { await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, isRead: true }) }); fetchUnread(); }}
+                <button onClick={async () => { await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, isRead: true }) }); emitNotificationsUpdated(); fetchUnread(); }}
                   className="text-xs text-[#165DFF] hover:underline">全部已读</button>
               )}
               <Link href="/notifications" onClick={() => setOpen(false)} className="text-xs text-[#8A8F98] hover:text-[#165DFF]">查看全部</Link>
@@ -91,8 +100,9 @@ export default function NotificationBell() {
             ) : (
               notifs.map(n => {
                 const Icon = iconMap[n.type] || iconMap.default;
+                const href = withNotificationId(buildNotificationActionHref(n), n.id);
                 return (
-                  <Link key={n.id} href={`/notifications`} onClick={() => { markRead(n.id); setOpen(false); }}
+                  <Link key={n.id} href={href} onClick={() => { void markRead(n.id); setOpen(false); }}
                     className="flex items-start gap-3 px-4 py-3 hover:bg-[#F8FAFF] transition border-b border-[#F2F3F5] last:border-0">
                     <div className="mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${severityColor[n.severity] || '#8A8F98'}15` }}>
                       <Icon className="h-4 w-4" style={{ color: severityColor[n.severity] || '#8A8F98' }} />

@@ -41,6 +41,7 @@ import {
   type NotificationCategory,
 } from '@/lib/notification-routing';
 import { buildNotificationActionHref } from '@/lib/notification-link';
+import { emitNotificationsUpdated, markNotificationRead, withNotificationId } from '@/lib/notification-client';
 
 // 类型定义
 interface Notification {
@@ -507,11 +508,8 @@ export default function NotificationsPage() {
   // 标记已读
   const markAsRead = async (id: number) => {
     try {
-      await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
+      await markNotificationRead(id);
+      emitNotificationsUpdated();
       fetchData();
     } catch (error) {
       toast({ title: '操作失败', description: '无法标记已读', variant: 'error' });
@@ -526,6 +524,7 @@ export default function NotificationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllRead: true }),
       });
+      emitNotificationsUpdated();
       fetchData();
       toast({ title: '成功', description: '已全部标记为已读', variant: 'success' });
     } catch (error) {
@@ -537,6 +536,7 @@ export default function NotificationsPage() {
   const deleteNotification = async (id: number) => {
     try {
       await fetch(`/api/notifications?id=${id}`, { method: 'DELETE' });
+      emitNotificationsUpdated();
       fetchData();
     } catch (error) {
       toast({ title: '删除失败', variant: 'error' });
@@ -741,7 +741,7 @@ export default function NotificationsPage() {
 
   // 获取跳转链接
   const getLink = (notification: Notification): string => {
-    return buildNotificationActionHref(notification);
+    return withNotificationId(buildNotificationActionHref(notification), notification.id);
   };
 
   return (
@@ -1301,6 +1301,9 @@ export default function NotificationsPage() {
                       <div className="flex items-center gap-2 mt-2">
                         <Link
                           href={getLink(notification)}
+                          onClick={() => {
+                            if (!notification.is_read) void markAsRead(notification.id);
+                          }}
                           className="text-xs flex items-center gap-1 hover:underline"
                           style={{ color: '#165DFF' }}
                         >

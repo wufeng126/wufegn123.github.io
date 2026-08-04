@@ -133,6 +133,7 @@ async function createAndPushNotification(client: any, type: string, title: strin
             projectId,
             relatedId,
             relatedType,
+            notificationId: notification.id,
             metadata,
           }),
         };

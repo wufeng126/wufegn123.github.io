@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import { usePermission } from '@/contexts/permission-context';
 import { PageHeader, StatsBar } from '@/components/business/page-layout';
 import type { WorkbenchTodoKey } from '@/lib/notification-routing';
+import { NOTIFICATIONS_UPDATED_EVENT } from '@/lib/notification-client';
 import {
   AlertCircle,
   AlertTriangle,
@@ -419,9 +420,9 @@ export default function WorkbenchContent() {
   useEffect(() => {
     let mounted = true;
 
-    async function loadTodos() {
+    async function loadTodos(options: { silent?: boolean } = {}) {
       try {
-        setLoading(true);
+        if (!options.silent) setLoading(true);
         setError('');
         const res = await fetch('/api/workspace/todos', { cache: 'no-store' });
         const json = await res.json();
@@ -440,8 +441,15 @@ export default function WorkbenchContent() {
     }
 
     loadTodos();
+    const refreshTodos = () => {
+      void loadTodos({ silent: true });
+    };
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshTodos);
+    window.addEventListener('focus', refreshTodos);
     return () => {
       mounted = false;
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshTodos);
+      window.removeEventListener('focus', refreshTodos);
     };
   }, []);
 
