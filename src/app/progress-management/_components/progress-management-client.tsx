@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -21,6 +21,23 @@ type ProjectStatus = '正常推进' | '轻微滞后' | '重点关注';
 type EditorMode = 'plan' | 'quantity';
 type PlanViewMode = 'month' | 'overall';
 
+type PlanMonth = {
+  id: string;
+  label: string;
+  period: string;
+  range: [number, number];
+  focus: string;
+};
+
+type FoundationOptions = {
+  areas: string[];
+  floors: string[];
+  phases: string[];
+  processes: string[];
+  responsibilities: string[];
+  dependencies: string[];
+};
+
 type Project = {
   id: number;
   name: string;
@@ -33,6 +50,7 @@ type Project = {
 type PlanTask = {
   id: number;
   projectId: number;
+  yearMonth?: string;
   wbs: string;
   phase: string;
   area: string;
@@ -41,6 +59,10 @@ type PlanTask = {
   ownerRole: string;
   dependency: string;
   logic: 'FS' | 'SS' | 'FF';
+  planStartDate?: string;
+  planEndDate?: string;
+  actualStartDate?: string;
+  actualEndDate?: string;
   planStart: number;
   planEnd: number;
   actualStart: number;
@@ -50,6 +72,7 @@ type PlanTask = {
   actualQty: number;
   reportedQty: number;
   unit: string;
+  subitemId?: number | null;
   quantityItem: string;
   issue: string;
   nextAction: string;
@@ -72,13 +95,60 @@ type DragState = {
   width: number;
 };
 
-const planMonths = [
+type QuantitySubitem = {
+  id: number;
+  subitem_name: string;
+  unit: string;
+  budget_quantity: string | number | null;
+  project_id: number;
+};
+
+type ProgressApiResponse = {
+  projects: Array<{ id: number; name: string; status?: string }>;
+  selectedProjectId: number | null;
+  foundations: {
+    area?: string[];
+    floor?: string[];
+    phase?: string[];
+    process?: string[];
+    dependency?: string[];
+    responsibility?: string[];
+  };
+  tasks: Array<{
+    id: number;
+    project_id: number;
+    year_month: string;
+    wbs: string;
+    phase: string;
+    area: string;
+    floor: string;
+    process: string;
+    owner_role: string;
+    dependency: string;
+    logic: 'FS' | 'SS' | 'FF';
+    plan_start_date: string;
+    plan_end_date: string;
+    actual_start_date: string | null;
+    actual_end_date: string | null;
+    actual_progress: number;
+    issue: string;
+    next_action: string;
+    is_key: boolean;
+    subitem_id: number | null;
+    quantity_item: string;
+    matched_quantity: number;
+    unit: string;
+  }>;
+  subitems: QuantitySubitem[];
+};
+
+const defaultPlanMonths: PlanMonth[] = [
   { id: '2026-08', label: '2026年8月计划', period: '2026.08.01 - 2026.08.31', range: [0, 35], focus: '主体结构 1-3 层' },
   { id: '2026-09', label: '2026年9月计划', period: '2026.09.01 - 2026.09.30', range: [35, 70], focus: '主体结构 3-6 层' },
   { id: '2026-10', label: '2026年10月计划', period: '2026.10.01 - 2026.10.31', range: [70, 100], focus: '二次结构与穿插施工' },
-] as const;
+] ;
 
-const projectBaseInfo = {
+const defaultProjectBaseInfo: FoundationOptions = {
   areas: ['1#楼', '2#楼', '地下室A区', '地下室B区', '商业裙房'],
   floors: ['B2', 'B1', '1F', '2F', '3F', '4F', '5F', '屋面层'],
   phases: ['基础施工', '主体结构', '二次结构', '装饰装修', '机电穿插'],
@@ -332,10 +402,12 @@ function formatQty(value: number) {
 }
 
 function getDaysInPlanMonth(monthId: string) {
-  return monthId === '2026-09' ? 30 : 31;
+  const [year, month] = monthId.split('-').map(Number);
+  if (!year || !month) return 31;
+  return new Date(year, month, 0).getDate();
 }
 
-function positionToMonthDate(value: number, month: (typeof planMonths)[number]) {
+function positionToMonthDate(value: number, month: PlanMonth) {
   const [start, end] = month.range;
   const days = getDaysInPlanMonth(month.id);
   const ratio = clamp((value - start) / Math.max(1, end - start), 0, 1);
@@ -343,7 +415,7 @@ function positionToMonthDate(value: number, month: (typeof planMonths)[number]) 
   return `${month.id}-${String(day).padStart(2, '0')}`;
 }
 
-function monthDateToPosition(value: string, month: (typeof planMonths)[number]) {
+function monthDateToPosition(value: string, month: PlanMonth) {
   const [start, end] = month.range;
   const days = getDaysInPlanMonth(month.id);
   const day = Number(value.slice(-2)) || 1;
@@ -409,23 +481,133 @@ function average(values: number[]) {
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
-function taskInMonth(task: PlanTask, month: (typeof planMonths)[number]) {
+function taskInMonth(task: PlanTask, month: PlanMonth) {
   const [start, end] = month.range;
   return task.planStart <= end && task.planEnd >= start;
 }
 
+function addMonths(monthId: string, offset: number) {
+  const [year, month] = monthId.split('-').map(Number);
+  const date = new Date(year || new Date().getFullYear(), (month || 1) - 1 + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthLabel(monthId: string) {
+  const [year, month] = monthId.split('-');
+  return `${year}年${Number(month)}月计划`;
+}
+
+function getMonthPeriod(monthId: string) {
+  const days = getDaysInPlanMonth(monthId);
+  return `${monthId.replace('-', '.')} .01 - ${monthId.replace('-', '.')}.${String(days).padStart(2, '0')}`.replace(' .', '.');
+}
+
+function buildPlanMonths(tasks: PlanTask[]): PlanMonth[] {
+  const taskMonths = Array.from(new Set(tasks.map((task) => task.yearMonth || task.planStartDate?.slice(0, 7)).filter(Boolean))) as string[];
+  const baseMonth = taskMonths[0] || new Date().toISOString().slice(0, 7);
+  const monthIds = taskMonths.length > 0
+    ? taskMonths.sort()
+    : [baseMonth, addMonths(baseMonth, 1), addMonths(baseMonth, 2)];
+  const step = 100 / Math.max(1, monthIds.length);
+
+  return monthIds.map((monthId, index) => ({
+    id: monthId,
+    label: getMonthLabel(monthId),
+    period: getMonthPeriod(monthId),
+    range: [Math.round(index * step), Math.round((index + 1) * step)] as [number, number],
+    focus: '点击编辑计划维护本月楼栋、楼层和工序安排',
+  }));
+}
+
+function getMonthTimeline(monthId: string) {
+  if (monthlyTimeline[monthId]) return monthlyTimeline[monthId];
+  const days = getDaysInPlanMonth(monthId);
+  const month = Number(monthId.slice(5, 7));
+  return [1, 5, 10, 15, 20, 25, days].map((day) => `${month}/${day}`);
+}
+
+function mapStatus(status?: string): ProjectStatus {
+  if (!status || ['在建', '正常', '正常推进'].includes(status)) return '正常推进';
+  if (status.includes('滞后') || status.includes('关注')) return '轻微滞后';
+  return '正常推进';
+}
+
+function mapFoundations(foundations: ProgressApiResponse['foundations']): FoundationOptions {
+  return {
+    areas: foundations.area?.length ? foundations.area : defaultProjectBaseInfo.areas,
+    floors: foundations.floor?.length ? foundations.floor : defaultProjectBaseInfo.floors,
+    phases: foundations.phase?.length ? foundations.phase : defaultProjectBaseInfo.phases,
+    processes: foundations.process?.length ? foundations.process : defaultProjectBaseInfo.processes,
+    responsibilities: foundations.responsibility?.length ? foundations.responsibility : defaultProjectBaseInfo.responsibilities,
+    dependencies: foundations.dependency?.length ? foundations.dependency : defaultProjectBaseInfo.dependencies,
+  };
+}
+
+function mapApiTasks(tasks: ProgressApiResponse['tasks'], months: PlanMonth[]): PlanTask[] {
+  return tasks.map((task) => {
+    const yearMonth = task.year_month || task.plan_start_date.slice(0, 7);
+    const month = months.find((item) => item.id === yearMonth) || months[0] || defaultPlanMonths[0];
+    const planStart = monthDateToPosition(task.plan_start_date, month);
+    const planEnd = monthDateToPosition(task.plan_end_date, month);
+    const actualStart = task.actual_start_date ? monthDateToPosition(task.actual_start_date, month) : planStart;
+    const actualEnd = task.actual_end_date ? monthDateToPosition(task.actual_end_date, month) : Math.min(planEnd, planStart + 4);
+
+    return {
+      id: task.id,
+      projectId: task.project_id,
+      yearMonth,
+      wbs: task.wbs || '',
+      phase: task.phase || '主体结构',
+      area: task.area || '',
+      floor: task.floor || '',
+      process: task.process || '',
+      ownerRole: task.owner_role || '项目经理负责协调现场资源',
+      dependency: task.dependency || '上一道工序完成后开始',
+      logic: task.logic || 'FS',
+      planStartDate: task.plan_start_date,
+      planEndDate: task.plan_end_date,
+      actualStartDate: task.actual_start_date || task.plan_start_date,
+      actualEndDate: task.actual_end_date || task.plan_start_date,
+      planStart,
+      planEnd: Math.max(planEnd, planStart + 2),
+      actualStart,
+      actualEnd: Math.max(actualEnd, actualStart + 2),
+      actualProgress: Number(task.actual_progress || 0),
+      plannedQty: Number(task.matched_quantity || 0),
+      actualQty: 0,
+      reportedQty: 0,
+      unit: task.unit || '',
+      subitemId: task.subitem_id,
+      quantityItem: task.quantity_item || '',
+      issue: task.issue || '等待施工日志回填实际进度',
+      nextAction: task.next_action || '项目经理按现场推进情况更新',
+      isKey: task.is_key,
+    };
+  });
+}
+
 export default function ProgressManagementPreview() {
+  const [projectOptions, setProjectOptions] = useState<Project[]>(projects);
   const [planTasks, setPlanTasks] = useState<PlanTask[]>(initialTasks);
+  const [foundationOptions, setFoundationOptions] = useState<FoundationOptions>(defaultProjectBaseInfo);
+  const [quantitySubitems, setQuantitySubitems] = useState<QuantitySubitem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0].id);
   const [selectedTaskId, setSelectedTaskId] = useState(103);
   const [planViewMode, setPlanViewMode] = useState<PlanViewMode>('month');
-  const [selectedMonthId, setSelectedMonthId] = useState<(typeof planMonths)[number]['id']>('2026-08');
+  const [selectedMonthId, setSelectedMonthId] = useState('2026-08');
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>('plan');
   const [editorOpen, setEditorOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
 
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) || projects[0];
-  const selectedMonth = planMonths.find((month) => month.id === selectedMonthId) || planMonths[0];
+  const planMonths = useMemo(() => buildPlanMonths(planTasks), [planTasks]);
+  const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0] || projects[0];
+  const effectiveSelectedMonthId = planMonths.some((month) => month.id === selectedMonthId)
+    ? selectedMonthId
+    : planMonths[0]?.id || defaultPlanMonths[0].id;
+  const selectedMonth = planMonths.find((month) => month.id === effectiveSelectedMonthId) || planMonths[0] || defaultPlanMonths[0];
   const projectTasks = useMemo(
     () => planTasks.filter((task) => task.projectId === selectedProject.id),
     [planTasks, selectedProject.id],
@@ -434,12 +616,41 @@ export default function ProgressManagementPreview() {
     () => (planViewMode === 'overall' ? projectTasks : projectTasks.filter((task) => taskInMonth(task, selectedMonth))),
     [planViewMode, projectTasks, selectedMonth],
   );
-  const currentTimeline = planViewMode === 'overall' ? overallTimeline : monthlyTimeline[selectedMonth.id];
+  const currentTimeline = planViewMode === 'overall' ? overallTimeline : getMonthTimeline(selectedMonth.id);
   const projectMilestones = useMemo(
     () => milestones.filter((milestone) => milestone.projectId === selectedProject.id),
     [selectedProject.id],
   );
-  const selectedTask = projectTasks.find((task) => task.id === selectedTaskId) || projectTasks[0] || planTasks[0];
+  const selectedTask = projectTasks.find((task) => task.id === selectedTaskId) || projectTasks[0] || {
+    id: 0,
+    projectId: selectedProject.id,
+    yearMonth: selectedMonth.id,
+    wbs: '',
+    phase: foundationOptions.phases[0] || '',
+    area: foundationOptions.areas[0] || '',
+    floor: foundationOptions.floors[0] || '',
+    process: foundationOptions.processes[0] || '',
+    ownerRole: foundationOptions.responsibilities[0] || '',
+    dependency: foundationOptions.dependencies[0] || '',
+    logic: 'FS',
+    planStartDate: `${selectedMonth.id}-01`,
+    planEndDate: `${selectedMonth.id}-${String(Math.min(7, getDaysInPlanMonth(selectedMonth.id))).padStart(2, '0')}`,
+    actualStartDate: `${selectedMonth.id}-01`,
+    actualEndDate: `${selectedMonth.id}-01`,
+    planStart: selectedMonth.range[0],
+    planEnd: Math.min(selectedMonth.range[1], selectedMonth.range[0] + 8),
+    actualStart: selectedMonth.range[0],
+    actualEnd: Math.min(selectedMonth.range[1], selectedMonth.range[0] + 2),
+    actualProgress: 0,
+    plannedQty: 0,
+    actualQty: 0,
+    reportedQty: 0,
+    unit: '',
+    subitemId: null,
+    quantityItem: '',
+    issue: '暂无进度计划',
+    nextAction: '点击新增工序开始编制计划',
+  };
   const selectedTaskState = getTaskState(selectedTask);
   const plannedProgress = average(projectTasks.map(getPlannedProgress));
   const actualProgress = average(projectTasks.map((task) => task.actualProgress));
@@ -459,6 +670,152 @@ export default function ProgressManagementPreview() {
     [displayedTasks],
   );
 
+  useEffect(() => {
+    void loadProgressData();
+  }, []);
+
+  async function loadProgressData(projectId = selectedProjectId) {
+    setLoading(true);
+    setApiError('');
+    try {
+      const response = await fetch(`/api/progress-management${projectId ? `?project_id=${projectId}` : ''}`, {
+        cache: 'no-store',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || '查询进度计划失败');
+      }
+
+      const data = result as ProgressApiResponse;
+      const nextProjects = data.projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        manager: '项目经理',
+        budgeter: '预算员',
+        status: mapStatus(project.status),
+        currentPeriod: '',
+      }));
+      const nextFoundations = mapFoundations(data.foundations);
+      const baseTasks = data.tasks.map((task) => ({
+        ...task,
+        year_month: task.year_month || task.plan_start_date?.slice(0, 7) || selectedMonthId,
+      }));
+      const nextMonths = buildPlanMonths(baseTasks.map((task) => ({
+        id: task.id,
+        projectId: task.project_id,
+        yearMonth: task.year_month,
+        planStartDate: task.plan_start_date,
+        planEndDate: task.plan_end_date,
+        wbs: '',
+        phase: '',
+        area: '',
+        floor: '',
+        process: '',
+        ownerRole: '',
+        dependency: '',
+        logic: 'FS',
+        planStart: 0,
+        planEnd: 0,
+        actualStart: 0,
+        actualEnd: 0,
+        actualProgress: 0,
+        plannedQty: 0,
+        actualQty: 0,
+        reportedQty: 0,
+        unit: '',
+        quantityItem: '',
+        issue: '',
+        nextAction: '',
+      })));
+      const nextTasks = mapApiTasks(baseTasks, nextMonths);
+      const nextSelectedProjectId = data.selectedProjectId || nextProjects[0]?.id || selectedProjectId;
+      const firstTask = nextTasks.find((task) => task.projectId === nextSelectedProjectId);
+
+      if (nextProjects.length > 0) setProjectOptions(nextProjects);
+      setFoundationOptions(nextFoundations);
+      setQuantitySubitems(data.subitems || []);
+      setPlanTasks(nextTasks);
+      setSelectedProjectId(nextSelectedProjectId);
+      if (firstTask) {
+        setSelectedTaskId(firstTask.id);
+        setSelectedMonthId(firstTask.yearMonth || nextMonths[0]?.id || selectedMonthId);
+      } else {
+        setSelectedTaskId(0);
+        setSelectedMonthId(nextMonths[0]?.id || selectedMonthId);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '查询进度计划失败';
+      setApiError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveProgressData() {
+    setSaving(true);
+    setApiError('');
+    try {
+      const tasks = projectTasks.map((task) => {
+        const taskMonth = planMonths.find((month) => month.id === (task.yearMonth || selectedMonth.id)) || selectedMonth;
+        const planStartDate = task.planStartDate || positionToMonthDate(task.planStart, taskMonth);
+        const planEndDate = task.planEndDate || positionToMonthDate(task.planEnd, taskMonth);
+
+        return {
+          id: task.id > 0 ? task.id : undefined,
+          year_month: (task.yearMonth || planStartDate.slice(0, 7)),
+          wbs: task.wbs,
+          phase: task.phase,
+          area: task.area,
+          floor: task.floor,
+          process: task.process,
+          owner_role: task.ownerRole,
+          dependency: task.dependency,
+          logic: task.logic,
+          plan_start_date: planStartDate,
+          plan_end_date: planEndDate,
+          actual_start_date: task.actualStartDate || positionToMonthDate(task.actualStart, taskMonth),
+          actual_end_date: task.actualEndDate || positionToMonthDate(task.actualEnd, taskMonth),
+          actual_progress: task.actualProgress,
+          issue: task.issue,
+          next_action: task.nextAction,
+          is_key: Boolean(task.isKey),
+          subitem_id: task.subitemId || null,
+          quantity_item: task.quantityItem,
+          matched_quantity: task.plannedQty,
+          unit: task.unit,
+        };
+      });
+
+      const response = await fetch('/api/progress-management', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: selectedProject.id,
+          foundations: {
+            area: foundationOptions.areas,
+            floor: foundationOptions.floors,
+            phase: foundationOptions.phases,
+            process: foundationOptions.processes,
+            dependency: foundationOptions.dependencies,
+            responsibility: foundationOptions.responsibilities,
+          },
+          tasks,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || '保存进度计划失败');
+      }
+      await loadProgressData(selectedProject.id);
+      setEditorOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存进度计划失败';
+      setApiError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function updateTask(taskId: number, patch: Partial<PlanTask>) {
     setPlanTasks((currentTasks) =>
       currentTasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
@@ -470,28 +827,40 @@ export default function ProgressManagementPreview() {
   }
 
   function addTask() {
-    const nextId = Math.max(...planTasks.map((task) => task.id)) + 1;
+    const nextId = Math.min(-1, ...planTasks.map((task) => task.id)) - 1;
+    const monthStart = `${selectedMonth.id}-01`;
+    const monthEnd = `${selectedMonth.id}-${String(Math.min(7, getDaysInPlanMonth(selectedMonth.id))).padStart(2, '0')}`;
+    const defaultArea = foundationOptions.areas[0] || '';
+    const defaultFloor = foundationOptions.floors[0] || '';
+    const defaultPhase = foundationOptions.phases[0] || '';
+    const defaultProcess = foundationOptions.processes[0] || '';
     const nextTask: PlanTask = {
       id: nextId,
       projectId: selectedProject.id,
+      yearMonth: selectedMonth.id,
       wbs: `${selectedProject.id}.1.${String(projectTasks.length + 1).padStart(2, '0')}`,
-      phase: '主体结构',
-      area: '1#楼',
-      floor: '4F',
-      process: '模板',
-      ownerRole: '项目经理',
-      dependency: selectedTask ? `${selectedTask.floor}${selectedTask.process}完成` : '上一道工序完成',
+      phase: defaultPhase,
+      area: defaultArea,
+      floor: defaultFloor,
+      process: defaultProcess,
+      ownerRole: foundationOptions.responsibilities[0] || '项目经理负责协调现场资源',
+      dependency: selectedTask ? `${selectedTask.floor}${selectedTask.process}完成` : foundationOptions.dependencies[0] || '上一道工序完成',
       logic: 'FS',
-      planStart: 68,
-      planEnd: 80,
-      actualStart: 68,
-      actualEnd: 72,
+      planStartDate: monthStart,
+      planEndDate: monthEnd,
+      actualStartDate: monthStart,
+      actualEndDate: monthStart,
+      planStart: monthDateToPosition(monthStart, selectedMonth),
+      planEnd: monthDateToPosition(monthEnd, selectedMonth),
+      actualStart: monthDateToPosition(monthStart, selectedMonth),
+      actualEnd: monthDateToPosition(monthStart, selectedMonth) + 2,
       actualProgress: 0,
-      plannedQty: 1000,
+      plannedQty: 0,
       actualQty: 0,
       reportedQty: 0,
-      unit: 'm2',
-      quantityItem: '主体结构模板工程',
+      unit: '',
+      subitemId: null,
+      quantityItem: '',
       issue: '新建计划，等待施工日志回填',
       nextAction: '项目经理确认计划时间，预算员匹配工程量',
     };
@@ -563,10 +932,11 @@ export default function ProgressManagementPreview() {
                     const firstTask = planTasks.find((task) => task.projectId === nextProjectId);
                     setSelectedProjectId(nextProjectId);
                     if (firstTask) setSelectedTaskId(firstTask.id);
+                    void loadProgressData(nextProjectId);
                   }}
                   className="h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-10 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 >
-                  {projects.map((project) => (
+                  {projectOptions.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
                     </option>
@@ -590,6 +960,14 @@ export default function ProgressManagementPreview() {
             </div>
           </div>
         </header>
+
+        {(loading || apiError) && (
+          <div className={`rounded-lg border px-4 py-3 text-sm ${
+            apiError ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-blue-100 bg-blue-50 text-blue-700'
+          }`}>
+            {apiError || '正在读取真实项目进度数据...'}
+          </div>
+        )}
 
         <section className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1002,6 +1380,11 @@ export default function ProgressManagementPreview() {
           onTaskSelect={setSelectedTaskId}
           onTaskChange={updateTask}
           onSelectedTaskChange={updateSelectedTask}
+          foundations={foundationOptions}
+          onFoundationsChange={setFoundationOptions}
+          subitems={quantitySubitems}
+          saving={saving}
+          onSave={saveProgressData}
         />
       )}
     </main>
@@ -1020,10 +1403,15 @@ function EditorDetailPage({
   onTaskSelect,
   onTaskChange,
   onSelectedTaskChange,
+  foundations,
+  onFoundationsChange,
+  subitems,
+  saving,
+  onSave,
 }: {
   mode: EditorMode;
   project: Project;
-  selectedMonth: (typeof planMonths)[number];
+  selectedMonth: PlanMonth;
   task: PlanTask;
   tasks: PlanTask[];
   onClose: () => void;
@@ -1032,6 +1420,11 @@ function EditorDetailPage({
   onTaskSelect: (taskId: number) => void;
   onTaskChange: (taskId: number, patch: Partial<PlanTask>) => void;
   onSelectedTaskChange: (patch: Partial<PlanTask>) => void;
+  foundations: FoundationOptions;
+  onFoundationsChange: (foundations: FoundationOptions) => void;
+  subitems: QuantitySubitem[];
+  saving: boolean;
+  onSave: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-100">
@@ -1080,10 +1473,12 @@ function EditorDetailPage({
               </button>
               <button
                 type="button"
+                onClick={onSave}
+                disabled={saving}
                 className="inline-flex h-9 min-w-[108px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-slate-950 px-3 text-sm font-medium text-white"
               >
                 <Save className="h-4 w-4" />
-                保存预览
+                {saving ? '保存中' : '保存'}
               </button>
               <button
                 type="button"
@@ -1097,7 +1492,7 @@ function EditorDetailPage({
           </div>
         </header>
 
-        <ProjectFoundationPanel />
+        <ProjectFoundationPanel foundations={foundations} onChange={onFoundationsChange} />
 
         <div className="grid flex-1 grid-cols-1 gap-4 py-4 xl:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm xl:sticky xl:top-24 xl:self-start">
@@ -1137,11 +1532,12 @@ function EditorDetailPage({
 
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             {mode === 'plan' ? (
-              <PlanEditor task={task} selectedMonth={selectedMonth} onChange={onSelectedTaskChange} />
+              <PlanEditor task={task} selectedMonth={selectedMonth} foundations={foundations} onChange={onSelectedTaskChange} />
             ) : (
               <QuantityEditor
                 tasks={tasks}
                 selectedTaskId={task.id}
+                subitems={subitems}
                 onSelect={onTaskSelect}
                 onChange={onTaskChange}
               />
@@ -1153,7 +1549,23 @@ function EditorDetailPage({
   );
 }
 
-function ProjectFoundationPanel() {
+function ProjectFoundationPanel({
+  foundations,
+  onChange,
+}: {
+  foundations: FoundationOptions;
+  onChange: (foundations: FoundationOptions) => void;
+}) {
+  function updateList(key: keyof FoundationOptions, value: string) {
+    onChange({
+      ...foundations,
+      [key]: value
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+  }
+
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1163,21 +1575,31 @@ function ProjectFoundationPanel() {
             先维护楼栋、楼层和工序库，后续编辑月计划时直接下拉选择，施工日志也按这些基础项自动带出。
           </div>
         </div>
-        <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700">
+        <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700">
           <Plus className="h-4 w-4" />
-          维护基础项
+          保存时同步基础项
         </button>
       </div>
       <div className="mt-4 grid gap-3 xl:grid-cols-3">
-        <FoundationGroup title="楼栋 / 区段" items={projectBaseInfo.areas} />
-        <FoundationGroup title="层数 / 区段" items={projectBaseInfo.floors} />
-        <FoundationGroup title="工序库" items={projectBaseInfo.processes} />
+        <FoundationGroup title="楼栋 / 区段" items={foundations.areas} value={foundations.areas.join('\n')} onChange={(value) => updateList('areas', value)} />
+        <FoundationGroup title="层数 / 区段" items={foundations.floors} value={foundations.floors.join('\n')} onChange={(value) => updateList('floors', value)} />
+        <FoundationGroup title="工序库" items={foundations.processes} value={foundations.processes.join('\n')} onChange={(value) => updateList('processes', value)} />
       </div>
     </section>
   );
 }
 
-function FoundationGroup({ title, items }: { title: string; items: string[] }) {
+function FoundationGroup({
+  title,
+  items,
+  value,
+  onChange,
+}: {
+  title: string;
+  items: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="mb-2 text-xs font-medium text-slate-500">{title}</div>
@@ -1188,6 +1610,11 @@ function FoundationGroup({ title, items }: { title: string; items: string[] }) {
           </span>
         ))}
       </div>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-3 min-h-[92px] w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+      />
     </div>
   );
 }
@@ -1195,15 +1622,17 @@ function FoundationGroup({ title, items }: { title: string; items: string[] }) {
 function PlanEditor({
   task,
   selectedMonth,
+  foundations,
   onChange,
 }: {
   task: PlanTask;
-  selectedMonth: (typeof planMonths)[number];
+  selectedMonth: PlanMonth;
+  foundations: FoundationOptions;
   onChange: (patch: Partial<PlanTask>) => void;
 }) {
   const durationDays = Math.max(1, Math.round(((task.planEnd - task.planStart) / 100) * 31));
-  const planStartDate = positionToMonthDate(task.planStart, selectedMonth);
-  const planEndDate = positionToMonthDate(task.planEnd, selectedMonth);
+  const planStartDate = task.planStartDate || positionToMonthDate(task.planStart, selectedMonth);
+  const planEndDate = task.planEndDate || positionToMonthDate(task.planEnd, selectedMonth);
 
   return (
     <div className="space-y-4">
@@ -1224,11 +1653,11 @@ function PlanEditor({
           <PlanSectionTitle title="计划基础项" subtitle="从当前项目基础信息中选择，减少手写和错字" />
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextInput label="WBS 编号" value={task.wbs} onChange={(value) => onChange({ wbs: value })} />
-            <SelectInput label="施工阶段" value={task.phase} options={projectBaseInfo.phases} onChange={(value) => onChange({ phase: value })} />
-            <SelectInput label="楼栋 / 区段" value={task.area} options={projectBaseInfo.areas} onChange={(value) => onChange({ area: value })} />
-            <SelectInput label="层数 / 区段" value={task.floor} options={projectBaseInfo.floors} onChange={(value) => onChange({ floor: value })} />
+            <SelectInput label="施工阶段" value={task.phase} options={foundations.phases} onChange={(value) => onChange({ phase: value })} />
+            <SelectInput label="楼栋 / 区段" value={task.area} options={foundations.areas} onChange={(value) => onChange({ area: value })} />
+            <SelectInput label="层数 / 区段" value={task.floor} options={foundations.floors} onChange={(value) => onChange({ floor: value })} />
             <div className="sm:col-span-2">
-              <SelectInput label="工序名称" value={task.process} options={projectBaseInfo.processes} onChange={(value) => onChange({ process: value })} />
+              <SelectInput label="工序名称" value={task.process} options={foundations.processes} onChange={(value) => onChange({ process: value })} />
             </div>
           </div>
         </div>
@@ -1241,14 +1670,22 @@ function PlanEditor({
               value={planStartDate}
               min={`${selectedMonth.id}-01`}
               max={`${selectedMonth.id}-${String(getDaysInPlanMonth(selectedMonth.id)).padStart(2, '0')}`}
-              onChange={(value) => onChange({ planStart: Math.min(monthDateToPosition(value, selectedMonth), task.planEnd - 4) })}
+              onChange={(value) => onChange({
+                yearMonth: value.slice(0, 7),
+                planStartDate: value,
+                planStart: Math.min(monthDateToPosition(value, selectedMonth), task.planEnd - 4),
+              })}
             />
             <DateInput
               label="计划结束日期"
               value={planEndDate}
               min={`${selectedMonth.id}-01`}
               max={`${selectedMonth.id}-${String(getDaysInPlanMonth(selectedMonth.id)).padStart(2, '0')}`}
-              onChange={(value) => onChange({ planEnd: Math.max(monthDateToPosition(value, selectedMonth), task.planStart + 4) })}
+              onChange={(value) => onChange({
+                yearMonth: value.slice(0, 7),
+                planEndDate: value,
+                planEnd: Math.max(monthDateToPosition(value, selectedMonth), task.planStart + 4),
+              })}
             />
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
               当前计划：{planStartDate} 至 {planEndDate}，约 {durationDays} 天
@@ -1274,8 +1711,8 @@ function PlanEditor({
                 <option value="FF">需要与上一道同步完成</option>
               </select>
             </label>
-            <SelectInput label="开始条件" value={task.dependency} options={projectBaseInfo.dependencies} onChange={(value) => onChange({ dependency: value })} />
-            <SelectInput label="责任说明" value={task.ownerRole} options={projectBaseInfo.responsibilities} onChange={(value) => onChange({ ownerRole: value })} />
+            <SelectInput label="开始条件" value={task.dependency} options={foundations.dependencies} onChange={(value) => onChange({ dependency: value })} />
+            <SelectInput label="责任说明" value={task.ownerRole} options={foundations.responsibilities} onChange={(value) => onChange({ ownerRole: value })} />
             <label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -1304,11 +1741,13 @@ function PlanSectionTitle({ title, subtitle }: { title: string; subtitle: string
 function QuantityEditor({
   tasks,
   selectedTaskId,
+  subitems,
   onSelect,
   onChange,
 }: {
   tasks: PlanTask[];
   selectedTaskId: number;
+  subitems: QuantitySubitem[];
   onSelect: (taskId: number) => void;
   onChange: (taskId: number, patch: Partial<PlanTask>) => void;
 }) {
@@ -1321,10 +1760,11 @@ function QuantityEditor({
           <div className="text-right">匹配量</div>
           <div className="text-right">单位</div>
         </div>
-        {tasks.map((task) => (
-          <button
+        {tasks.map((task) => {
+          const selectedSubitem = subitems.find((subitem) => subitem.id === task.subitemId);
+          return (
+          <div
             key={task.id}
-            type="button"
             onClick={() => onSelect(task.id)}
             className={`grid w-full grid-cols-[210px_minmax(520px,1fr)_160px_100px] items-center gap-3 px-4 py-3 text-left ${
               task.id === selectedTaskId ? 'bg-blue-50' : 'bg-white'
@@ -1334,11 +1774,32 @@ function QuantityEditor({
               <div className="truncate text-sm font-semibold text-slate-950">{task.floor} {task.process}</div>
               <div className="text-xs text-slate-500">{task.wbs}</div>
             </div>
-            <EditableTextCell value={task.quantityItem} onChange={(value) => onChange(task.id, { quantityItem: value })} />
+            <select
+              value={selectedSubitem?.id || task.subitemId || ''}
+              onChange={(event) => {
+                const subitemId = Number(event.target.value);
+                const subitem = subitems.find((item) => item.id === subitemId);
+                onChange(task.id, {
+                  subitemId: subitem?.id || null,
+                  quantityItem: subitem?.subitem_name || '',
+                  unit: subitem?.unit || task.unit,
+                });
+              }}
+              onClick={(event) => event.stopPropagation()}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">请选择报量清单子目</option>
+              {subitems.map((subitem) => (
+                <option key={subitem.id} value={subitem.id}>
+                  {subitem.subitem_name}（{Number(subitem.budget_quantity || 0).toLocaleString()} {subitem.unit || task.unit || '单位'}）
+                </option>
+              ))}
+            </select>
             <EditableNumberCell value={task.plannedQty} onChange={(value) => onChange(task.id, { plannedQty: value })} />
             <EditableTextCell compact value={task.unit} onChange={(value) => onChange(task.id, { unit: value })} />
-          </button>
-        ))}
+          </div>
+          );
+        })}
       </div>
     </div>
   );

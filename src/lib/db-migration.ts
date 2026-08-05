@@ -1163,6 +1163,130 @@ ON CONFLICT (setting_key) DO NOTHING;
 
 ALTER TABLE IF EXISTS roles ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT FALSE;
 
+CREATE TABLE IF NOT EXISTS project_progress_foundations (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  category VARCHAR(40) NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(project_id, category, name)
+);
+ALTER TABLE IF EXISTS project_progress_foundations
+  ADD COLUMN IF NOT EXISTS project_id INTEGER,
+  ADD COLUMN IF NOT EXISTS category VARCHAR(40),
+  ADD COLUMN IF NOT EXISTS name VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS project_progress_foundations_project_idx ON project_progress_foundations(project_id);
+CREATE INDEX IF NOT EXISTS project_progress_foundations_category_idx ON project_progress_foundations(project_id, category, is_active);
+
+CREATE TABLE IF NOT EXISTS project_progress_tasks (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  year_month VARCHAR(7) NOT NULL,
+  wbs VARCHAR(80),
+  phase VARCHAR(100),
+  area VARCHAR(100),
+  floor VARCHAR(100),
+  process VARCHAR(160),
+  owner_role VARCHAR(200),
+  dependency TEXT,
+  logic VARCHAR(10) DEFAULT 'FS',
+  plan_start_date DATE NOT NULL,
+  plan_end_date DATE NOT NULL,
+  actual_start_date DATE,
+  actual_end_date DATE,
+  actual_progress NUMERIC(6,2) DEFAULT 0,
+  issue TEXT,
+  next_action TEXT,
+  is_key BOOLEAN DEFAULT FALSE,
+  created_by INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+ALTER TABLE IF EXISTS project_progress_tasks
+  ADD COLUMN IF NOT EXISTS project_id INTEGER,
+  ADD COLUMN IF NOT EXISTS year_month VARCHAR(7),
+  ADD COLUMN IF NOT EXISTS wbs VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS phase VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS area VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS floor VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS process VARCHAR(160),
+  ADD COLUMN IF NOT EXISTS owner_role VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS dependency TEXT,
+  ADD COLUMN IF NOT EXISTS logic VARCHAR(10) DEFAULT 'FS',
+  ADD COLUMN IF NOT EXISTS plan_start_date DATE,
+  ADD COLUMN IF NOT EXISTS plan_end_date DATE,
+  ADD COLUMN IF NOT EXISTS actual_start_date DATE,
+  ADD COLUMN IF NOT EXISTS actual_end_date DATE,
+  ADD COLUMN IF NOT EXISTS actual_progress NUMERIC(6,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS issue TEXT,
+  ADD COLUMN IF NOT EXISTS next_action TEXT,
+  ADD COLUMN IF NOT EXISTS is_key BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS created_by INTEGER,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS project_progress_tasks_project_idx ON project_progress_tasks(project_id);
+CREATE INDEX IF NOT EXISTS project_progress_tasks_project_month_idx ON project_progress_tasks(project_id, year_month);
+CREATE INDEX IF NOT EXISTS project_progress_tasks_plan_date_idx ON project_progress_tasks(project_id, plan_start_date, plan_end_date);
+
+CREATE TABLE IF NOT EXISTS project_progress_task_quantities (
+  id SERIAL PRIMARY KEY,
+  task_id INTEGER NOT NULL REFERENCES project_progress_tasks(id) ON DELETE CASCADE,
+  subitem_id INTEGER REFERENCES work_item_subitems(id) ON DELETE SET NULL,
+  quantity_item VARCHAR(240),
+  matched_quantity NUMERIC(14,2) DEFAULT 0,
+  unit VARCHAR(40),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+ALTER TABLE IF EXISTS project_progress_task_quantities
+  ADD COLUMN IF NOT EXISTS task_id INTEGER,
+  ADD COLUMN IF NOT EXISTS subitem_id INTEGER,
+  ADD COLUMN IF NOT EXISTS quantity_item VARCHAR(240),
+  ADD COLUMN IF NOT EXISTS matched_quantity NUMERIC(14,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS unit VARCHAR(40),
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS project_progress_task_quantities_task_idx ON project_progress_task_quantities(task_id);
+CREATE INDEX IF NOT EXISTS project_progress_task_quantities_subitem_idx ON project_progress_task_quantities(subitem_id);
+
+ALTER TABLE IF EXISTS project_progress_foundations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS project_progress_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS project_progress_task_quantities ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS project_progress_foundations_public_select ON project_progress_foundations;
+DROP POLICY IF EXISTS project_progress_foundations_public_insert ON project_progress_foundations;
+DROP POLICY IF EXISTS project_progress_foundations_public_update ON project_progress_foundations;
+DROP POLICY IF EXISTS project_progress_foundations_public_delete ON project_progress_foundations;
+CREATE POLICY project_progress_foundations_public_select ON project_progress_foundations FOR SELECT USING (true);
+CREATE POLICY project_progress_foundations_public_insert ON project_progress_foundations FOR INSERT WITH CHECK (true);
+CREATE POLICY project_progress_foundations_public_update ON project_progress_foundations FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY project_progress_foundations_public_delete ON project_progress_foundations FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS project_progress_tasks_public_select ON project_progress_tasks;
+DROP POLICY IF EXISTS project_progress_tasks_public_insert ON project_progress_tasks;
+DROP POLICY IF EXISTS project_progress_tasks_public_update ON project_progress_tasks;
+DROP POLICY IF EXISTS project_progress_tasks_public_delete ON project_progress_tasks;
+CREATE POLICY project_progress_tasks_public_select ON project_progress_tasks FOR SELECT USING (true);
+CREATE POLICY project_progress_tasks_public_insert ON project_progress_tasks FOR INSERT WITH CHECK (true);
+CREATE POLICY project_progress_tasks_public_update ON project_progress_tasks FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY project_progress_tasks_public_delete ON project_progress_tasks FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS project_progress_task_quantities_public_select ON project_progress_task_quantities;
+DROP POLICY IF EXISTS project_progress_task_quantities_public_insert ON project_progress_task_quantities;
+DROP POLICY IF EXISTS project_progress_task_quantities_public_update ON project_progress_task_quantities;
+DROP POLICY IF EXISTS project_progress_task_quantities_public_delete ON project_progress_task_quantities;
+CREATE POLICY project_progress_task_quantities_public_select ON project_progress_task_quantities FOR SELECT USING (true);
+CREATE POLICY project_progress_task_quantities_public_insert ON project_progress_task_quantities FOR INSERT WITH CHECK (true);
+CREATE POLICY project_progress_task_quantities_public_update ON project_progress_task_quantities FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY project_progress_task_quantities_public_delete ON project_progress_task_quantities FOR DELETE USING (true);
+
 DELETE FROM ai_knowledge_docs
 WHERE source_type = 'construction_log'
    OR (COALESCE(source_type, '') <> 'manual' AND source_ref LIKE 'cl:%');
