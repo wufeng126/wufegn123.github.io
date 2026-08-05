@@ -1,6 +1,5 @@
 'use client';
 
-import { PageHeader } from '@/components/business/page-layout';
 import dynamic from 'next/dynamic';
 import { TabContainer, type TabItem } from '@/components/tab-container';
 
@@ -22,19 +21,6 @@ export default function ConstructionManagementPage() {
   return (
     <div className="min-h-full bg-[#f5f7fb] p-4 md:p-6">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-4">
-        <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <PageHeader
-            title="施工管理"
-            description="日报汇总、施工日志、进度计划和人员出勤统一在这里处理。"
-          />
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700">项目日报汇总</span>
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">施工日志</span>
-            <span className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">进度计划</span>
-            <span className="inline-flex items-center rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700">人员出勤统计</span>
-          </div>
-        </section>
-
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <TabContainer tabs={tabs} defaultTab="daily-reports" />
         </section>
