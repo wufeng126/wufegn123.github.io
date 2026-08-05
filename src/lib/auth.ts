@@ -45,6 +45,7 @@ type LegacyTokenPayload = UserPayload & {
   is_super_admin?: boolean;
 };
 
+<<<<<<< HEAD
 export class AuthConfigurationError extends Error {
   code = 'AUTH_SECRET_NOT_CONFIGURED';
 
@@ -71,6 +72,16 @@ export function getJwtSecretStatus() {
   };
 }
 
+=======
+// 认证密钥未配置错误
+export class AuthSecretNotConfiguredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AUTH_SECRET_NOT_CONFIGURED';
+  }
+}
+
+>>>>>>> fff362c (feat: 优化 JWT_SECRET 未配置时的错误提示，新增 .env.example)
 // 获取密钥
 export function getSecretKey() {
   const secret = process.env.JWT_SECRET;
@@ -79,7 +90,13 @@ export function getSecretKey() {
 
   if (!secretStatus.configured) {
     if (isProduction) {
+<<<<<<< HEAD
       throw new AuthConfigurationError('JWT_SECRET 未配置或长度不足 32 字符，生产环境拒绝使用默认认证密钥');
+=======
+      throw new AuthSecretNotConfiguredError(
+        'JWT_SECRET 未配置或长度不足 32 字符，生产环境拒绝使用默认认证密钥。请在部署环境变量中配置 JWT_SECRET=至少32位的随机字符串'
+      );
+>>>>>>> fff362c (feat: 优化 JWT_SECRET 未配置时的错误提示，新增 .env.example)
     }
 
     if (!cachedSecretKey) {
