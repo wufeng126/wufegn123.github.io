@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
+import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 
 // 获取证件状态
 function getCertificateStatus(expiryDate: string): 'normal' | 'expiring' | 'expired' {
@@ -25,6 +26,9 @@ function getCertificateStatus(expiryDate: string): 'normal' | 'expiring' | 'expi
 // 获取证件列表
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
     
@@ -133,6 +137,9 @@ export async function GET(request: NextRequest) {
 // 创建证件
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     const body = await request.json();
     

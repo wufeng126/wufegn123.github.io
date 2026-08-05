@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
+import { requireApiWritePermission } from '@/lib/api-auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
 
@@ -154,6 +155,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { name, work_type, id_card, phone, bank_card, project_id, entry_date, team_name, is_blacklist, remark } = body;
 

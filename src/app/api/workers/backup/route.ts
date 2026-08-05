@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 
 // 获取可恢复的备份数据列表
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1');
@@ -47,6 +51,9 @@ export async function GET(request: NextRequest) {
 // 执行备份、清空或恢复操作
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     const body = await request.json();
     const { action, workerIds, operator } = body;

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getCurrentUser } from '@/lib/auth';
+import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 
 // GET /api/worker-assignments?worker_id=X or ?project_id=X
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const searchParams = request.nextUrl.searchParams;
     const workerId = searchParams.get('worker_id');
     const projectId = searchParams.get('project_id');
@@ -70,6 +73,9 @@ export async function GET(request: NextRequest) {
 // POST /api/worker-assignments - 分配工人到项目（支持调动）
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { worker_id, project_id, start_date, action } = body;
 
@@ -78,7 +84,6 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const user = await getCurrentUser();
 
     if (action === 'transfer') {
       // 调动：结束旧项目分配，创建新项目分配
@@ -179,9 +184,88 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// DELETE /api/worker-assignments?id=X - mark one project assignment as left while keeping history.
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
+    const assignmentId = Number(request.nextUrl.searchParams.get('id'));
+    if (!assignmentId) {
+      return NextResponse.json({ error: '分配ID不能为空' }, { status: 400 });
+    }
+
+    const client = getSupabaseClient();
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data: assignment, error: fetchError } = await client
+      .from('worker_assignments')
+      .select('id, worker_id, project_id, status')
+      .eq('id', assignmentId)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw new Error(`查询分配记录失败: ${fetchError.message}`);
+    }
+    if (!assignment) {
+      return NextResponse.json({ error: '未找到分配记录' }, { status: 404 });
+    }
+
+    const { data, error } = await client
+      .from('worker_assignments')
+      .update({ status: 'left', end_date: today })
+      .eq('id', assignmentId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`退场失败: ${error.message}`);
+    }
+
+    const { data: worker } = await client
+      .from('workers')
+      .select('project_id')
+      .eq('id', assignment.worker_id)
+      .maybeSingle();
+
+    if (worker?.project_id === assignment.project_id) {
+      const { data: activeAssignments } = await client
+        .from('worker_assignments')
+        .select('project_id')
+        .eq('worker_id', assignment.worker_id)
+        .eq('status', 'active')
+        .neq('id', assignmentId)
+        .order('start_date', { ascending: false })
+        .limit(1);
+
+      const nextProjectId = activeAssignments?.[0]?.project_id || null;
+      await client
+        .from('workers')
+        .update({ project_id: nextProjectId, status: nextProjectId ? 'in_service' : 'left' })
+        .eq('id', assignment.worker_id);
+    }
+
+    await auditLog({
+      operationType: 'update',
+      resourceType: 'worker',
+      resourceId: assignment.worker_id,
+      details: { action: 'leave_assignment', assignment_id: assignmentId, project_id: assignment.project_id },
+      request,
+    });
+
+    return NextResponse.json({ assignment: data, success: true });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json({ error: error.message || '退场失败' }, { status: 500 });
+  }
+}
+
 // PUT /api/worker-assignments - 更新分配状态
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, status, end_date } = body;
 

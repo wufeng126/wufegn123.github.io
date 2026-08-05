@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 const storage = new S3Storage({
   endpointUrl: process.env.OSS_ENDPOINT || process.env.COZE_BUCKET_ENDPOINT_URL,
@@ -13,6 +14,9 @@ const storage = new S3Storage({
 // 上传证件附件
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const certificateId = formData.get('certificateId') as string | null;

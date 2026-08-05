@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 
 // 身份证号校验（18位）
 function validateIdCard(idCard: string | null): { valid: boolean; message?: string; type: 'valid' | 'invalid' | 'empty' | 'duplicate' } {
@@ -72,6 +73,9 @@ function isTestData(name: string): { isTest: boolean; reason?: string } {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     
     // 获取所有工人数据
@@ -306,6 +310,9 @@ export async function GET(request: NextRequest) {
 // 执行清洗操作
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { action, ids } = body;
     

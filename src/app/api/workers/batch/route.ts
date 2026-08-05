@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
+import { requireApiWritePermission } from '@/lib/api-auth';
 import { syncWorkerProjectAssignment, syncWorkerProjectAssignments } from '@/lib/worker-assignment-sync';
 
 // 不限制手机号、身份证号、银行卡号格式，仅做非空判断
@@ -45,6 +46,9 @@ async function recordImportHistory(
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { 
       workers, 
