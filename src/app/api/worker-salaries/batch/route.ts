@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { syncAllSalaryPaymentStatus } from '@/lib/business-logic';
+import { requireApiWritePermission } from '@/lib/api-auth';
 import * as XLSX from 'xlsx';
 
 // 将各种日期格式统一为 YYYY-MM
@@ -118,6 +119,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const contentType = request.headers.get('content-type') || '';
     const client = getSupabaseClient();
 

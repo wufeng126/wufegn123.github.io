@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getCurrentUser } from '@/lib/auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { SALARY_PAYMENT_TOLERANCE, calculateSalaryPaymentStatus, calculateSalaryUnpaidAmount, syncSalaryPaymentStatus } from '@/lib/business-logic';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 type RelatedNameEntity = {
   name?: string | null;
@@ -114,6 +114,9 @@ async function getAccessibleProjectIds(userId: number, userRole: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const searchParams = request.nextUrl.searchParams;
     const workerId = searchParams.get('worker_id');
     const projectId = searchParams.get('project_id');
@@ -122,11 +125,11 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
     
     // 获取当前用户
-    const user = await getCurrentUser();
+    const user = auth.user;
     
     // 获取可访问的项目ID
-    const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
-    const isSuperAdmin = user?.role === 'super_admin';
+    const accessibleProjects = await getAccessibleProjectIds(user.id || 0, user.role || 'admin');
+    const isSuperAdmin = user.is_super_admin || user.role === 'super_admin';
     
     let query = client
       .from('worker_salaries')
@@ -329,6 +332,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { 
       worker_id, 
@@ -357,9 +363,9 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
     
     // 获取当前用户并验证权限
-    const user = await getCurrentUser();
-    const accessibleProjects = await getAccessibleProjectIds(user?.id || 0, user?.role || 'admin');
-    const isSuperAdmin = user?.role === 'super_admin';
+    const user = auth.user;
+    const accessibleProjects = await getAccessibleProjectIds(user.id || 0, user.role || 'admin');
+    const isSuperAdmin = user.is_super_admin || user.role === 'super_admin';
     
     if (!isSuperAdmin && (accessibleProjects.length === 0 || !accessibleProjects.includes(project_id))) {
       return NextResponse.json({ error: '无权在该项目下创建工资记录' }, { status: 403 });

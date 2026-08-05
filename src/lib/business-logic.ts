@@ -4,6 +4,12 @@
  */
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
+type SupplierPaymentAmountRow = {
+  id?: number | null;
+  payment_amount?: unknown;
+  status?: string | null;
+};
+
 // ========== 通用工具 ==========
 
 export const VISA_DONE_STATUSES = ['已完成', '已结算', '已完结', '已签回', 'approved'] as const;
@@ -238,10 +244,12 @@ export async function getContractPaidAmount(contractId: number): Promise<number>
   const client = getSupabaseClient();
   const { data: payments } = await client
     .from('supplier_payments')
-    .select('payment_amount')
+    .select('payment_amount, status')
     .eq('contract_id', contractId);
 
-  return (payments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+  return ((payments || []) as SupplierPaymentAmountRow[])
+    .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
+    .reduce((sum, p) => sum + parseNumeric(p.payment_amount), 0);
 }
 
 /**
@@ -288,15 +296,16 @@ export async function validateSupplierPayment(params: {
   }
 
   // 获取已付金额
-  let paidQuery = client
+  const paidQuery = client
     .from('supplier_payments')
-    .select('id, payment_amount')
+    .select('id, payment_amount, status')
     .eq('contract_id', params.contract_id);
 
   const { data: existingPayments } = await paidQuery;
 
-  let totalPaid = (existingPayments || []).reduce((sum: number, p: any) => {
+  const totalPaid = ((existingPayments || []) as SupplierPaymentAmountRow[]).reduce((sum, p) => {
     if (params.exclude_payment_id && p.id === params.exclude_payment_id) return sum;
+    if (!isEffectiveSupplierPaymentStatus(p.status)) return sum;
     return sum + parseNumeric(p.payment_amount);
   }, 0);
 
@@ -347,7 +356,7 @@ export async function validateSupplierSettlementPayment(params: {
 
   let paymentQuery = client
     .from('supplier_payments')
-    .select('id, payment_amount')
+    .select('id, payment_amount, status')
     .eq('settlement_id', params.settlement_id);
 
   if (params.exclude_payment_id) {
@@ -355,10 +364,9 @@ export async function validateSupplierSettlementPayment(params: {
   }
 
   const { data: payments } = await paymentQuery;
-  const totalPaid = (payments || []).reduce(
-    (sum: number, p: any) => sum + parseNumeric(p.payment_amount),
-    0
-  );
+  const totalPaid = ((payments || []) as SupplierPaymentAmountRow[])
+    .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
+    .reduce((sum, p) => sum + parseNumeric(p.payment_amount), 0);
   const payableAmount = parseNumeric(settlement.payable_amount);
   const unpaidBalance = payableAmount - totalPaid;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { syncSalaryPaymentStatus } from '@/lib/business-logic';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -8,6 +9,9 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { ids, field, value } = body;
 
