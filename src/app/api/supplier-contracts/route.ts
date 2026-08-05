@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 function isFinalSettlementType(type?: string | null) {
   const normalized = String(type || '').trim().toLowerCase();
@@ -19,6 +20,9 @@ function isFinalSettlementType(type?: string | null) {
 // GET /api/supplier-contracts - 获取合同列表
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const supplierId = searchParams.get('supplier_id');
@@ -112,6 +116,9 @@ export async function GET(request: NextRequest) {
 // POST /api/supplier-contracts - 新增合同
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const body = await request.json();
     const {

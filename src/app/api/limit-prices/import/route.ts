@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 type UserPayload = RequestAuthUser;
 
@@ -12,6 +13,10 @@ async function getAuthUser(request: NextRequest): Promise<UserPayload | null> {
 // POST /api/limit-prices/import - 批量导入限价
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseClient();
+  const auth = await requireApiWritePermission(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
   const user = await getAuthUser(request);
   
   if (!user) {

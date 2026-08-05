@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import * as XLSX from 'xlsx';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 
 // GET: Download import template (xlsx format, pre-filled with subitem names)
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');
@@ -70,6 +74,9 @@ export async function GET(request: NextRequest) {
 // POST: Import monthly report data from Excel/CSV file
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const contentType = request.headers.get('content-type') || '';
 

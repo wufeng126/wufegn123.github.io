@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 // GET /api/audit-logs - 查询审计日志（分页、筛选）
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
@@ -64,6 +68,9 @@ export async function GET(request: NextRequest) {
 // DELETE /api/audit-logs - 清理审计日志（按日期范围）
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const beforeDate = searchParams.get('before_date');
 

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   const supabase = getSupabaseClient();
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('project_id');
@@ -32,6 +36,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const body = await request.json();
 

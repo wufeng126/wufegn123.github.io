@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 // GET: 获取月度对上报量记录
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const subitemId = searchParams.get('subitem_id');
     const projectId = searchParams.get('project_id');
@@ -54,6 +58,9 @@ export async function GET(request: NextRequest) {
 // POST: 创建或更新月度对上报量记录
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { subitem_id, year_month, report_quantity, remark } = body;
 
@@ -126,6 +133,9 @@ export async function POST(request: NextRequest) {
 // PUT: 批量更新月度对上报量
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { records } = body; // Array of { subitem_id, year_month, report_quantity }
 
@@ -195,6 +205,9 @@ export async function PUT(request: NextRequest) {
 // DELETE: 删除月度对上报量记录
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

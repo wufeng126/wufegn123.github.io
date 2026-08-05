@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { parseExcelFile } from '@/lib/excel-utils';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -66,6 +67,9 @@ function validateRequiredFieldsCN(
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
