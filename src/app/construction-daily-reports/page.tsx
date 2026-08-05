@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -280,8 +281,14 @@ function EmptyState({ message }: { message?: string }) {
   );
 }
 
+function isReportDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export default function ConstructionDailyReportsPage() {
-  const [date, setDate] = useState(getDefaultDailyReportDate());
+  const searchParams = useSearchParams();
+  const queryDate = searchParams.get('date') || searchParams.get('report_date') || '';
+  const [date, setDate] = useState(() => (isReportDate(queryDate) ? queryDate : getDefaultDailyReportDate()));
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -326,6 +333,11 @@ export default function ConstructionDailyReportsPage() {
   useEffect(() => {
     void loadReport(date);
   }, [date]);
+
+  useEffect(() => {
+    if (!isReportDate(queryDate)) return;
+    setDate(currentDate => (currentDate === queryDate ? currentDate : queryDate));
+  }, [queryDate]);
 
   const summary = report?.summary;
   const projects = useMemo(() => summary?.projects || [], [summary]);
