@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -622,7 +622,9 @@ export default function SidebarLayout({
           className="flex-1 overflow-auto"
           style={{ background: 'var(--background)' }}
         >
-          <NotificationReadMarker />
+          <Suspense fallback={null}>
+            <NotificationReadMarker />
+          </Suspense>
           {children}
         </main>
       </div>
