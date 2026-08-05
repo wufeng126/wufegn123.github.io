@@ -2,17 +2,63 @@ import { NextRequest } from 'next/server';
 import {
   getAIConfig, createLLMClient, extractForwardHeaders, checkDailyLimit, incrementDailyUsage,
   checkModulePermission, maskSensitiveInfo, isBusinessRelated, logAIAudit,
-  saveChatMessage, getChatHistory, fetchBusinessDataForContext,
+  saveChatMessage, fetchBusinessDataForContext,
   buildSystemPrompt, searchKnowledge, searchSystemKnowledge, getOfflineAnswer,
-  clearAIConfigCache, detectQueryIntent,
+  detectQueryIntent,
 } from '@/lib/ai-service';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireAuth } from '@/lib/api-auth';
+
+type ChatRole = 'system' | 'user' | 'assistant';
+
+type ChatMessageInput = {
+  role?: unknown;
+  content?: unknown;
+};
+
+type ChatMessage = {
+  role: ChatRole;
+  content: string;
+};
+
+type AiChatRequestBody = {
+  messages?: ChatMessageInput[];
+  session_id?: string;
+  page_context?: string;
+};
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function getChunkText(chunk: unknown): string {
+  if (typeof chunk === 'string') return chunk;
+
+  const record = toRecord(chunk);
+  const content = record.content;
+
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => {
+        const blockRecord = toRecord(block);
+        return String(blockRecord.text || blockRecord.content || '');
+      })
+      .join('');
+  }
+
+  return String(content || record.text || '');
+}
 
 // 消息角色校验与过滤
-function validateAndFilterMessages(messages: any[]): any[] {
-  const validRoles = new Set(['system', 'user', 'assistant']);
+function validateAndFilterMessages(messages: ChatMessageInput[]): ChatMessage[] {
+  const validRoles = new Set<ChatRole>(['system', 'user', 'assistant']);
   const filtered = messages
-    .filter(m => m && m.role && validRoles.has(m.role) && m.content)
+    .filter((m): m is { role: ChatRole; content: unknown } => (
+      Boolean(m?.role && validRoles.has(m.role as ChatRole) && m.content)
+    ))
     .map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
 
   // 确保第一条是 system
@@ -20,7 +66,7 @@ function validateAndFilterMessages(messages: any[]): any[] {
     filtered.unshift({ role: 'system', content: '你是建筑劳务企业AI助手。' });
   }
   // 合并连续相同角色
-  const merged: any[] = [];
+  const merged: ChatMessage[] = [];
   for (const msg of filtered) {
     if (merged.length > 0 && merged[merged.length - 1].role === msg.role) {
       merged[merged.length - 1].content += '\n' + msg.content;
@@ -57,15 +103,18 @@ export async function POST(request: NextRequest) {
   let inputSummary = '';
 
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     // 解析请求
-    const body = await request.json();
-    const messages = body.messages || [];
+    const body = await request.json() as AiChatRequestBody;
+    const messages = Array.isArray(body.messages) ? body.messages : [];
     sessionId = body.session_id || `sess_${Date.now()}`;
     pageContext = body.page_context || '';
-    // 从中间件注入的请求头获取用户信息（安全，不可伪造）
-    userId = parseInt(request.headers.get('x-user-id') || '0') || body.user_id || 0;
-    userRole = request.headers.get('x-user-role') || body.user_role || 'team_leader';
-    username = body.username || '';
+    // 身份只从登录 token 解析，避免客户端伪造 user_id/user_role。
+    userId = auth.user.id;
+    userRole = auth.user.role || 'team_leader';
+    username = auth.user.name || auth.user.username || '';
 
     if (messages.length === 0) {
       return new Response(JSON.stringify({ success: false, error: '消息不能为空' }), {
@@ -82,7 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查每日限额
-    const { allowed, used } = await checkDailyLimit(userId, config.daily_limit);
+    const { allowed } = await checkDailyLimit(userId, config.daily_limit);
     if (!allowed) {
       return new Response(JSON.stringify({
         success: false, error: `今日AI调用已达上限(${config.daily_limit}次)`,
@@ -91,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     // 获取用户最后一条消息
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-    inputSummary = lastUserMsg?.content?.slice(0, 100) || '';
+    inputSummary = lastUserMsg ? String(lastUserMsg.content).slice(0, 100) : '';
 
     // 内容安全过滤
     if (config.content_filter_enabled && !isBusinessRelated(inputSummary)) {
@@ -159,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     // 调用LLM - 流式输出
     const client = createLLMClient(forwardHeaders);
-    const llmMessages = contextMessages.map((m: any) => ({ role: m.role, content: m.content }));
+    const llmMessages = contextMessages.map((m) => ({ role: m.role, content: m.content }));
     const stream = await client.stream(llmMessages, {
       model: config.model_id,
       temperature: Number(config.temperature),
@@ -182,9 +231,7 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of stream) {
-            const text = typeof chunk === 'string' ? chunk
-              : Array.isArray(chunk?.content) ? chunk.content.map((b: any) => b?.text || b?.content || '').join('')
-              : chunk?.content?.toString() || chunk?.text || '';
+            const text = getChunkText(chunk);
             if (!text) continue;
 
             // 敏感信息脱敏
@@ -211,14 +258,15 @@ export async function POST(request: NextRequest) {
 
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`));
           controller.close();
-        } catch (streamError: any) {
+        } catch (streamError: unknown) {
+          const streamErrorMessage = getErrorMessage(streamError, 'AI 流式响应失败');
           console.error('[AI] Stream error:', streamError);
 
           // 审计日志 - 流错误
           await logAIAudit({
             userId, username, action: 'chat', inputSummary, pageContext,
             modelId: config.model_id, responseTimeMs: Date.now() - startTime,
-            isSuccess: false, errorMessage: streamError.message,
+            isSuccess: false, errorMessage: streamErrorMessage,
           });
 
           // 离线兜底
@@ -241,14 +289,15 @@ export async function POST(request: NextRequest) {
         'X-AI-Session-Id': sessionId,
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const errorMessage = getErrorMessage(e, 'AI服务暂时不可用');
     console.error('[AI] Chat error:', e);
 
     // 审计日志
     await logAIAudit({
       userId, username, action: 'chat', inputSummary, pageContext,
       responseTimeMs: Date.now() - startTime, isSuccess: false,
-      errorMessage: e.message,
+      errorMessage,
     });
 
     // 离线兜底
@@ -269,8 +318,11 @@ export async function POST(request: NextRequest) {
 // GET /api/ai/chat - 获取历史会话列表
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
-    const userId = parseInt(searchParams.get('user_id') || '0');
+    const userId = auth.user.id;
     const sessionId = searchParams.get('session_id');
     const action = searchParams.get('action');
 
@@ -291,7 +343,8 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       const { getChatHistory } = await import('@/lib/ai-service');
       const history = await getChatHistory(sessionId);
-      return new Response(JSON.stringify({ success: true, data: history }), {
+      const ownHistory = history.filter((item: { user_id?: number | string }) => Number(item.user_id) === userId);
+      return new Response(JSON.stringify({ success: true, data: ownHistory }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -299,8 +352,8 @@ export async function GET(request: NextRequest) {
     return new Response(JSON.stringify({ success: false, error: '缺少参数' }), {
       status: 400, headers: { 'Content-Type': 'application/json' },
     });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ success: false, error: e.message }), {
+  } catch (e: unknown) {
+    return new Response(JSON.stringify({ success: false, error: getErrorMessage(e, '获取失败') }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }

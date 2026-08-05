@@ -4,6 +4,7 @@ import { apiError } from '@/lib/api-utils';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { isDevelopmentAuthBypassEnabled } from '@/lib/auth-bypass';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
 
     // ═══════════════ 开发预览模式 ═══════════════
     // 仅在显式开启时返回模拟超级管理员，避免部署环境变量漏配导致认证绕过。
-    if (process.env.COZE_PROJECT_ENV !== 'PROD' && process.env.ENABLE_AUTH_BYPASS === 'true') {
+    if (isDevelopmentAuthBypassEnabled()) {
       const mockUser = {
         id: 1,
         username: 'admin',

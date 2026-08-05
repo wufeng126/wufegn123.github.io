@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { ROUTE_PERMISSIONS, PUBLIC_PAGES, isSuperAdminUser, findMatchingRoute, checkApiWritePermission } from '@/lib/route-permissions';
 import { normalizeAuthUser, verifyToken } from '@/lib/auth';
+import { isDevelopmentAuthBypassEnabled } from '@/lib/auth-bypass';
 
 // 钉钉可信域名（用于 CORS）
 const DINGTALK_ORIGINS = [
@@ -95,7 +96,7 @@ export async function middleware(request: NextRequest) {
 
   // ═══════════════ 开发预览模式 ═══════════════
   // 仅在显式开启时跳过登录认证，避免部署环境变量漏配导致管理员绕过。
-  if (process.env.COZE_PROJECT_ENV !== 'PROD' && process.env.ENABLE_AUTH_BYPASS === 'true') {
+  if (isDevelopmentAuthBypassEnabled()) {
     const nextResp = NextResponse.next();
     nextResp.headers.set('x-user-id', '1');
     nextResp.headers.set('x-user-role', 'super_admin');
