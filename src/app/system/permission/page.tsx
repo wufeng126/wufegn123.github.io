@@ -356,6 +356,7 @@ const ROLE_TEMPLATES: RoleTemplate[] = [
     permissions: pickPermissionCodes([
       'projects:view',
       'work_items:view',
+      'work_items:progress',
       'visas:view',
       'visas:edit',
       'visas:attachments',
