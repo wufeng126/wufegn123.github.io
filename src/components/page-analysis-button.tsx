@@ -13,6 +13,22 @@ interface PageAnalysisButtonProps {
   onAnalyze?: (prompt: string) => void;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderAnalysisResult(value: string): string {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`(.+?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>')
+    .replace(/\n/g, '<br/>');
+}
+
 const PAGE_TEMPLATES: Record<string, { label: string; prompt: string }[]> = {
   '花名册': [
     { label: '用工分析', prompt: '分析当前花名册数据：工人总数、工种分布、在/退场比例，是否存在用工风险' },
@@ -141,10 +157,7 @@ export function PageAnalysisButton({ pageName, onAnalyze }: PageAnalysisButtonPr
             <div
               className="text-sm whitespace-pre-wrap"
               dangerouslySetInnerHTML={{
-                __html: result
-                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/`(.+?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>')
-                  .replace(/\n/g, '<br/>')
+                __html: renderAnalysisResult(result)
               }}
             />
           )}

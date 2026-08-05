@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getUserById, getUserDisplayName } from '@/lib/visa-workflow';
+import { isVisaDoneStatus, parseNumeric } from '@/lib/business-logic';
 
 // 获取单个签证详情
 export async function GET(
@@ -65,12 +66,37 @@ export async function PUT(
     } = body;
 
     // 检查签证编号是否重复（排除自身）
+    const visaId = parseInt(id);
+
+    const { data: currentVisa, error: currentVisaError } = await client
+      .from('visas')
+      .select('id, status, project_id, visa_quantity, visa_unit, visa_amount')
+      .eq('id', visaId)
+      .single();
+
+    if (currentVisaError || !currentVisa) {
+      return NextResponse.json({ error: 'Visa not found' }, { status: 404 });
+    }
+
+    const lockedFieldChanged =
+      (project_id !== undefined && Number(project_id) !== Number(currentVisa.project_id)) ||
+      (visa_quantity !== undefined && parseNumeric(visa_quantity) !== parseNumeric(currentVisa.visa_quantity)) ||
+      (visa_unit !== undefined && String(visa_unit || '') !== String(currentVisa.visa_unit || '')) ||
+      (visa_amount !== undefined && parseNumeric(visa_amount) !== parseNumeric(currentVisa.visa_amount));
+
+    if (isVisaDoneStatus(currentVisa.status) && lockedFieldChanged) {
+      return NextResponse.json(
+        { error: 'Completed visa amount and quantity fields cannot be changed directly.' },
+        { status: 400 }
+      );
+    }
+
     if (visa_number) {
       const { data: existingVisa } = await client
         .from('visas')
         .select('id')
         .eq('visa_number', visa_number)
-        .neq('id', parseInt(id))
+        .neq('id', visaId)
         .single();
 
       if (existingVisa) {
@@ -107,7 +133,7 @@ export async function PUT(
         ...currentResponsibleUpdate,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', parseInt(id))
+      .eq('id', visaId)
       .select()
       .single();
 
@@ -118,7 +144,7 @@ export async function PUT(
     await auditLog({
       operationType: 'update',
       resourceType: 'visa',
-      resourceId: parseInt(id),
+      resourceId: visaId,
       details: { visa_number, visa_name },
       request,
     });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { isSalaryPaymentLocked } from '@/lib/business-logic';
 
 export async function DELETE(
   request: NextRequest,
@@ -17,9 +18,17 @@ export async function DELETE(
     // 先查询记录信息用于审计日志
     const { data: salaryData } = await client
       .from('worker_salaries')
-      .select('id, worker_id, year_month, net_pay')
+      .select('id, worker_id, year_month, net_pay, payment_status')
       .eq('id', parseInt(id))
       .single();
+
+    if (!salaryData) {
+      return NextResponse.json({ error: 'Salary record not found' }, { status: 404 });
+    }
+
+    if (isSalaryPaymentLocked(salaryData.payment_status)) {
+      return NextResponse.json({ error: 'Salary records with payments cannot be deleted.' }, { status: 400 });
+    }
 
     const { error } = await client
       .from('worker_salaries')

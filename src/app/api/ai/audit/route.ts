@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requirePermission } from '@/lib/api-auth';
 
 // GET /api/ai/audit - 获取审计日志
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:ai_manage');
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('user_id');
@@ -42,6 +46,9 @@ export async function GET(request: NextRequest) {
 // POST /api/ai/audit/export - 导出审计日志
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:ai_manage');
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const body = await request.json();
     const { user_id, action, start_date, end_date } = body;

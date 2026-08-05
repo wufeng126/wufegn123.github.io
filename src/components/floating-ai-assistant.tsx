@@ -113,7 +113,7 @@ function parseDataCards(text: string): { text: string; cards: DataCard[] } {
   let match;
   while ((match = linkPattern.exec(text)) !== null) {
     const label = match[1];
-    const link = match[2];
+    const link = sanitizeInternalHref(match[2]);
     let type = 'page';
     if (link.includes('/projects')) type = 'project';
     else if (link.includes('/workers')) type = 'worker';
@@ -125,8 +125,38 @@ function parseDataCards(text: string): { text: string; cards: DataCard[] } {
 }
 
 // 简单 Markdown 渲染（支持表格、加粗、列表等）
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sanitizeInternalHref(value: string): string {
+  const normalized = value.replace(/&amp;/g, '&').trim();
+  if (!normalized.startsWith('/') || normalized.startsWith('//')) {
+    return '#';
+  }
+
+  try {
+    const parsed = new URL(normalized, 'https://app.local');
+    if (parsed.origin !== 'https://app.local') {
+      return '#';
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return '#';
+  }
+}
+
+function renderPlainText(text: string): string {
+  return escapeHtml(text).replace(/\n/g, '<br/>');
+}
+
 function renderMarkdown(text: string): string {
-  let html = text;
+  let html = escapeHtml(text);
 
   // 表格渲染
   const tablePattern = /\n(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+)/g;
@@ -162,7 +192,10 @@ function renderMarkdown(text: string): string {
   html = html.replace(/^[•\-] (.+)$/gm, '<li class="ml-3">$1</li>');
 
   // 链接渲染为可点击
-  html = html.replace(/\[([^\]]+)\]\((\/[^)]+)\)/g, '<a href="$2" class="text-primary underline hover:text-primary/80">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\((\/[^)]+)\)/g, (_match, label: string, href: string) => {
+    const safeHref = sanitizeInternalHref(href);
+    return `<a href="${escapeHtml(safeHref)}" class="text-primary underline hover:text-primary/80">${label}</a>`;
+  });
 
   // 换行
   html = html.replace(/\n/g, '<br/>');
@@ -740,7 +773,7 @@ export function FloatingAIAssistant() {
                     }`}
                     dangerouslySetInnerHTML={{
                       __html: msg.role === 'user'
-                        ? msg.content
+                        ? renderPlainText(msg.content)
                         : renderMarkdown(msg.content || (isLoading ? '⏳ 思考中...' : ''))
                     }}
                   />

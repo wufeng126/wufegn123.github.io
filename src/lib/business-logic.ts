@@ -92,6 +92,11 @@ export function calculateSalary(params: {
  */
 export type SalaryPaymentStatus = 'unpaid' | 'partial' | 'paid' | 'overpaid';
 export const SALARY_PAYMENT_TOLERANCE = 1;
+export const LOCKED_SALARY_PAYMENT_STATUSES: SalaryPaymentStatus[] = ['partial', 'paid', 'overpaid'];
+
+export function isSalaryPaymentLocked(status?: string | null): boolean {
+  return LOCKED_SALARY_PAYMENT_STATUSES.includes(String(status || '').toLowerCase() as SalaryPaymentStatus);
+}
 
 export function calculateSalaryPaymentStatus(netPay: number, paidAmount: number): SalaryPaymentStatus {
   if (paidAmount <= 0) return 'unpaid';

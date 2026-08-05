@@ -147,7 +147,7 @@ export async function PUT(
         });
       }
 
-      if (nextStatus === REVIEW_STATUS.DRAFT) {
+      if (nextStatus === REVIEW_STATUS.DRAFT || nextStatus === REVIEW_STATUS.VOIDED) {
         await supabase
           .from('supplier_contracts')
           .update({

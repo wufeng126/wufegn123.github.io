@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireSuperAdmin } from '@/lib/api-auth';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     
     // 需要维护序列的表列表
