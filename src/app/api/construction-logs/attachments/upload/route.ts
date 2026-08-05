@@ -9,10 +9,10 @@ const SUPPORTED_IMAGE = /^image\/(png|jpe?g|webp|bmp)$/i;
 
 function createStorage() {
   return new S3Storage({
-    endpointUrl: process.env.OSS_ENDPOINT || process.env.COZE_BUCKET_ENDPOINT_URL,
+    endpointUrl: process.env.OSS_ENDPOINT,
     accessKey: process.env.OSS_ACCESS_KEY_ID || '',
     secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-    bucketName: process.env.OSS_BUCKET_NAME || process.env.COZE_BUCKET_NAME,
+    bucketName: process.env.OSS_BUCKET_NAME,
     region: process.env.OSS_REGION || 'cn-beijing',
   });
 }

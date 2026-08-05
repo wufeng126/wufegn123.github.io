@@ -63,11 +63,11 @@ function isMissingColumn(error: unknown, column: string) {
 
 function createStorage() {
   return new S3Storage({
-    endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-    accessKey: '',
-    secretKey: '',
-    bucketName: process.env.COZE_BUCKET_NAME,
-    region: 'cn-beijing',
+    endpointUrl: process.env.OSS_ENDPOINT,
+    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
+    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
+    bucketName: process.env.OSS_BUCKET_NAME,
+    region: process.env.OSS_REGION || 'cn-beijing',
   });
 }
 
