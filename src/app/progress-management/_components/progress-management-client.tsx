@@ -918,7 +918,7 @@ export default function ProgressManagementPreview() {
         <header className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <div className="text-xs text-slate-500">项目管理 / 进度计划</div>
+              <div className="text-xs text-slate-500">施工管理 / 进度计划</div>
               <h1 className="mt-1 text-2xl font-semibold tracking-normal">月计划编排与项目总计划</h1>
             </div>
 

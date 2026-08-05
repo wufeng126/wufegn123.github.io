@@ -147,6 +147,7 @@ const DEFAULT_PERMISSION_MODULES = [
     key: 'construction',
     name: '施工管理',
     permissions: [
+      { code: 'work_items:progress', name: '查看进度计划' },
       { code: 'construction_attendance:view', name: '查看人员出勤' },
     ],
   },

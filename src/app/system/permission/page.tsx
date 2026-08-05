@@ -84,7 +84,6 @@ const PERMISSION_MENU = [
       { name: '报量管理-查看', code: 'work_items:view' },
       { name: '报量管理-编辑', code: 'work_items:edit' },
       { name: '报量管理-删除', code: 'work_items:delete' },
-      { name: '报量管理-进度', code: 'work_items:progress' },
       { name: '签证管理-查看', code: 'visas:view' },
       { name: '签证管理-编辑', code: 'visas:edit' },
       { name: '签证管理-删除', code: 'visas:delete' },
@@ -193,6 +192,7 @@ const PERMISSION_MENU = [
     children: [
       { name: '施工日志-查看', code: 'construction_logs:view' },
       { name: '施工日志-写日志', code: 'construction_logs:edit' },
+      { name: '进度计划-查看', code: 'work_items:progress' },
       { name: '人员考勤-查看', code: 'construction_attendance:view' },
     ]
   },

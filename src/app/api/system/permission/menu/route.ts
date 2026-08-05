@@ -33,7 +33,6 @@ const PERMISSION_MENU_STRUCTURE = [
       { name: '报量管理-新增', code: 'work_items:create', icon: 'plus' },
       { name: '报量管理-编辑', code: 'work_items:edit', icon: 'edit' },
       { name: '报量管理-删除', code: 'work_items:delete', icon: 'trash' },
-      { name: '报量管理-进度', code: 'work_items:progress', icon: 'chart' },
       { name: '限价管理-列表', code: 'limit_prices:list', icon: 'list' },
       { name: '限价管理-新增', code: 'limit_prices:create', icon: 'plus' },
       { name: '限价管理-编辑', code: 'limit_prices:edit', icon: 'edit' },
@@ -161,6 +160,7 @@ const PERMISSION_MENU_STRUCTURE = [
     children: [
       { name: '施工日志-查看', code: 'construction_logs:view', icon: 'list' },
       { name: '施工日志-写日志', code: 'construction_logs:edit', icon: 'edit' },
+      { name: '进度计划-查看', code: 'work_items:progress', icon: 'chart' },
       { name: '人员考勤-查看', code: 'construction_attendance:view', icon: 'users' },
     ]
   },

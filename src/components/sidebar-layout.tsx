@@ -32,7 +32,7 @@ import NotificationReadMarker from '@/components/notification-read-marker';
 // 使用各 Tab 中权限最宽松的 code（通常是 :view 或 :list），用户拥有其中任意一个即可看到菜单
 const MENU_VISIBILITY: Record<string, string[]> = {
   '/workspace': [],  // 工作台所有人都可见
-  '/project-center': ['projects:view', 'work_items:view', 'work_items:progress', 'visas:view', 'evidence_chain:view', 'client_reports:view', 'client_payments:view'],
+  '/project-center': ['projects:view', 'work_items:view', 'visas:view', 'evidence_chain:view', 'client_reports:view', 'client_payments:view'],
   '/hr-salary': ['workers:view', 'certificates:view', 'salaries:view', 'salaries:pay', 'salaries:query'],
   '/supplier-expense': ['suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/team-management': ['team_groups:view', 'team_settlements:view'],
@@ -176,13 +176,13 @@ export default function SidebarLayout({
     if (pathname.startsWith('/ai-assistant')) return '/workspace';
 
     // 项目管理
-    if (['/project-center', '/projects', '/quantity-reporting', '/progress-management', '/work-items', '/limit-prices', '/visas', '/evidence-chain', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
+    if (['/project-center', '/projects', '/quantity-reporting', '/work-items', '/limit-prices', '/visas', '/evidence-chain', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
 
     // 人力资源
     if (['/hr-salary', '/workers', '/certificates'].some(p => pathname.startsWith(p))) return '/hr-salary';
 
     // 施工管理
-    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/construction-attendance') || pathname.startsWith('/construction-daily-reports')) return '/construction-logs';
+    if (pathname.startsWith('/construction-logs') || pathname.startsWith('/construction-attendance') || pathname.startsWith('/construction-daily-reports') || pathname.startsWith('/progress-management')) return '/construction-logs';
 
     // 供应商与费用
     if (['/supplier-expense', '/supplier-contracts', '/payments', '/settlement', '/settlements', '/suppliers', '/comprehensive-expenses', '/miscellaneous-materials'].some(p => pathname.startsWith(p))) return '/supplier-expense';
