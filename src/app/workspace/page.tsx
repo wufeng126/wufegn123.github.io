@@ -15,7 +15,7 @@ const tabs: TabItem[] = [
 
 export default function WorkspacePage() {
   return (
-    <div className="h-full">
+    <div className="min-h-full">
       <TabContainer tabs={tabs} defaultTab="dashboard" />
     </div>
   );

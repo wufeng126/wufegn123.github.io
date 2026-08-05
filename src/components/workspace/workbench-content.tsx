@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import { usePermission } from '@/contexts/permission-context';
-import { PageHeader, StatsBar } from '@/components/business/page-layout';
 import type { WorkbenchTodoKey } from '@/lib/notification-routing';
 import { NOTIFICATIONS_UPDATED_EVENT } from '@/lib/notification-client';
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   BellRing,
   BookOpen,
@@ -374,30 +374,62 @@ function resolveRoleWorkbench(
 
 function ActionCard({ item, large = false }: { item: QuickEntry; large?: boolean }) {
   const Icon = item.icon;
+  if (large) {
+    return (
+      <Link
+        href={item.href}
+        className="group block rounded-xl border border-blue-100 bg-[#f7fbff] px-5 py-6 transition hover:border-blue-200 hover:bg-white md:px-6"
+      >
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <div className="min-w-0">
+            <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-blue-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+              当前主任务
+            </div>
+            <div className="flex items-start gap-4">
+              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClass(item.tone)}`}>
+                <Icon className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-2xl font-semibold tracking-normal text-slate-950 md:text-3xl">{item.title}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{item.desc}</p>
+              </div>
+            </div>
+          </div>
+          <span className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-base font-semibold text-white transition group-hover:bg-blue-700">
+            立即进入
+            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" strokeWidth={1.8} />
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={item.href}
-      className={`group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${large ? 'min-h-[178px]' : 'min-h-[136px]'}`}
+      className="group flex min-h-[104px] items-start gap-3 rounded-lg p-3 text-left transition hover:bg-slate-50"
     >
-      <div className={`flex h-11 w-11 items-center justify-center rounded-lg ring-1 ${toneClass(item.tone)}`}>
-        <Icon className="h-5 w-5" />
+      <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClass(item.tone)}`}>
+        <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
       </div>
-      <div className="mt-4 text-base font-semibold text-slate-950 group-hover:text-blue-700">{item.title}</div>
-      <p className="mt-1 flex-1 text-sm leading-6 text-slate-500">{item.desc}</p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-700">
-        进入
-        <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="truncate text-sm font-semibold text-slate-950 group-hover:text-blue-700">{item.title}</div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-600" strokeWidth={1.8} />
+        </div>
+        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.desc}</p>
+      </div>
     </Link>
   );
 }
 
 function NoticeCard({ notice }: { notice: NoticeExample }) {
   return (
-    <Link href={notice.href} className="block rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-200 hover:bg-white">
+    <Link href={notice.href} className="block rounded-lg p-3 transition hover:bg-slate-50">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-blue-700 ring-1 ring-blue-100">
-          <MessageSquareText className="h-4 w-4" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+          <MessageSquareText className="h-4 w-4" strokeWidth={1.8} />
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-950">{notice.title}</p>
@@ -469,71 +501,67 @@ export default function WorkbenchContent() {
   );
   const entryCount = roleWorkbench.quickEntries.length + 1;
   const projectScope = isSuperAdmin && managedProjects.length === 0 ? '全部' : managedProjects.length || '未分配';
-  const surfaceStats = useMemo(
+  const focusStats = useMemo(
     () => [
-      { label: '与我有关待办', value: loading ? '--' : pendingTotal, type: 'blue' as const },
-      { label: '高频入口', value: entryCount, type: 'green' as const },
-      { label: '项目范围', value: projectScope, type: 'default' as const },
-      { label: '当前月份', value: todos.scope?.currentMonth || '本月', type: 'orange' as const },
+      { label: '与我有关待办', value: loading ? '--' : pendingTotal, hint: roleWorkbench.todoTitle, tone: 'blue' as Tone },
+      { label: '高频入口', value: entryCount, hint: '按当前岗位收敛', tone: 'emerald' as Tone },
+      { label: '项目范围', value: projectScope, hint: '来自后台项目绑定', tone: 'slate' as Tone },
+      { label: '当前月份', value: todos.scope?.currentMonth || '本月', hint: '待办统计周期', tone: 'amber' as Tone },
     ],
-    [entryCount, loading, pendingTotal, projectScope, todos.scope?.currentMonth],
+    [entryCount, loading, pendingTotal, projectScope, roleWorkbench.todoTitle, todos.scope?.currentMonth],
   );
 
   return (
-    <div className="min-h-full bg-[#f6f7f9] p-4 text-slate-950 md:p-6">
-      <div className="mx-auto max-w-[1480px] space-y-4">
-        <section className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
+    <div className="min-h-full bg-[#eef3f8] p-4 text-slate-950 md:p-6">
+      <div className="mx-auto max-w-[1480px] space-y-7">
+        <section className="border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <PageHeader
-              title="工作台"
-              description="根据登录人的岗位和项目绑定自动收敛入口，不需要手动切换身份。"
-            />
-            <StatsBar items={surfaceStats} className="xl:justify-end" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                {userLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BellRing className="h-3.5 w-3.5" strokeWidth={1.8} />}
+                <span>{roleWorkbench.identity}</span>
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950 md:text-3xl">工作台</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                根据登录人的岗位和项目绑定自动收敛入口，不需要手动切换身份。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {focusStats.slice(0, 3).map((stat) => (
+                <div key={stat.label} className="rounded-lg bg-white/72 px-3 py-2 ring-1 ring-slate-200">
+                  <span className="text-xs text-slate-500">{stat.label}</span>
+                  <span className={`ml-2 text-sm font-semibold tabular-nums ${valueClass(stat.tone)}`}>{stat.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="flex min-w-0 flex-col gap-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                    {userLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BellRing className="h-3.5 w-3.5" />}
-                    {roleWorkbench.identity}
+        <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex min-w-0 flex-col gap-7">
+            <section className="space-y-4">
+              <ActionCard item={roleWorkbench.primary} large />
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between border-b border-slate-100 px-2 pb-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-950">高频入口</h2>
+                    <p className="mt-1 text-sm text-slate-500">保留当前岗位最常用的操作，减少导航来回找。</p>
                   </div>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-normal">{roleWorkbench.title}</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{roleWorkbench.subtitle}</p>
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">{entryCount} 个</span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
-                  {[
-                    { label: '待处理', value: loading ? '--' : pendingTotal, hint: roleWorkbench.todoTitle, tone: 'blue' as Tone },
-                    { label: '快捷入口', value: entryCount, hint: '按当前角色收敛', tone: 'emerald' as Tone },
-                    { label: '项目范围', value: projectScope, hint: '来自后台项目绑定', tone: 'slate' as Tone },
-                  ].map((stat) => (
-                    <div key={stat.label} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">{stat.label}</p>
-                      <p className={`mt-1 text-2xl font-semibold tabular-nums ${valueClass(stat.tone)}`}>{stat.value}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">{stat.hint}</p>
-                    </div>
+                <div className="grid gap-1 pt-2 sm:grid-cols-2">
+                  {roleWorkbench.quickEntries.map((item) => (
+                    <ActionCard key={item.title} item={item} />
                   ))}
                 </div>
               </div>
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-[1.05fr_1.45fr]">
-              <ActionCard item={roleWorkbench.primary} large />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {roleWorkbench.quickEntries.map((item) => (
-                  <ActionCard key={item.title} item={item} />
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <section className="rounded-xl border border-slate-200 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
-                    <AlertCircle className="h-5 w-5" />
+                    <AlertCircle className="h-5 w-5" strokeWidth={1.8} />
                   </div>
                   <div>
                     <h2 className="font-semibold">{roleWorkbench.todoTitle}</h2>
@@ -564,7 +592,7 @@ export default function WorkbenchContent() {
                     >
                       <div className="flex min-w-0 items-start gap-3">
                         <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClass(visual.tone)}`}>
-                          <Icon className="h-5 w-5" />
+                          <Icon className="h-5 w-5" strokeWidth={1.8} />
                         </span>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -584,7 +612,7 @@ export default function WorkbenchContent() {
                       </div>
                       <span className="inline-flex items-center justify-end gap-1 text-sm font-medium text-blue-700">
                         {item.action}
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4" strokeWidth={1.8} />
                       </span>
                     </Link>
                   );
@@ -593,20 +621,35 @@ export default function WorkbenchContent() {
             </section>
           </div>
 
-          <aside className="flex flex-col gap-4">
-            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <aside className="flex flex-col gap-5">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="text-base font-semibold text-slate-950">我的关注</h2>
+              <div className="mt-4 divide-y divide-slate-100">
+                {focusStats.map((stat) => (
+                  <div key={stat.label} className="py-4 first:pt-0 last:pb-0">
+                    <p className="text-xs font-medium text-slate-500">{stat.label}</p>
+                    <div className="mt-1 flex items-end justify-between gap-3">
+                      <p className={`text-3xl font-semibold tabular-nums ${valueClass(stat.tone)}`}>{stat.value}</p>
+                      <p className="pb-1 text-xs text-slate-400">{stat.hint}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white">
               <div className="border-b border-slate-100 px-5 py-4">
                 <h2 className="font-semibold">{roleWorkbench.noticeTitle}</h2>
                 <p className="mt-1 text-sm text-slate-500">{roleWorkbench.noticeDesc}</p>
               </div>
-              <div className="space-y-3 p-4">
+              <div className="divide-y divide-slate-100 p-2">
                 {roleWorkbench.notices.map((notice) => (
                   <NoticeCard key={notice.title} notice={notice} />
                 ))}
               </div>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
               <h2 className="font-semibold">工作台收敛规则</h2>
               <div className="mt-3 space-y-3">
                 {[
@@ -616,7 +659,7 @@ export default function WorkbenchContent() {
                   '待办和钉钉提醒按岗位与项目绑定过滤',
                 ].map((item) => (
                   <div key={item} className="flex gap-2 text-sm leading-6 text-slate-600">
-                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={1.8} />
                     <span>{item}</span>
                   </div>
                 ))}
@@ -625,14 +668,14 @@ export default function WorkbenchContent() {
 
             <Link
               href="/notifications"
-              className="group rounded-lg border border-slate-200 bg-slate-950 p-4 text-white shadow-sm transition hover:bg-slate-800"
+              className="group rounded-xl border border-blue-100 bg-blue-600 p-4 text-white transition hover:bg-blue-700"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">消息通知中心</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-300">配置自动消息、钉钉个人待办和群提醒。</p>
+                  <p className="mt-1 text-xs leading-5 text-blue-100">配置自动消息、钉钉个人待办和群提醒。</p>
                 </div>
-                <ChevronRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
+                <ChevronRight className="h-5 w-5 transition group-hover:translate-x-0.5" strokeWidth={1.8} />
               </div>
             </Link>
           </aside>

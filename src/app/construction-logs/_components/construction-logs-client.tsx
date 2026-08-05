@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -132,15 +133,15 @@ const STATUS_LABELS: Record<WorkflowStatus, string> = {
 };
 
 function riskBadgeClass(level?: RiskLevel | null) {
-  if (level === 'high') return 'border-[#F53F3F] bg-[#FFF1F0] text-[#C62828]';
-  if (level === 'medium') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
-  return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
+  if (level === 'high') return 'border-rose-200 bg-rose-50 text-rose-700';
+  if (level === 'medium') return 'border-amber-200 bg-amber-50 text-amber-700';
+  return 'border-blue-200 bg-blue-50 text-blue-700';
 }
 
 function statusClass(status: WorkflowStatus) {
-  if (status === 'pending') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
-  if (status === 'confirmed') return 'border-[#10B981] bg-[#E8FFEA] text-[#047857]';
-  return 'border-[#C9CDD4] bg-[#F7F8FA] text-[#4E5969]';
+  if (status === 'pending') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (status === 'confirmed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  return 'border-slate-200 bg-slate-100 text-slate-600';
 }
 
 function riskLevelWeight(level?: RiskLevel | null) {
@@ -157,9 +158,9 @@ function logStatusLabel(log: LogItem) {
 }
 
 function logStatusClass(log: LogItem) {
-  if (log.status === 'pending') return 'bg-[#E8F3FF] text-[#165DFF]';
-  if (log.status === 'cancelled') return 'bg-[#F2F3F5] text-[#86909C]';
-  return log.submission_status === 'late' ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#E8FFEA] text-[#047857]';
+  if (log.status === 'pending') return 'bg-blue-50 text-blue-700 ring-1 ring-blue-100';
+  if (log.status === 'cancelled') return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
+  return log.submission_status === 'late' ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-100' : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100';
 }
 
 function formatDateTime(value?: string | null) {
@@ -256,6 +257,54 @@ function includesRiskKeyword(risk: RiskItem, keyword: string) {
     ...(risk.risk_types || []).map(type => RISK_TYPE_LABELS[type] || type),
   ].filter(Boolean).join(' ').toLowerCase();
   return target.includes(keyword.toLowerCase());
+}
+
+function MetricItem({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
+  tone: string;
+}) {
+  return (
+    <div className="rounded-lg bg-white/75 px-3 py-2 ring-1 ring-slate-200">
+      <div className="flex items-center gap-2">
+        <Icon className={`h-4 w-4 ${tone}`} strokeWidth={1.8} />
+        <span className="text-xs text-slate-500">{label}</span>
+      </div>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition ${
+        active
+          ? 'bg-blue-600 text-white shadow-sm'
+          : 'text-slate-500 hover:bg-white hover:text-slate-950'
+      }`}
+    >
+      <Icon className="h-4 w-4" strokeWidth={1.8} />
+      {children}
+    </button>
+  );
 }
 
 export default function ConstructionLogsClient() {
@@ -595,109 +644,89 @@ export default function ConstructionLogsClient() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-3 sm:p-4 md:p-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-[#1D2129] sm:text-2xl">施工日志</h1>
-            <p className="mt-1 text-sm text-[#86909C]">现场记录、风险提醒、提交统计集中查看</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+    <div className="min-h-full bg-[#eef3f8] p-4 text-slate-950 md:p-6">
+      <div className="mx-auto max-w-[1280px] space-y-6">
+        <section className="border-b border-slate-200 pb-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.8} />
+                <span>施工管理 / 现场记录</span>
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950 md:text-3xl">施工日志</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">现场记录、风险提醒、提交统计集中查看，最新记录和待确认风险优先展示。</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {canViewAttendance && (
-              <Link href="/construction-logs?tab=attendance" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
-                <UserRoundCheck className="h-4 w-4" />人员出勤
+              <Link href="/construction-logs?tab=attendance" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 hover:border-blue-200 hover:text-blue-700">
+                <UserRoundCheck className="h-4 w-4" strokeWidth={1.8} />人员出勤
               </Link>
             )}
-            <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
-              <Camera className="h-4 w-4" />拍照识别
+            <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 hover:bg-blue-50">
+              <Camera className="h-4 w-4" strokeWidth={1.8} />拍照识别
             </Link>
-            <Link href="/construction-logs/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-sm hover:bg-[#0E49D8]">
-              <Plus className="h-4 w-4" />写日志
+            <Link href="/construction-logs/new" className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 sm:col-span-1">
+              <Plus className="h-4 w-4" strokeWidth={1.8} />写日志
             </Link>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
-            <FileText className="mx-auto mb-1 h-5 w-5 text-[#165DFF]" />
-            <p className="text-2xl font-bold text-[#1D2129]">{totalLogs}</p>
-            <p className="text-xs text-[#86909C]">总日志数</p>
-          </div>
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
-            <Users className="mx-auto mb-1 h-5 w-5 text-[#7C3AED]" />
-            <p className="text-2xl font-bold text-[#1D2129]">{totalPeople}</p>
-            <p className="text-xs text-[#86909C]">提交人员</p>
-          </div>
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
-            <ClipboardList className="mx-auto mb-1 h-5 w-5 text-[#10B981]" />
-            <p className="text-2xl font-bold text-[#1D2129]">{submittedProjects}</p>
-            <p className="text-xs text-[#86909C]">有日志项目</p>
-          </div>
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
-            <AlertTriangle className="mx-auto mb-1 h-5 w-5 text-[#F59E0B]" />
-            <p className="text-2xl font-bold text-[#1D2129]">{totalRisks}</p>
-            <p className="text-xs text-[#86909C]">风险日志</p>
-          </div>
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-4 text-center">
-            <FileCheck2 className="mx-auto mb-1 h-5 w-5 text-[#F53F3F]" />
-            <p className="text-2xl font-bold text-[#1D2129]">{pendingRisks}</p>
-            <p className="text-xs text-[#86909C]">待确认风险</p>
-          </div>
-        </div>
+        <section className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <MetricItem label="总日志数" value={totalLogs} icon={FileText} tone="text-blue-700" />
+          <MetricItem label="提交人员" value={totalPeople} icon={Users} tone="text-violet-700" />
+          <MetricItem label="有日志项目" value={submittedProjects} icon={ClipboardList} tone="text-emerald-700" />
+          <MetricItem label="风险日志" value={totalRisks} icon={AlertTriangle} tone="text-amber-700" />
+          <MetricItem label="待确认风险" value={pendingRisks} icon={FileCheck2} tone="text-rose-700" />
+        </section>
 
         {message && (
-          <div className="mb-4 rounded-lg border border-[#E5E6EB] bg-white px-4 py-3 text-sm text-[#4E5969]">
+          <div className="rounded-lg border border-blue-100 bg-white px-4 py-3 text-sm text-slate-600">
             {message}
           </div>
         )}
 
-        <div className="mb-5 flex gap-1 rounded-xl bg-[#F2F3F5] p-1">
-          <button onClick={() => setTab('risks')} className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${tab === 'risks' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
-            <AlertTriangle className="mr-1 inline h-4 w-4" />风险池
-          </button>
-          <button onClick={() => setTab('stats')} className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${tab === 'stats' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
-            <BarChart3 className="mr-1 inline h-4 w-4" />提交统计
-          </button>
-          <button onClick={() => setTab('logs')} className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${tab === 'logs' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
-            <ClipboardList className="mr-1 inline h-4 w-4" />日志记录
-          </button>
+        <div className="overflow-x-auto rounded-xl bg-slate-100 p-1">
+          <div className="flex min-w-max gap-1">
+          <TabButton active={tab === 'risks'} onClick={() => setTab('risks')} icon={AlertTriangle}>风险池</TabButton>
+          <TabButton active={tab === 'stats'} onClick={() => setTab('stats')} icon={BarChart3}>提交统计</TabButton>
+          <TabButton active={tab === 'logs'} onClick={() => setTab('logs')} icon={ClipboardList}>日志记录</TabButton>
           {canManageSubmitters && (
-            <button onClick={() => setTab('submitters')} className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${tab === 'submitters' ? 'bg-white text-[#165DFF] shadow-sm' : 'text-[#4E5969]'}`}>
-              <Settings2 className="mr-1 inline h-4 w-4" />提交人员
-            </button>
+            <TabButton active={tab === 'submitters'} onClick={() => setTab('submitters')} icon={Settings2}>提交人员</TabButton>
           )}
+          </div>
         </div>
 
         {tab === 'risks' && (
           <div className="space-y-3">
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm">
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="font-semibold text-[#1D2129]">风险提醒</h2>
-                  <p className="mt-1 text-xs text-[#86909C]">当前显示 {filteredRisks.length}/{risks.length} 条，待确认风险会优先排在前面</p>
+                  <h2 className="font-semibold text-slate-950">风险提醒</h2>
+                  <p className="mt-1 text-xs text-slate-500">当前显示 {filteredRisks.length}/{risks.length} 条，待确认风险会优先排在前面</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs sm:flex sm:flex-wrap">
-                  <span className="rounded-lg bg-[#FFF7E8] px-3 py-2 font-medium text-[#B45309]">待确认 {pendingRisks}</span>
-                  <span className="rounded-lg bg-[#FFF1F0] px-3 py-2 font-medium text-[#C62828]">高风险 {highRiskReminders}</span>
+                  <span className="rounded-lg bg-amber-50 px-3 py-2 font-medium text-amber-700">待确认 {pendingRisks}</span>
+                  <span className="rounded-lg bg-rose-50 px-3 py-2 font-medium text-rose-700">高风险 {highRiskReminders}</span>
                 </div>
               </div>
               <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1.6fr_auto]">
                 <select
                   value={riskProjectId}
                   onChange={event => setRiskProjectId(event.target.value)}
-                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="all">全部项目</option>
                   {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
                 </select>
-                <select value={riskStatus} onChange={event => setRiskStatus(event.target.value as 'all' | WorkflowStatus)} className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                <select value={riskStatus} onChange={event => setRiskStatus(event.target.value as 'all' | WorkflowStatus)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                   <option value="all">全部状态</option>
                   {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
                 <select
                   value={riskLevelFilter}
                   onChange={event => setRiskLevelFilter(event.target.value as RiskLevelFilter)}
-                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="all">全部等级</option>
                   <option value="high">高风险</option>
@@ -705,12 +734,12 @@ export default function ConstructionLogsClient() {
                   <option value="low">低风险</option>
                 </select>
                 <label className="relative block">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={riskKeyword}
                     onChange={event => setRiskKeyword(event.target.value)}
                     placeholder="搜索项目、部位、内容、建议"
-                    className="h-10 w-full rounded-lg border border-[#E5E6EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
+                    className="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
                 {hasActiveRiskFilter && (
@@ -721,7 +750,7 @@ export default function ConstructionLogsClient() {
                       setRiskLevelFilter('all');
                       setRiskKeyword('');
                     }}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     重置
@@ -731,18 +760,18 @@ export default function ConstructionLogsClient() {
             </section>
 
             {riskLoading ? (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">加载中...</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">加载中...</div>
             ) : risks.length === 0 ? (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">暂无符合条件的风险记录</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">暂无符合条件的风险记录</div>
             ) : filteredRisks.length === 0 ? (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">没有符合筛选条件的风险提醒</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">没有符合筛选条件的风险提醒</div>
             ) : filteredRisks.map(risk => {
               const isPending = risk.workflow_status === 'pending';
               return (
-              <div key={risk.log_id} className={`rounded-xl border bg-white p-4 transition ${isPending ? 'border-[#F59E0B]/50 shadow-sm hover:border-[#F59E0B]' : 'border-[#E5E6EB] hover:border-[#165DFF]/30'}`}>
+              <div key={risk.log_id} className={`rounded-xl border bg-white p-4 transition ${isPending ? 'border-amber-200 hover:border-amber-300 hover:bg-amber-50/30' : 'border-slate-200 hover:border-blue-200'}`}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 flex-1">
-                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#86909C]">
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className={`rounded-full border px-2 py-0.5 font-medium ${statusClass(risk.workflow_status)}`}>
                         {risk.workflow_status_label || STATUS_LABELS[risk.workflow_status]}
                       </span>
@@ -752,32 +781,32 @@ export default function ConstructionLogsClient() {
                         </span>
                       )}
                       <span>{risk.project_name}</span>
-                      <span className="h-3 w-px bg-[#E5E6EB]" />
+                      <span className="h-3 w-px bg-slate-200" />
                       <span>{risk.log_date}</span>
                       <span>{risk.location || '未填部位'}</span>
                     </div>
-                    <p className="text-sm font-semibold text-[#1D2129]">{risk.risk_summary || '施工日志风险提醒'}</p>
-                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#4E5969]">{risk.content}</p>
-                    {risk.issues && <p className="mt-2 text-sm text-[#C62828]">异常：{risk.issues}</p>}
+                    <p className="text-sm font-semibold text-slate-950">{risk.risk_summary || '施工日志风险提醒'}</p>
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{risk.content}</p>
+                    {risk.issues && <p className="mt-2 text-sm text-rose-700">异常：{risk.issues}</p>}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {risk.risk_types.map(type => (
-                        <span key={type} className="rounded-full bg-[#F2F3F5] px-2 py-0.5 text-xs text-[#4E5969]">
+                        <span key={type} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                           {RISK_TYPE_LABELS[type] || type}
                         </span>
                       ))}
                     </div>
                     {risk.risk_recommendation && (
-                      <p className="mt-3 rounded-lg bg-[#FAFBFF] px-3 py-2 text-xs text-[#4E5969]">
+                      <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                         跟进建议：{risk.risk_recommendation}
                       </p>
                     )}
                   </div>
                   <div className="flex flex-col gap-2 md:min-w-[150px]">
-                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]">
+                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-700">
                       <Eye className="h-3.5 w-3.5" />
                       查看详情
                     </Link>
-                    <button disabled={actionBusy === risk.log_id || !isPending} onClick={() => handleRiskAction(risk.log_id)} className={`inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg px-3 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-70 ${isPending ? 'border border-[#10B981] bg-[#10B981] text-white hover:bg-[#059669]' : 'border border-[#10B981]/30 bg-[#E8FFEA] text-[#047857]'}`}>
+                    <button disabled={actionBusy === risk.log_id || !isPending} onClick={() => handleRiskAction(risk.log_id)} className={`inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg px-3 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-70 ${isPending ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
                       {isPending ? <FileCheck2 className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       {risk.workflow_status === 'confirmed' ? '已确认' : '确认提醒'}
                     </button>
@@ -937,15 +966,15 @@ export default function ConstructionLogsClient() {
 
         {tab === 'logs' && (
           <div className="space-y-3">
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm">
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969]">
-                    <Filter className="h-4 w-4" />
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                    <Filter className="h-4 w-4" strokeWidth={1.8} />
                   </span>
                   <div>
-                    <h2 className="text-sm font-semibold text-[#1D2129]">日志筛选</h2>
-                    <p className="mt-0.5 text-xs text-[#86909C]">当前显示 {filteredLogs.length}/{logs.length} 条，最新日期在上</p>
+                    <h2 className="text-sm font-semibold text-slate-950">日志筛选</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">当前显示 {filteredLogs.length}/{logs.length} 条，最新日期在上</p>
                   </div>
                 </div>
                 {hasActiveLogFilter && (
@@ -958,9 +987,9 @@ export default function ConstructionLogsClient() {
                       setLogViewStatus('all');
                       setLogKeyword('');
                     }}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} />
                     重置筛选
                   </button>
                 )}
@@ -969,7 +998,7 @@ export default function ConstructionLogsClient() {
                 <select
                   value={logProjectId}
                   onChange={event => setLogProjectId(event.target.value)}
-                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="all">全部项目</option>
                   {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
@@ -978,20 +1007,20 @@ export default function ConstructionLogsClient() {
                   type="date"
                   value={logDateFrom}
                   onChange={event => setLogDateFrom(event.target.value)}
-                  className="h-10 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   aria-label="开始日期"
                 />
                 <input
                   type="date"
                   value={logDateTo}
                   onChange={event => setLogDateTo(event.target.value)}
-                  className="h-10 rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   aria-label="结束日期"
                 />
                 <select
                   value={logViewStatus}
                   onChange={event => setLogViewStatus(event.target.value as LogViewStatus)}
-                  className="h-10 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="all">全部状态</option>
                   <option value="risk">有风险</option>
@@ -999,47 +1028,47 @@ export default function ConstructionLogsClient() {
                   <option value="pending">待提交</option>
                 </select>
                 <label className="relative block">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={logKeyword}
                     onChange={event => setLogKeyword(event.target.value)}
                     placeholder="搜索项目、人员、部位、内容"
-                    className="h-10 w-full rounded-lg border border-[#E5E6EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
+                    className="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
               </div>
             </section>
             {loading ? (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">加载中...</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">加载中...</div>
             ) : logs.length === 0 ? (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">暂无日志记录</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">暂无日志记录</div>
             ) : filteredLogs.length === 0 ? (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white p-8 text-center text-sm text-[#86909C]">没有符合筛选条件的日志</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">没有符合筛选条件的日志</div>
             ) : (
               <>
                 {visibleLogDateGroups.map((group, index) => (
-              <details key={group.date} open={index === 0} className="group rounded-xl border border-[#E5E6EB] bg-white shadow-sm">
-                <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition hover:bg-[#F7F8FA] md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
+              <details key={group.date} open={index === 0} className="group rounded-xl border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition hover:bg-slate-50 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969]">
-                      <CalendarDays className="h-5 w-5" />
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                      <CalendarDays className="h-5 w-5" strokeWidth={1.8} />
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-semibold text-[#1D2129]">{formatLogDateLabel(group.date)}</h2>
-                        {index === 0 && <span className="rounded-full bg-[#E8F3FF] px-2 py-0.5 text-xs font-medium text-[#165DFF]">最新</span>}
+                        <h2 className="text-base font-semibold text-slate-950">{formatLogDateLabel(group.date)}</h2>
+                        {index === 0 && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">最新</span>}
                       </div>
-                      <p className="mt-1 text-sm text-[#86909C]">
+                      <p className="mt-1 text-sm text-slate-500">
                         共 {group.logs.length} 篇，涉及 {group.projectCount} 个项目，{group.submitterCount} 人提交
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {group.projectBreakdown.slice(0, 4).map(item => (
-                          <span key={item.name} className="rounded-full bg-white px-2 py-0.5 text-xs text-[#4E5969] ring-1 ring-[#E5E6EB]">
+                          <span key={item.name} className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200">
                             {item.name} {item.count}篇
                           </span>
                         ))}
                         {group.projectBreakdown.length > 4 && (
-                          <span className="rounded-full bg-white px-2 py-0.5 text-xs text-[#86909C] ring-1 ring-[#E5E6EB]">
+                          <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-500 ring-1 ring-slate-200">
                             +{group.projectBreakdown.length - 4} 项目
                           </span>
                         )}
@@ -1047,51 +1076,51 @@ export default function ConstructionLogsClient() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                    {group.pendingCount > 0 && <span className="rounded-full bg-[#E8F3FF] px-2 py-1 text-xs font-medium text-[#165DFF]">待提交 {group.pendingCount}</span>}
-                    {group.lateCount > 0 && <span className="rounded-full bg-[#FFF7E8] px-2 py-1 text-xs font-medium text-[#D46B08]">逾期 {group.lateCount}</span>}
-                    {group.riskCount > 0 && <span className="rounded-full bg-[#FFF1F0] px-2 py-1 text-xs font-medium text-[#C62828]">风险 {group.riskCount}</span>}
-                    <ChevronDown className="h-4 w-4 text-[#86909C] transition group-open:rotate-180" />
+                    {group.pendingCount > 0 && <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">待提交 {group.pendingCount}</span>}
+                    {group.lateCount > 0 && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">逾期 {group.lateCount}</span>}
+                    {group.riskCount > 0 && <span className="rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">风险 {group.riskCount}</span>}
+                    <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" strokeWidth={1.8} />
                   </div>
                 </summary>
 
-                <div className="space-y-3 border-t border-[#F2F3F5] bg-[#F7F8FA] p-3 sm:p-4">
+                <div className="space-y-3 border-t border-slate-100 bg-slate-50/80 p-3 sm:p-4">
                   {group.logs.map(log => (
-                    <div key={log.id} className="rounded-lg border border-[#E5E6EB] bg-white p-4 transition hover:border-[#165DFF]/30">
-                      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#86909C]">
+                    <div key={log.id} className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-blue-200">
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span>{projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`}</span>
-                        <span className="h-3 w-px bg-[#E5E6EB]" />
+                        <span className="h-3 w-px bg-slate-200" />
                         <span>{formatDateTime(log.submitted_at || log.updated_at || log.created_at) || log.log_date}</span>
                         <span>{log.user_name}</span>
                         <span className={`rounded-full px-2 py-0.5 ${logStatusClass(log)}`}>
                           {logStatusLabel(log)}
                         </span>
                         {log.status === 'pending' && log.scheduled_submit_at && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[#165DFF]">
-                            <CalendarClock className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">
+                            <CalendarClock className="h-3 w-3" strokeWidth={1.8} />
                             预约 {formatDateTime(log.scheduled_submit_at)}
                           </span>
                         )}
                         {log.location && <span>{log.location}</span>}
                       </div>
-                      <p className="text-sm text-[#1D2129]">{log.content}</p>
+                      <p className="text-sm leading-6 text-slate-800">{log.content}</p>
                       {log.risk_level && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${riskBadgeClass(log.risk_level)}`}>
-                            <AlertTriangle className="h-3 w-3" />
+                            <AlertTriangle className="h-3 w-3" strokeWidth={1.8} />
                             {RISK_LEVEL_LABELS[log.risk_level]}风险
                           </span>
                           {(log.risk_types || []).slice(0, 4).map(type => (
-                            <span key={type} className="rounded-full bg-[#F2F3F5] px-2 py-0.5 text-xs text-[#4E5969]">{RISK_TYPE_LABELS[type] || type}</span>
+                            <span key={type} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{RISK_TYPE_LABELS[type] || type}</span>
                           ))}
-                          {log.risk_summary && <span className="text-xs text-[#86909C]">{log.risk_summary}</span>}
+                          {log.risk_summary && <span className="text-xs text-slate-500">{log.risk_summary}</span>}
                         </div>
                       )}
-                      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#F2F3F5] pt-3 text-xs text-[#86909C]">
+                      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
                         {log.headcount != null && <span>{log.headcount}人</span>}
-                        {highRisks > 0 && log.risk_level === 'high' && <span className="text-[#F53F3F]">高风险需优先确认</span>}
-                        {log.issues && <span className="text-[#F53F3F]">异常：{log.issues}</span>}
+                        {highRisks > 0 && log.risk_level === 'high' && <span className="text-rose-700">高风险需优先确认</span>}
+                        {log.issues && <span className="text-rose-700">异常：{log.issues}</span>}
                         <div className="flex w-full shrink-0 items-center justify-end gap-3 md:ml-auto md:w-auto">
-                          <Link href={`/construction-logs/${log.id}`} className="font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                          <Link href={`/construction-logs/${log.id}`} className="font-medium text-blue-700 hover:underline">查看详情</Link>
                           {log.status === 'pending' && Number(log.user_id) === Number(user?.id) && (
                             <button
                               type="button"
@@ -1099,7 +1128,7 @@ export default function ConstructionLogsClient() {
                               onClick={() => handleCancelSchedule(log.id)}
                               className="inline-flex items-center gap-1 font-medium text-[#D46B08] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              <CalendarClock className="h-3.5 w-3.5" />
+                              <CalendarClock className="h-3.5 w-3.5" strokeWidth={1.8} />
                               {cancelingLogId === log.id ? '取消中...' : '取消预约'}
                             </button>
                           )}
@@ -1107,9 +1136,9 @@ export default function ConstructionLogsClient() {
                             type="button"
                             disabled={deletingLogId === log.id}
                             onClick={() => handleDeleteLog(log.id)}
-                            className="inline-flex items-center gap-1 font-medium text-[#F53F3F] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex items-center gap-1 font-medium text-rose-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
                             {deletingLogId === log.id ? '删除中' : '删除'}
                           </button>
                         </div>
@@ -1119,14 +1148,14 @@ export default function ConstructionLogsClient() {
                 </div>
               </details>
                 ))}
-                <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[#C9CDD4] bg-white p-4 text-sm text-[#86909C]">
+                <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
                   <span>已显示 {logs.length}/{logTotal || logs.length} 条施工日志</span>
                   {hasMoreLogs && (
                     <button
                       type="button"
                       onClick={() => void loadMoreLogs()}
                       disabled={loadingMoreLogs}
-                      className="inline-flex h-10 items-center justify-center rounded-lg border border-[#165DFF] bg-white px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loadingMoreLogs ? '加载中...' : '加载更多历史日志'}
                     </button>
