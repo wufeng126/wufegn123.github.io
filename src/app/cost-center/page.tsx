@@ -218,7 +218,7 @@ function CostCenterContent() {
 
   // 处理 URL 参数
   useEffect(() => {
-    const projectIdParam = searchParams.get('projectId');
+    const projectIdParam = searchParams.get('projectId') || searchParams.get('project_id');
     if (projectIdParam) {
       setSelectedProjectId(projectIdParam);
     }

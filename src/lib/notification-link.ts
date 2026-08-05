@@ -142,6 +142,7 @@ export function buildNotificationActionHref(source: NotificationLinkSource) {
       project_id: projectId,
       contract_id: contractId,
       settlement_id: settlementIdFromMeta,
+      payment_id: pickId(source, ['paymentId', 'payment_id']),
     });
   }
 
