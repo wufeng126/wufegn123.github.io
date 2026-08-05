@@ -304,6 +304,8 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/dingtalk/contacts': 'system:dingtalk_manage',
   '/api/dingtalk/bindings': 'system:dingtalk_manage',
   '/api/dingtalk/token': 'system:dingtalk_manage',
+  '/api/dingtalk/config': 'system:dingtalk_manage',
+  '/api/dingtalk/contacts/sync': 'system:dingtalk_manage',
   '/api/integrations/wps/workers/config': 'system:manage',
   '/api/integrations/wps/workers/bindings': 'system:manage',
   '/api/integrations/wps/workers/sync': 'workers:import',

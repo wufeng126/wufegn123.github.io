@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/api-auth';
 import { syncDingTalkContacts } from '@/lib/dingtalk-contacts-sync';
 
 function formatSyncMessage(data: {
@@ -17,6 +18,9 @@ function formatSyncMessage(data: {
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+
     console.log('[DingTalk Contacts] Manual sync triggered');
     const result = await syncDingTalkContacts();
 

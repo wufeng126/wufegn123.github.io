@@ -72,3 +72,14 @@ export async function requireApiWritePermission(request: NextRequest): Promise<A
 
   return auth;
 }
+
+export async function requireSuperAdmin(request: NextRequest): Promise<ApiAuthResult> {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth;
+
+  if (!auth.user.is_super_admin) {
+    return { ok: false, response: apiForbidden('当前账号没有执行此操作的权限') };
+  }
+
+  return auth;
+}

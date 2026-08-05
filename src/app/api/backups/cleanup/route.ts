@@ -1,8 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { S3Storage } from "coze-coding-dev-sdk";
+import { requireSuperAdmin } from "@/lib/api-auth";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const supabase = getSupabaseClient();
   try {
     const storage = new S3Storage({

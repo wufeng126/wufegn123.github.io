@@ -5,10 +5,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/api-auth';
 import { getDingTalkConfigMasked, isDingTalkConfigured } from '@/lib/dingtalk-config';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+
     const configured = isDingTalkConfigured();
     const maskedConfig = getDingTalkConfigMasked();
 

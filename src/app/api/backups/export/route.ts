@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { S3Storage } from "coze-coding-dev-sdk";
+import { requireSuperAdmin } from "@/lib/api-auth";
 
 // Excel 工具函数（简单实现）
 function generateExcelSimple(data: any[]): Buffer {
@@ -23,6 +24,11 @@ function generateExcelSimple(data: any[]): Buffer {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const supabase = getSupabaseClient();
   let recordId: number | null = null;
   let userId: number | null = null;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/api-auth';
 import { syncDingTalkContacts, getDingTalkContacts, getDingTalkContactsSyncStatus } from '@/lib/dingtalk-contacts-sync';
 
 /**
@@ -7,6 +8,9 @@ import { syncDingTalkContacts, getDingTalkContacts, getDingTalkContactsSyncStatu
  */
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+
     const searchParams = request.nextUrl.searchParams;
     const keyword = searchParams.get('keyword') || undefined;
     const activeOnly = searchParams.get('active_only') !== 'false';

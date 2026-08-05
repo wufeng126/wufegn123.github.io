@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requirePermission } from '@/lib/api-auth';
 import { 
   sendFeishuTextMessage, 
   sendFeishuNotification,
@@ -142,6 +143,9 @@ async function sendNotificationToFeishu(
 // 发送测试消息
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'notifications:settings');
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { test, notificationId, type, data } = body;
 
@@ -225,8 +229,11 @@ export async function POST(request: NextRequest) {
 }
 
 // 获取飞书配置状态
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'notifications:settings');
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     const settings = await getFeishuSettings(client);
 

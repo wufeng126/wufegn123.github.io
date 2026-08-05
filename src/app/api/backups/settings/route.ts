@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { requireSuperAdmin } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const supabase = getSupabaseClient();
   try {
     const { data, error } = await supabase
@@ -29,6 +35,11 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   try {
     const supabase = getSupabaseClient();
     const body = await request.json();

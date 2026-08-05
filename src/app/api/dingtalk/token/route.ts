@@ -7,11 +7,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/api-auth';
 import { isDingTalkConfigured } from '@/lib/dingtalk-config';
 import { getAccessToken, refreshAccessToken, clearTokenCache } from '@/lib/dingtalk-service';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+
     if (!isDingTalkConfigured()) {
       return NextResponse.json({
         success: true,
@@ -59,6 +63,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+
     if (!isDingTalkConfigured()) {
       return NextResponse.json(
         { success: false, error: '钉钉企业内部应用未配置' },

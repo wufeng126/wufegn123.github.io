@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { createClient } from '@supabase/supabase-js';
-import { getCurrentUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/api-auth';
 import { auditLog } from '@/lib/audit-log';
 
 // 绑定日志表（使用 audit_logs 表记录）
@@ -17,7 +17,9 @@ type BindingAction = 'bind_auto' | 'bind_manual' | 'unbind';
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+    const user = auth.user;
     if (!user) {
       return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
     }
@@ -194,7 +196,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const auth = await requirePermission(request, 'system:dingtalk_manage');
+    if (!auth.ok) return auth.response;
+    const user = auth.user;
     if (!user) {
       return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
     }

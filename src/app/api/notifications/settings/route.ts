@@ -6,9 +6,13 @@ import {
   upsertNotificationSetting,
 } from '@/lib/notification-settings';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requirePermission } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'notifications:settings');
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     await ensureDefaultNotificationSettings(client);
     await cleanupDuplicateNotificationSettings(client);
@@ -26,6 +30,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'notifications:settings');
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { key, value, enabled } = body;
 
