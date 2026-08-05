@@ -361,7 +361,8 @@ function resolveRoleWorkbench(
     return roleWorkbenches.budget;
   }
 
-  if (isSuperAdmin) return roleWorkbenches.boss;
+  // 超级管理员默认使用预算员视角
+  if (isSuperAdmin) return roleWorkbenches.budget;
   if (hasPermission('business_overview:view') || hasPermission('cost_center:view')) return roleWorkbenches.boss;
   if (hasPermission('team_settlements:view') || hasPermission('visas:edit')) return roleWorkbenches.manager;
   if (hasPermission('work_items:view') || hasPermission('evidence_chain:view') || hasPermission('salaries:view')) {
