@@ -6,6 +6,7 @@
 
 import * as crypto from 'crypto';
 import { getNotificationRouteRule } from '@/lib/notification-routing';
+import { toAbsoluteNotificationHref } from '@/lib/notification-link';
 
 // 钉钉消息签名（加签模式）
 function sign(secret: string): { timestamp: string; sign: string } {
@@ -145,7 +146,7 @@ export function formatDingTalkMessage(params: NotificationParams): { title: stri
   const summary = extra?.业务摘要 || compactMessageText(content);
   const responsibility = extra?.责任人 || extra?.提醒对象 || routeRule?.target || '';
   const actionLabel = extra?.建议动作 || routeRule?.actionLabel || '';
-  const actionHref = extra?.处理入口 || routeRule?.href || '';
+  const actionHref = toAbsoluteNotificationHref(extra?.处理入口 || routeRule?.href || '');
   const amount = extra?.金额 || '';
 
   let md = `### ${messageTitle}\n\n`;
@@ -170,7 +171,7 @@ export function formatDingTalkMessage(params: NotificationParams): { title: stri
   }
 
   if (actionHref) {
-    md += `- **处理入口**：${actionHref}\n`;
+    md += `- **处理入口**：[${actionLabel || '打开处理'}](${actionHref})\n`;
   }
 
   const compactContent = compactMessageText(content, 300);

@@ -75,6 +75,26 @@ function getExplicitHref(source: NotificationLinkSource) {
   return '';
 }
 
+export function getNotificationPublicBaseUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '').trim().replace(/\/+$/, '');
+}
+
+export function toAbsoluteNotificationHref(href: string | null | undefined, baseUrl = getNotificationPublicBaseUrl()) {
+  const cleanHref = toCleanText(href);
+  if (!cleanHref) return '';
+  if (/^https?:\/\//i.test(cleanHref)) return cleanHref;
+  if (!cleanHref.startsWith('/')) return cleanHref;
+
+  const cleanBaseUrl = toCleanText(baseUrl).replace(/\/+$/, '');
+  if (!cleanBaseUrl) return cleanHref;
+
+  try {
+    return new URL(cleanHref, cleanBaseUrl).toString();
+  } catch {
+    return `${cleanBaseUrl}${cleanHref}`;
+  }
+}
+
 export function buildNotificationActionHref(source: NotificationLinkSource) {
   const explicitHref = getExplicitHref(source);
   if (explicitHref) return explicitHref;

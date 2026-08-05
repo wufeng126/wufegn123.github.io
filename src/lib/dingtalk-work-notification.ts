@@ -2,6 +2,7 @@ import { getDingTalkConfig } from '@/lib/dingtalk-config';
 import { callDingTalkApi } from '@/lib/dingtalk-service';
 import { type NotificationParams } from '@/lib/dingtalk';
 import { getNotificationRouteRule } from '@/lib/notification-routing';
+import { toAbsoluteNotificationHref } from '@/lib/notification-link';
 
 type Severity = NotificationParams['severity'];
 
@@ -55,7 +56,7 @@ export function formatDingTalkWorkText(params: NotificationParams) {
   const summary = params.extra?.业务摘要 || compactText(params.content);
   const responsibility = params.extra?.责任人 || params.extra?.提醒对象 || routeRule?.target || '';
   const actionLabel = params.extra?.建议动作 || routeRule?.actionLabel || '';
-  const actionHref = params.extra?.处理入口 || routeRule?.href || '';
+  const actionHref = toAbsoluteNotificationHref(params.extra?.处理入口 || routeRule?.href || '');
   const amount = params.extra?.金额 || '';
   const shownKeys = new Set(['消息分类', '业务摘要', '责任人', '提醒对象', '金额', '建议动作', '处理入口']);
 
