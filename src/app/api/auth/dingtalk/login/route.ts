@@ -20,11 +20,7 @@
 import { NextResponse } from 'next/server';
 import { isDingTalkSsoConfigured } from '@/lib/dingtalk-config';
 import { callDingTalkApi } from '@/lib/dingtalk-service';
-<<<<<<< HEAD
 import { generateToken, isAuthConfigurationError, UserPayload, UserRole } from '@/lib/auth';
-=======
-import { generateToken, UserPayload, UserRole, AuthSecretNotConfiguredError } from '@/lib/auth';
->>>>>>> fff362c (feat: 优化 JWT_SECRET 未配置时的错误提示，新增 .env.example)
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { apiError } from '@/lib/api-utils';
 import { logDingTalkSecurityEvent } from '@/lib/dingtalk-security-log';
@@ -535,15 +531,6 @@ export async function POST(request: Request) {
       result: 'failed',
       error_message: errorMessage,
     });
-
-    // 认证密钥未配置时返回更清楚的提示
-    if (error instanceof AuthSecretNotConfiguredError) {
-      return apiError(
-        '系统认证密钥未配置，需要在部署环境变量中配置 JWT_SECRET（至少32位随机字符串）',
-        500,
-        'AUTH_SECRET_NOT_CONFIGURED'
-      );
-    }
 
     return apiError(
       errorMessage || '钉钉免登失败',
