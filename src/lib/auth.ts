@@ -6,6 +6,7 @@ import { getUserDisplayName } from './user-display-name';
 
 // 旧版本公开默认密钥，生产环境禁止继续使用。
 const LEGACY_DEFAULT_SECRET = 'construction-labor-management-secret-key-2024';
+const MIN_JWT_SECRET_LENGTH = 32;
 let cachedSecretKey: Uint8Array | null = null;
 
 // Token 有效期：7天
@@ -44,14 +45,41 @@ type LegacyTokenPayload = UserPayload & {
   is_super_admin?: boolean;
 };
 
+export class AuthConfigurationError extends Error {
+  code = 'AUTH_SECRET_NOT_CONFIGURED';
+
+  constructor(message = 'JWT_SECRET is not configured or is too short') {
+    super(message);
+    this.name = 'AuthConfigurationError';
+  }
+}
+
+export function isAuthConfigurationError(error: unknown): error is AuthConfigurationError {
+  return error instanceof AuthConfigurationError ||
+    (error instanceof Error && error.name === 'AuthConfigurationError');
+}
+
+export function getJwtSecretStatus() {
+  const secret = process.env.JWT_SECRET;
+
+  return {
+    configured: Boolean(secret && secret.length >= MIN_JWT_SECRET_LENGTH && secret !== LEGACY_DEFAULT_SECRET),
+    hasValue: Boolean(secret),
+    length: secret?.length ?? 0,
+    minLength: MIN_JWT_SECRET_LENGTH,
+    usesLegacyDefault: secret === LEGACY_DEFAULT_SECRET,
+  };
+}
+
 // 获取密钥
 export function getSecretKey() {
   const secret = process.env.JWT_SECRET;
+  const secretStatus = getJwtSecretStatus();
   const isProduction = process.env.NODE_ENV === 'production' || process.env.COZE_PROJECT_ENV === 'PROD';
 
-  if (!secret || secret.length < 32 || secret === LEGACY_DEFAULT_SECRET) {
+  if (!secretStatus.configured) {
     if (isProduction) {
-      throw new Error('JWT_SECRET 未配置或长度不足 32 字符，生产环境拒绝使用默认认证密钥');
+      throw new AuthConfigurationError('JWT_SECRET 未配置或长度不足 32 字符，生产环境拒绝使用默认认证密钥');
     }
 
     if (!cachedSecretKey) {

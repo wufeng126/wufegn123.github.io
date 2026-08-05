@@ -20,7 +20,7 @@
 import { NextResponse } from 'next/server';
 import { isDingTalkSsoConfigured } from '@/lib/dingtalk-config';
 import { callDingTalkApi } from '@/lib/dingtalk-service';
-import { generateToken, UserPayload, UserRole } from '@/lib/auth';
+import { generateToken, isAuthConfigurationError, UserPayload, UserRole } from '@/lib/auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { apiError } from '@/lib/api-utils';
 import { logDingTalkSecurityEvent } from '@/lib/dingtalk-security-log';
@@ -507,6 +507,22 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error);
     console.error('[DingTalk Login] 免登失败:', errorMessage);
+
+    if (isAuthConfigurationError(error)) {
+      await logDingTalkSecurityEvent({
+        event_type: 'dingtalk_login_failed',
+        ip_address: ip,
+        user_agent,
+        result: 'failed',
+        error_message: 'AUTH_SECRET_NOT_CONFIGURED',
+      });
+
+      return apiError(
+        '系统认证密钥未配置，请在部署环境变量中配置 JWT_SECRET（不少于 32 字符）后重新部署',
+        500,
+        'AUTH_SECRET_NOT_CONFIGURED'
+      );
+    }
 
     await logDingTalkSecurityEvent({
       event_type: 'dingtalk_login_failed',
