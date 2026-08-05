@@ -1,16 +1,20 @@
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { logSecurityEvent } from "@/lib/security-log";
+import { hashPassword } from "@/lib/auth-db";
+import { requirePermission } from "@/lib/api-auth";
 
 // 获取所有用户
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requirePermission(request, 'system:permission_manage');
+  if (!auth.ok) return auth.response;
+
   const supabase = getSupabaseClient();
   
   // 获取所有用户
   const { data: users, error } = await supabase
     .from("users")
-    .select("*")
+    .select("id, username, name, dingtalk_name, role, is_disabled, created_at, last_login")
     .order("id", { ascending: true });
   
   if (error) {
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { action, user_id, role_ids, username, password, name, email } = body;
+    const { action, user_id, role_ids, username, password, name } = body;
     
     // 从 cookie 获取操作者信息
     const authHeader = request.headers.get('x-user-id');
@@ -82,8 +86,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "用户名已存在" }, { status: 400 });
       }
       
-      // 加密密码
-      const passwordHash = createHash("sha256").update(password).digest("hex");
+      const passwordHash = hashPassword(password);
       
       // 创建用户
       const { data: newUser, error: createError } = await supabase
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest) {
           password_hash: passwordHash,
           name: name || null,
         })
-        .select()
+        .select("id, username, name, dingtalk_name, role, is_disabled, created_at, last_login")
         .single();
       
       if (createError) {
@@ -158,7 +161,7 @@ export async function POST(request: NextRequest) {
     });
     
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
   }
 }

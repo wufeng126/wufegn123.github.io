@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { generateToken, UserPayload, UserRole } from './auth';
 import { isSuperAdminUser } from './route-permissions';
@@ -9,13 +9,43 @@ const PASSWORD_SALT = 'construction-labor-management-password-salt-2024-v1';
 
 // 密码哈希
 export function hashPassword(password: string): string {
-  return createHash('sha256').update(password + PASSWORD_SALT).digest('hex');
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+
+function safeCompareHex(left: string, right: string): boolean {
+  try {
+    const leftBuffer = Buffer.from(left, 'hex');
+    const rightBuffer = Buffer.from(right, 'hex');
+    if (leftBuffer.length !== rightBuffer.length) return false;
+    return timingSafeEqual(leftBuffer, rightBuffer);
+  } catch {
+    return false;
+  }
+}
+
+function verifyScryptPassword(password: string, stored: string): boolean {
+  const [, salt, hash] = stored.split('$');
+  if (!salt || !hash) return false;
+  const candidate = scryptSync(password, salt, 64).toString('hex');
+  return safeCompareHex(candidate, hash);
 }
 
 // 验证密码
 export function verifyPassword(password: string, hash: string): boolean {
-  const computedHash = hashPassword(password);
-  return computedHash === hash;
+  if (!hash) return false;
+
+  if (hash.startsWith('scrypt$')) {
+    return verifyScryptPassword(password, hash);
+  }
+
+  const legacySaltedHash = createHash('sha256').update(password + PASSWORD_SALT).digest('hex');
+  if (safeCompareHex(legacySaltedHash, hash)) return true;
+
+  // 兼容曾经由用户中心生成的无盐 SHA256 密码。
+  const legacyUnsaltedHash = createHash('sha256').update(password).digest('hex');
+  return safeCompareHex(legacyUnsaltedHash, hash);
 }
 
 // 验证账号密码（从数据库）
@@ -56,6 +86,13 @@ export async function verifyCredentials(username: string, password: string): Pro
     if (!passwordValid) {
       console.log('[Auth] Password verification failed for user:', normalizedUsername);
       return null;
+    }
+
+    if (!user.password_hash.startsWith('scrypt$')) {
+      await client
+        .from('users')
+        .update({ password_hash: hashPassword(password.trim()) })
+        .eq('id', user.id);
     }
 
     // 更新最后登录时间
@@ -146,10 +183,8 @@ export async function fetchUserPermissions(userId: number, userRole: string): Pr
           .in('id', permIds);
         return perms?.map((p: { code: string }) => p.code) || [];
       }
-      // 方案2: 没有自定义权限则赋予所有权限（向后兼容admin角色）
-      console.log('[Auth] No role found for code:', userRole, ', granting all permissions');
-      const { data: allPerms } = await client.from('permissions').select('code');
-      return allPerms?.map((p: { code: string }) => p.code) || [];
+      console.warn('[Auth] No role found for code:', userRole, ', denying permissions by default');
+      return [];
     }
     // 找到角色，查询角色权限
     const { data } = await client
@@ -157,10 +192,8 @@ export async function fetchUserPermissions(userId: number, userRole: string): Pr
       .select('permission_id')
       .eq('role_id', roleRow.id);
     if (!data || data.length === 0) {
-      // 角色没有分配任何权限，赋予所有权限（避免用户无法使用系统）
-      console.log('[Auth] Role', userRole, 'has no permissions assigned, granting all');
-      const { data: allPerms } = await client.from('permissions').select('code');
-      return allPerms?.map((p: { code: string }) => p.code) || [];
+      console.warn('[Auth] Role', userRole, 'has no permissions assigned, denying permissions by default');
+      return [];
     }
     const permIds = data.map((rp: { permission_id: number }) => rp.permission_id);
     const { data: perms } = await client
@@ -190,6 +223,7 @@ export async function login(username: string, password: string): Promise<{ user:
 // 获取所有管理员
 export async function getAllAdmins(userId: number): Promise<Array<{ id: number; username: string; role: string; created_at: string; last_login: string | null }> | null> {
   try {
+    void userId;
     const client = getSupabaseClient();
     
     const { data, error } = await client

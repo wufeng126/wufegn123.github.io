@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { syncSalaryPaymentStatus } from '@/lib/business-logic';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -16,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 允许批量修改的字段
-    const allowedFields = ['work_hours', 'hourly_rate', 'contract_work_pay', 'income_tax', 'advance_pay', 'labor_insurance'];
+    const allowedFields = ['work_hours', 'hourly_rate', 'contract_work_pay', 'income_tax', 'advance_pay', 'labor_insurance', 'fine'];
     if (!allowedFields.includes(field)) {
       return NextResponse.json({ error: '不支持批量修改此字段' }, { status: 400 });
     }
@@ -35,19 +39,21 @@ export async function POST(request: NextRequest) {
 
     // 更新字段并重新计算
     const updatePromises = existingRecords?.map(async (record) => {
-      const updateData: Record<string, any> = { [field]: value || '0' };
+      const nextValue = value ?? '0';
+      const updateData: Record<string, string> = { [field]: nextValue };
       
       // 获取更新后的值
-      const workHours = field === 'work_hours' ? parseFloat(value || '0') : parseFloat(record.work_hours || '0');
-      const hourlyRate = field === 'hourly_rate' ? parseFloat(value || '0') : parseFloat(record.hourly_rate || '0');
-      const contractWorkPay = field === 'contract_work_pay' ? parseFloat(value || '0') : parseFloat(record.contract_work_pay || '0');
-      const incomeTax = field === 'income_tax' ? parseFloat(value || '0') : parseFloat(record.income_tax || '0');
-      const advancePay = field === 'advance_pay' ? parseFloat(value || '0') : parseFloat(record.advance_pay || '0');
-      const laborInsurance = field === 'labor_insurance' ? parseFloat(value || '0') : parseFloat(record.labor_insurance || '0');
+      const workHours = field === 'work_hours' ? parseFloat(nextValue) : parseFloat(record.work_hours || '0');
+      const hourlyRate = field === 'hourly_rate' ? parseFloat(nextValue) : parseFloat(record.hourly_rate || '0');
+      const contractWorkPay = field === 'contract_work_pay' ? parseFloat(nextValue) : parseFloat(record.contract_work_pay || '0');
+      const incomeTax = field === 'income_tax' ? parseFloat(nextValue) : parseFloat(record.income_tax || '0');
+      const advancePay = field === 'advance_pay' ? parseFloat(nextValue) : parseFloat(record.advance_pay || '0');
+      const laborInsurance = field === 'labor_insurance' ? parseFloat(nextValue) : parseFloat(record.labor_insurance || '0');
+      const fine = field === 'fine' ? parseFloat(nextValue) : parseFloat(record.fine || '0');
       
       // 重新计算
       const grossPay = workHours * hourlyRate + contractWorkPay;
-      const netPay = grossPay - incomeTax - advancePay - laborInsurance;
+      const netPay = grossPay - incomeTax - advancePay - laborInsurance - fine;
       
       updateData.gross_pay = grossPay.toFixed(2);
       updateData.net_pay = netPay.toFixed(2);
@@ -65,10 +71,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, count: ids.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '修改失败' },
+      { error: getErrorMessage(error, '修改失败') },
       { status: 500 }
     );
   }

@@ -58,7 +58,6 @@ export async function PUT(
       visa_quantity,
       visa_unit,
       visa_amount,
-      status,
       handler,
       remark,
       attachments,
@@ -85,10 +84,8 @@ export async function PUT(
     const managerUserId = Number(project_manager_user_id || 0);
     const manager = managerUserId ? await getUserById(client, managerUserId) : null;
     const managerName = getUserDisplayName(manager);
-    const currentResponsibleUpdate = managerUserId && status === '已提交'
+    const currentResponsibleUpdate = managerUserId
       ? {
-          current_responsible_user_id: managerUserId,
-          current_responsible_name: managerName || null,
           project_manager_user_id: managerUserId,
           project_manager_name: managerName || null,
         }
@@ -104,7 +101,6 @@ export async function PUT(
         visa_quantity: visa_quantity || null,
         visa_unit: visa_unit || null,
         visa_amount,
-        status,
         handler: handler || null,
         remark: remark || null,
         attachments: attachments || null,
@@ -123,7 +119,7 @@ export async function PUT(
       operationType: 'update',
       resourceType: 'visa',
       resourceId: parseInt(id),
-      details: { visa_number, visa_name, status },
+      details: { visa_number, visa_name },
       request,
     });
 

@@ -93,6 +93,7 @@ interface MonthTrend {
   cashNetFlow: number;      // 现金净流 = 回款 - 实际支付
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface ReceivableLagItem {
   projectName: string;
   cumulativeConfirmedOutput: number;  // 累计确认产值
@@ -388,8 +389,6 @@ export async function GET(request: NextRequest) {
       const projMaterials = materials.filter((m: Record<string, unknown>) => m.project_id === pid);
       const projVisas = visas.filter((v: Record<string, unknown>) => v.project_id === pid);
       const projWorkers = workers.filter((w: Record<string, unknown>) => w.project_id === pid);
-      const projContracts = supplierContracts.filter((c: Record<string, unknown>) => c.project_id === pid);
-
       const totalSettlement = safeSum(projReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
       const totalVisa = safeSum(projVisas.filter((v: Record<string, unknown>) => isVisaDoneStatus(v.status as string | null)).map(getVisaAmount));
       const totalIncome = totalSettlement + totalVisa;
@@ -414,7 +413,7 @@ export async function GET(request: NextRequest) {
       const supplierCost = safeSum(projSettlements.map(s => s.settlementAmount));
       const teamSettlementCost = teamSettlementCostByProject.get(pid)?.month || 0;
       const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + teamSettlementCost;
-      const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.amount || 0)));
+      const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)));
       const expenseCost = safeSum(projExpenses.map((e: Record<string, unknown>) => Number(e.amount || 0)));
       const materialCost = safeSum(projMaterials.map((m: Record<string, unknown>) => Number(m.amount || 0)));
 
@@ -1171,7 +1170,7 @@ export async function GET(request: NextRequest) {
     ].filter(c => c.value > 0);
 
     // === Business Conclusion ===
-    const businessConclusion = generateConclusion(overview, payablePlan, projectDataList, reportMonth);
+    const businessConclusion = generateConclusion(overview, payablePlan, projectDataList);
 
     // Data completeness check
     const hasIncome = overview.monthIncome > 0;
@@ -1267,7 +1266,6 @@ function generateConclusion(
   ov: ReturnType<typeof getEmptyOverview> & Record<string, number>,
   pp: ReturnType<typeof getEmptyPayablePlan>,
   projects: ProjectData[],
-  _month: string,
 ): string {
   const lines: string[] = [];
 

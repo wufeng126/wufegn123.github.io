@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isSuperAdminUser } from './route-permissions';
 import { getUserDisplayName } from './user-display-name';
 
-// JWT 密钥 - 生产环境应使用环境变量
-const SECRET_KEY = process.env.JWT_SECRET || 'construction-labor-management-secret-key-2024';
+// 旧版本公开默认密钥，生产环境禁止继续使用。
+const LEGACY_DEFAULT_SECRET = 'construction-labor-management-secret-key-2024';
+let cachedSecretKey: Uint8Array | null = null;
 
 // Token 有效期：7天
 const TOKEN_EXPIRY = '7d';
@@ -44,8 +45,26 @@ type LegacyTokenPayload = UserPayload & {
 };
 
 // 获取密钥
-function getSecretKey() {
-  return new TextEncoder().encode(SECRET_KEY);
+export function getSecretKey() {
+  const secret = process.env.JWT_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.COZE_PROJECT_ENV === 'PROD';
+
+  if (!secret || secret.length < 32 || secret === LEGACY_DEFAULT_SECRET) {
+    if (isProduction) {
+      throw new Error('JWT_SECRET 未配置或长度不足 32 字符，生产环境拒绝使用默认认证密钥');
+    }
+
+    if (!cachedSecretKey) {
+      console.warn('[Auth] 开发环境未配置有效 JWT_SECRET，使用临时随机密钥，重启后会话将失效');
+      const randomBytes = new Uint8Array(32);
+      globalThis.crypto.getRandomValues(randomBytes);
+      cachedSecretKey = randomBytes;
+    }
+
+    return cachedSecretKey;
+  }
+
+  return new TextEncoder().encode(secret);
 }
 
 // 生成 JWT Token

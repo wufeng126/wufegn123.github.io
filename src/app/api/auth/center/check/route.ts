@@ -1,11 +1,7 @@
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { cookies } from "next/headers";
-import * as jose from "jose";
+import { verifyToken } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "construction-labor-management-secret-key-2024"
-);
 
 // 获取当前用户的权限
 export async function GET() {
@@ -20,9 +16,8 @@ export async function GET() {
   }
   
   try {
-    // 解码 JWT
-    const { payload } = await jose.jwtVerify(authToken, JWT_SECRET);
-    const userId = payload.id as number;
+    const payload = await verifyToken(authToken);
+    const userId = payload?.id;
     
     if (!userId) {
       return NextResponse.json({ 
@@ -100,7 +95,7 @@ export async function GET() {
       permissions: (permissions || []).map((p) => p.code),
       role_names: (roles || []).map((r) => r.name),
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ 
       authenticated: false,
       permissions: [] 
@@ -121,9 +116,8 @@ export async function POST(request: NextRequest) {
   }
   
   try {
-    // 解码 JWT
-    const { payload } = await jose.jwtVerify(authToken, JWT_SECRET);
-    const userId = payload.id as number;
+    const payload = await verifyToken(authToken);
+    const userId = payload?.id;
     
     if (!userId) {
       return NextResponse.json({ 
@@ -210,7 +204,7 @@ export async function POST(request: NextRequest) {
       has_permission: hasPermission,
       user_permissions: userPermCodes,
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ 
       authenticated: false,
       has_permission: false,
