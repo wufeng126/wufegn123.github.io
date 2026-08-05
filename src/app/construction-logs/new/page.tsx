@@ -294,6 +294,8 @@ export default function NewConstructionLogPage() {
   const submitProjectCount = useMemo(() => drafts.filter(draft => draft.project_id && draft.content.trim()).length, [drafts]);
   const attendanceTotal = useMemo(() => drafts.reduce((sum, draft) => sum + draft.attendance_worker_ids.length, 0), [drafts]);
   const attachmentTotal = useMemo(() => drafts.reduce((sum, draft) => sum + draft.attachments.length, 0), [drafts]);
+  const submitDisabled = saving || isUploadingPhotos || Boolean(blockingSummary) || readyDraftCount === 0 || !(scheduleEnabled ? scheduledWindow.allowed : submissionWindow.allowed);
+  const submitLabel = saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : scheduleEnabled ? '保存并预约' : '提交日志';
 
   function updateDraft(id: string, patch: Partial<ProjectLogDraft>) {
     setDrafts(current => current.map(draft => draft.id === id ? { ...draft, ...patch } : draft));
@@ -511,24 +513,24 @@ export default function NewConstructionLogPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F5F6FA] p-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#EEF3F8] p-4">
         <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#E8FFEA]">
-            <ClipboardList className="h-8 w-8 text-[#00A870]" />
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+            <ClipboardList className="h-8 w-8 text-emerald-600" />
           </div>
-          <h2 className="text-xl font-bold text-[#1D2129]">提交成功</h2>
-          <p className="mt-2 text-sm text-[#86909C]">施工日志已保存，状态：{submittedStatus}</p>
+          <h2 className="text-xl font-bold text-slate-950">提交成功</h2>
+          <p className="mt-2 text-sm text-slate-500">施工日志已保存，状态：{submittedStatus}</p>
           <div className="mt-6 flex justify-center gap-3">
             <button
               onClick={() => {
                 setSuccess(false);
                 setDrafts([createDraft(projects[0] ? String(projects[0].id) : '')]);
               }}
-              className="rounded-lg border border-[#E5E6EB] px-5 py-2.5 text-sm text-[#4E5969]"
+              className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm text-slate-600"
             >
               再写一份
             </button>
-            <Link href="/construction-logs" className="rounded-lg bg-[#165DFF] px-5 py-2.5 text-sm text-white">查看日志</Link>
+            <Link href="/construction-logs" className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm text-white">查看日志</Link>
           </div>
         </div>
       </div>
@@ -536,55 +538,63 @@ export default function NewConstructionLogPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-full bg-[#EEF3F8] px-3 py-4 sm:p-4 md:p-6">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <Link href="/construction-logs" className="rounded-lg p-2 hover:bg-[#F2F3F5]">
-              <ArrowLeft className="h-5 w-5 text-[#4E5969]" />
+            <Link href="/construction-logs" className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-blue-200 hover:text-blue-700">
+              <ArrowLeft className="h-4 w-4" />
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-[#1D2129]">写施工日志</h1>
-              <p className="text-xs text-[#86909C]">按项目填写施工内容，并从项目花名册勾选当天实际出勤人员</p>
+              <p className="text-xs font-medium text-slate-500">施工管理 / 施工日志</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">新增施工日志</h1>
             </div>
           </div>
-          <Link href="/construction-logs/scan" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF] sm:h-9 sm:w-auto">
+          <Link href="/construction-logs/scan" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 sm:w-auto">
             <Camera className="h-4 w-4" />拍照识别
           </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-[#F7F8FA] px-3 py-2">
-                <div className="text-xs text-[#86909C]">本次提交项目</div>
-                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{submitProjectCount}</div>
-              </div>
-              <div className="rounded-lg bg-[#F7F8FA] px-3 py-2">
-                <div className="text-xs text-[#86909C]">已选出勤人员</div>
-                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{attendanceTotal}</div>
-              </div>
-              <div className="rounded-lg bg-[#F7F8FA] px-3 py-2">
-                <div className="text-xs text-[#86909C]">现场照片</div>
-                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{attachmentTotal}</div>
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">今日录入</h2>
+                  <p className="mt-1 text-xs text-slate-500">按项目填写施工内容，出勤人员从项目花名册勾选，工时默认 10 小时。</p>
+                </div>
+                <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-center sm:min-w-[360px]">
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <div className="text-lg font-semibold tabular-nums text-slate-950">{submitProjectCount}</div>
+                    <div className="mt-0.5 text-[11px] font-medium text-slate-500">项目</div>
+                  </div>
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <div className="text-lg font-semibold tabular-nums text-slate-950">{attendanceTotal}</div>
+                    <div className="mt-0.5 text-[11px] font-medium text-slate-500">出勤</div>
+                  </div>
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <div className="text-lg font-semibold tabular-nums text-slate-950">{attachmentTotal}</div>
+                    <div className="mt-0.5 text-[11px] font-medium text-slate-500">照片</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+            <div className="grid gap-3 p-4 sm:p-5 md:grid-cols-[220px_1fr]">
               <div>
-                <label className="mb-1 block text-sm font-medium text-[#1D2129]">日志日期 <span className="text-[#F53F3F]">*</span></label>
+                <label className="mb-1 block text-sm font-medium text-slate-800">日志日期 <span className="text-red-500">*</span></label>
                 <input
                   type="date"
                   value={logDate}
                   onChange={e => setLogDate(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
               <div className={`rounded-xl border px-4 py-3 text-sm ${
                 submissionWindow.status === 'late'
-                  ? 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]'
+                  ? 'border-amber-200 bg-amber-50 text-amber-700'
                   : submissionWindow.allowed
-                    ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]'
-                    : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-red-200 bg-red-50 text-red-700'
               }`}>
                 <div className="font-medium">{submissionWindow.label}</div>
                 <div className="mt-1 text-xs">{submissionWindow.message}</div>
@@ -593,12 +603,12 @@ export default function NewConstructionLogPage() {
             </div>
 
             {/* Weather Section */}
-            <div className="mt-4 rounded-xl border border-[#E5E6EB] bg-[#F7F8FA] p-4">
+            <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:mx-5 sm:mb-5">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Cloud className="h-4 w-4 text-[#165DFF]" />
-                  <span className="text-sm font-medium text-[#1D2129]">天气信息</span>
-                  {weatherLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#86909C]" />}
+                  <Cloud className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-slate-900">天气信息</span>
+                  {weatherLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
                 </div>
                 <button
                   type="button"
@@ -620,47 +630,47 @@ export default function NewConstructionLogPage() {
                       .catch(() => {})
                       .finally(() => setWeatherLoading(false));
                   }}
-                  className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs text-[#165DFF] hover:bg-[#E8F3FF]"
+                  className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
                 >
                   <RefreshCw className="h-3 w-3" />刷新
                 </button>
               </div>
               {weather ? (
                 <div className="grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <div className="text-xs text-[#86909C]">天气状况</div>
-                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.condition || '-'}</div>
+                  <div className="rounded-lg bg-white px-3 py-2 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)]">
+                    <div className="text-xs text-slate-500">天气状况</div>
+                    <div className="mt-1 text-sm font-medium text-slate-950">{weather.condition || '-'}</div>
                   </div>
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <div className="text-xs text-[#86909C]">温度</div>
-                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.temperature !== null ? `${weather.temperature}°C` : '-'}</div>
+                  <div className="rounded-lg bg-white px-3 py-2 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)]">
+                    <div className="text-xs text-slate-500">温度</div>
+                    <div className="mt-1 text-sm font-medium text-slate-950">{weather.temperature !== null ? `${weather.temperature}°C` : '-'}</div>
                   </div>
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <div className="text-xs text-[#86909C]">风力</div>
-                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.wind || '-'}</div>
+                  <div className="rounded-lg bg-white px-3 py-2 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)]">
+                    <div className="text-xs text-slate-500">风力</div>
+                    <div className="mt-1 text-sm font-medium text-slate-950">{weather.wind || '-'}</div>
                   </div>
-                  <div className="rounded-lg bg-white px-3 py-2">
-                    <div className="text-xs text-[#86909C]">湿度</div>
-                    <div className="mt-1 text-sm font-medium text-[#1D2129]">{weather.humidity !== null ? `${weather.humidity}%` : '-'}</div>
+                  <div className="rounded-lg bg-white px-3 py-2 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)]">
+                    <div className="text-xs text-slate-500">湿度</div>
+                    <div className="mt-1 text-sm font-medium text-slate-950">{weather.humidity !== null ? `${weather.humidity}%` : '-'}</div>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg bg-white px-3 py-4 text-center text-sm text-[#86909C]">
+                <div className="rounded-lg bg-white px-3 py-4 text-center text-sm text-slate-500">
                   {weatherLoading ? '正在获取天气信息...' : '暂无天气信息'}
                 </div>
               )}
             </div>
 
             {canScheduleSubmit && (
-              <div className="mt-4 rounded-xl border border-[#D6E4FF] bg-[#FAFCFF] p-3">
-                <label className="flex items-center gap-2 text-sm font-medium text-[#1D2129]">
+              <div className="mx-4 mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3 sm:mx-5 sm:mb-5">
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-900">
                   <input
                     type="checkbox"
                     checked={scheduleEnabled}
                     onChange={event => setScheduleEnabled(event.target.checked)}
-                    className="h-4 w-4 rounded border-[#C9CDD4] text-[#165DFF]"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600"
                   />
-                  <CalendarClock className="h-4 w-4 text-[#165DFF]" />
+                  <CalendarClock className="h-4 w-4 text-blue-600" />
                   预约提交
                 </label>
                 {scheduleEnabled && (
@@ -669,14 +679,14 @@ export default function NewConstructionLogPage() {
                       type="datetime-local"
                       value={scheduledSubmitAt}
                       onChange={event => setScheduledSubmitAt(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     />
                     <div className={`rounded-xl border px-4 py-3 text-sm ${
                       scheduledWindow.status === 'late'
-                        ? 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]'
+                        ? 'border-amber-200 bg-amber-50 text-amber-700'
                         : scheduledWindow.allowed
-                          ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]'
-                          : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-red-200 bg-red-50 text-red-700'
                     }`}>
                       <div className="font-medium">预约后状态：待提交</div>
                       <div className="mt-1 text-xs">{scheduledSubmitAt ? scheduledWindow.message : '选择预约时间后，系统会在到点后自动提交。'}</div>
@@ -713,18 +723,24 @@ export default function NewConstructionLogPage() {
             const selectedWorkers = draft.attendance_worker_ids
               .map(workerId => workerById.get(workerId))
               .filter((worker): worker is AttendanceWorker => Boolean(worker));
+            const draftStatus = draftSubmitSummaries[index]?.status;
+            const draftStatusLine = draftStatus === 'ready'
+              ? 'border-l-emerald-500'
+              : draftStatus === 'warning'
+                ? 'border-l-amber-500'
+                : 'border-l-slate-300';
 
             return (
-              <section key={draft.id} className="rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+              <section key={draft.id} className={`overflow-hidden rounded-xl border border-l-4 border-slate-200 bg-white shadow-sm ${draftStatusLine}`}>
+                <div className="flex flex-col items-start justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-[#1D2129]">项目明细 {index + 1}</h2>
+                    <h2 className="text-base font-semibold text-slate-950">项目明细 {index + 1}</h2>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
                       draftSubmitSummaries[index]?.status === 'ready'
-                        ? 'bg-[#E8FFEA] text-[#00A870]'
+                        ? 'bg-emerald-50 font-medium text-emerald-700 ring-1 ring-emerald-100'
                         : draftSubmitSummaries[index]?.status === 'warning'
-                          ? 'bg-[#FFF7E8] text-[#D46B08]'
-                          : 'bg-[#F2F3F5] text-[#86909C]'
+                          ? 'bg-amber-50 font-medium text-amber-700 ring-1 ring-amber-100'
+                          : 'bg-slate-100 font-medium text-slate-500 ring-1 ring-slate-200'
                     }`}>
                       {draftSubmitSummaries[index]?.status === 'ready' ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
                       {draftSubmitSummaries[index]?.label}
@@ -734,55 +750,56 @@ export default function NewConstructionLogPage() {
                     type="button"
                     onClick={() => removeDraft(draft.id)}
                     disabled={drafts.length === 1}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-[#F53F3F] hover:bg-[#FFF1F0] disabled:cursor-not-allowed disabled:text-[#C9CDD4] disabled:hover:bg-transparent"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
                   >
                     <Trash2 className="h-3.5 w-3.5" />删除
                   </button>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-5 p-4 sm:p-5">
+                <div className="grid gap-3 rounded-lg bg-slate-50/70 p-3 ring-1 ring-slate-200 md:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-[#1D2129]">项目 <span className="text-[#F53F3F]">*</span></label>
+                    <label className="mb-1 block text-sm font-medium text-slate-800">项目 <span className="text-red-500">*</span></label>
                     <select
                       value={draft.project_id}
                       onChange={e => updateDraftProject(draft.id, e.target.value)}
-                      className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     >
                       <option value="">请选择项目</option>
                       {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-[#1D2129]">施工部位</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-800">施工部位</label>
                     <input
                       value={draft.location}
                       onChange={e => updateDraft(draft.id, { location: e.target.value })}
                       placeholder="例如：3#楼标准层、地下室底板"
-                      className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
                 </div>
 
-                <div className="mt-3">
-                  <label className="mb-1 block text-sm font-medium text-[#1D2129]">施工内容 <span className="text-[#F53F3F]">*</span></label>
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-slate-800">施工内容 <span className="text-red-500">*</span></label>
                   <textarea
                     value={draft.content}
                     onChange={e => updateDraft(draft.id, { content: e.target.value })}
-                    placeholder="这个项目今天做了什么工作？"
+                    placeholder="记录今天实际完成的施工内容，例如：1#楼3层模板安装、钢筋绑扎、材料进场、现场协调事项。"
                     rows={4}
-                    className="w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3 text-sm outline-none focus:border-[#165DFF]"
+                    className="min-h-[132px] w-full rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
                   />
                   {draftSubmitSummaries[index]?.warnings.some(message => message.includes('出勤')) && (
-                    <div className="mt-2 rounded-lg border border-[#F59E0B] bg-[#FFF7E8] px-3 py-2 text-xs text-[#B45309]">
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                       {draftSubmitSummaries[index]?.warnings.find(message => message.includes('出勤'))}
                     </div>
                   )}
                 </div>
 
                 {/* Tomorrow Plan Section */}
-                <div className="mt-3">
-                  <label className="mb-2 flex items-center gap-2 text-sm font-medium text-[#1D2129]">
-                    <CalendarClock className="h-4 w-4 text-[#165DFF]" />
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <label className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-800">
+                    <CalendarClock className="h-4 w-4 text-blue-600" />
                     明日计划
                   </label>
                   <textarea
@@ -790,15 +807,15 @@ export default function NewConstructionLogPage() {
                     onChange={e => updateDraft(draft.id, { tomorrow_plan: e.target.value })}
                     placeholder="请输入明日施工计划，如：明日计划进行2层梁板钢筋绑扎..."
                     rows={2}
-                    className="w-full rounded-xl border border-[#E5E6EB] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#165DFF] focus:ring-2 focus:ring-[#165DFF]/20"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
-                <div className="mt-3">
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
                   <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <label className="block text-sm font-medium text-[#1D2129]">出勤人员</label>
-                      <p className="mt-0.5 text-xs text-[#86909C]">
+                      <label className="block text-sm font-medium text-slate-800">出勤人员</label>
+                      <p className="mt-0.5 text-xs text-slate-500">
                         已选 {draft.attendance_worker_ids.length} 人，出勤人数将自动按勾选人数统计
                       </p>
                     </div>
@@ -806,7 +823,7 @@ export default function NewConstructionLogPage() {
                       <button
                         type="button"
                         onClick={() => addSelectedTemporaryToScope(draft.id, pendingScopeIds)}
-                        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF] sm:w-auto"
+                        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-blue-700 hover:bg-blue-50 sm:w-auto"
                       >
                         <UserPlus className="h-3.5 w-3.5" />
                         加入我的负责范围
@@ -814,13 +831,13 @@ export default function NewConstructionLogPage() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3">
+                  <div className="rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-200">
                     <div className="grid gap-2 md:grid-cols-[180px_1fr]">
                       <select
                         value={draft.worker_work_type}
                         onChange={e => updateDraft(draft.id, { worker_work_type: e.target.value })}
                         disabled={loadingWorkers || options.workers.length === 0}
-                        className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF] disabled:bg-[#F2F3F5] disabled:text-[#C9CDD4]"
+                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-300"
                       >
                         <option value="">全部工种</option>
                         {workTypeOptions.map((workType) => (
@@ -828,58 +845,58 @@ export default function NewConstructionLogPage() {
                         ))}
                       </select>
                       <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                         <input
                           value={draft.worker_search}
                           onChange={e => updateDraft(draft.id, { worker_search: e.target.value })}
                           placeholder="搜索姓名、工种、班组"
-                          className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]"
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                         />
                       </div>
                     </div>
 
                     {loadingWorkers ? (
-                      <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-white py-8 text-sm text-[#86909C]">
+                      <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-white py-8 text-sm text-slate-500">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         正在加载项目花名册...
                       </div>
                     ) : attendanceError ? (
-                      <div className="mt-3 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">
+                      <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         出勤人员加载失败：{attendanceError}
                       </div>
                     ) : options.workers.length === 0 ? (
-                      <div className="mt-3 rounded-lg bg-white py-8 text-center text-sm text-[#86909C]">
+                      <div className="mt-3 rounded-lg bg-white py-8 text-center text-sm text-slate-500">
                         当前项目暂无在场工人，请先在花名册维护工人档案
                       </div>
                     ) : (
                       <div className="mt-3 space-y-3">
                         <div>
-                          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#4E5969]">
-                            <UsersRound className="h-3.5 w-3.5 text-[#165DFF]" />
+                          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <UsersRound className="h-3.5 w-3.5 text-blue-600" />
                             {options.has_scope ? '我的负责人员' : '项目在场人员'}
                           </div>
                           <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 md:max-h-56 md:grid-cols-2">
                             {visibleWorkers.length === 0 ? (
-                              <div className="rounded-lg bg-white p-3 text-sm text-[#86909C] md:col-span-2">没有匹配的人员</div>
+                              <div className="rounded-lg bg-white p-3 text-sm text-slate-500 md:col-span-2">没有匹配的人员</div>
                             ) : visibleWorkers.map(worker => (
                               <button
                                 type="button"
                                 key={worker.id}
                                 onClick={() => toggleAttendance(draft.id, worker.id)}
-                                className={`flex min-h-[68px] items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
+                                  className={`flex min-h-[68px] items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
                                   selectedSet.has(worker.id)
-                                    ? 'border-[#165DFF] ring-2 ring-[#E8F3FF]'
-                                    : 'border-[#E5E6EB] hover:border-[#165DFF]/40'
+                                    ? 'border-blue-300 bg-blue-50/60 ring-2 ring-blue-100'
+                                    : 'border-slate-200 hover:border-blue-200'
                                 }`}
                               >
                                 <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
-                                  selectedSet.has(worker.id) ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-[#C9CDD4] bg-white'
+                                  selectedSet.has(worker.id) ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
                                 }`}>
                                   {selectedSet.has(worker.id) ? '✓' : ''}
                                 </span>
                                 <span className="min-w-0">
-                                  <span className="block truncate text-sm font-medium text-[#1D2129]">{worker.name}</span>
-                                  <span className="mt-1 block truncate text-xs text-[#86909C]">
+                                  <span className="block truncate text-sm font-medium text-slate-900">{worker.name}</span>
+                                  <span className="mt-1 block truncate text-xs text-slate-500">
                                     {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未填写工种/班组'}
                                   </span>
                                 </span>
@@ -890,10 +907,10 @@ export default function NewConstructionLogPage() {
 
                         {options.has_scope && (
                           <div>
-                            <div className="mb-2 text-xs font-medium text-[#4E5969]">项目花名册临时补选</div>
+                            <div className="mb-2 text-xs font-medium text-slate-600">项目花名册临时补选</div>
                             <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 md:max-h-44 md:grid-cols-2">
                               {otherWorkers.length === 0 ? (
-                                <div className="rounded-lg bg-white p-3 text-sm text-[#86909C] md:col-span-2">没有更多可补选人员</div>
+                                <div className="rounded-lg bg-white p-3 text-sm text-slate-500 md:col-span-2">没有更多可补选人员</div>
                               ) : otherWorkers.map(worker => (
                                 <button
                                   type="button"
@@ -901,18 +918,18 @@ export default function NewConstructionLogPage() {
                                   onClick={() => toggleAttendance(draft.id, worker.id)}
                                   className={`flex min-h-[68px] items-start gap-3 rounded-lg border bg-white p-3 text-left transition ${
                                     selectedSet.has(worker.id)
-                                      ? 'border-[#165DFF] ring-2 ring-[#E8F3FF]'
-                                      : 'border-[#E5E6EB] hover:border-[#165DFF]/40'
+                                      ? 'border-blue-300 bg-blue-50/60 ring-2 ring-blue-100'
+                                      : 'border-slate-200 hover:border-blue-200'
                                   }`}
                                 >
                                   <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
-                                    selectedSet.has(worker.id) ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-[#C9CDD4] bg-white'
+                                    selectedSet.has(worker.id) ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
                                   }`}>
                                     {selectedSet.has(worker.id) ? '✓' : ''}
                                   </span>
                                   <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium text-[#1D2129]">{worker.name}</span>
-                                    <span className="mt-1 block truncate text-xs text-[#86909C]">
+                                    <span className="block truncate text-sm font-medium text-slate-900">{worker.name}</span>
+                                    <span className="mt-1 block truncate text-xs text-slate-500">
                                       {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未填写工种/班组'}
                                     </span>
                                   </span>
@@ -923,17 +940,17 @@ export default function NewConstructionLogPage() {
                         )}
 
                         {selectedWorkers.length > 0 && (
-                          <div className="rounded-lg border border-[#D6E4FF] bg-white p-3">
+                          <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="text-xs font-medium text-[#1D2129]">已选人员工时</p>
-                              <span className="text-xs text-[#86909C]">可录入小数，单人每日不超过24小时</span>
+                              <p className="text-xs font-medium text-slate-900">已选人员工时</p>
+                              <span className="text-xs text-slate-500">可录入小数，单人每日不超过24小时</span>
                             </div>
                             <div className="grid gap-2 md:grid-cols-2">
                               {selectedWorkers.map(worker => (
-                                <label key={worker.id} className="flex items-center gap-2 rounded-lg bg-[#F7F8FA] px-3 py-2">
+                                <label key={worker.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                                   <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-medium text-[#1D2129]">{worker.name}</span>
-                                    <span className="block truncate text-xs text-[#86909C]">
+                                    <span className="block truncate text-sm font-medium text-slate-900">{worker.name}</span>
+                                    <span className="block truncate text-xs text-slate-500">
                                       {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未填写工种/班组'}
                                     </span>
                                   </span>
@@ -944,9 +961,9 @@ export default function NewConstructionLogPage() {
                                     step="0.5"
                                     value={getWorkerHours(draft, worker.id)}
                                     onChange={event => updateAttendanceHours(draft.id, worker.id, event.target.value)}
-                                    className="h-9 w-20 rounded-lg border border-[#E5E6EB] bg-white px-2 text-right text-sm text-[#1D2129] outline-none focus:border-[#165DFF]"
+                                    className="h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                                   />
-                                  <span className="text-xs text-[#4E5969]">小时</span>
+                                  <span className="text-xs text-slate-600">小时</span>
                                 </label>
                               ))}
                             </div>
@@ -954,7 +971,7 @@ export default function NewConstructionLogPage() {
                         )}
 
                         {draft.scope_worker_ids.length > 0 && (
-                          <div className="rounded-lg border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-2 text-xs text-[#047857]">
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                             已标记 {draft.scope_worker_ids.length} 人随本次提交加入我的负责范围，下次填写会优先展示。
                           </div>
                         )}
@@ -963,24 +980,24 @@ export default function NewConstructionLogPage() {
                   </div>
                 </div>
 
-                <div className="mt-3">
-                  <label className="mb-1 block text-sm font-medium text-[#1D2129]">异常/问题</label>
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <label className="mb-1 block text-sm font-medium text-slate-800">异常/问题</label>
                   <input
                     value={draft.issues}
                     onChange={e => updateDraft(draft.id, { issues: e.target.value })}
                     placeholder="有无异常情况？"
-                    className="h-11 w-full rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm outline-none focus:border-[#165DFF]"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
 
-                <div className="mt-3">
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
                   <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <label className="block text-sm font-medium text-[#1D2129]">现场照片附件</label>
-                      <p className="mt-0.5 text-xs text-[#86909C]">可上传多张施工照片，提交后可在日志详情中查看</p>
+                      <label className="block text-sm font-medium text-slate-800">现场照片附件</label>
+                      <p className="mt-0.5 text-xs text-slate-500">可上传多张施工照片，提交后可在日志详情中查看</p>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
-                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-blue-700 hover:bg-blue-50">
                         {photoUploading[draft.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
                         {photoUploading[draft.id] ? '上传中...' : '拍照'}
                         <input
@@ -993,7 +1010,7 @@ export default function NewConstructionLogPage() {
                           className="hidden"
                         />
                       </label>
-                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#165DFF] px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]">
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-blue-700 hover:bg-blue-50">
                         {photoUploading[draft.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
                         {photoUploading[draft.id] ? '上传中...' : '上传照片'}
                         <input
@@ -1009,24 +1026,24 @@ export default function NewConstructionLogPage() {
                   </div>
 
                   {draft.attachments.length > 0 ? (
-                    <div className="grid gap-2 rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-3 sm:grid-cols-2 md:grid-cols-3">
+                    <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:grid-cols-2 md:grid-cols-3">
                       {draft.attachments.map((attachment, attachmentIndex) => (
-                        <div key={attachment.storageKey} className="overflow-hidden rounded-lg border border-[#E5E6EB] bg-white">
+                        <div key={attachment.storageKey} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
                           {attachment.url ? (
                             <img
                               src={attachment.url}
                               alt={`施工照片${attachmentIndex + 1}`}
-                              className="h-28 w-full bg-[#F2F3F5] object-cover"
+                              className="h-28 w-full bg-slate-100 object-cover"
                             />
                           ) : (
-                            <div className="flex h-28 items-center justify-center bg-[#F2F3F5] text-xs text-[#86909C]">照片已上传</div>
+                            <div className="flex h-28 items-center justify-center bg-slate-100 text-xs text-slate-500">照片已上传</div>
                           )}
                           <div className="flex items-center justify-between gap-2 px-2 py-2">
-                            <span className="min-w-0 truncate text-xs text-[#4E5969]">{attachment.name || `照片${attachmentIndex + 1}`}</span>
+                            <span className="min-w-0 truncate text-xs text-slate-600">{attachment.name || `照片${attachmentIndex + 1}`}</span>
                             <button
                               type="button"
                               onClick={() => removeAttachment(draft.id, attachment.storageKey)}
-                              className="shrink-0 rounded-md p-1 text-[#F53F3F] hover:bg-[#FFF1F0]"
+                              className="shrink-0 rounded-md p-1 text-red-600 hover:bg-red-50"
                               aria-label="删除照片"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1036,10 +1053,11 @@ export default function NewConstructionLogPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-[#C9CDD4] bg-[#FAFBFF] px-4 py-6 text-center text-sm text-[#86909C]">
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-500">
                       暂未上传现场照片
                     </div>
                   )}
+                </div>
                 </div>
               </section>
             );
@@ -1048,32 +1066,35 @@ export default function NewConstructionLogPage() {
           {(error || blockingSummary) && (
             <div className={`rounded-xl border p-3 text-sm ${
               error
-                ? 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
-                : 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
             }`}>
               {error || `项目明细 ${blockingSummary?.index !== undefined ? blockingSummary.index + 1 : ''}：${blockingSummary?.messages[0] || '请完善后再提交'}`}
             </div>
           )}
 
-          <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-[#E5E6EB] bg-white p-4 shadow-sm sm:flex-row sm:items-center">
+          <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/90 backdrop-blur sm:sticky sm:bottom-3 sm:z-20 sm:flex-row sm:items-center sm:p-4">
             <button
               type="button"
               onClick={addDraft}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#165DFF] px-4 text-sm font-medium text-[#165DFF] hover:bg-[#E8F3FF]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
               <Plus className="h-4 w-4" />添加项目明细
             </button>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <div className="text-xs text-[#86909C]">
-                {readyDraftCount > 0 ? `已准备 ${readyDraftCount} 个项目明细` : '请先填写项目和施工内容'}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="text-xs text-slate-500 sm:text-right">
+                <span className="font-medium text-slate-700">
+                  {readyDraftCount > 0 ? `已准备 ${readyDraftCount} 个项目明细` : '请先填写项目和施工内容'}
+                </span>
+                <span className="mt-0.5 block">出勤 {attendanceTotal} 人，照片 {attachmentTotal} 张</span>
               </div>
               <button
                 type="submit"
-                disabled={saving || isUploadingPhotos || Boolean(blockingSummary) || readyDraftCount === 0 || !(scheduleEnabled ? scheduledWindow.allowed : submissionWindow.allowed)}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#165DFF] px-5 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:w-auto sm:min-w-[160px]"
+                disabled={submitDisabled}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto sm:min-w-[160px]"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {saving ? '提交中...' : isUploadingPhotos ? '照片上传中...' : scheduleEnabled ? '保存并预约' : '提交日志'}
+                {submitLabel}
               </button>
             </div>
           </div>

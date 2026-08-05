@@ -161,15 +161,15 @@ function toDateTimeInputValue(value?: string | null) {
 }
 
 function riskClass(level?: RiskLevel | null) {
-  if (level === 'high') return 'border-[#F53F3F] bg-[#FFF1F0] text-[#C62828]';
-  if (level === 'medium') return 'border-[#F59E0B] bg-[#FFF7E8] text-[#B45309]';
-  return 'border-[#165DFF] bg-[#E8F3FF] text-[#165DFF]';
+  if (level === 'high') return 'border-red-200 bg-red-50 text-red-700';
+  if (level === 'medium') return 'border-amber-200 bg-amber-50 text-amber-700';
+  return 'border-blue-200 bg-blue-50 text-blue-700';
 }
 
 function statusClass(status?: string | null) {
-  if (status === 'confirmed') return 'border-[#10B981]/30 bg-[#E8FFEA] text-[#047857]';
-  if (status === 'pending') return 'border-[#F59E0B]/30 bg-[#FFF7E8] text-[#B45309]';
-  return 'border-[#E5E6EB] bg-[#F7F8FA] text-[#4E5969]';
+  if (status === 'confirmed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (status === 'pending') return 'border-amber-200 bg-amber-50 text-amber-700';
+  return 'border-slate-200 bg-slate-100 text-slate-600';
 }
 
 function logStatusLabel(status?: string | null) {
@@ -206,7 +206,7 @@ function NavigationLink({
   const label = isPrevious ? '上一篇' : '下一篇';
   if (!item) {
     return (
-      <div className="flex min-h-[64px] items-center justify-center rounded-xl border border-dashed border-[#DDE2EB] bg-white px-4 py-3 text-sm text-[#A9AEB8]">
+      <div className="flex min-h-[64px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-400">
         {isPrevious ? '已经是最新一篇' : '已经是最后一篇'}
       </div>
     );
@@ -215,19 +215,19 @@ function NavigationLink({
   return (
     <Link
       href={`/construction-logs/${item.id}`}
-      className="group flex min-h-[64px] items-center gap-3 rounded-xl border border-[#E5E6EB] bg-white px-4 py-3 transition hover:border-[#165DFF]/45 hover:bg-[#FBFCFF]"
+      className="group flex min-h-[64px] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
     >
       {isPrevious && (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969] transition group-hover:bg-[#E8F3FF] group-hover:text-[#165DFF]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-blue-100 group-hover:text-blue-700">
           <ChevronLeft className="h-4 w-4" />
         </span>
       )}
       <span className={`min-w-0 flex-1 ${isPrevious ? '' : 'text-right'}`}>
-        <span className="block text-xs font-medium text-[#86909C]">{label}</span>
-        <span className="mt-1 block truncate text-sm font-semibold text-[#1D2129]">{navDescription(item)}</span>
+        <span className="block text-xs font-medium text-slate-500">{label}</span>
+        <span className="mt-1 block truncate text-sm font-semibold text-slate-950">{navDescription(item)}</span>
       </span>
       {!isPrevious && (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F2F3F5] text-[#4E5969] transition group-hover:bg-[#E8F3FF] group-hover:text-[#165DFF]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-blue-100 group-hover:text-blue-700">
           <ChevronRight className="h-4 w-4" />
         </span>
       )}
@@ -442,12 +442,12 @@ export default function ConstructionLogDetailPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] px-3 py-4 sm:p-4 md:p-6">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-5 flex items-center justify-between gap-3">
+    <div className="min-h-full bg-[#EEF3F8] px-3 py-4 sm:p-4 md:p-6">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <Link
             href="/construction-logs?tab=logs"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm hover:border-blue-200 hover:text-blue-700"
           >
             <ArrowLeft className="h-4 w-4" />
             返回施工日志
@@ -455,38 +455,40 @@ export default function ConstructionLogDetailPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-10 text-center text-sm text-[#86909C]">正在加载施工日志...</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">正在加载施工日志...</div>
         ) : error || !detail ? (
-          <div className="rounded-xl border border-[#E5E6EB] bg-white p-10 text-center text-sm text-[#4E5969]">
+          <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-600 shadow-sm">
             {error || '未找到施工日志'}
           </div>
         ) : (
           <div className="space-y-4">
             {message && (
-              <div className="rounded-xl border border-[#E5E6EB] bg-white px-4 py-3 text-sm text-[#4E5969]">
+              <div className="rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
                 {message}
               </div>
             )}
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+                <p className="text-xs font-medium text-slate-500">施工管理 / 施工日志详情</p>
+              </div>
+              <div className="flex flex-col gap-4 p-4 md:flex-row md:items-start md:justify-between sm:p-5">
                 <div>
-                  <p className="text-sm text-[#86909C]">施工日志详情</p>
-                  <h1 className="mt-1 break-words text-xl font-bold text-[#1D2129] sm:text-2xl">
+                  <h1 className="break-words text-xl font-semibold text-slate-950 sm:text-2xl">
                     {detail.project?.name || `项目${detail.project_id}`}
                   </h1>
-                  <div className="mt-3 flex flex-wrap gap-3 text-sm text-[#4E5969]">
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">
                     <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-4 w-4 text-[#165DFF]" />
+                      <CalendarDays className="h-4 w-4 text-blue-600" />
                       {detail.log_date}
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <Users className="h-4 w-4 text-[#7C3AED]" />
+                      <Users className="h-4 w-4 text-slate-500" />
                       {detail.user_name || '未记录人员'}
                     </span>
                     {detail.location && (
                       <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-4 w-4 text-[#10B981]" />
+                        <MapPin className="h-4 w-4 text-emerald-600" />
                         {detail.location}
                       </span>
                     )}
@@ -504,7 +506,7 @@ export default function ConstructionLogDetailPage() {
                     <button
                       type="button"
                       onClick={() => setEditing((current) => !current)}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#165DFF] bg-white px-3 text-xs font-medium text-[#165DFF] hover:bg-[#E8F3FF]"
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-blue-700 hover:bg-blue-50"
                     >
                       {editing ? <XCircle className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
                       {editing ? '取消编辑' : '修改预约'}
@@ -515,7 +517,7 @@ export default function ConstructionLogDetailPage() {
                       type="button"
                       onClick={handleCancelSchedule}
                       disabled={saving}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#F53F3F] bg-white px-3 text-xs font-medium text-[#F53F3F] hover:bg-[#FFF1F0] disabled:opacity-60"
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
                     >
                       <XCircle className="h-3.5 w-3.5" />
                       取消预约
@@ -531,92 +533,104 @@ export default function ConstructionLogDetailPage() {
               </div>
             </section>
 
-            <section className="grid gap-3 md:grid-cols-2">
-              <NavigationLink item={detail.navigation?.previous} direction="previous" />
-              <NavigationLink item={detail.navigation?.next} direction="next" />
-            </section>
-
             {editing && detail.can_edit_schedule && (
-              <form onSubmit={handleSaveEdit} className="rounded-xl border border-[#D6E4FF] bg-white p-4 sm:p-5">
+              <form onSubmit={handleSaveEdit} className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+                <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold text-slate-950">编辑预约日志</h2>
+                      <p className="mt-1 text-xs text-slate-500">调整施工部位、内容与预约提交时间，保存后继续按原流程提交。</p>
+                    </div>
+                    <span className="inline-flex w-fit items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                      仅修改当前日志
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-4 p-4 sm:p-5">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="block text-sm font-medium text-[#1D2129]">
+                  <label className="block text-sm font-medium text-slate-800">
                     施工部位
                     <input
                       value={editLocation}
                       onChange={(event) => setEditLocation(event.target.value)}
-                      className="mt-1 h-10 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     />
                   </label>
-                  <label className="block text-sm font-medium text-[#1D2129]">
+                  <label className="block text-sm font-medium text-slate-800">
                     预约提交时间
                     <input
                       type="datetime-local"
                       value={editScheduledAt}
                       onChange={(event) => setEditScheduledAt(event.target.value)}
-                      className="mt-1 h-10 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     />
                   </label>
                 </div>
-                <label className="mt-3 block text-sm font-medium text-[#1D2129]">
+                <label className="block text-sm font-medium text-slate-800">
                   施工内容
                   <textarea
                     value={editContent}
                     onChange={(event) => setEditContent(event.target.value)}
                     rows={5}
-                    className="mt-1 w-full rounded-lg border border-[#E5E6EB] p-3 text-sm outline-none focus:border-[#165DFF]"
+                    className="mt-1 min-h-[132px] w-full rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
-                <label className="mt-3 block text-sm font-medium text-[#1D2129]">
+                <label className="block text-sm font-medium text-slate-800">
                   异常/问题
                   <input
                     value={editIssues}
                     onChange={(event) => setEditIssues(event.target.value)}
-                    className="mt-1 h-10 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF]"
+                    className="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
-                <div className="mt-4 flex justify-end">
+                <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-slate-500">保存后会刷新当前详情，已提交日志仍保留原查看记录。</p>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
                   >
                     <Save className="h-4 w-4" />
                     {saving ? '保存中...' : '保存修改'}
                   </button>
                 </div>
+                </div>
               </form>
             )}
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#1D2129]">
-                <FileText className="h-4 w-4 text-[#165DFF]" />
-                现场记录
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                  现场记录
+                </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-[#F7F8FA] p-3">
-                  <p className="text-xs text-[#86909C]">出勤人数</p>
-                  <p className="mt-1 text-lg font-semibold text-[#1D2129]">
+              <div className="space-y-4 p-4 sm:p-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg bg-slate-50/80 p-3 ring-1 ring-slate-200">
+                  <p className="text-xs text-slate-500">出勤人数</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-950">
                     {detail.headcount ?? '-'}
                     {detail.headcount != null ? ' 人' : ''}
                   </p>
                 </div>
-                <div className="rounded-lg bg-[#F7F8FA] p-3 md:col-span-2">
-                  <p className="text-xs text-[#86909C]">创建时间</p>
-                  <p className="mt-1 text-sm text-[#1D2129]">{formatDate(detail.created_at)}</p>
+                <div className="rounded-lg bg-slate-50/80 p-3 ring-1 ring-slate-200 md:col-span-2">
+                  <p className="text-xs text-slate-500">创建时间</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900">{formatDate(detail.created_at)}</p>
                 </div>
               </div>
-              <div className="mt-4 whitespace-pre-wrap rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] p-4 text-sm leading-7 text-[#1D2129]">
+              <div className="whitespace-pre-wrap rounded-lg bg-slate-50/60 p-4 text-sm leading-7 text-slate-900 ring-1 ring-slate-200">
                 {detail.content || '未填写施工内容'}
               </div>
 
               {photoAttachments.length > 0 && (
-                <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-white p-4">
+                <div className="rounded-lg bg-slate-50/80 p-4 ring-1 ring-slate-200">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="inline-flex items-center gap-2 text-sm font-medium text-[#1D2129]">
-                      <ImageIcon className="h-4 w-4 text-[#165DFF]" />
+                    <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-950">
+                      <ImageIcon className="h-4 w-4 text-blue-600" />
                       现场照片
                     </p>
-                    <span className="rounded-full bg-[#E8F3FF] px-2.5 py-1 text-xs font-medium text-[#165DFF]">
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
                       {photoAttachments.length} 张
                     </span>
                   </div>
@@ -627,25 +641,25 @@ export default function ConstructionLogDetailPage() {
                         href={attachment.url || '#'}
                         target="_blank"
                         rel="noreferrer"
-                        className="group overflow-hidden rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] transition hover:border-[#165DFF]/50"
+                        className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:border-blue-200"
                       >
                         {attachment.url ? (
                           <img
                             src={attachment.url}
                             alt={attachment.name || `施工照片${index + 1}`}
-                            className="h-36 w-full bg-[#F2F3F5] object-cover transition group-hover:scale-[1.02]"
+                            className="h-36 w-full bg-slate-100 object-cover transition group-hover:scale-[1.02]"
                           />
                         ) : (
-                          <div className="flex h-36 items-center justify-center bg-[#F2F3F5] text-xs text-[#86909C]">
+                          <div className="flex h-36 items-center justify-center bg-slate-100 text-xs text-slate-500">
                             照片链接生成失败
                           </div>
                         )}
                         <div className="px-3 py-2">
-                          <p className="truncate text-xs font-medium text-[#1D2129]">
+                          <p className="truncate text-xs font-medium text-slate-900">
                             {attachment.name || `施工照片${index + 1}`}
                           </p>
                           {formatFileSize(attachment.size) && (
-                            <p className="mt-1 text-xs text-[#86909C]">{formatFileSize(attachment.size)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
                           )}
                         </div>
                       </a>
@@ -655,42 +669,42 @@ export default function ConstructionLogDetailPage() {
               )}
 
               {Number(detail.attachments_original_count || 0) > 0 && (
-                <div className="mt-4 rounded-lg border border-[#F7BA1E]/30 bg-[#FFF7E8] px-4 py-3 text-sm text-[#B45309]">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                   原有 {Number(detail.attachments_original_count || 0)} 张照片，已于 {formatDateOnly(detail.attachments_cleaned_at)} 项目归档时清理。
                 </div>
               )}
 
               {/* Tomorrow Plan */}
               {detail.tomorrow_plan && (
-                <div className="mt-4 rounded-lg border border-[#E8F3FF] bg-[#F0F7FF] p-4">
+                <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <CalendarClock className="h-4 w-4 text-[#165DFF]" />
-                    <span className="text-sm font-medium text-[#1D2129]">明日计划</span>
+                    <CalendarClock className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-slate-950">明日计划</span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-[#1D2129]">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-800">
                     {detail.tomorrow_plan}
                   </p>
                 </div>
               )}
 
               {detail.attendance_workers && detail.attendance_workers.length > 0 && (
-                <div className="mt-4 rounded-lg border border-[#E5E6EB] bg-white p-4">
+                <div className="rounded-lg bg-slate-50/80 p-4 ring-1 ring-slate-200">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-[#1D2129]">出勤人员明细</p>
-                    <span className="rounded-full bg-[#E8F3FF] px-2.5 py-1 text-xs font-medium text-[#165DFF]">
+                    <p className="text-sm font-medium text-slate-950">出勤人员明细</p>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
                       {detail.attendance_workers.length} 人
                     </span>
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
                     {detail.attendance_workers.map((worker) => (
-                      <div key={`${worker.worker_id}-${worker.worker_name || ''}`} className="rounded-lg bg-[#F7F8FA] px-3 py-2">
-                        <p className="text-sm font-medium text-[#1D2129]">
+                      <div key={`${worker.worker_id}-${worker.worker_name || ''}`} className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                        <p className="text-sm font-medium text-slate-900">
                           {worker.worker_name || `工人${worker.worker_id}`}
                         </p>
-                        <p className="mt-1 text-xs text-[#86909C]">
+                        <p className="mt-1 text-xs text-slate-500">
                           {[worker.work_type, worker.team_name].filter(Boolean).join(' · ') || '未记录工种/班组'}
                         </p>
-                        <p className="mt-1 text-xs font-medium text-[#165DFF]">
+                        <p className="mt-1 text-xs font-medium text-blue-700">
                           工时：{Number(worker.work_hours || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 小时
                         </p>
                       </div>
@@ -700,26 +714,29 @@ export default function ConstructionLogDetailPage() {
               )}
 
               {detail.issues && (
-                <div className="mt-4 whitespace-pre-wrap rounded-lg border border-[#F53F3F]/20 bg-[#FFF1F0] p-4 text-sm leading-7 text-[#C62828]">
+                <div className="whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-7 text-red-700">
                   <p className="mb-1 font-medium">异常/问题</p>
                   {detail.issues}
                 </div>
               )}
+              </div>
             </section>
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-[#165DFF]" />
-                  <h2 className="text-sm font-semibold text-[#1D2129]">风险识别提醒</h2>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <h2 className="text-sm font-semibold text-slate-950">风险识别提醒</h2>
+                  </div>
+                  <Link href="/construction-logs?tab=risks" className="text-xs font-medium text-blue-700 hover:underline">
+                    返回风险池
+                  </Link>
                 </div>
-                <Link href="/construction-logs?tab=risks" className="text-xs font-medium text-[#165DFF] hover:underline">
-                  返回风险池
-                </Link>
               </div>
 
               {detail.risk?.hasRisk ? (
-                <div className="mt-3 space-y-3">
+                <div className="space-y-4 p-4 sm:p-5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(detail.risk.workflow_status)}`}>
                       {detail.risk.workflow_status_label || '待确认'}
@@ -731,41 +748,43 @@ export default function ConstructionLogDetailPage() {
                     )}
                   </div>
 
-                  <p className="text-sm font-medium text-[#1D2129]">
-                    {detail.risk.summary || '施工日志识别到风险提醒'}
-                  </p>
+                  <div className="rounded-lg bg-slate-50/80 p-4 ring-1 ring-slate-200">
+                    <p className="text-sm font-semibold text-slate-950">
+                      {detail.risk.summary || '施工日志识别到风险提醒'}
+                    </p>
 
-                  <div className="flex flex-wrap gap-2">
-                    {(detail.risk.types || []).map((type) => (
-                      <span key={type} className="rounded-full bg-[#F2F3F5] px-2.5 py-1 text-xs text-[#4E5969]">
-                        {riskTypeLabels[type] || type}
-                      </span>
-                    ))}
-                    {(detail.risk.matchedKeywords || []).slice(0, 6).map((keyword) => (
-                      <span key={keyword} className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">
-                        {keyword}
-                      </span>
-                    ))}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(detail.risk.types || []).map((type) => (
+                        <span key={type} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+                          {riskTypeLabels[type] || type}
+                        </span>
+                      ))}
+                      {(detail.risk.matchedKeywords || []).slice(0, 6).map((keyword) => (
+                        <span key={keyword} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
                   {detail.risk.recommendation && (
-                    <p className="rounded-lg bg-[#FAFBFF] px-3 py-2 text-sm text-[#4E5969]">
+                    <p className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-sm leading-6 text-slate-700">
                       建议：{detail.risk.recommendation}
                     </p>
                   )}
 
-                  <div className="flex flex-col gap-2 border-t border-[#F2F3F5] pt-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-[#86909C]">
+                  <div className="flex flex-col gap-3 rounded-lg bg-slate-50/80 px-3 py-3 ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-5 text-slate-500">
                       这里只做确认提醒，后续签证、月报、结算资料仍按业务页处理。
                     </p>
                     <button
                       type="button"
                       disabled={acknowledgingRisk || detail.risk.workflow_status === 'confirmed' || !detail.risk.can_acknowledge}
                       onClick={handleAcknowledgeRisk}
-                      className={`inline-flex h-9 items-center justify-center gap-1 rounded-lg px-3 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-70 ${
+                      className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto ${
                         detail.risk.workflow_status === 'confirmed'
-                          ? 'border border-[#10B981]/30 bg-[#E8FFEA] text-[#047857]'
-                          : 'border border-[#10B981] bg-[#10B981] text-white hover:bg-[#059669]'
+                          ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
                       }`}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -778,36 +797,40 @@ export default function ConstructionLogDetailPage() {
                   </div>
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-[#86909C]">该日志暂未识别到风险提醒。</p>
+                <div className="p-4 sm:p-5">
+                  <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm text-slate-500">该日志暂未识别到风险提醒。</p>
+                </div>
               )}
             </section>
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <MessageSquareMore className="h-4 w-4 text-[#165DFF]" />
-                  <h2 className="text-sm font-semibold text-[#1D2129]">评论提醒</h2>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquareMore className="h-4 w-4 text-blue-600" />
+                    <h2 className="text-sm font-semibold text-slate-950">评论提醒</h2>
+                  </div>
+                  <span className="text-xs text-slate-500">评论将通知项目经理、预算员、日志作者及被提及人员</span>
                 </div>
-                <span className="text-xs text-[#86909C]">评论将通知项目经理、预算员、日志作者及被提及人员</span>
               </div>
 
-              <form onSubmit={handleSubmitComment} className="mt-4 space-y-3">
+              <form onSubmit={handleSubmitComment} className="space-y-3 p-4 sm:p-5">
                 <textarea
                   value={commentContent}
                   onChange={(event) => setCommentContent(event.target.value)}
                   rows={4}
                   placeholder="请输入评论，例如：这里需要补充签证资料，麻烦项目经理跟进。"
-                  className="w-full rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] p-3 text-sm outline-none transition focus:border-[#165DFF]"
+                  className="min-h-[112px] w-full rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-h-5 text-sm">
-                    {commentError ? <span className="text-[#F53F3F]">{commentError}</span> : null}
-                    {!commentError && commentMessage ? <span className="text-[#10B981]">{commentMessage}</span> : null}
+                    {commentError ? <span className="text-red-600">{commentError}</span> : null}
+                    {!commentError && commentMessage ? <span className="text-emerald-600">{commentMessage}</span> : null}
                   </div>
                   <button
                     type="submit"
                     disabled={commentSubmitting}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
                   >
                     <Send className="h-4 w-4" />
                     {commentSubmitting ? '提交中...' : '提交评论'}
@@ -815,28 +838,31 @@ export default function ConstructionLogDetailPage() {
                 </div>
               </form>
 
-              <div className="mt-5 border-t border-[#F2F3F5] pt-4">
+              <div className="border-t border-slate-100 px-4 py-4 sm:px-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-sm font-medium text-[#1D2129]">历史评论</p>
-                  <span className="text-xs text-[#86909C]">{comments.length} 条</span>
+                  <p className="text-sm font-medium text-slate-950">历史评论</p>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{comments.length} 条</span>
                 </div>
                 {commentsLoading ? (
-                  <div className="rounded-lg bg-[#F7F8FA] p-4 text-sm text-[#86909C]">评论加载中...</div>
+                  <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">评论加载中...</div>
                 ) : comments.length > 0 ? (
                   <div className="space-y-3">
                     {comments.map((comment) => (
-                      <div key={comment.id} className="rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] p-3">
+                      <div key={comment.id} className="rounded-lg bg-slate-50/80 p-3 ring-1 ring-slate-200">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="rounded-full bg-[#E8F3FF] px-2 py-0.5 text-xs font-medium text-[#165DFF]">
-                              {comment.user_name || `用户${comment.user_id}`}
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+                              {(comment.user_name || `用户${comment.user_id}`).slice(0, 1)}
                             </span>
-                            <span className="text-xs text-[#86909C]">{formatDate(comment.created_at)}</span>
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">{comment.user_name || `用户${comment.user_id}`}</p>
+                              <span className="text-xs text-slate-500">{formatDate(comment.created_at)}</span>
+                            </div>
                           </div>
                         </div>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#1D2129]">{comment.content}</p>
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-900">{comment.content}</p>
                         {comment.mentioned_user_ids && comment.mentioned_user_ids.length > 0 && (
-                          <p className="mt-2 text-xs text-[#86909C]">
+                          <p className="mt-2 text-xs text-slate-500">
                             @提醒 {comment.mentioned_user_ids.length} 人
                           </p>
                         )}
@@ -844,7 +870,7 @@ export default function ConstructionLogDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-lg bg-[#F7F8FA] p-4 text-sm text-[#86909C]">暂无评论，先留下第一条吧。</div>
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm text-slate-500">暂无评论，先留下第一条吧。</div>
                 )}
               </div>
             </section>

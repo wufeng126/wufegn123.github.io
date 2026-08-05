@@ -271,16 +271,15 @@ function MetricItem({
   tone: string;
 }) {
   return (
-    <div className="rounded-lg bg-white/75 px-3 py-2 ring-1 ring-slate-200">
-      <div className="flex items-center gap-2">
+    <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200/80">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
         <Icon className={`h-4 w-4 ${tone}`} strokeWidth={1.8} />
-        <span className="text-xs text-slate-500">{label}</span>
       </div>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-950">{value}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">{value}</p>
     </div>
   );
 }
-
 function TabButton({
   active,
   onClick,
@@ -699,18 +698,18 @@ export default function ConstructionLogsClient() {
 
         {tab === 'risks' && (
           <div className="space-y-3">
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="font-semibold text-slate-950">风险提醒</h2>
                   <p className="mt-1 text-xs text-slate-500">当前显示 {filteredRisks.length}/{risks.length} 条，待确认风险会优先排在前面</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs sm:flex sm:flex-wrap">
-                  <span className="rounded-lg bg-amber-50 px-3 py-2 font-medium text-amber-700">待确认 {pendingRisks}</span>
-                  <span className="rounded-lg bg-rose-50 px-3 py-2 font-medium text-rose-700">高风险 {highRiskReminders}</span>
+                  <span className="rounded-full bg-amber-50 px-3 py-1.5 font-medium text-amber-700 ring-1 ring-amber-100">待确认 {pendingRisks}</span>
+                  <span className="rounded-full bg-rose-50 px-3 py-1.5 font-medium text-rose-700 ring-1 ring-rose-100">高风险 {highRiskReminders}</span>
                 </div>
               </div>
-              <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1.6fr_auto]">
+              <div className="grid gap-3 p-4 lg:grid-cols-[1.2fr_1fr_1fr_1.6fr_auto]">
                 <select
                   value={riskProjectId}
                   onChange={event => setRiskProjectId(event.target.value)}
@@ -768,7 +767,7 @@ export default function ConstructionLogsClient() {
             ) : filteredRisks.map(risk => {
               const isPending = risk.workflow_status === 'pending';
               return (
-              <div key={risk.log_id} className={`rounded-xl border bg-white p-4 transition ${isPending ? 'border-amber-200 hover:border-amber-300 hover:bg-amber-50/30' : 'border-slate-200 hover:border-blue-200'}`}>
+              <div key={risk.log_id} className={`rounded-xl border border-l-4 bg-white p-4 shadow-sm transition ${isPending ? 'border-amber-200 border-l-amber-400 hover:border-amber-300 hover:bg-amber-50/20' : 'border-slate-200 border-l-slate-300 hover:border-blue-200 hover:border-l-blue-300'}`}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -785,28 +784,28 @@ export default function ConstructionLogsClient() {
                       <span>{risk.log_date}</span>
                       <span>{risk.location || '未填部位'}</span>
                     </div>
-                    <p className="text-sm font-semibold text-slate-950">{risk.risk_summary || '施工日志风险提醒'}</p>
+                    <p className="text-base font-semibold text-slate-950">{risk.risk_summary || '施工日志风险提醒'}</p>
                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{risk.content}</p>
                     {risk.issues && <p className="mt-2 text-sm text-rose-700">异常：{risk.issues}</p>}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {risk.risk_types.map(type => (
-                        <span key={type} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        <span key={type} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                           {RISK_TYPE_LABELS[type] || type}
                         </span>
                       ))}
                     </div>
                     {risk.risk_recommendation && (
-                      <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600 ring-1 ring-slate-200">
                         跟进建议：{risk.risk_recommendation}
                       </p>
                     )}
                   </div>
                   <div className="flex flex-col gap-2 md:min-w-[150px]">
-                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-700">
+                    <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-700">
                       <Eye className="h-3.5 w-3.5" />
                       查看详情
                     </Link>
-                    <button disabled={actionBusy === risk.log_id || !isPending} onClick={() => handleRiskAction(risk.log_id)} className={`inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg px-3 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-70 ${isPending ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                    <button disabled={actionBusy === risk.log_id || !isPending} onClick={() => handleRiskAction(risk.log_id)} className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${isPending ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
                       {isPending ? <FileCheck2 className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       {risk.workflow_status === 'confirmed' ? '已确认' : '确认提醒'}
                     </button>
@@ -820,30 +819,39 @@ export default function ConstructionLogsClient() {
 
         {tab === 'stats' && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="font-semibold text-[#1D2129]">施工日志完整率统计</h2>
-                  <p className="mt-1 text-xs text-[#86909C]">项目按当月是否有日志统计，人员按当月提交天数和提交次数统计</p>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 ring-1 ring-slate-200">
+                    <BarChart3 className="h-4 w-4" strokeWidth={1.8} />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">施工日志完整率统计</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">按项目和人员查看当月提交情况</p>
+                  </div>
                 </div>
                 <div className="grid gap-2 sm:flex sm:flex-wrap">
-                  <select value={statsProjectId} onChange={event => setStatsProjectId(event.target.value)} className="h-9 w-full rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF] sm:w-auto">
+                  <select value={statsProjectId} onChange={event => setStatsProjectId(event.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto">
                     <option value="all">全部项目</option>
                     {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
                   </select>
-                  <input type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-full rounded-lg border border-[#E5E6EB] px-3 text-sm outline-none focus:border-[#165DFF] sm:w-auto" />
+                  <input type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto" />
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
-              <div className="border-b border-[#E5E6EB] p-4">
-                <h3 className="font-semibold text-[#1D2129]">按项目统计</h3>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <h3 className="text-sm font-semibold text-slate-950">按项目统计</h3>
+                </div>
+                <span className="text-xs text-slate-500">{projectStats.length} 个项目</span>
               </div>
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[760px] text-sm">
                   <thead>
-                    <tr className="bg-[#F7F8FA] text-[#86909C]">
+                    <tr className="bg-slate-50 text-slate-500">
                       <th className="px-4 py-3 text-left font-medium">项目</th>
                       <th className="px-4 py-3 text-center font-medium">完整率</th>
                       <th className="px-4 py-3 text-center font-medium">提交天数</th>
@@ -854,58 +862,62 @@ export default function ConstructionLogsClient() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={6} className="py-8 text-center text-[#86909C]">加载中...</td></tr>
+                      <tr><td colSpan={6} className="py-8 text-center text-slate-500">加载中...</td></tr>
                     ) : projectStats.length === 0 ? (
-                      <tr><td colSpan={6} className="py-8 text-center text-[#86909C]">本月暂无项目提交记录</td></tr>
+                      <tr><td colSpan={6} className="py-8 text-center text-slate-500">本月暂无项目提交记录</td></tr>
                     ) : projectStats.map(item => (
-                      <tr key={item.project_id} className="border-t border-[#F2F3F5] hover:bg-[#FAFBFF]">
-                        <td className="px-4 py-3 font-medium text-[#1D2129]">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</td>
+                      <tr key={item.project_id} className="border-t border-slate-100 transition hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-950">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex h-7 min-w-[48px] items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : item.completeness_rate >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                          <span className={`inline-flex h-7 min-w-[48px] items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-emerald-50 text-emerald-700' : item.completeness_rate >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
                             {item.completeness_rate}%
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center text-[#4E5969]">{item.submitted_days}/{item.expected_days} 天</td>
-                        <td className="px-4 py-3 text-center font-semibold text-[#165DFF]">{item.count}</td>
-                        <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="text-[#D46B08]">{item.risk_count}</span> : <span className="text-xs text-[#C9CDD4]">无</span>}</td>
-                        <td className="px-4 py-3 text-center text-[#86909C]">{item.last_date || '-'}</td>
+                        <td className="px-4 py-3 text-center text-slate-600">{item.submitted_days}/{item.expected_days} 天</td>
+                        <td className="px-4 py-3 text-center font-semibold text-blue-700">{item.count}</td>
+                        <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="text-amber-700">{item.risk_count}</span> : <span className="text-xs text-slate-300">无</span>}</td>
+                        <td className="px-4 py-3 text-center text-slate-500">{item.last_date || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="divide-y divide-[#F2F3F5] md:hidden">
+              <div className="divide-y divide-slate-100 md:hidden">
                 {loading ? (
-                  <div className="p-6 text-center text-sm text-[#86909C]">加载中...</div>
+                  <div className="p-6 text-center text-sm text-slate-500">加载中...</div>
                 ) : projectStats.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-[#86909C]">本月暂无项目提交记录</div>
+                  <div className="p-6 text-center text-sm text-slate-500">本月暂无项目提交记录</div>
                 ) : projectStats.map(item => (
-                  <article key={item.project_id} className="space-y-3 p-4">
+                  <article key={item.project_id} className="space-y-3 border-l-4 border-l-emerald-300 bg-white p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <h4 className="min-w-0 font-medium text-[#1D2129]">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</h4>
-                      <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : item.completeness_rate >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                      <h4 className="min-w-0 font-medium text-slate-950">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</h4>
+                      <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-emerald-50 text-emerald-700' : item.completeness_rate >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
                         {item.completeness_rate}%
                       </span>
                     </div>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div><dt className="text-xs text-[#86909C]">提交天数</dt><dd className="mt-0.5 text-[#4E5969]">{item.submitted_days}/{item.expected_days} 天</dd></div>
-                      <div><dt className="text-xs text-[#86909C]">提交次数</dt><dd className="mt-0.5 font-semibold text-[#165DFF]">{item.count}</dd></div>
-                      <div><dt className="text-xs text-[#86909C]">风险日志</dt><dd className="mt-0.5 text-[#D46B08]">{item.risk_count || 0}</dd></div>
-                      <div><dt className="text-xs text-[#86909C]">最近提交</dt><dd className="mt-0.5 text-[#4E5969]">{item.last_date || '-'}</dd></div>
+                      <div><dt className="text-xs text-slate-500">提交天数</dt><dd className="mt-0.5 text-slate-600">{item.submitted_days}/{item.expected_days} 天</dd></div>
+                      <div><dt className="text-xs text-slate-500">提交次数</dt><dd className="mt-0.5 font-semibold text-blue-700">{item.count}</dd></div>
+                      <div><dt className="text-xs text-slate-500">风险日志</dt><dd className="mt-0.5 text-amber-700">{item.risk_count || 0}</dd></div>
+                      <div><dt className="text-xs text-slate-500">最近提交</dt><dd className="mt-0.5 text-slate-600">{item.last_date || '-'}</dd></div>
                     </dl>
                   </article>
                 ))}
               </div>
-            </div>
+            </section>
 
-            <div className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
-              <div className="border-b border-[#E5E6EB] p-4">
-                <h3 className="font-semibold text-[#1D2129]">按人员统计</h3>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-blue-500" />
+                  <h3 className="text-sm font-semibold text-slate-950">按人员统计</h3>
+                </div>
+                <span className="text-xs text-slate-500">{stats.length} 人</span>
               </div>
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[820px] text-sm">
                   <thead>
-                    <tr className="bg-[#F7F8FA] text-[#86909C]">
+                    <tr className="bg-slate-50 text-slate-500">
                       <th className="px-4 py-3 text-left font-medium">排名</th>
                       <th className="px-4 py-3 text-left font-medium">姓名</th>
                       <th className="px-4 py-3 text-center font-medium">完整率</th>
@@ -917,59 +929,59 @@ export default function ConstructionLogsClient() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={7} className="py-8 text-center text-[#86909C]">加载中...</td></tr>
+                      <tr><td colSpan={7} className="py-8 text-center text-slate-500">加载中...</td></tr>
                     ) : stats.length === 0 ? (
-                      <tr><td colSpan={7} className="py-8 text-center text-[#86909C]">本月暂无提交记录</td></tr>
+                      <tr><td colSpan={7} className="py-8 text-center text-slate-500">本月暂无提交记录</td></tr>
                     ) : stats.map((item, index) => (
-                      <tr key={item.user_id} className="border-t border-[#F2F3F5] hover:bg-[#FAFBFF]">
-                        <td className="px-4 py-3 text-[#86909C]">{index + 1}</td>
-                        <td className="px-4 py-3 font-medium text-[#1D2129]">{item.user_name}</td>
+                      <tr key={item.user_id} className="border-t border-slate-100 transition hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-500">{index + 1}</td>
+                        <td className="px-4 py-3 font-medium text-slate-950">{item.user_name}</td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex h-7 min-w-[48px] items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : (item.completeness_rate || 0) >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                          <span className={`inline-flex h-7 min-w-[48px] items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-emerald-50 text-emerald-700' : (item.completeness_rate || 0) >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
                             {item.completeness_rate || 0}%
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center text-[#4E5969]">{item.submitted_days || 0}/{item.expected_days || 0} 天</td>
-                        <td className="px-4 py-3 text-center"><span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-[#E8F3FF] px-2 text-sm font-bold text-[#165DFF]">{item.count}</span></td>
-                        <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-[#FFF7E8] px-2 text-sm font-bold text-[#D46B08]">{item.risk_count}</span> : <span className="text-xs text-[#C9CDD4]">无</span>}</td>
-                        <td className="px-4 py-3 text-center text-[#86909C]">{item.last_date}</td>
+                        <td className="px-4 py-3 text-center text-slate-600">{item.submitted_days || 0}/{item.expected_days || 0} 天</td>
+                        <td className="px-4 py-3 text-center"><span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-blue-50 px-2 text-sm font-bold text-blue-700">{item.count}</span></td>
+                        <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-amber-50 px-2 text-sm font-bold text-amber-700">{item.risk_count}</span> : <span className="text-xs text-slate-300">无</span>}</td>
+                        <td className="px-4 py-3 text-center text-slate-500">{item.last_date}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="divide-y divide-[#F2F3F5] md:hidden">
+              <div className="divide-y divide-slate-100 md:hidden">
                 {loading ? (
-                  <div className="p-6 text-center text-sm text-[#86909C]">加载中...</div>
+                  <div className="p-6 text-center text-sm text-slate-500">加载中...</div>
                 ) : stats.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-[#86909C]">本月暂无提交记录</div>
+                  <div className="p-6 text-center text-sm text-slate-500">本月暂无提交记录</div>
                 ) : stats.map((item, index) => (
-                  <article key={item.user_id} className="space-y-3 p-4">
+                  <article key={item.user_id} className="space-y-3 border-l-4 border-l-blue-300 bg-white p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0"><span className="mr-2 text-xs text-[#86909C]">#{index + 1}</span><span className="font-medium text-[#1D2129]">{item.user_name}</span></div>
-                      <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-[#E8FFEA] text-[#047857]' : (item.completeness_rate || 0) >= 60 ? 'bg-[#FFF7E8] text-[#D46B08]' : 'bg-[#FFF1F0] text-[#C62828]'}`}>
+                      <div className="min-w-0"><span className="mr-2 text-xs text-slate-500">#{index + 1}</span><span className="font-medium text-slate-950">{item.user_name}</span></div>
+                      <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-emerald-50 text-emerald-700' : (item.completeness_rate || 0) >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
                         {item.completeness_rate || 0}%
                       </span>
                     </div>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div><dt className="text-xs text-[#86909C]">提交天数</dt><dd className="mt-0.5 text-[#4E5969]">{item.submitted_days || 0}/{item.expected_days || 0} 天</dd></div>
-                      <div><dt className="text-xs text-[#86909C]">提交次数</dt><dd className="mt-0.5 font-semibold text-[#165DFF]">{item.count}</dd></div>
-                      <div><dt className="text-xs text-[#86909C]">风险日志</dt><dd className="mt-0.5 text-[#D46B08]">{item.risk_count || 0}</dd></div>
-                      <div><dt className="text-xs text-[#86909C]">最近提交</dt><dd className="mt-0.5 text-[#4E5969]">{item.last_date || '-'}</dd></div>
+                      <div><dt className="text-xs text-slate-500">提交天数</dt><dd className="mt-0.5 text-slate-600">{item.submitted_days || 0}/{item.expected_days || 0} 天</dd></div>
+                      <div><dt className="text-xs text-slate-500">提交次数</dt><dd className="mt-0.5 font-semibold text-blue-700">{item.count}</dd></div>
+                      <div><dt className="text-xs text-slate-500">风险日志</dt><dd className="mt-0.5 text-amber-700">{item.risk_count || 0}</dd></div>
+                      <div><dt className="text-xs text-slate-500">最近提交</dt><dd className="mt-0.5 text-slate-600">{item.last_date || '-'}</dd></div>
                     </dl>
                   </article>
                 ))}
               </div>
-            </div>
+            </section>
           </div>
         )}
 
         {tab === 'logs' && (
           <div className="space-y-3">
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 ring-1 ring-slate-200">
                     <Filter className="h-4 w-4" strokeWidth={1.8} />
                   </span>
                   <div>
@@ -994,7 +1006,7 @@ export default function ConstructionLogsClient() {
                   </button>
                 )}
               </div>
-              <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1.4fr]">
+              <div className="grid gap-3 p-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1.4fr]">
                 <select
                   value={logProjectId}
                   onChange={event => setLogProjectId(event.target.value)}
@@ -1047,7 +1059,7 @@ export default function ConstructionLogsClient() {
             ) : (
               <>
                 {visibleLogDateGroups.map((group, index) => (
-              <details key={group.date} open={index === 0} className="group rounded-xl border border-slate-200 bg-white">
+              <details key={group.date} open={index === 0} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 transition hover:bg-slate-50 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
@@ -1085,7 +1097,7 @@ export default function ConstructionLogsClient() {
 
                 <div className="space-y-3 border-t border-slate-100 bg-slate-50/80 p-3 sm:p-4">
                   {group.logs.map(log => (
-                    <div key={log.id} className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-blue-200">
+                    <div key={log.id} className={`rounded-lg border border-l-4 bg-white p-4 transition hover:border-blue-200 ${log.risk_level ? 'border-l-rose-300' : log.status === 'pending' ? 'border-l-blue-300' : 'border-l-slate-200'}`}>
                       <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span>{projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`}</span>
                         <span className="h-3 w-px bg-slate-200" />
@@ -1119,14 +1131,14 @@ export default function ConstructionLogsClient() {
                         {log.headcount != null && <span>{log.headcount}人</span>}
                         {highRisks > 0 && log.risk_level === 'high' && <span className="text-rose-700">高风险需优先确认</span>}
                         {log.issues && <span className="text-rose-700">异常：{log.issues}</span>}
-                        <div className="flex w-full shrink-0 items-center justify-end gap-3 md:ml-auto md:w-auto">
-                          <Link href={`/construction-logs/${log.id}`} className="font-medium text-blue-700 hover:underline">查看详情</Link>
+                        <div className="flex w-full shrink-0 items-center justify-end gap-2 md:ml-auto md:w-auto">
+                          <Link href={`/construction-logs/${log.id}`} className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 font-medium text-blue-700 hover:border-blue-200">查看详情</Link>
                           {log.status === 'pending' && Number(log.user_id) === Number(user?.id) && (
                             <button
                               type="button"
                               disabled={cancelingLogId === log.id}
                               onClick={() => handleCancelSchedule(log.id)}
-                              className="inline-flex items-center gap-1 font-medium text-[#D46B08] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex items-center gap-1 font-medium text-amber-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <CalendarClock className="h-3.5 w-3.5" strokeWidth={1.8} />
                               {cancelingLogId === log.id ? '取消中...' : '取消预约'}
@@ -1168,16 +1180,21 @@ export default function ConstructionLogsClient() {
 
         {tab === 'submitters' && canManageSubmitters && (
           <div className="space-y-4">
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="font-semibold text-[#1D2129]">施工日志提交人员设置</h2>
-                  <p className="mt-1 text-xs text-[#86909C]">未配置名单时，默认所有有该项目权限的人员都可以提交；配置后只允许勾选人员提交。</p>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 ring-1 ring-slate-200">
+                    <Settings2 className="h-4 w-4" strokeWidth={1.8} />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">施工日志提交人员设置</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">选择项目后维护可提交人员</p>
+                  </div>
                 </div>
                 <select
                   value={submitterProjectId}
                   onChange={event => setSubmitterProjectId(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF] md:w-72"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:w-72"
                 >
                   <option value="">请选择项目</option>
                   {projects.map(project => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
@@ -1185,20 +1202,20 @@ export default function ConstructionLogsClient() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-[#E5E6EB] bg-white p-4 sm:p-5">
-              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-[#1D2129]">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-950">
                     {submitterConfigured ? `已配置 ${submitterIds.length} 人` : '默认全员可提交'}
                   </h3>
-                  <p className="mt-1 text-xs text-[#86909C]">清空勾选并保存，即恢复默认全员可提交。</p>
+                  <p className="mt-0.5 text-xs text-slate-500">清空勾选并保存，即恢复默认全员可提交。</p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setSubmitterIds(submitterUsers.map(item => item.id))}
                     disabled={submitterLoading || submitterUsers.length === 0}
-                    className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF] disabled:opacity-50"
+                    className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:border-blue-200 hover:text-blue-700 disabled:opacity-50"
                   >
                     全选
                   </button>
@@ -1206,7 +1223,7 @@ export default function ConstructionLogsClient() {
                     type="button"
                     onClick={() => setSubmitterIds([])}
                     disabled={submitterLoading}
-                    className="h-9 rounded-lg border border-[#E5E6EB] px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF] disabled:opacity-50"
+                    className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:border-blue-200 hover:text-blue-700 disabled:opacity-50"
                   >
                     恢复默认
                   </button>
@@ -1214,44 +1231,46 @@ export default function ConstructionLogsClient() {
                     type="button"
                     onClick={handleSaveSubmitters}
                     disabled={submitterSaving || submitterLoading || !submitterProjectId}
-                    className="h-9 rounded-lg bg-[#165DFF] px-4 text-xs font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                    className="h-9 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
                   >
                     {submitterSaving ? '保存中...' : '保存配置'}
                   </button>
                 </div>
               </div>
 
-              {submitterLoading ? (
-                <div className="rounded-lg bg-[#F7F8FA] p-8 text-center text-sm text-[#86909C]">正在加载人员...</div>
-              ) : submitterUsers.length === 0 ? (
-                <div className="rounded-lg bg-[#F7F8FA] p-8 text-center text-sm text-[#86909C]">当前项目暂无可配置人员</div>
-              ) : (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {submitterUsers.map(item => {
-                    const checked = submitterIds.includes(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => toggleSubmitter(item.id)}
-                        className={`flex items-center gap-3 rounded-lg border p-3 text-left transition ${
-                          checked ? 'border-[#165DFF] bg-[#F0F5FF]' : 'border-[#E5E6EB] bg-white hover:border-[#165DFF]/40'
-                        }`}
-                      >
-                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
-                          checked ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-[#C9CDD4] bg-white'
-                        }`}>
-                          {checked ? '✓' : ''}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-[#1D2129]">{item.name || item.username || `用户${item.id}`}</span>
-                          <span className="mt-1 block truncate text-xs text-[#86909C]">{item.role || '项目人员'}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="p-4 sm:p-5">
+                {submitterLoading ? (
+                  <div className="rounded-lg bg-slate-50 p-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">正在加载人员...</div>
+                ) : submitterUsers.length === 0 ? (
+                  <div className="rounded-lg bg-slate-50 p-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">当前项目暂无可配置人员</div>
+                ) : (
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {submitterUsers.map(item => {
+                      const checked = submitterIds.includes(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => toggleSubmitter(item.id)}
+                          className={`flex items-center gap-3 rounded-lg border border-l-4 p-3 text-left transition ${
+                            checked ? 'border-blue-200 border-l-blue-500 bg-blue-50 ring-1 ring-blue-100' : 'border-slate-200 border-l-slate-200 bg-white hover:border-blue-200 hover:border-l-blue-300'
+                          }`}
+                        >
+                          <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
+                            checked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
+                          }`}>
+                            {checked ? '✓' : ''}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-slate-950">{item.name || item.username || `用户${item.id}`}</span>
+                            <span className="mt-1 block truncate text-xs text-slate-500">{item.role || '项目人员'}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </section>
           </div>
         )}
