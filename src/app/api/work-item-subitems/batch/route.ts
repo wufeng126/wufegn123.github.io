@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 // 批量导入子项（支持 work_item_id 或 project_id 模式）
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { work_item_id, project_id, subitems } = body;
 

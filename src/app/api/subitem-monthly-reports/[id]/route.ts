@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 // GET 获取月度报量列表或详情
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -82,6 +86,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { id } = await params;
     const body = await request.json();
@@ -145,6 +152,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { id } = await params;
 

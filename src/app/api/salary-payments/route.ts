@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { syncSalaryPaymentStatus } from '@/lib/business-logic';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     const project_id = searchParams.get('project_id');
@@ -74,6 +78,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { salary_id, worker_id, project_id, year_month, payment_amount, payment_date, payment_type, remark } = body;
 
@@ -122,6 +129,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const ids = searchParams.get('ids');
 

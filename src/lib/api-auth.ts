@@ -87,8 +87,3 @@ export async function requireSuperAdmin(request: NextRequest): Promise<ApiAuthRe
 
   return auth;
 }
-
-export async function requireApiReadPermission(request: NextRequest): Promise<ApiAuthResult> {
-  // 读取操作只需要登录即可，不需要特殊权限
-  return requireAuth(request);
-}
