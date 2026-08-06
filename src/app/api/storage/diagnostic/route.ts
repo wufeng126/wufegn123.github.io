@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireApiReadPermission } from '@/lib/api-auth';
 
 // 检查 OSS 环境变量配置（仅返回配置状态，不返回敏感值）
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiReadPermission(request);
     if (!auth.ok) return auth.response;
