@@ -330,6 +330,8 @@ export async function POST(request: NextRequest) {
       relatedId: payment?.id,
       relatedType: 'salary_payment',
       metadata: {
+        payment_id: payment?.id,
+        paymentId: payment?.id,
         worker_id,
         project_id,
         workerName,

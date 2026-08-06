@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -237,6 +237,7 @@ function NavigationLink({
 
 export default function ConstructionLogDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const [detail, setDetail] = useState<ConstructionLogDetail | null>(null);
   const [comments, setComments] = useState<ConstructionLogComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,6 +255,8 @@ export default function ConstructionLogDetailPage() {
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentMessage, setCommentMessage] = useState('');
   const [commentError, setCommentError] = useState('');
+  const [highlightSection, setHighlightSection] = useState('');
+  const [highlightCommentId, setHighlightCommentId] = useState('');
 
   async function loadComments(logId: string | number) {
     setCommentsLoading(true);
@@ -303,6 +306,33 @@ export default function ConstructionLogDetailPage() {
       mounted = false;
     };
   }, [params.id]);
+
+  useEffect(() => {
+    if (loading || commentsLoading || !detail) return;
+
+    const section = searchParams.get('section') || (searchParams.get('comment_id') || searchParams.get('commentId') ? 'comments' : '');
+    const commentId = searchParams.get('comment_id') || searchParams.get('commentId') || '';
+    if (!section && !commentId) return;
+
+    const targetId = commentId ? `construction-log-comment-${commentId}` : `construction-log-section-${section}`;
+    const fallbackId = section ? `construction-log-section-${section}` : '';
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId) || (fallbackId ? document.getElementById(fallbackId) : null);
+      if (!target) return;
+
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightSection(section);
+      setHighlightCommentId(commentId);
+
+      window.setTimeout(() => {
+        setHighlightSection('');
+        setHighlightCommentId('');
+      }, 4500);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [comments.length, commentsLoading, detail, loading, searchParams]);
 
   const photoAttachments = useMemo(
     () =>
@@ -598,7 +628,10 @@ export default function ConstructionLogDetailPage() {
               </form>
             )}
 
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <section
+              id="construction-log-section-content"
+              className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition ${highlightSection === 'content' ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
+            >
               <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
                   <FileText className="h-4 w-4 text-blue-600" />
@@ -722,7 +755,10 @@ export default function ConstructionLogDetailPage() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <section
+              id="construction-log-section-risk"
+              className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition ${highlightSection === 'risk' ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
+            >
               <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
@@ -803,7 +839,10 @@ export default function ConstructionLogDetailPage() {
               )}
             </section>
 
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <section
+              id="construction-log-section-comments"
+              className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition ${highlightSection === 'comments' && !highlightCommentId ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
+            >
               <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
@@ -848,7 +887,11 @@ export default function ConstructionLogDetailPage() {
                 ) : comments.length > 0 ? (
                   <div className="space-y-3">
                     {comments.map((comment) => (
-                      <div key={comment.id} className="rounded-lg bg-slate-50/80 p-3 ring-1 ring-slate-200">
+                      <div
+                        id={`construction-log-comment-${comment.id}`}
+                        key={comment.id}
+                        className={`rounded-lg bg-slate-50/80 p-3 transition ${highlightCommentId === String(comment.id) ? 'ring-2 ring-blue-300 ring-offset-2' : 'ring-1 ring-slate-200'}`}
+                      >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">

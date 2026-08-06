@@ -438,6 +438,8 @@ export async function POST(request: NextRequest) {
       relatedId: salaryData?.id,
       relatedType: 'worker_salary',
       metadata: {
+        salary_id: salaryData?.id,
+        salaryId: salaryData?.id,
         worker_id,
         project_id,
         year_month,

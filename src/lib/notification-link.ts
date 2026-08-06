@@ -110,7 +110,16 @@ export function buildNotificationActionHref(source: NotificationLinkSource) {
     constructionLogId &&
     (type === 'construction_log_comment' || type === 'construction_log_alert' || relatedType === 'construction_log')
   ) {
-    return `/construction-logs/${constructionLogId}`;
+    const commentId = metadata ? toId(metadata.commentId || metadata.comment_id) : '';
+    const section = type === 'construction_log_comment'
+      ? 'comments'
+      : type === 'construction_log_alert'
+        ? 'risk'
+        : pickText(metadata, ['section']);
+    return appendQuery(`/construction-logs/${constructionLogId}`, {
+      section,
+      comment_id: commentId,
+    });
   }
 
   if (type === 'construction_daily_report') {
@@ -164,6 +173,7 @@ export function buildNotificationActionHref(source: NotificationLinkSource) {
     return appendQuery('/workers/salaries', {
       project_id: projectId,
       month: pickText(metadata, ['yearMonth', 'year_month', 'salaryMonth', 'salary_month']),
+      salary_id: pickId(source, ['salaryId', 'salary_id']),
     });
   }
 
@@ -171,6 +181,7 @@ export function buildNotificationActionHref(source: NotificationLinkSource) {
     return appendQuery('/workers/payments', {
       project_id: projectId,
       month: pickText(metadata, ['yearMonth', 'year_month', 'salaryMonth', 'salary_month']),
+      payment_id: pickId(source, ['paymentId', 'payment_id']),
     });
   }
 

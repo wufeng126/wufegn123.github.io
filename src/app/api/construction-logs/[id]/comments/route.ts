@@ -191,6 +191,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         relatedType: 'construction_log',
         recipientUserIds,
         metadata: {
+          commentId: inserted.id,
+          comment_id: inserted.id,
+          section: 'comments',
           projectName: project?.name || '',
           logDate: log.log_date || '',
           commenterName: commenterDisplayName,

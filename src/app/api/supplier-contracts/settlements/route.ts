@@ -346,7 +346,10 @@ export async function POST(request: NextRequest) {
       relatedId: settlement?.id,
       relatedType: 'supplier_settlement',
       metadata: {
+        settlement_id: settlement?.id,
+        settlementId: settlement?.id,
         contract_id: contractId,
+        contractId,
         contractName: contract?.contract_name,
         settlement_type,
         settlement_amount: settlementAmount,

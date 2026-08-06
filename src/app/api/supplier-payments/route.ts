@@ -77,6 +77,8 @@ export async function POST(request: NextRequest) {
       relatedType: 'supplier_payment',
       metadata: {
         ...body,
+        payment_id: paymentData?.id,
+        paymentId: paymentData?.id,
         supplierName: supplier?.name,
         projectName: project?.name,
         paymentAmount,

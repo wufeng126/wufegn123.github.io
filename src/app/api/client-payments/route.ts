@@ -206,6 +206,8 @@ export async function POST(request: NextRequest) {
       relatedType: 'client_payment',
       metadata: {
         project_id: projectId,
+        payment_id: paymentData?.id,
+        paymentId: paymentData?.id,
         amount: paymentAmount,
         paymentAmount,
         payment_date,
