@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 export async function GET() {
   try {
@@ -21,6 +22,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { name, unit, default_price, remark, sort_order } = body;
 
@@ -51,6 +55,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, name, unit, default_price, remark, sort_order } = body;
 
@@ -83,6 +90,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const ids = request.nextUrl.searchParams.get('ids');
     if (!ids) {
       return NextResponse.json({ error: '缺少模板ID' }, { status: 400 });

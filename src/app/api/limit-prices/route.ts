@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { requireApiWritePermission } from '@/lib/api-auth';
 import { getUserDisplayName } from '@/lib/user-display-name';
 
 type UserPayload = RequestAuthUser;
@@ -106,6 +107,10 @@ export async function GET(request: NextRequest) {
 // POST /api/limit-prices - 新增限价
 export async function POST(request: NextRequest) {
   const supabase = getSupabaseClient();
+  const auth = await requireApiWritePermission(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
   const user = await getAuthUser(request);
   
   if (!user) {

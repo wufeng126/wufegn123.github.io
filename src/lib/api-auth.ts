@@ -54,6 +54,10 @@ export async function requireAnyPermission(
   return auth;
 }
 
+export async function requireApiReadPermission(request: NextRequest): Promise<ApiAuthResult> {
+  return requireAuth(request);
+}
+
 export async function requireApiWritePermission(request: NextRequest): Promise<ApiAuthResult> {
   const auth = await requireAuth(request);
   if (!auth.ok) return auth;

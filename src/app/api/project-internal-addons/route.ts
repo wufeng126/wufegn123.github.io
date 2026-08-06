@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 async function withTotals(supabase: ReturnType<typeof getSupabaseClient>, addons: any[]) {
   if (addons.length === 0) return [];
@@ -56,6 +57,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { action, project_id, name, unit, unit_price, remark, sort_order } = body;
 
@@ -135,6 +139,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, name, unit, unit_price, remark, sort_order } = body;
 
@@ -167,6 +174,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const ids = request.nextUrl.searchParams.get('ids');
     if (!ids) {
       return NextResponse.json({ error: '缺少清单ID' }, { status: 400 });

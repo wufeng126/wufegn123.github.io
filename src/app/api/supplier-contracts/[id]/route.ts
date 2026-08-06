@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 function isFinalSettlementType(type?: string | null) {
   const normalized = String(type || '').trim().toLowerCase();
@@ -94,6 +95,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = getSupabaseClient();
     const body = await request.json();
@@ -185,6 +189,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = getSupabaseClient();
 
