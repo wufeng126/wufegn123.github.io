@@ -3,6 +3,16 @@ import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { verifyRequest } from "@/lib/auth";
 import { S3Storage } from "coze-coding-dev-sdk";
 
+function createStorage() {
+  return new S3Storage({
+    endpointUrl: process.env.OSS_ENDPOINT,
+    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
+    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
+    bucketName: process.env.OSS_BUCKET_NAME,
+    region: process.env.OSS_REGION || 'cn-beijing',
+  });
+}
+
 // 上传签证附件
 export async function POST(request: NextRequest) {
   try {
@@ -124,7 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 上传到对象存储
-    const storage = new S3Storage();
+    const storage = createStorage();
     const uniqueFileName = `${Date.now()}-${file.name}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     

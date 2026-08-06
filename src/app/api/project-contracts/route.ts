@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+
+const OSS_PROJECT_CONTRACT_PREFIX = 'project-contracts/';
+
+function createStorage() {
+  return new S3Storage({
+    endpointUrl: process.env.OSS_ENDPOINT,
+    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
+    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
+    bucketName: process.env.OSS_BUCKET_NAME,
+    region: process.env.OSS_REGION || 'cn-beijing',
+  });
+}
+
+function sanitizeFileName(name: string) {
+  const cleaned = name.replace(/[^\w.\-\u4e00-\u9fa5]+/g, '_').replace(/_+/g, '_');
+  return cleaned || 'contract-file';
+}
+
+function isOssProjectContractPath(path?: string | null) {
+  return String(path || '').startsWith(OSS_PROJECT_CONTRACT_PREFIX);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,16 +54,15 @@ export async function POST(request: NextRequest) {
     if (!file || !projectId) return NextResponse.json({ success: false, error: '缺少文件或项目ID' }, { status: 400 });
 
     const supabase = getSupabaseClient();
-    const ext = file.name.split('.').pop() || 'pdf';
-    const storagePath = `projects/${projectId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const storage = createStorage();
 
-    // 上传到 Supabase Storage
+    // Upload new project contract files to OSS. Older records keep their Supabase Storage paths.
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await supabase.storage.from('contract_files').upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: false,
+    const storagePath = await storage.uploadFile({
+      fileContent: buffer,
+      fileName: `${OSS_PROJECT_CONTRACT_PREFIX}${projectId}/${Date.now()}-${sanitizeFileName(file.name)}`,
+      contentType: file.type || 'application/octet-stream',
     });
-    if (uploadError) throw new Error(uploadError.message);
 
     // 存记录到数据库
     const { data, error } = await supabase.from('project_contracts').insert({
@@ -72,7 +93,13 @@ export async function DELETE(request: NextRequest) {
     const supabase = getSupabaseClient();
     // 查记录拿 storage_path
     const { data: rec } = await supabase.from('project_contracts').select('storage_path').eq('id', parseInt(id)).single();
-    if (rec?.storage_path) await supabase.storage.from('contract_files').remove([rec.storage_path]);
+    if (rec?.storage_path) {
+      if (isOssProjectContractPath(rec.storage_path)) {
+        await createStorage().deleteFile({ fileKey: rec.storage_path });
+      } else {
+        await supabase.storage.from('contract_files').remove([rec.storage_path]);
+      }
+    }
     await supabase.from('project_contracts').delete().eq('id', parseInt(id));
 
     return NextResponse.json({ success: true });
