@@ -76,6 +76,17 @@ interface ProjectInternalAddon {
   total_amount?: string;
 }
 
+type ProgressExpectedRecord = {
+  subitem_id: number;
+  expected_quantity: number;
+  matched_quantity: number;
+  task_count: number;
+  completed_task_count: number;
+  latest_progress: number;
+  task_labels: string[];
+  unit: string;
+};
+
 type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
 type EntryWorkbenchMode = 'client' | 'internal' | 'additional';
 type QuantityView = 'summary' | 'entry';
@@ -277,6 +288,7 @@ function WorkItemsContent() {
   const [analysisReports, setAnalysisReports] = useState<any[]>([]);
   const [analysisSettlements, setAnalysisSettlements] = useState<any[]>([]);
   const [analysisAddonSettlements, setAnalysisAddonSettlements] = useState<any[]>([]);
+  const [analysisProgressExpected, setAnalysisProgressExpected] = useState<ProgressExpectedRecord[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [entryWorkbenchMode, setEntryWorkbenchMode] = useState<EntryWorkbenchMode>('client');
 
@@ -319,6 +331,7 @@ function WorkItemsContent() {
       setAnalysisReports([]);
       setAnalysisSettlements([]);
       setAnalysisAddonSettlements([]);
+      setAnalysisProgressExpected([]);
     }
   }, [selectedProjectId, analysisYearMonth, allSubitems, projectAddons]);
 
@@ -647,6 +660,11 @@ function WorkItemsContent() {
       monthlyReportMap.set(Number(record.subitem_id), parseFloat(record.report_quantity || '0') || 0);
     });
 
+    const progressExpectedMap = new Map<number, ProgressExpectedRecord>();
+    analysisProgressExpected.forEach(record => {
+      progressExpectedMap.set(Number(record.subitem_id), record);
+    });
+
     const monthlySettlementMap = new Map<number, number>();
     analysisSettlements.forEach(record => {
       monthlySettlementMap.set(Number(record.subitem_id), parseFloat(record.completed_quantity || '0') || 0);
@@ -662,6 +680,9 @@ function WorkItemsContent() {
       const totalReportedQty = parseFloat(item.completed_quantity || '0') || 0;
       const totalSettledQty = parseFloat(item.settlement_quantity || '0') || 0;
       const monthlyReportedQty = monthlyReportMap.get(item.id) || 0;
+      const progressExpected = progressExpectedMap.get(item.id);
+      const progressExpectedQty = progressExpected?.expected_quantity || 0;
+      const reportVsProgressGap = monthlyReportedQty - progressExpectedQty;
       const monthlySettledQty = monthlySettlementMap.get(item.id) || 0;
       const contractPrice = parseFloat(item.contract_price || '0') || 0;
       const limitPrice = parseFloat(item.limit_price || item.contract_price || '0') || 0;
@@ -683,6 +704,10 @@ function WorkItemsContent() {
       if (settlementAmount > reportAmount) risks.push('资金/利润风险');
       if (budgetQty > 0 && totalSettledQty > budgetQty) risks.push('对下超结');
       if (settleProgress >= 0.8 && reportRemainingRate >= 0.2) risks.push('漏报风险');
+      const progressGapTolerance = Math.max(1, progressExpectedQty * 0.1);
+      if (progressExpectedQty > 0 && monthlyReportedQty <= 0) risks.push('现场完成未报');
+      else if (progressExpectedQty > 0 && reportVsProgressGap <= -progressGapTolerance) risks.push('进度少报');
+      else if (progressExpectedQty > 0 && reportVsProgressGap >= progressGapTolerance) risks.push('进度超报');
 
       return {
         ...item,
@@ -691,6 +716,10 @@ function WorkItemsContent() {
         totalReportedQty,
         totalSettledQty,
         monthlyReportedQty,
+        progressExpectedQty,
+        reportVsProgressGap,
+        progressTaskCount: progressExpected?.task_count || 0,
+        progressTaskLabels: progressExpected?.task_labels || [],
         monthlySettledQty,
         contractPrice,
         limitPrice,
@@ -723,6 +752,10 @@ function WorkItemsContent() {
         totalReportedQty: 0,
         totalSettledQty: parseFloat(addon.total_quantity || '0') || 0,
         monthlyReportedQty: 0,
+        progressExpectedQty: 0,
+        reportVsProgressGap: 0,
+        progressTaskCount: 0,
+        progressTaskLabels: [],
         monthlySettledQty: monthlyQty,
         contractPrice: 0,
         limitPrice: unitPrice,
@@ -760,7 +793,7 @@ function WorkItemsContent() {
       monthlyAmountGap: summary.monthlyReportAmount - summary.monthlySettlementAmount,
       totalAmountGap: summary.totalReportAmount - summary.totalSettlementAmount,
     };
-  }, [subitems, projectAddons, analysisReports, analysisSettlements, analysisAddonSettlements]);
+  }, [subitems, projectAddons, analysisReports, analysisSettlements, analysisAddonSettlements, analysisProgressExpected]);
 
   const projectComparisonSummary = useMemo(() => {
     const budgetAmount = projectStats.totalBudget;
@@ -1450,24 +1483,28 @@ function WorkItemsContent() {
 
     setAnalysisLoading(true);
     try {
-      const [reportsRes, settlementsRes, addonSettlementsRes] = await Promise.all([
+      const [reportsRes, settlementsRes, addonSettlementsRes, progressExpectedRes] = await Promise.all([
         fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
         fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
         fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
+        fetch(`/api/quantity-reporting/progress-expected?project_id=${selectedProjectId}&year_month=${analysisYearMonth}`, { credentials: 'include' }),
       ]);
-      const [reportsData, settlementsData, addonSettlementsData] = await Promise.all([
+      const [reportsData, settlementsData, addonSettlementsData, progressExpectedData] = await Promise.all([
         reportsRes.json(),
         settlementsRes.json(),
         addonSettlementsRes.json(),
+        progressExpectedRes.json(),
       ]);
       setAnalysisReports(reportsData.records || []);
       setAnalysisSettlements(settlementsData.records || []);
       setAnalysisAddonSettlements(addonSettlementsData.records || []);
+      setAnalysisProgressExpected(progressExpectedData.records || []);
     } catch (error) {
       console.error('获取差异分析数据失败:', error);
       setAnalysisReports([]);
       setAnalysisSettlements([]);
       setAnalysisAddonSettlements([]);
+      setAnalysisProgressExpected([]);
     } finally {
       setAnalysisLoading(false);
     }
@@ -3615,7 +3652,7 @@ function WorkItemsContent() {
                   {analysisStats.rows.length > 0 ? (
                     <>
                     <div className="hidden overflow-x-auto md:block">
-                      <Table className="zebra-table min-w-[1180px]">
+                      <Table className="zebra-table min-w-[1320px]">
                         <TableHeader>
                           <TableRow className="bg-[#E8F3FF] hover:bg-[#E8F3FF]">
                             <TableHead>清单名称</TableHead>
@@ -3624,6 +3661,8 @@ function WorkItemsContent() {
                             <TableHead className="text-right">预算量</TableHead>
                             <TableHead className="text-right">预算金额</TableHead>
                             <TableHead className="text-right">本月对上</TableHead>
+                            <TableHead className="text-right">进度应报</TableHead>
+                            <TableHead className="text-right">报量偏差</TableHead>
                             <TableHead className="text-right">本月对下</TableHead>
                             <TableHead className="text-right">累计对上</TableHead>
                             <TableHead className="text-right">累计对下</TableHead>
@@ -3650,6 +3689,10 @@ function WorkItemsContent() {
                               <TableCell className="text-right">{row.isAddon ? '-' : formatQuantity(row.budgetQty)}</TableCell>
                               <TableCell className="text-right">{row.isAddon ? '-' : formatCurrency(row.budgetQty * row.contractPrice)}</TableCell>
                               <TableCell className="text-right text-blue-600">{row.isAddon ? '-' : formatQuantity(row.monthlyReportedQty)}</TableCell>
+                              <TableCell className="text-right text-indigo-600">{row.isAddon ? '-' : formatQuantity(row.progressExpectedQty)}</TableCell>
+                              <TableCell className={row.reportVsProgressGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right font-semibold text-slate-700'}>
+                                {row.isAddon ? '-' : formatQuantity(row.reportVsProgressGap)}
+                              </TableCell>
                               <TableCell className="text-right text-emerald-600">{formatQuantity(row.monthlySettledQty)}</TableCell>
                               <TableCell className="text-right font-medium">{row.isAddon ? '-' : formatQuantity(row.totalReportedQty)}</TableCell>
                               <TableCell className="text-right font-medium">{formatQuantity(row.totalSettledQty)}</TableCell>
@@ -3708,6 +3751,16 @@ function WorkItemsContent() {
                             <div className="rounded-md bg-blue-50 p-2">
                               <p className="text-blue-600">本月对上</p>
                               <p className="mt-1 font-semibold text-blue-700">{row.isAddon ? '-' : formatQuantity(row.monthlyReportedQty)}</p>
+                            </div>
+                            <div className="rounded-md bg-indigo-50 p-2">
+                              <p className="text-indigo-600">进度应报</p>
+                              <p className="mt-1 font-semibold text-indigo-700">{row.isAddon ? '-' : formatQuantity(row.progressExpectedQty)}</p>
+                            </div>
+                            <div className="rounded-md bg-slate-50 p-2">
+                              <p className="text-slate-500">报量偏差</p>
+                              <p className={row.reportVsProgressGap < 0 ? 'mt-1 font-semibold text-red-600' : 'mt-1 font-semibold text-slate-900'}>
+                                {row.isAddon ? '-' : formatQuantity(row.reportVsProgressGap)}
+                              </p>
                             </div>
                             <div className="rounded-md bg-emerald-50 p-2">
                               <p className="text-emerald-600">本月对下</p>

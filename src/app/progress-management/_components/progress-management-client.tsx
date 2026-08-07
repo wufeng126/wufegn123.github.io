@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -615,6 +616,16 @@ export default function ProgressManagementPreview() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState('');
+  const selectedProjectIdRef = useRef(selectedProjectId);
+  const selectedMonthIdRef = useRef(selectedMonthId);
+
+  useEffect(() => {
+    selectedProjectIdRef.current = selectedProjectId;
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    selectedMonthIdRef.current = selectedMonthId;
+  }, [selectedMonthId]);
 
   const planMonths = useMemo(() => buildPlanMonths(planTasks), [planTasks]);
   const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0] || projects[0];
@@ -670,6 +681,8 @@ export default function ProgressManagementPreview() {
   const actualProgress = average(projectTasks.map((task) => task.actualProgress));
   const delayDays = Math.max(0, Math.round((selectedTask.actualEnd - selectedTask.planEnd) / 2));
   const activePeriodTasks = projectTasks.filter((task) => task.planStart <= todayPosition && task.planEnd >= todayPosition);
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const selectedTaskLogHref = `/construction-logs/new?project_id=${selectedProject.id}&date=${todayDate}&progress_task_id=${selectedTask.id}`;
   const phaseGroups = useMemo(
     () =>
       displayedTasks.reduce<Array<{ phase: string; tasks: PlanTask[] }>>((groups, task) => {
@@ -684,15 +697,13 @@ export default function ProgressManagementPreview() {
     [displayedTasks],
   );
 
-  useEffect(() => {
-    void loadProgressData();
-  }, []);
-
-  async function loadProgressData(projectId = selectedProjectId) {
+  const loadProgressData = useCallback(async (projectId?: number) => {
+    const activeProjectId = projectId ?? selectedProjectIdRef.current;
+    const activeMonthId = selectedMonthIdRef.current;
     setLoading(true);
     setApiError('');
     try {
-      const response = await fetch(`/api/progress-management${projectId ? `?project_id=${projectId}` : ''}`, {
+      const response = await fetch(`/api/progress-management${activeProjectId ? `?project_id=${activeProjectId}` : ''}`, {
         cache: 'no-store',
       });
       const result = await response.json();
@@ -712,7 +723,7 @@ export default function ProgressManagementPreview() {
       const nextFoundations = mapFoundations(data.foundations);
       const baseTasks = data.tasks.map((task) => ({
         ...task,
-        year_month: task.year_month || task.plan_start_date?.slice(0, 7) || selectedMonthId,
+        year_month: task.year_month || task.plan_start_date?.slice(0, 7) || activeMonthId,
       }));
       const nextMonths = buildPlanMonths(baseTasks.map((task) => ({
         id: task.id,
@@ -742,7 +753,7 @@ export default function ProgressManagementPreview() {
         nextAction: '',
       })));
       const nextTasks = mapApiTasks(baseTasks, nextMonths);
-      const nextSelectedProjectId = data.selectedProjectId || nextProjects[0]?.id || selectedProjectId;
+      const nextSelectedProjectId = data.selectedProjectId || nextProjects[0]?.id || activeProjectId;
       const firstTask = nextTasks.find((task) => task.projectId === nextSelectedProjectId);
 
       if (nextProjects.length > 0) setProjectOptions(nextProjects);
@@ -752,10 +763,10 @@ export default function ProgressManagementPreview() {
       setSelectedProjectId(nextSelectedProjectId);
       if (firstTask) {
         setSelectedTaskId(firstTask.id);
-        setSelectedMonthId(firstTask.yearMonth || nextMonths[0]?.id || selectedMonthId);
+        setSelectedMonthId(firstTask.yearMonth || nextMonths[0]?.id || activeMonthId);
       } else {
         setSelectedTaskId(0);
-        setSelectedMonthId(nextMonths[0]?.id || selectedMonthId);
+        setSelectedMonthId(nextMonths[0]?.id || activeMonthId);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '查询进度计划失败';
@@ -763,7 +774,14 @@ export default function ProgressManagementPreview() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadProgressData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadProgressData]);
 
   async function saveProgressData() {
     setSaving(true);
@@ -927,9 +945,9 @@ export default function ProgressManagementPreview() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="rounded-lg border border-border bg-white px-4 py-3 shadow-sm">
+    <main className="min-h-full bg-transparent text-foreground">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 p-3 sm:p-4 md:p-6">
+        <header className="rounded-xl border border-border bg-white px-4 py-4 shadow-sm sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
               <div className="text-xs text-muted-foreground">施工管理 / 进度计划</div>
@@ -988,17 +1006,17 @@ export default function ProgressManagementPreview() {
             <div>
               <div className="text-sm font-semibold text-foreground">按月编计划，自动汇总成总计划</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                项目经理每月维护可落地的楼层工序计划；系统把各月计划串起来，形成老板和项目部都能看的项目总甘特图。
+                项目经理每月维护楼层工序计划；系统按月份汇总，形成项目总甘特图。
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setPlanViewMode('month')}
-                className={`h-9 rounded-lg border px-3 text-sm font-medium ${
+                className={`h-9 rounded-lg border px-3 text-sm font-medium transition ${
                   planViewMode === 'month'
                     ? 'border-primary bg-primary text-white'
-                    : 'border-border bg-white text-foreground'
+                    : 'border-border bg-white text-foreground hover:border-primary/30 hover:text-primary'
                 }`}
               >
                 月计划编辑
@@ -1006,10 +1024,10 @@ export default function ProgressManagementPreview() {
               <button
                 type="button"
                 onClick={() => setPlanViewMode('overall')}
-                className={`h-9 rounded-lg border px-3 text-sm font-medium ${
+                className={`h-9 rounded-lg border px-3 text-sm font-medium transition ${
                   planViewMode === 'overall'
                     ? 'border-primary bg-primary text-white'
-                    : 'border-border bg-white text-foreground'
+                    : 'border-border bg-white text-foreground hover:border-primary/30 hover:text-primary'
                 }`}
               >
                 项目总计划
@@ -1031,8 +1049,8 @@ export default function ProgressManagementPreview() {
                     const firstTask = projectTasks.find((task) => taskInMonth(task, month));
                     if (firstTask) setSelectedTaskId(firstTask.id);
                   }}
-                  className={`rounded-lg border p-3 text-left transition ${
-                    active ? 'border-primary/30 bg-accent' : 'border-border bg-muted/50 hover:border-border'
+                  className={`rounded-xl border p-3 text-left shadow-sm transition ${
+                    active ? 'border-primary/30 bg-accent' : 'border-border bg-white hover:border-primary/30 hover:bg-accent/40'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1048,7 +1066,7 @@ export default function ProgressManagementPreview() {
         </section>
 
         <section className="grid min-h-[690px] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
-          <div className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
             <div className="flex flex-col gap-3 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1344,10 +1362,10 @@ export default function ProgressManagementPreview() {
                     ))}
                   </div>
                 </div>
-                <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-white">
+                <Link href={selectedTaskLogHref} className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-white">
                   写施工日志并更新进度
                   <ArrowRight className="h-4 w-4" />
-                </button>
+                </Link>
               </Panel>
 
               <Panel title="偏差处理" icon={<AlertTriangle className="h-4 w-4 text-amber-600" />}>

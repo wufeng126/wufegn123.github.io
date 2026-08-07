@@ -40,6 +40,30 @@ type LogAttachment = {
   url?: string;
 };
 
+type ProgressTaskOption = {
+  id: number;
+  wbs: string;
+  phase: string;
+  area: string;
+  floor: string;
+  process: string;
+  plan_start_date: string;
+  plan_end_date: string;
+  actual_progress: number;
+  subitem_id: number | null;
+  quantity_item: string;
+  matched_quantity: number;
+  unit: string;
+};
+
+type ProgressEntryDraft = {
+  progress_task_id: number;
+  actual_progress: string;
+  completed_quantity: string;
+  remark: string;
+  selected: boolean;
+};
+
 type ProjectLogDraft = {
   id: string;
   project_id: string;
@@ -53,6 +77,7 @@ type ProjectLogDraft = {
   issues: string;
   attachments: LogAttachment[];
   tomorrow_plan: string;
+  progress_entries: ProgressEntryDraft[];
 };
 
 type WeatherInfo = {
@@ -88,6 +113,7 @@ function createDraft(projectId = ''): ProjectLogDraft {
     issues: '',
     attachments: [],
     tomorrow_plan: '',
+    progress_entries: [],
   };
 }
 
@@ -126,6 +152,29 @@ function buildAttendanceWorkers(draft: ProjectLogDraft) {
   }));
 }
 
+function getProgressTaskLabel(task: ProgressTaskOption) {
+  return [task.area, task.floor, task.process].filter(Boolean).join(' ') || task.wbs || `任务 ${task.id}`;
+}
+
+function mergeProgressEntries(
+  entries: ProgressEntryDraft[],
+  tasks: ProgressTaskOption[],
+  requestedProgressTaskId: number | null,
+) {
+  const existingByTaskId = new Map(entries.map((entry) => [entry.progress_task_id, entry]));
+  return tasks.map((task) => {
+    const existing = existingByTaskId.get(task.id);
+    if (existing) return existing;
+    return {
+      progress_task_id: task.id,
+      actual_progress: task.actual_progress > 0 ? String(task.actual_progress) : '',
+      completed_quantity: '',
+      remark: '',
+      selected: requestedProgressTaskId === task.id,
+    };
+  });
+}
+
 function getProjectName(projects: Project[], projectId: string) {
   return projects.find((project) => String(project.id) === projectId)?.name || '';
 }
@@ -153,6 +202,7 @@ export default function NewConstructionLogPage() {
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get('date') || '';
   const requestedProjectId = searchParams.get('project_id') || '';
+  const requestedProgressTaskId = Number(searchParams.get('progress_task_id') || 0) || null;
   const initialLogDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
     ? requestedDate
     : getDefaultConstructionLogDate();
@@ -164,6 +214,9 @@ export default function NewConstructionLogPage() {
   const [attendanceOptions, setAttendanceOptions] = useState<Record<string, AttendanceOptions>>({});
   const [attendanceLoading, setAttendanceLoading] = useState<Record<string, boolean>>({});
   const [attendanceErrors, setAttendanceErrors] = useState<Record<string, string>>({});
+  const [progressTasksByKey, setProgressTasksByKey] = useState<Record<string, ProgressTaskOption[]>>({});
+  const [progressTasksLoading, setProgressTasksLoading] = useState<Record<string, boolean>>({});
+  const [progressTasksErrors, setProgressTasksErrors] = useState<Record<string, string>>({});
   const [photoUploading, setPhotoUploading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -251,9 +304,56 @@ export default function NewConstructionLogPage() {
         })
         .finally(() => {
           setAttendanceLoading(current => ({ ...current, [projectId]: false }));
-        });
+      });
     });
   }, [attendanceLoading, attendanceOptions, drafts]);
+
+  useEffect(() => {
+    if (!logDate) return;
+    const keys = Array.from(new Set(
+      drafts
+        .map(draft => draft.project_id)
+        .filter(Boolean)
+        .map(projectId => `${projectId}|${logDate}`),
+    ));
+
+    keys.forEach((key) => {
+      if (progressTasksByKey[key] || progressTasksLoading[key]) return;
+      const [projectId, date] = key.split('|');
+      setProgressTasksLoading(current => ({ ...current, [key]: true }));
+      setProgressTasksErrors(current => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+
+      fetch(`/api/construction-logs/progress-tasks?project_id=${projectId}&date=${date}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(json => {
+          if (json.success === false) throw new Error(json.error || '进度任务加载失败');
+          const tasks = Array.isArray(json.data?.tasks) ? json.data.tasks as ProgressTaskOption[] : [];
+          setProgressTasksByKey(current => ({ ...current, [key]: tasks }));
+          setDrafts(current => current.map((draft) => (
+            draft.project_id === projectId
+              ? {
+                ...draft,
+                progress_entries: mergeProgressEntries(draft.progress_entries, tasks, requestedProgressTaskId),
+              }
+              : draft
+          )));
+        })
+        .catch((loadError: unknown) => {
+          setProgressTasksErrors(current => ({
+            ...current,
+            [key]: loadError instanceof Error ? loadError.message : '进度任务加载失败',
+          }));
+          setProgressTasksByKey(current => ({ ...current, [key]: [] }));
+        })
+        .finally(() => {
+          setProgressTasksLoading(current => ({ ...current, [key]: false }));
+        });
+    });
+  }, [drafts, logDate, progressTasksByKey, progressTasksLoading, requestedProgressTaskId]);
 
   const canScheduleSubmit = useMemo(() => {
     const roleText = `${user?.role || ''} ${user?.name || ''}`.toLowerCase();
@@ -279,6 +379,13 @@ export default function NewConstructionLogPage() {
     if (draft.project_id && projectIdCounts[draft.project_id] > 1) messages.push('同一份日志中项目重复');
     const hoursIssue = getDraftHoursIssue(draft);
     if (hoursIssue) messages.push(hoursIssue);
+    const invalidProgressEntry = draft.progress_entries
+      .filter(entry => entry.selected)
+      .find((entry) => {
+        const progress = Number(entry.actual_progress);
+        return entry.actual_progress.trim() === '' || !Number.isFinite(progress) || progress < 0 || progress > 100;
+      });
+    if (invalidProgressEntry) messages.push('进度确认需填写 0-100 的实际进度');
     const attendanceValidation = validateAttendanceCountConsistency({
       content: draft.content,
       selectedCount: draft.attendance_worker_ids.length,
@@ -319,7 +426,32 @@ export default function NewConstructionLogPage() {
       scope_worker_ids: [],
       worker_work_type: '',
       worker_search: '',
+      progress_entries: [],
     });
+  }
+
+  function toggleProgressEntry(draftId: string, taskId: number) {
+    setDrafts(current => current.map((draft) => {
+      if (draft.id !== draftId) return draft;
+      return {
+        ...draft,
+        progress_entries: draft.progress_entries.map(entry => (
+          entry.progress_task_id === taskId ? { ...entry, selected: !entry.selected } : entry
+        )),
+      };
+    }));
+  }
+
+  function updateProgressEntry(draftId: string, taskId: number, patch: Partial<ProgressEntryDraft>) {
+    setDrafts(current => current.map((draft) => {
+      if (draft.id !== draftId) return draft;
+      return {
+        ...draft,
+        progress_entries: draft.progress_entries.map(entry => (
+          entry.progress_task_id === taskId ? { ...entry, ...patch } : entry
+        )),
+      };
+    }));
   }
 
   function addDraft() {
@@ -505,6 +637,14 @@ export default function NewConstructionLogPage() {
             })),
             issues: draft.issues,
             tomorrow_plan: draft.tomorrow_plan,
+            progress_entries: draft.progress_entries
+              .filter(entry => entry.selected)
+              .map(entry => ({
+                progress_task_id: entry.progress_task_id,
+                actual_progress: Number(entry.actual_progress),
+                completed_quantity: entry.completed_quantity ? Number(entry.completed_quantity) : null,
+                remark: entry.remark || null,
+              })),
           })),
           source_type: 'manual',
         }),
@@ -711,6 +851,11 @@ export default function NewConstructionLogPage() {
             const options = draft.project_id ? attendanceOptions[draft.project_id] || emptyAttendanceOptions : emptyAttendanceOptions;
             const loadingWorkers = draft.project_id ? attendanceLoading[draft.project_id] : false;
             const attendanceError = draft.project_id ? attendanceErrors[draft.project_id] : '';
+            const progressKey = draft.project_id ? `${draft.project_id}|${logDate}` : '';
+            const progressTasks = progressKey ? progressTasksByKey[progressKey] || [] : [];
+            const loadingProgressTasks = progressKey ? progressTasksLoading[progressKey] : false;
+            const progressTasksError = progressKey ? progressTasksErrors[progressKey] : '';
+            const progressEntryByTaskId = new Map(draft.progress_entries.map(entry => [entry.progress_task_id, entry]));
             const visibleSet = new Set(options.visible_worker_ids);
             const scopedSet = new Set(options.scoped_worker_ids);
             const selectedSet = new Set(draft.attendance_worker_ids);
@@ -802,6 +947,108 @@ export default function NewConstructionLogPage() {
                   {draftSubmitSummaries[index]?.warnings.some(message => message.includes('出勤')) && (
                     <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                       {draftSubmitSummaries[index]?.warnings.find(message => message.includes('出勤'))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                      <ClipboardList className="h-4 w-4 text-blue-600" />
+                      进度确认
+                    </label>
+                    <span className="text-xs text-slate-500">
+                      已确认 {draft.progress_entries.filter(entry => entry.selected).length} / {progressTasks.length}
+                    </span>
+                  </div>
+
+                  {!draft.project_id ? (
+                    <div className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">选择项目后自动带出当天计划任务</div>
+                  ) : loadingProgressTasks ? (
+                    <div className="flex items-center justify-center gap-2 rounded-lg bg-slate-50 py-6 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      正在匹配进度计划...
+                    </div>
+                  ) : progressTasksError ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">{progressTasksError}</div>
+                  ) : progressTasks.length === 0 ? (
+                    <div className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">当天暂无匹配的计划任务，可先正常提交施工日志</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {progressTasks.map((task) => {
+                        const entry = progressEntryByTaskId.get(task.id);
+                        const selected = Boolean(entry?.selected);
+                        return (
+                          <div
+                            key={task.id}
+                            className={`rounded-lg border p-3 transition ${
+                              selected ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200 bg-slate-50/70'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleProgressEntry(draft.id, task.id)}
+                              className="flex w-full items-start gap-3 text-left"
+                            >
+                              <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
+                                selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
+                              }`}>
+                                {selected ? '✓' : ''}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-900">{getProgressTaskLabel(task)}</span>
+                                <span className="mt-1 block text-xs text-slate-500">
+                                  {task.wbs || '未编 WBS'} · 计划 {task.plan_start_date} 至 {task.plan_end_date}
+                                </span>
+                                <span className="mt-1 block text-xs text-slate-500">
+                                  匹配工程量：{task.matched_quantity || 0} {task.unit || ''} {task.quantity_item ? `· ${task.quantity_item}` : ''}
+                                </span>
+                              </span>
+                              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-600">
+                                当前 {task.actual_progress || 0}%
+                              </span>
+                            </button>
+
+                            {selected && entry ? (
+                              <div className="mt-3 grid gap-2 md:grid-cols-[150px_170px_1fr]">
+                                <label className="block">
+                                  <span className="mb-1 block text-xs font-medium text-slate-600">实际进度 %</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    value={entry.actual_progress}
+                                    onChange={event => updateProgressEntry(draft.id, task.id, { actual_progress: event.target.value })}
+                                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="mb-1 block text-xs font-medium text-slate-600">本次完成量</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={entry.completed_quantity}
+                                    onChange={event => updateProgressEntry(draft.id, task.id, { completed_quantity: event.target.value })}
+                                    placeholder={task.unit || '数量'}
+                                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="mb-1 block text-xs font-medium text-slate-600">进度备注</span>
+                                  <input
+                                    value={entry.remark}
+                                    onChange={event => updateProgressEntry(draft.id, task.id, { remark: event.target.value })}
+                                    placeholder="如少报原因、现场完成范围、待确认事项"
+                                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                  />
+                                </label>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

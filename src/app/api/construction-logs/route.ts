@@ -37,6 +37,7 @@ type ConstructionLogDraft = {
   issues?: string | null;
   weather?: WeatherData | null;
   tomorrow_plan?: string | null;
+  progress_entries?: ProgressEntryDraft[];
 };
 
 type LogAttachment = {
@@ -51,6 +52,23 @@ type LogAttachment = {
 type AttendanceWorkerDraft = {
   worker_id: number;
   work_hours: number;
+};
+
+type ProgressEntryDraft = {
+  progress_task_id: number;
+  actual_progress: number;
+  completed_quantity?: number | null;
+  remark?: string | null;
+};
+
+type ProgressTaskSyncRow = {
+  id: number;
+  project_id: number;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  actual_progress?: number | string | null;
+  issue?: string | null;
+  next_action?: string | null;
 };
 
 type ConstructionLogPayload = Record<string, unknown>;
@@ -267,6 +285,29 @@ function normalizeAttendanceWorkers(value: unknown, fallbackIds?: number[]) {
   return Array.from(map.values());
 }
 
+function normalizeProgressEntries(value: unknown): ProgressEntryDraft[] {
+  if (!Array.isArray(value)) return [];
+
+  const map = new Map<number, ProgressEntryDraft>();
+  value.forEach((item) => {
+    const payload = asPayload(item);
+    const progressTaskId = Number(payload.progress_task_id ?? payload.task_id ?? payload.id);
+    const actualProgress = Number(payload.actual_progress ?? payload.progress);
+    if (!Number.isInteger(progressTaskId) || progressTaskId <= 0) return;
+    if (!Number.isFinite(actualProgress) || actualProgress < 0 || actualProgress > 100) return;
+
+    const completedQuantity = Number(payload.completed_quantity);
+    map.set(progressTaskId, {
+      progress_task_id: progressTaskId,
+      actual_progress: Math.round(actualProgress * 100) / 100,
+      completed_quantity: Number.isFinite(completedQuantity) ? Math.round(completedQuantity * 100) / 100 : null,
+      remark: payload.remark ? String(payload.remark) : null,
+    });
+  });
+
+  return Array.from(map.values());
+}
+
 function normalizeAttachments(value: unknown): LogAttachment[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -319,6 +360,7 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
           issues: payload.issues ? String(payload.issues) : null,
           weather: normalizeWeather(payload.weather),
           tomorrow_plan: payload.tomorrow_plan ? String(payload.tomorrow_plan) : null,
+          progress_entries: normalizeProgressEntries(payload.progress_entries),
         };
       })
       .filter((item: ConstructionLogDraft) => item.project_id && item.content);
@@ -338,6 +380,7 @@ function normalizeLogDrafts(body: ConstructionLogPayload): ConstructionLogDraft[
     issues: body.issues ? String(body.issues) : null,
     weather: normalizeWeather(body.weather),
     tomorrow_plan: body.tomorrow_plan ? String(body.tomorrow_plan) : null,
+    progress_entries: normalizeProgressEntries(body.progress_entries),
   }].filter((item) => item.project_id && item.content);
 }
 
@@ -357,6 +400,89 @@ function normalizeScheduledSubmitAt(value: unknown) {
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return null;
   return date;
+}
+
+function toNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isMissingProgressEntriesTableError(error: { message?: string; code?: string } | null | undefined) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error?.code === '42P01' ||
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    message.includes('construction_log_progress_entries') ||
+    message.includes('schema cache')
+  );
+}
+
+async function syncConstructionLogProgressEntries(
+  supabase: SupabaseClient,
+  logId: number,
+  draft: ConstructionLogDraft,
+  logDate: string,
+  updatedAt: string,
+) {
+  const entries = draft.progress_entries || [];
+  if (!logId || entries.length === 0) return;
+
+  const progressTaskIds = entries.map((entry) => entry.progress_task_id);
+  const { data: taskRows, error: taskError } = await supabase
+    .from('project_progress_tasks')
+    .select('id,project_id,actual_start_date,actual_end_date,actual_progress,issue,next_action')
+    .eq('project_id', draft.project_id)
+    .in('id', progressTaskIds);
+
+  if (taskError) throw new Error(taskError.message);
+
+  const taskById = new Map<number, ProgressTaskSyncRow>(
+    ((taskRows || []) as ProgressTaskSyncRow[]).map((task) => [task.id, task]),
+  );
+  const validEntries = entries.filter((entry) => taskById.has(entry.progress_task_id));
+  if (validEntries.length === 0) return;
+
+  const progressRows = validEntries.map((entry) => ({
+    log_id: logId,
+    project_id: draft.project_id,
+    progress_task_id: entry.progress_task_id,
+    actual_progress: entry.actual_progress,
+    completed_quantity: entry.completed_quantity ?? null,
+    remark: entry.remark || null,
+    updated_at: updatedAt,
+  }));
+
+  const { error: progressEntryError } = await supabase
+    .from('construction_log_progress_entries')
+    .upsert(progressRows, { onConflict: 'log_id,progress_task_id' });
+
+  if (progressEntryError && !isMissingProgressEntriesTableError(progressEntryError)) {
+    throw new Error(progressEntryError.message);
+  }
+
+  for (const entry of validEntries) {
+    const task = taskById.get(entry.progress_task_id);
+    if (!task) continue;
+    const nextProgress = Math.max(toNumber(task.actual_progress), entry.actual_progress);
+    const patch: Record<string, unknown> = {
+      actual_progress: nextProgress,
+      updated_at: updatedAt,
+    };
+
+    if (!task.actual_start_date && nextProgress > 0) patch.actual_start_date = logDate;
+    if (nextProgress >= 100 && !task.actual_end_date) patch.actual_end_date = logDate;
+    if (draft.issues && !task.issue) patch.issue = draft.issues;
+    if (draft.tomorrow_plan && !task.next_action) patch.next_action = draft.tomorrow_plan;
+
+    const { error: updateError } = await supabase
+      .from('project_progress_tasks')
+      .update(patch)
+      .eq('id', entry.progress_task_id)
+      .eq('project_id', draft.project_id);
+
+    if (updateError) throw new Error(updateError.message);
+  }
 }
 
 async function createRiskSideEffects(
@@ -689,6 +815,7 @@ export async function POST(request: NextRequest) {
 
     if (!isScheduled) {
       for (let index = 0; index < insertedRows.length; index += 1) {
+        await syncConstructionLogProgressEntries(supabase, insertedRows[index].id, drafts[index], log_date, submittedAt);
         await createRiskSideEffects(supabase, insertedRows[index], drafts[index], log_date, user?.id);
       }
     }
