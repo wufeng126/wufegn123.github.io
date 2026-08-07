@@ -62,8 +62,8 @@ const MENU_VISIBILITY: Record<string, string[]> = {
 // 一级导航（group: 业务 / 决策 / 系统，用于分组标题）
 const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; group?: string }> = [
   { name: '工作台', href: '/workspace', icon: 'trend' },
-  { name: '施工管理', href: '/construction-logs', icon: 'crane', group: '业务' },
   { name: '项目管理', href: '/project-center', icon: 'building', group: '业务' },
+  { name: '施工管理', href: '/construction-logs', icon: 'crane', group: '业务' },
   { name: '人力与工资', href: '/hr-salary', icon: 'worker', group: '业务' },
   { name: '供应商与费用', href: '/supplier-expense', icon: 'wrench', group: '业务' },
   { name: '班组管理', href: '/team-management/groups', icon: 'chart', group: '业务' },
