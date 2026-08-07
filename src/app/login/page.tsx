@@ -1,12 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { BrandIconContainer } from '@/components/ui/brand-icon';
 import { saveToken, isDingTalkClient, resetRedirectCount } from '@/lib/auth-client';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('lm_remember_user') || '';
+  });
   const [password, setPassword] = useState('');
+  const [remembered, setRemembered] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('lm_remember_user') !== null;
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +55,12 @@ export default function LoginPage() {
         if (token) {
           saveToken(token);
         }
+        // 记住我：仅记住用户名，不存密码
+        if (remembered) {
+          localStorage.setItem('lm_remember_user', trimmedUsername);
+        } else {
+          localStorage.removeItem('lm_remember_user');
+        }
         // 重置跳转计数
         resetRedirectCount();
 
@@ -68,89 +82,109 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)' }}
-    >
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* 网格背景 */}
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(22, 93, 255, 0.3) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(22, 93, 255, 0.3) 1px, transparent 1px)
-            `,
-            backgroundSize: '50px 50px',
-          }}
-        />
-        {/* 光晕效果 */}
-        <div
-          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl opacity-20"
-          style={{ background: 'radial-gradient(circle, #165DFF 0%, transparent 70%)' }}
-        />
-        <div
-          className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full blur-3xl opacity-15"
-          style={{ background: 'radial-gradient(circle, #4080FF 0%, transparent 70%)' }}
-        />
-      </div>
-
-      {/* 登录卡片 */}
-      <div className="relative w-full max-w-md">
-        {/* 卡片主体 */}
-        <div
-          className="rounded-2xl p-8 backdrop-blur-xl"
-          style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-          }}
-        >
-          {/* Logo 和标题 */}
-          <div className="text-center mb-8">
+    <div className="min-h-screen flex" style={{ background: 'var(--background)' }}>
+      {/* 左侧品牌区（lg 及以上显示） */}
+      <div
+        className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12"
+        style={{ background: 'linear-gradient(165deg, #F0F2F5 0%, #E6EDF8 100%)', borderRight: '1px solid var(--border)' }}
+      >
+        <div>
+          <div className="flex items-center gap-3">
+            <BrandIconContainer name="crane" size={26} />
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3 }}>建筑劳务管理</div>
+              <div style={{ fontSize: 10, color: 'var(--color-text-3)', letterSpacing: '0.6px', marginTop: 2 }}>
+                CONSTRUCTION LABOR MGMT
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 64 }}>
+            <div style={{ fontSize: 27, fontWeight: 700, lineHeight: 1.45, letterSpacing: '-0.4px' }}>
+              让每一笔劳务成本
+              <br />
+              清晰可见
+            </div>
+            <div style={{ marginTop: 14, fontSize: 14, color: 'var(--color-text-2)', lineHeight: 2 }}>
+              工人成本 · 报量结算 · 甲方回款
+              <br />
+              全链路数字化管理
+            </div>
             <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
               style={{
-                background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)',
-                boxShadow: '0 8px 32px rgba(22, 93, 255, 0.4)',
+                marginTop: 28,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+                color: 'var(--color-primary)',
+                background: 'var(--bg-active)',
+                borderRadius: 999,
+                padding: '6px 14px',
               }}
             >
-              <Zap className="w-8 h-8 text-white" />
+              ● 数字会说话：产值蓝 · 成本橙 · 利润绿
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">建筑劳务管理系统</h1>
-            <p className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-              Construction Labor Management System
-            </p>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--color-text-4)' }}>
+          © 2024 建筑劳务企业数据管理系统 · v2.4.1
+        </div>
+      </div>
+
+      {/* 右侧表单区 */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div style={{ width: '100%', maxWidth: 400 }}>
+          {/* 窄屏品牌（lg 以下） */}
+          <div className="lg:hidden" style={{ textAlign: 'center', marginBottom: 30 }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                margin: '0 auto 14px',
+              }}
+            >
+              <BrandIconContainer name="crane" size={32} />
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>建筑劳务管理系统</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 6 }}>
+              让每一笔劳务成本清晰可见
+            </div>
           </div>
 
-          {/* 登录表单 */}
+          <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.3px' }}>登录</h2>
+          <p style={{ fontSize: 13, color: 'var(--color-text-3)', marginTop: 6, marginBottom: 26 }}>
+            请输入账号密码进入工作台
+          </p>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* 账号输入框 */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-white/70">账号</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="请输入账号"
-                  disabled={isLoading}
-                  autoComplete="username"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck="false"
-                  className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 outline-none transition-all duration-200"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                  }}
-                />
-              </div>
+              <label className="block text-sm font-medium" style={{ color: 'var(--color-text-2)' }}>账号</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="请输入账号"
+                disabled={isLoading}
+                autoComplete="username"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck="false"
+                className="w-full px-4 py-3 rounded-lg outline-none transition-all duration-200"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                  fontSize: 14,
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+              />
             </div>
 
             {/* 密码输入框 */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-white/70">密码</label>
+              <label className="block text-sm font-medium" style={{ color: 'var(--color-text-2)' }}>密码</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -159,16 +193,21 @@ export default function LoginPage() {
                   placeholder="请输入密码"
                   disabled={isLoading}
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-white/30 outline-none transition-all duration-200"
+                  className="w-full px-4 py-3 pr-12 rounded-lg outline-none transition-all duration-200"
                   style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    fontSize: 14,
                   }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: 'var(--color-text-3)' }}
                   aria-label={showPassword ? '隐藏密码' : '显示密码'}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -179,25 +218,47 @@ export default function LoginPage() {
             {/* 错误提示 */}
             {error && (
               <div
-                className="px-4 py-3 rounded-xl text-sm text-center"
+                className="px-4 py-3 rounded-lg text-sm text-center"
                 style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#FCA5A5',
+                  background: '#FFF1F0',
+                  border: '1px solid #FFCCC7',
+                  color: 'var(--color-danger)',
                 }}
               >
                 {error}
               </div>
             )}
 
+            {/* 记住我 */}
+            <div className="flex items-center justify-between">
+              <label
+                className="flex items-center gap-2 text-sm cursor-pointer select-none"
+                style={{ color: 'var(--color-text-2)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={remembered}
+                  onChange={(e) => setRemembered(e.target.checked)}
+                  className="w-4 h-4 rounded"
+                  style={{ accentColor: 'var(--color-primary)' }}
+                />
+                记住我
+              </label>
+            </div>
+
             {/* 登录按钮 */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 rounded-xl font-medium text-white transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-lg font-medium text-white transition-all duration-200 flex items-center justify-center gap-2"
               style={{
-                background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)',
-                boxShadow: '0 4px 15px rgba(22, 93, 255, 0.4)',
+                background: 'var(--color-primary)',
+                boxShadow: '0 4px 15px rgba(22, 93, 255, 0.35)',
+                fontSize: 15,
+                fontWeight: 600,
+                border: 'none',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.75 : 1,
               }}
             >
               {isLoading ? (
@@ -211,21 +272,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 底部信息 */}
-          <div className="mt-8 pt-6 text-center" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-            <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.4)' }}>
-              © 2024 建筑劳务企业数据管理系统
-            </p>
+          <div className="lg:hidden" style={{ marginTop: 28, textAlign: 'center', fontSize: 12, color: 'var(--color-text-4)' }}>
+            © 2024 建筑劳务企业数据管理系统
           </div>
         </div>
-
-        {/* 卡片下方装饰线 */}
-        <div
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1/2 h-px"
-          style={{
-            background: 'linear-gradient(90deg, transparent, rgba(22, 93, 255, 0.5), transparent)',
-          }}
-        />
       </div>
     </div>
   );

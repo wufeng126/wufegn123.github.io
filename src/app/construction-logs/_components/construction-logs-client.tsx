@@ -643,7 +643,7 @@ export default function ConstructionLogsClient() {
   }
 
   return (
-    <div className="min-h-full bg-[#eef3f8] p-4 text-slate-950 md:p-6">
+    <div className="min-h-full bg-background p-4 text-slate-950 md:p-6">
       <div className="mx-auto max-w-[1280px] space-y-6">
         <section className="border-b border-slate-200 pb-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">

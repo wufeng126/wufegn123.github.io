@@ -58,7 +58,7 @@
   --color-primary: #165DFF;
   --color-primary-light: #4080FF;
   --color-primary-dark: #0E42A8;
-  --color-primary-gradient: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%);
+  --color-primary-gradient: linear-gradient(135deg, #4080FF 0%, #165DFF 100%);
   --color-primary-glow: rgba(22, 93, 255, 0.2);
   --color-success: #00B42A;
   --color-warning: #FF7D00;
@@ -66,9 +66,9 @@
   --color-purple: #722ED1;
   --color-cyan: #14C9C9;
   
-  /* ═══════════════ 浅色科技感背景 ═══════════════ */
-  --bg-page: #F5F6FA;
-  --bg-page-secondary: #EEF0F6;
+  /* ═══════════════ 浅色背景（统一暖灰） ═══════════════ */
+  --bg-page: #F0F2F5;
+  --bg-page-secondary: #F5F7F9;
   --bg-card: #FFFFFF;
   --bg-card-hover: #FAFBFF;
   --bg-card-solid: #FFFFFF;
@@ -80,9 +80,9 @@
   --text-placeholder: #C9CDD4;
   
   /* ═══════════════ 边框与分割线 ═══════════════ */
-  --border-color: #E2E6F0;
+  --border-color: #E8EAED;
   --border-glow: rgba(22, 93, 255, 0.25);
-  --divider-color: #F0F2F8;
+  --divider-color: #F2F3F5;
   
   /* ═══════════════ 阴影 ═══════════════ */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -106,7 +106,7 @@
   --line-height-relaxed: 1.75;
   
   /* ═══════════════ shadcn 变量 ═══════════════ */
-  --background: #F5F6FA;
+  --background: #F0F2F5;
   --foreground: #1D2129;
   --card: #FFFFFF;
   --card-foreground: #1D2129;
@@ -114,14 +114,14 @@
   --popover-foreground: #1D2129;
   --primary: #165DFF;
   --primary-foreground: #FFFFFF;
-  --secondary: #F0F2F8;
+  --secondary: #F5F7F9;
   --secondary-foreground: #1D2129;
-  --muted: #F0F2F8;
+  --muted: #F5F7F9;
   --muted-foreground: #86909C;
   --accent: #F0F5FF;
   --accent-foreground: #165DFF;
   --destructive: #F53F3F;
-  --border: #E2E6F0;
+  --border: #E8EAED;
   --input: #FFFFFF;
   --ring: #165DFF;
   --chart-1: #165DFF;
@@ -150,7 +150,7 @@
   /* ═══════════════ 科技感专用变量 ═══════════════ */
   --tech-grid-color: rgba(22, 93, 255, 0.03);
   --tech-glow-primary: 0 0 15px rgba(22, 93, 255, 0.12);
-  --tech-glow-accent: 0 0 20px rgba(124, 58, 237, 0.1);
+  --tech-glow-accent: 0 0 20px rgba(22, 93, 255, 0.08);
   --glass-border: #E2E6F0;
   --glass-bg: rgba(255, 255, 255, 0.8);
 }
@@ -1431,7 +1431,7 @@ input::placeholder, textarea::placeholder {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #165DFF, #7C3AED, transparent);
+  background: linear-gradient(90deg, transparent, #165DFF, #4080FF, transparent);
   opacity: 0.6;
 }
 
@@ -1467,7 +1467,7 @@ input::placeholder, textarea::placeholder {
 
 /* 发光按钮 */
 .btn-glow {
-  background: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%);
+  background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
   color: #FFFFFF;
   border: none;
   border-radius: 10px;
@@ -1521,7 +1521,7 @@ input::placeholder, textarea::placeholder {
 .progress-glow-fill {
   height: 100%;
   border-radius: 4px;
-  background: linear-gradient(90deg, #165DFF, #7C3AED);
+  background: linear-gradient(90deg, #165DFF, #4080FF);
   box-shadow: 0 0 10px rgba(22, 93, 255, 0.4);
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -1618,7 +1618,7 @@ input::placeholder, textarea::placeholder {
 
 /* 渐变文字 */
 .text-gradient {
-  background: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%);
+  background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1858,41 +1858,21 @@ input::placeholder, textarea::placeholder {
 }
 
 
-/* ========== Linear Light 风格系统 ========== */
+/* ========== 增量变量（合并自原 Linear Light 风格，仅保留与第一块不重复的项） ========== */
 :root {
-  --bg-page: #F5F6F7;
-  --bg-card: #FFFFFF;
   --bg-subtle: #F7F8F8;
-  
-  --text-primary: #171717;
-  --text-secondary: #4E5969;
-  --text-muted: #8A8F98;
-  
-  --color-primary: #165DFF;
-  --color-gradient: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%);
-  --color-success: #00A870;
-  --color-danger: #F53F3F;
-  --color-warning: #FA8C16;
-  
-  --border-color: rgba(0,0,0,0.06);
   --border-light: rgba(0,0,0,0.04);
   --border-accent: rgba(22,93,255,0.15);
-  
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
   --shadow-elevated: 0 4px 12px rgba(0,0,0,0.06);
   --shadow-btn: 0 2px 8px rgba(22,93,255,0.2);
-  
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
   --radius-xl: 14px;
 }
 
-/* 字体特性 */
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-feature-settings: 'cv01', 'ss03';
-}
+/* 字体特性：中文走 --font-sans（思源/系统栈），数字统一等宽对齐 */
+html { font-variant-numeric: tabular-nums; }
 
 /* 通用卡片 */
 .kb-card, .knowledge-card {
@@ -1902,12 +1882,12 @@ body {
   box-shadow: var(--shadow-card) !important;
 }
 
-/* 主按钮渐变 */
+/* 主按钮渐变（单蓝体系，去蓝紫） */
 .btn-gradient {
-  background: linear-gradient(135deg, #165DFF 0%, #7C3AED 100%) !important;
+  background: linear-gradient(135deg, #4080FF 0%, #165DFF 100%) !important;
   color: white !important;
   border: none !important;
-  border-radius: 7px !important;
+  border-radius: 8px !important;
   box-shadow: 0 2px 8px rgba(22,93,255,0.2) !important;
   transition: all 0.15s ease !important;
 }

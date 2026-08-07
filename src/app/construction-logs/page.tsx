@@ -19,7 +19,7 @@ const tabs: TabItem[] = [
 
 export default function ConstructionManagementPage() {
   return (
-    <div className="min-h-full bg-[#eef3f8] p-4 md:p-6">
+    <div className="min-h-full bg-background p-4 md:p-6">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-5">
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <TabContainer tabs={tabs} defaultTab="daily-reports" />

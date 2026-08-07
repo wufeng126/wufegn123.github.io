@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Menu,
   X,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -21,8 +22,21 @@ import {
   FileSpreadsheet,
   ReceiptText,
   Settings,
+  CalendarClock,
+  FileText,
+  HandCoins,
+  ShieldCheck,
+  Search,
+  FileCheck2,
+  BellRing,
+  ClipboardCheck,
+  WalletCards,
+  Package,
+  Database,
+  FileSignature,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BrandIconContainer, type BrandIconName } from '@/components/ui/brand-icon';
 import { usePermission } from '@/contexts/permission-context';
 import { FloatingAIAssistant } from '@/components/floating-ai-assistant';
 import NotificationBell from '@/components/notification-bell';
@@ -45,21 +59,78 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/system-management': ['system:manage', 'system:permission_manage', 'system:dingtalk_manage', 'notifications:view', 'system:ai_manage', 'audit:view'],
 };
 
-// 一级导航
-const TOP_LEVEL_MENUS = [
-  { name: '工作台', href: '/workspace', icon: LayoutDashboard },
-  { name: '项目管理', href: '/project-center', icon: Building2 },
-  { name: '施工管理', href: '/construction-logs', icon: ClipboardList },
-  { name: '人力资源', href: '/hr-salary', icon: Users },
-  { name: '供应商与费用', href: '/supplier-expense', icon: ReceiptText },
-  { name: '班组管理', href: '/team-management/groups', icon: FileSpreadsheet },
-  { name: '经营分析', href: '/business-analysis', icon: BarChart3 },
-  { name: '投标测算', href: '/cost-estimation/bid', icon: Calculator },
-  { name: '知识库', href: '/knowledge', icon: BookOpen },
-  { name: '系统管理', href: '/system-management', icon: Settings },
+// 一级导航（group: 业务 / 决策 / 系统，用于分组标题）
+const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; group?: string }> = [
+  { name: '工作台', href: '/workspace', icon: 'trend' },
+  { name: '施工管理', href: '/construction-logs', icon: 'crane', group: '业务' },
+  { name: '项目管理', href: '/project-center', icon: 'building', group: '业务' },
+  { name: '人力与工资', href: '/hr-salary', icon: 'worker', group: '业务' },
+  { name: '供应商与费用', href: '/supplier-expense', icon: 'wrench', group: '业务' },
+  { name: '班组管理', href: '/team-management/groups', icon: 'chart', group: '业务' },
+  { name: '经营分析', href: '/business-analysis', icon: 'chart', group: '决策' },
+  { name: '投标测算', href: '/cost-estimation/bid', icon: 'calculator', group: '决策' },
+  { name: '知识库', href: '/knowledge', icon: 'book', group: '决策' },
+  { name: '系统管理', href: '/system-management', icon: 'doc', group: '系统' },
 ];
 
-const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: typeof LayoutDashboard; permissions?: string[] }>> = {};
+// 二级菜单（子页面显性化；不设 permissions 即按一级菜单可见性控制）
+const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: BrandIconName; permissions?: string[] }>> = {
+  '/construction-logs': [
+    { name: '施工日志', href: '/construction-logs', icon: 'crane' },
+    { name: '出勤统计', href: '/construction-attendance', icon: 'worker' },
+    { name: '项目日报', href: '/construction-daily-reports', icon: 'doc' },
+    { name: '进度计划', href: '/progress-management', icon: 'trend' },
+  ],
+  '/project-center': [
+    { name: '项目管理', href: '/project-center', icon: 'building' },
+    { name: '报量管理', href: '/quantity-reporting', icon: 'crane' },
+    { name: '签证管理', href: '/visas', icon: 'doc' },
+    { name: '甲方报量', href: '/client-reports', icon: 'chart' },
+    { name: '甲方回款', href: '/client-payments', icon: 'money' },
+    { name: '结算证据链', href: '/evidence-chain', icon: 'doc' },
+  ],
+  '/hr-salary': [
+    { name: '花名册', href: '/workers/roster', icon: 'worker' },
+    { name: '月度工资', href: '/workers/salaries', icon: 'money' },
+    { name: '工资发放', href: '/workers/payments', icon: 'money' },
+    { name: '工资查询', href: '/workers/query', icon: 'doc' },
+    { name: '证件管理', href: '/certificates', icon: 'doc' },
+  ],
+  '/supplier-expense': [
+    { name: '供应商库', href: '/suppliers', icon: 'building' },
+    { name: '合同管理', href: '/supplier-contracts', icon: 'doc' },
+    { name: '结算管理', href: '/settlements', icon: 'chart' },
+    { name: '付款记录', href: '/payments', icon: 'money' },
+    { name: '综合费用', href: '/comprehensive-expenses', icon: 'wrench' },
+    { name: '零星材料', href: '/miscellaneous-materials', icon: 'wrench' },
+  ],
+  '/team-management/groups': [
+    { name: '班组列表', href: '/team-management/groups', icon: 'worker' },
+    { name: '班组结算', href: '/team-management/settlements', icon: 'chart' },
+  ],
+  '/business-analysis': [
+    { name: '经营分析', href: '/business-analysis', icon: 'chart' },
+    { name: '成本利润中心', href: '/cost-center', icon: 'calculator' },
+    { name: '供应商成本看板', href: '/data-board/supplier-cost', icon: 'wrench' },
+    { name: '工人成本看板', href: '/data-board/worker-cost', icon: 'worker' },
+    { name: '资金管理看板', href: '/data-board/fund-management', icon: 'money' },
+    { name: '月度经营月报', href: '/reports/monthly', icon: 'doc' },
+  ],
+  '/cost-estimation/bid': [
+    { name: '测算中心', href: '/cost-estimation/bid', icon: 'calculator' },
+    { name: '历史标段库', href: '/cost-estimation/bid/library', icon: 'book' },
+  ],
+  '/knowledge': [],
+  '/system-management': [
+    { name: '权限中心', href: '/system/permission', icon: 'doc' },
+    { name: '通知中心', href: '/notifications', icon: 'alert' },
+    { name: '钉钉绑定', href: '/system/dingtalk-binding', icon: 'doc' },
+    { name: 'AI 助手配置', href: '/system/ai-config', icon: 'doc' },
+    { name: '审批流程', href: '/system/approval-config', icon: 'doc' },
+    { name: '数据备份', href: '/settings/backup', icon: 'doc' },
+    { name: '日志管理', href: '/system/audit-logs', icon: 'doc' },
+  ],
+};
 
 // 页面标题映射
 const PAGE_TITLE_MAP: Record<string, string> = {
@@ -124,6 +195,7 @@ export default function SidebarLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [hoverExpanded, setHoverExpanded] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMobile, setIsMobile] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(768);
@@ -267,27 +339,6 @@ export default function SidebarLayout({
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: 'var(--background)' }}>
-      {/* 科技感背景网格 */}
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundImage: 'radial-gradient(circle, rgba(22,93,255,0.04) 1px, transparent 1px)',
-        backgroundSize: '24px 24px',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }} />
-      {/* 顶部渐变色带 */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '1px',
-        background: 'linear-gradient(90deg, transparent, #165DFF, #7C3AED, transparent)',
-        opacity: 0.6,
-        zIndex: 100,
-        pointerEvents: 'none',
-      }} />
       {/* 移动端遮罩层 */}
       {isMobile && sidebarOpen && (
         <div
@@ -324,21 +375,18 @@ export default function SidebarLayout({
             borderBottom: '1px solid #E5E7EB',
           }}
         >
-          {/* Logo图标 */}
+          {/* Logo图标：v2 精装容器（浅色底 + 描边 + 蓝色光晕） */}
           <div
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
+              width: '52px',
+              height: '52px',
+              flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              flexShrink: 0,
-              background: '#2563EB',
-              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.22)',
             }}
           >
-            <Zap className="w-5 h-5 text-white" />
+            <BrandIconContainer name="crane" size={28} />
           </div>
           {!isEffectivelyCollapsed && (
             <div style={{ flex: 1, minWidth: 0, marginLeft: '12px' }}>
@@ -390,12 +438,26 @@ export default function SidebarLayout({
           <div className="space-y-1">
             {TOP_LEVEL_MENUS
               .filter(menu => isMenuVisible(menu.href))
-              .map((menu) => {
+              .map((menu, idx, arr) => {
                 const isActive = activeMenu === menu.href;
-                const Icon = menu.icon;
                 const secondaryMenus = SECONDARY_MENUS[menu.href]?.filter(item => hasAnyPermission(item.permissions)) || [];
+                // 分组标题：仅在该组第一个菜单前显示
+                const showGroup = menu.group && (idx === 0 || arr[idx - 1].group !== menu.group);
                 return (
                   <div key={menu.href}>
+                    {showGroup && !isEffectivelyCollapsed && (
+                      <div
+                        style={{
+                          fontSize: '10px',
+                          color: 'var(--color-text-3)',
+                          letterSpacing: '0.6px',
+                          padding: '14px 12px 4px',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {menu.group}
+                      </div>
+                    )}
                     <Link
                       href={menu.href}
                       className={cn(
@@ -403,13 +465,23 @@ export default function SidebarLayout({
                         isEffectivelyCollapsed ? 'justify-center px-0 py-3' : 'px-3 py-3'
                       )}
                       style={{
-                        background: isActive ? '#EFF6FF' : 'transparent',
-                        color: isActive ? '#1D4ED8' : '#475569',
+                        background: isActive ? 'var(--bg-active)' : 'transparent',
+                        color: isActive ? 'var(--color-primary-dark)' : '#475569',
                       }}
                       onMouseOver={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
                       onMouseOut={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                       title={isEffectivelyCollapsed ? menu.name : undefined}
-                      onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
+                      onClick={(e) => {
+                        // 有二级菜单：手风琴展开/收起（不跳转，点二级再跳）
+                        if (secondaryMenus.length > 0) {
+                          e.preventDefault();
+                          setExpandedMenu(prev => (prev === menu.href ? null : menu.href));
+                          setHoverExpanded(false);
+                          return;
+                        }
+                        setSidebarOpen(false);
+                        setHoverExpanded(false);
+                      }}
                     >
                       {/* 左侧激活指示条 */}
                       {isActive && (
@@ -418,7 +490,7 @@ export default function SidebarLayout({
                           style={{
                             width: '3px',
                             height: '60%',
-                            background: '#2563EB',
+                            background: 'var(--color-primary)',
                             transition: 'all 0.2s ease',
                           }}
                         />
@@ -428,26 +500,33 @@ export default function SidebarLayout({
                           'flex items-center justify-center flex-shrink-0 transition-all duration-200',
                           isEffectivelyCollapsed ? 'w-8 h-8' : 'w-8 h-8'
                         )}
-                        style={{
-                          borderRadius: '8px',
-                          background: isActive ? '#DBEAFE' : '#F1F5F9',
-                        }}
                       >
-                        <Icon
-                          className="w-[18px] h-[18px] transition-colors duration-200"
-                          style={{ color: isActive ? '#2563EB' : '#64748B' }}
+                        <BrandIconContainer
+                          name={menu.icon}
+                          size={16}
+                          className="rounded-md p-1 shadow-sm"
                         />
                       </div>
                       {!isEffectivelyCollapsed && (
                         <span
                           className="text-[13px] transition-colors duration-200"
                           style={{
-                            color: isActive ? '#1D4ED8' : '#475569',
+                            color: isActive ? 'var(--color-primary-dark)' : '#475569',
                             fontWeight: isActive ? 600 : 400,
                           }}
                         >
                           {menu.name}
                         </span>
+                      )}
+                      {/* 二级展开箭头 */}
+                      {!isEffectivelyCollapsed && secondaryMenus.length > 0 && (
+                        <ChevronDown
+                          className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200"
+                          style={{
+                            color: (isActive || expandedMenu === menu.href) ? 'var(--color-primary)' : '#94A3B8',
+                            transform: (isActive || expandedMenu === menu.href) ? 'rotate(180deg)' : undefined,
+                          }}
+                        />
                       )}
                       {/* 激活指示圆点 */}
                       {isActive && !isEffectivelyCollapsed && secondaryMenus.length === 0 && (
@@ -457,15 +536,14 @@ export default function SidebarLayout({
                           width: '5px',
                           height: '5px',
                           borderRadius: '50%',
-                          background: '#2563EB',
+                          background: 'var(--color-primary)',
                         }} />
                       )}
                     </Link>
 
-                    {isActive && !isEffectivelyCollapsed && secondaryMenus.length > 0 ? (
+                    {(isActive || expandedMenu === menu.href) && !isEffectivelyCollapsed && secondaryMenus.length > 0 ? (
                       <div className="mt-1 space-y-1 pb-1 pl-11">
                         {secondaryMenus.map((item) => {
-                          const SubIcon = item.icon;
                           const isSubActive = item.href === '/construction-logs'
                             ? pathname.startsWith('/construction-logs')
                             : pathname.startsWith(item.href);
@@ -476,12 +554,16 @@ export default function SidebarLayout({
                               className="flex items-center gap-2 rounded-md px-3 py-2 text-xs transition"
                               style={{
                                 background: isSubActive ? '#F1F5FF' : 'transparent',
-                                color: isSubActive ? '#1D4ED8' : '#64748B',
+                                color: isSubActive ? 'var(--color-primary-dark)' : '#64748B',
                                 fontWeight: isSubActive ? 600 : 400,
                               }}
                               onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
                             >
-                              <SubIcon className="h-3.5 w-3.5" />
+                              <BrandIconContainer
+                                name={item.icon}
+                                size={13}
+                                className="rounded p-0.5 shadow-none"
+                              />
                               <span>{item.name}</span>
                             </Link>
                           );

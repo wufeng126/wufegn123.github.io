@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>知识库经验台账预览</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      background: #f5f7fb;
+      color: #0f172a;
+    }
+    .page {
+      min-height: 100vh;
+      padding: 22px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+    .title p {
+      margin: 7px 0 0;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    button {
+      height: 36px;
+      border: 1px solid #d8e0ec;
+      background: #fff;
+      color: #334155;
+      border-radius: 8px;
+      padding: 0 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .metric, .panel, .item, .detail {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+    }
+    .metric {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 70px;
+    }
+    .metric span {
+      display: block;
+      color: #64748b;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 22px;
+    }
+    .metric b {
+      font-size: 12px;
+      color: #16a34a;
+      font-weight: 700;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto auto;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .search {
+      height: 38px;
+      border: 1px solid #d8e0ec;
+      border-radius: 8px;
+      padding: 0 12px;
+      background: #fff;
+      color: #0f172a;
+      font-size: 14px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 220px minmax(420px, 1fr) 340px;
+      gap: 12px;
+      align-items: start;
+    }
+    .panel, .detail {
+      padding: 12px;
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #334155;
+      margin-bottom: 10px;
+    }
+    .cat {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 8px;
+      color: #334155;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .cat.active {
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+    .cat small {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .ledger-head {
+      display: grid;
+      grid-template-columns: 1fr 84px 88px 74px;
+      padding: 0 12px 8px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .item {
+      display: grid;
+      grid-template-columns: 1fr 84px 88px 74px;
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .item.active {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+    }
+    .item h3 {
+      margin: 0 0 7px;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+    .summary {
+      margin: 0;
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 9px;
+    }
+    .tag {
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .tag.blue { background: #eff6ff; color: #2563eb; }
+    .tag.green { background: #ecfdf5; color: #059669; }
+    .tag.orange { background: #fff7ed; color: #c2410c; }
+    .cell {
+      color: #475569;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .cell strong {
+      display: block;
+      color: #0f172a;
+      font-size: 14px;
+    }
+    .detail-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .detail h2 {
+      margin: 8px 0 10px;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+    .detail-block {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+    .detail-block b {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .points {
+      display: grid;
+      gap: 7px;
+    }
+    .point {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: #475569;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .mini {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 9px;
+    }
+    .mini span {
+      display: block;
+      color: #94a3b8;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .mini strong {
+      font-size: 14px;
+    }
+    .detail-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    @media (max-width: 1180px) {
+      .layout { grid-template-columns: 1fr; }
+      .ledger-head, .item { grid-template-columns: 1fr; }
+      .ledger-head { display: none; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 680px) {
+      .page { padding: 14px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .actions { justify-content: flex-start; }
+      .toolbar { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: 1fr; }
+      .title h1 { font-size: 21px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="topbar">
+      <div class="title">
+        <h1>知识库经验台账</h1>
+        <p>公司经验大脑：自动萃取、人工沉淀、业务调用。</p>
+      </div>
+      <div class="actions">
+        <button>写经验</button>
+        <button>待复核</button>
+        <button class="primary">AI萃取</button>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div class="metric"><div><span>经验总数</span><strong>286</strong></div><b>+18</b></div>
+      <div class="metric"><div><span>投标调用</span><strong>42</strong></div><b>本月</b></div>
+      <div class="metric"><div><span>风险命中</span><strong>11</strong></div><b>提醒</b></div>
+      <div class="metric"><div><span>待复核</span><strong>7</strong></div><b>处理</b></div>
+    </section>
+
+    <section class="toolbar">
+      <input class="search" value="模板工程 含材料 报价偏低" aria-label="搜索经验" />
+      <button>筛选</button>
+      <button>只看我负责项目</button>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <div class="panel-title">经验分组</div>
+        <div class="cat active">投标报价经验 <small>48</small></div>
+        <div class="cat">施工管理经验 <small>63</small></div>
+        <div class="cat">成本控制经验 <small>51</small></div>
+        <div class="cat">签证结算经验 <small>39</small></div>
+        <div class="cat">供应商班组经验 <small>28</small></div>
+        <div class="cat">风险教训 <small>34</small></div>
+        <div class="cat">制度流程经验 <small>23</small></div>
+      </aside>
+
+      <section>
+        <div class="ledger-head">
+          <span>经验</span>
+          <span>来源</span>
+          <span>适用场景</span>
+          <span>引用</span>
+        </div>
+
+        <article class="item active">
+          <div>
+            <h3>模板含材料报价不能套用清包人工单价</h3>
+            <p class="summary">含钢化租赁、周转整理时，历史毛利比清包项目低 8%-12%，投标前必须先确认施工边界。</p>
+            <div class="tags">
+              <span class="tag blue">模板</span>
+              <span class="tag blue">含材料</span>
+              <span class="tag orange">报价风险</span>
+            </div>
+          </div>
+          <div class="cell"><strong>AI萃取</strong>投标测算</div>
+          <div class="cell"><strong>新项目报价</strong>成本参考</div>
+          <div class="cell"><strong>16次</strong>2026-07</div>
+        </article>
+
+        <article class="item">
+          <div>
+            <h3>对下结算超过对上报量时需触发少报提醒</h3>
+            <p class="summary">累计对下结算量持续高于对上报量，会影响回款判断和项目利润判断。</p>
+            <div class="tags">
+              <span class="tag orange">少报风险</span>
+              <span class="tag">报量管理</span>
+            </div>
+          </div>
+          <div class="cell"><strong>月报复盘</strong>经营月报</div>
+          <div class="cell"><strong>施工过程</strong>风险提醒</div>
+          <div class="cell"><strong>5次</strong>2026-06</div>
+        </article>
+
+        <article class="item">
+          <div>
+            <h3>签证附件以甲方工程部签字版完全替换草稿</h3>
+            <p class="summary">中间状态只保留最新有效附件，避免结算确认时误引用未签字版本。</p>
+            <div class="tags">
+              <span class="tag green">签证</span>
+              <span class="tag">附件管理</span>
+            </div>
+          </div>
+          <div class="cell"><strong>人工编写</strong>项目经理</div>
+          <div class="cell"><strong>签证办理</strong>结算确认</div>
+          <div class="cell"><strong>9次</strong>2026-07</div>
+        </article>
+
+        <article class="item">
+          <div>
+            <h3>班组结算应先核对施工日志出勤工时</h3>
+            <p class="summary">分账明细引用考勤总工时时，可减少人为漏算和重复计算。</p>
+            <div class="tags">
+              <span class="tag green">班组</span>
+              <span class="tag">考勤</span>
+            </div>
+          </div>
+          <div class="cell"><strong>AI萃取</strong>班组结算</div>
+          <div class="cell"><strong>成本复核</strong>分账明细</div>
+          <div class="cell"><strong>12次</strong>2026-07</div>
+        </article>
+      </section>
+
+      <aside class="detail">
+        <div class="detail-top">
+          <span class="tag blue">投标报价经验</span>
+          <span class="tag green">可信度 92%</span>
+        </div>
+        <h2>模板含材料报价不能套用清包人工单价</h2>
+
+        <div class="mini-grid">
+          <div class="mini"><span>适用</span><strong>新项目投标</strong></div>
+          <div class="mini"><span>负责人</span><strong>预算部</strong></div>
+          <div class="mini"><span>来源</span><strong>投标测算</strong></div>
+          <div class="mini"><span>更新</span><strong>2026-07-18</strong></div>
+        </div>
+
+        <div class="detail-block">
+          <b>结论</b>
+          <div class="point">清单名称相似不代表施工边界一致，含材料项目应单独引用历史价。</div>
+        </div>
+
+        <div class="detail-block">
+          <b>建议动作</b>
+          <div class="points">
+            <div class="point">先确认是否含材料、租赁、周转整理。</div>
+            <div class="point">报价低于历史含材料单价 10% 时提醒。</div>
+            <div class="point">人工成本价和历史中标价分开引用。</div>
+          </div>
+        </div>
+
+        <div class="detail-block">
+          <b>依据</b>
+          <div class="points">
+            <div class="point">南京中交智慧港投标测算</div>
+            <div class="point">2026年6月月度经营复盘</div>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button>编辑</button>
+          <button>删除</button>
+        </div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

@@ -2,36 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { LucideIcon } from 'lucide-react';
 import { usePermission } from '@/contexts/permission-context';
 import type { WorkbenchTodoKey } from '@/lib/notification-routing';
 import { NOTIFICATIONS_UPDATED_EVENT } from '@/lib/notification-client';
 import {
   AlertCircle,
-  AlertTriangle,
   ArrowRight,
-  BarChart3,
-  BookOpen,
-  BookOpenCheck,
-  BriefcaseBusiness,
-  Camera,
   CheckCircle2,
   ChevronRight,
-  ClipboardCheck,
-  ClipboardList,
-  FileCheck2,
-  FileSearch,
-  FileText,
-  HandCoins,
   Loader2,
   MessageSquareText,
-  PenSquare,
-  ReceiptText,
-  Search,
-  ShieldCheck,
-  UserRoundCheck,
-  WalletCards,
 } from 'lucide-react';
+import { BrandIconContainer, type BrandIconName } from '@/components/ui/brand-icon';
 
 type TodoKey = WorkbenchTodoKey;
 type RoleKey = 'site' | 'budget' | 'manager' | 'boss';
@@ -62,7 +44,7 @@ type QuickEntry = {
   title: string;
   desc: string;
   href: string;
-  icon: LucideIcon;
+  icon: BrandIconName;
   tone: Tone;
 };
 
@@ -138,14 +120,14 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       title: '提交施工日志',
       desc: '填写施工内容、出勤人员、工时和现场附件，完成当天日志提交。',
       href: '/construction-logs/new',
-      icon: PenSquare,
+      icon: 'crane',
       tone: 'blue',
     },
     quickEntries: [
-      { title: '拍照识别日志', desc: '拍照上传或识别手写日志后再核对提交', href: '/construction-logs/scan', icon: Camera, tone: 'emerald' },
-      { title: '查看我的日志', desc: '只看本人提交和待确认记录', href: '/construction-logs?tab=logs&mine=1', icon: FileSearch, tone: 'slate' },
-      { title: '项目日报汇总', desc: '查看公司项目昨日情况摘要', href: '/construction-logs?tab=daily-reports', icon: ClipboardCheck, tone: 'teal' },
-      { title: '工资查询', desc: '查询个人工资核算和发放记录', href: '/workers/query', icon: WalletCards, tone: 'violet' },
+      { title: '拍照识别日志', desc: '拍照上传或识别手写日志后再核对提交', href: '/construction-logs/scan', icon: 'crane', tone: 'emerald' },
+      { title: '查看我的日志', desc: '只看本人提交和待确认记录', href: '/construction-logs?tab=logs&mine=1', icon: 'doc', tone: 'slate' },
+      { title: '项目日报汇总', desc: '查看公司项目昨日情况摘要', href: '/construction-logs?tab=daily-reports', icon: 'doc', tone: 'teal' },
+      { title: '工资查询', desc: '查询个人工资核算和发放记录', href: '/workers/query', icon: 'money', tone: 'violet' },
     ],
     todoKeys: ['constructionLogsPending'],
     todoTitle: '我的现场提醒',
@@ -162,16 +144,16 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       title: '提交施工日志',
       desc: '填写自己负责项目的现场记录，补充施工内容、人员、附件和需要说明的问题。',
       href: '/construction-logs/new',
-      icon: PenSquare,
+      icon: 'crane',
       tone: 'blue',
     },
     quickEntries: [
-      { title: '报量结算风险核对', desc: '核对现场完成量、对上报量、对下结算之间的差异', href: '/project-center?tab=quantity-reporting', icon: ClipboardList, tone: 'amber' },
-      { title: '签证待确认', desc: '推进签字、商务确认和预算确认', href: '/visas', icon: FileCheck2, tone: 'rose' },
-      { title: '结算证据链', desc: '沉淀变更、答疑、聊天记录和附件', href: '/project-center?tab=evidence-chain', icon: BookOpenCheck, tone: 'blue' },
-      { title: '月度分析', desc: '提交项目经理确认并沉淀经营经验', href: '/reports/monthly', icon: BarChart3, tone: 'emerald' },
-      { title: '工资异常核对', desc: '核对导入失败、未建档和发放差异', href: '/workers/salaries', icon: UserRoundCheck, tone: 'violet' },
-      { title: '查找经验', desc: '查询投标、签证、结算复盘经验', href: '/knowledge', icon: Search, tone: 'slate' },
+      { title: '报量结算风险核对', desc: '核对现场完成量、对上报量、对下结算之间的差异', href: '/project-center?tab=quantity-reporting', icon: 'chart', tone: 'amber' },
+      { title: '签证待确认', desc: '推进签字、商务确认和预算确认', href: '/visas', icon: 'doc', tone: 'rose' },
+      { title: '结算证据链', desc: '沉淀变更、答疑、聊天记录和附件', href: '/project-center?tab=evidence-chain', icon: 'doc', tone: 'blue' },
+      { title: '月度分析', desc: '提交项目经理确认并沉淀经营经验', href: '/reports/monthly', icon: 'chart', tone: 'emerald' },
+      { title: '工资异常核对', desc: '核对导入失败、未建档和发放差异', href: '/workers/salaries', icon: 'worker', tone: 'violet' },
+      { title: '查找经验', desc: '查询投标、签证、结算复盘经验', href: '/knowledge', icon: 'book', tone: 'slate' },
     ],
     todoKeys: ['constructionLogsPending', 'monthlyReportsPending', 'visasPending', 'knowledgePending', 'businessNotificationsPending'],
     todoTitle: '预算员待处理',
@@ -188,15 +170,15 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       title: '提交施工日志',
       desc: '补充项目经理现场日志，记录当天施工推进、人员安排和现场问题。',
       href: '/construction-logs/new',
-      icon: PenSquare,
+      icon: 'crane',
       tone: 'blue',
     },
     quickEntries: [
-      { title: '施工日志查看', desc: '按天折叠查看现场记录', href: '/construction-logs?tab=logs', icon: FileText, tone: 'blue' },
-      { title: '现场风险确认', desc: '集中处理日志评论、施工风险和待确认事项', href: '/construction-logs?tab=risks', icon: AlertCircle, tone: 'emerald' },
-      { title: '签证推进', desc: '上传甲方签字附件并更新状态', href: '/visas', icon: FileCheck2, tone: 'amber' },
-      { title: '班组结算确认', desc: '核对工程量和分账明细', href: '/team-management/settlements', icon: ReceiptText, tone: 'rose' },
-      { title: '项目日报汇总', desc: '查看昨日项目情况摘要', href: '/construction-logs?tab=daily-reports', icon: ClipboardCheck, tone: 'slate' },
+      { title: '施工日志查看', desc: '按天折叠查看现场记录', href: '/construction-logs?tab=logs', icon: 'doc', tone: 'blue' },
+      { title: '现场风险确认', desc: '集中处理日志评论、施工风险和待确认事项', href: '/construction-logs?tab=risks', icon: 'alert', tone: 'emerald' },
+      { title: '签证推进', desc: '上传甲方签字附件并更新状态', href: '/visas', icon: 'doc', tone: 'amber' },
+      { title: '班组结算确认', desc: '核对工程量和分账明细', href: '/team-management/settlements', icon: 'wrench', tone: 'rose' },
+      { title: '项目日报汇总', desc: '查看昨日项目情况摘要', href: '/construction-logs?tab=daily-reports', icon: 'doc', tone: 'slate' },
     ],
     todoKeys: ['constructionLogsPending', 'visasPending', 'monthlyReportsPending'],
     todoTitle: '项目经理待处理',
@@ -213,15 +195,15 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       title: '公司经营总览',
       desc: '查看项目应收、供应商应付、人工成本、利润和风险项目。',
       href: '/business-analysis?tab=overview',
-      icon: BriefcaseBusiness,
+      icon: 'wrench',
       tone: 'blue',
     },
     quickEntries: [
-      { title: '项目应收台账', desc: '查看应收、未收、账期和风险', href: '/business-analysis?tab=fund-management', icon: HandCoins, tone: 'emerald' },
-      { title: '成本利润中心', desc: '按项目查看利润和成本结构', href: '/business-analysis?tab=cost-center', icon: BarChart3, tone: 'violet' },
-      { title: '供应商成本', desc: '查看分项目应付、已付和未付', href: '/business-analysis?tab=supplier-cost', icon: ReceiptText, tone: 'amber' },
-      { title: '风险项目', desc: '查看滞后、超付、资料缺口和账期风险', href: '/business-analysis?tab=overview', icon: AlertTriangle, tone: 'rose' },
-      { title: '审批确认', desc: '只处理需要老板确认的事项', href: '/notifications', icon: ShieldCheck, tone: 'slate' },
+      { title: '项目应收台账', desc: '查看应收、未收、账期和风险', href: '/business-analysis?tab=fund-management', icon: 'money', tone: 'emerald' },
+      { title: '成本利润中心', desc: '按项目查看利润和成本结构', href: '/business-analysis?tab=cost-center', icon: 'chart', tone: 'violet' },
+      { title: '供应商成本', desc: '查看分项目应付、已付和未付', href: '/business-analysis?tab=supplier-cost', icon: 'wrench', tone: 'amber' },
+      { title: '风险项目', desc: '查看滞后、超付、资料缺口和账期风险', href: '/business-analysis?tab=overview', icon: 'alert', tone: 'rose' },
+      { title: '审批确认', desc: '只处理需要老板确认的事项', href: '/notifications', icon: 'doc', tone: 'slate' },
     ],
     todoKeys: ['monthlyReportsPending', 'visasPending', 'knowledgePending', 'businessNotificationsPending'],
     todoTitle: '老板待确认',
@@ -231,17 +213,17 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
   },
 };
 
-const todoVisuals: Record<TodoKey, { icon: LucideIcon; tone: Tone; valueTone: string }> = {
-  constructionLogsPending: { icon: Camera, tone: 'blue', valueTone: 'text-blue-700' },
-  monthlyReportsPending: { icon: FileText, tone: 'emerald', valueTone: 'text-emerald-700' },
-  visasPending: { icon: FileCheck2, tone: 'amber', valueTone: 'text-amber-700' },
-  knowledgePending: { icon: BookOpen, tone: 'violet', valueTone: 'text-violet-700' },
-  businessNotificationsPending: { icon: BriefcaseBusiness, tone: 'slate', valueTone: 'text-slate-700' },
+const todoVisuals: Record<TodoKey, { icon: BrandIconName; tone: Tone; valueTone: string }> = {
+  constructionLogsPending: { icon: 'crane', tone: 'blue', valueTone: 'text-primary' },
+  monthlyReportsPending: { icon: 'doc', tone: 'emerald', valueTone: 'text-emerald-700' },
+  visasPending: { icon: 'doc', tone: 'amber', valueTone: 'text-amber-700' },
+  knowledgePending: { icon: 'book', tone: 'violet', valueTone: 'text-violet-700' },
+  businessNotificationsPending: { icon: 'wrench', tone: 'slate', valueTone: 'text-slate-700' },
 };
 
 function toneClass(tone: Tone) {
   const map: Record<Tone, string> = {
-    blue: 'bg-blue-50 text-blue-700 ring-blue-100',
+    blue: 'bg-accent text-primary ring-accent',
     emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     amber: 'bg-amber-50 text-amber-700 ring-amber-100',
     rose: 'bg-rose-50 text-rose-700 ring-rose-100',
@@ -294,30 +276,27 @@ function resolveRoleWorkbench(
 }
 
 function ActionCard({ item, large = false }: { item: QuickEntry; large?: boolean }) {
-  const Icon = item.icon;
   if (large) {
     return (
       <Link
         href={item.href}
-        className="group block rounded-xl border border-blue-100 bg-[#f7fbff] px-5 py-6 transition hover:border-blue-200 hover:bg-white md:px-6"
+        className="group block rounded-xl border border-border bg-white px-5 py-5 transition hover:border-border hover:bg-white md:px-6"
       >
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0">
-            <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-blue-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+            <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-primary">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               当前主任务
             </div>
             <div className="flex items-start gap-4">
-              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClass(item.tone)}`}>
-                <Icon className="h-5 w-5" strokeWidth={1.8} />
-              </span>
+              <BrandIconContainer name={item.icon} size={24} className="rounded-xl" />
               <div className="min-w-0">
                 <h2 className="text-2xl font-semibold tracking-normal text-slate-950 md:text-3xl">{item.title}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{item.desc}</p>
               </div>
             </div>
           </div>
-          <span className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-base font-semibold text-white transition group-hover:bg-blue-700">
+          <span className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-base font-semibold text-white transition group-hover:bg-primary">
             立即进入
             <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" strokeWidth={1.8} />
           </span>
@@ -329,15 +308,13 @@ function ActionCard({ item, large = false }: { item: QuickEntry; large?: boolean
   return (
     <Link
       href={item.href}
-      className="group flex min-h-[104px] items-start gap-3 rounded-lg p-3 text-left transition hover:bg-slate-50"
+      className="group flex min-h-[96px] items-start gap-3 rounded-lg p-3 text-left transition hover:bg-muted/40"
     >
-      <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClass(item.tone)}`}>
-        <Icon className="h-4.5 w-4.5" strokeWidth={1.8} />
-      </div>
+      <BrandIconContainer name={item.icon} size={18} className="mt-0.5 rounded-lg p-1.5 shadow-none" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <div className="truncate text-sm font-semibold text-slate-950 group-hover:text-blue-700">{item.title}</div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-600" strokeWidth={1.8} />
+          <div className="truncate text-sm font-semibold text-slate-950 group-hover:text-primary">{item.title}</div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-primary" strokeWidth={1.8} />
         </div>
         <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.desc}</p>
       </div>
@@ -411,10 +388,10 @@ export default function WorkbenchContent() {
   );
 
   return (
-    <div className="min-h-full bg-[#eef3f8] p-4 text-slate-950 md:p-6">
-      <div className="mx-auto max-w-[1480px] space-y-7">
-        <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="flex min-w-0 flex-col gap-7">
+    <div className="min-h-full bg-background p-4 text-slate-950 md:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="flex min-w-0 flex-col gap-6">
             <section className="space-y-4">
               <ActionCard item={roleWorkbench.primary} large />
               <div className="rounded-xl border border-slate-200 bg-white p-3">
@@ -425,7 +402,7 @@ export default function WorkbenchContent() {
                   </div>
                   <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">{entryCount} 个</span>
                 </div>
-                <div className="grid gap-1 pt-2 sm:grid-cols-2">
+                <div className="grid gap-1.5 pt-2 sm:grid-cols-2 lg:grid-cols-3">
                   {roleWorkbench.quickEntries.map((item) => (
                     <ActionCard key={item.title} item={item} />
                   ))}
@@ -436,7 +413,7 @@ export default function WorkbenchContent() {
             <section className="rounded-xl border border-slate-200 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent text-primary ring-1 ring-accent">
                     <AlertCircle className="h-5 w-5" strokeWidth={1.8} />
                   </div>
                   <div>
@@ -445,7 +422,7 @@ export default function WorkbenchContent() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
                   {loading ? '加载中' : `${pendingTotal} 项`}
                 </div>
               </div>
@@ -456,20 +433,17 @@ export default function WorkbenchContent() {
                 </div>
               ) : null}
 
-              <div className="divide-y divide-slate-100">
+              <div className="grid gap-1.5 p-2 lg:grid-cols-2">
                 {visibleTodos.map((item) => {
                   const visual = todoVisuals[item.key];
-                  const Icon = visual.icon;
                   return (
                     <Link
                       key={item.key}
                       href={item.href}
-                      className="flex flex-col gap-3 px-5 py-4 text-left transition hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+                      className="flex flex-col gap-2.5 rounded-lg px-3.5 py-3 text-left transition hover:bg-muted/40 md:flex-row md:items-center md:justify-between"
                     >
                       <div className="flex min-w-0 items-start gap-3">
-                        <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClass(visual.tone)}`}>
-                          <Icon className="h-5 w-5" strokeWidth={1.8} />
-                        </span>
+                        <BrandIconContainer name={visual.icon} size={18} className="mt-0.5 rounded-lg p-1.5 shadow-none" />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-semibold text-slate-950">{item.label}</span>
@@ -478,15 +452,15 @@ export default function WorkbenchContent() {
                             </span>
                             <span className="text-xs text-slate-400">{item.unit}</span>
                           </div>
-                          <p className="mt-1 text-sm leading-6 text-slate-500">{item.desc}</p>
+                          <p className="mt-0.5 text-sm leading-6 text-slate-500">{item.desc}</p>
                           {item.dingtalkChannels?.length ? (
-                            <p className="mt-1 text-xs text-slate-400">
+                            <p className="mt-0.5 text-xs text-slate-400">
                               钉钉对应：{item.dingtalkChannels.join(' / ')}
                             </p>
                           ) : null}
                         </div>
                       </div>
-                      <span className="inline-flex items-center justify-end gap-1 text-sm font-medium text-blue-700">
+                      <span className="inline-flex items-center justify-end gap-1 text-sm font-medium text-primary">
                         {item.action}
                         <ChevronRight className="h-4 w-4" strokeWidth={1.8} />
                       </span>
@@ -506,28 +480,28 @@ export default function WorkbenchContent() {
               <div className="divide-y divide-slate-100 p-2">
                 {loading ? (
                   <div className="flex items-center gap-2 px-3 py-4 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     正在读取真实待办
                   </div>
                 ) : dingtalkSummaryItems.length ? (
                   dingtalkSummaryItems.map((item) => (
                     <Link key={item.key} href={item.href} className="block rounded-lg p-3 transition hover:bg-slate-50">
                       <div className="flex items-start gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary ring-1 ring-accent">
                           <MessageSquareText className="h-4 w-4" strokeWidth={1.8} />
                         </span>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-semibold text-slate-950">{item.label}</p>
-                            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                            <span className="rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-primary">
                               {item.count}{item.unit}
                             </span>
                           </div>
-                          <p className="mt-1 text-sm leading-6 text-slate-500">{item.desc}</p>
+                          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.desc}</p>
                           {item.dingtalkChannels?.length ? (
                             <p className="mt-2 text-xs text-slate-400">钉钉对应：{item.dingtalkChannels.join(' / ')}</p>
                           ) : null}
-                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-700">
+                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">
                             {item.action}
                             <ChevronRight className="h-3.5 w-3.5" />
                           </span>

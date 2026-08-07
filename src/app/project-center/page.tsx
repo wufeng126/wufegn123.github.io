@@ -21,9 +21,9 @@ const tabs: TabItem[] = [
 
 export default function ProjectCenterPage() {
   return (
-    <div className="min-h-full bg-[#f5f7fb] p-4 md:p-6">
+    <div className="min-h-full bg-background p-4 md:p-6">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-4">
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <TabContainer tabs={tabs} defaultTab="projects" />
         </section>
       </div>

@@ -1,0 +1,2058 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>结算证据链预览</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f7fb;
+        --panel: #ffffff;
+        --panel-soft: #f8fafc;
+        --line: #e3e8ef;
+        --line-soft: #edf1f6;
+        --text: #172033;
+        --muted: #667085;
+        --blue: #2563eb;
+        --blue-dark: #1d4ed8;
+        --blue-soft: #eef5ff;
+        --green: #047857;
+        --green-soft: #ecfdf5;
+        --amber: #b45309;
+        --amber-soft: #fffbeb;
+        --rose: #be123c;
+        --rose-soft: #fff1f2;
+        --violet: #6d28d9;
+        --violet-soft: #f5f3ff;
+        --shadow: 0 18px 44px rgba(29, 41, 57, 0.08);
+        --radius: 10px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(180deg, #eef4fb 0, #f7f9fc 340px, var(--bg) 100%);
+        color: var(--text);
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", sans-serif;
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page {
+        max-width: 1520px;
+        margin: 0 auto;
+        padding: 22px 28px 44px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+
+      .breadcrumb {
+        color: #475467;
+        font-size: 13px;
+      }
+
+      .breadcrumb strong {
+        color: var(--text);
+      }
+
+      .top-actions,
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        height: 38px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #344054;
+        border-radius: 8px;
+        padding: 0 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .btn.primary {
+        background: var(--blue);
+        color: #fff;
+        border-color: var(--blue);
+        box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #dbe5f2;
+        border-radius: 12px;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(242, 247, 255, 0.88)),
+          #fff;
+        box-shadow: var(--shadow);
+        padding: 18px 20px;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(90deg, rgba(37, 99, 235, 0.08), transparent 34%),
+          radial-gradient(circle at 94% 12%, rgba(37, 99, 235, 0.13), transparent 28%);
+      }
+
+      .hero-inner {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 310px;
+        gap: 18px;
+        align-items: center;
+      }
+
+      .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
+        border-radius: 7px;
+        background: var(--blue-soft);
+        color: var(--blue-dark);
+        border: 1px solid #d8e6ff;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 10px 0 6px;
+        font-size: 27px;
+        line-height: 1.15;
+        letter-spacing: 0;
+      }
+
+      .sub {
+        max-width: 760px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .hero-card {
+        border-radius: 10px;
+        border: 1px solid rgba(37, 99, 235, 0.16);
+        background: rgba(255, 255, 255, 0.78);
+        padding: 13px;
+        backdrop-filter: blur(14px);
+      }
+
+      .hero-card-title {
+        color: #475467;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .hero-card-value {
+        margin-top: 6px;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .hero-card-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .panel,
+      .side-card {
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: 0 10px 26px rgba(29, 41, 57, 0.05);
+      }
+
+      .toolbar {
+        margin: 16px 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.86);
+        box-shadow: 0 10px 26px rgba(29, 41, 57, 0.05);
+        padding: 12px;
+        display: grid;
+        grid-template-columns: 220px minmax(260px, 1fr) auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      label span {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      input,
+      select {
+        width: 100%;
+        height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        padding: 0 11px;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .search {
+        position: relative;
+      }
+
+      .search input {
+        padding-left: 36px;
+      }
+
+      .search-mark {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #98a2b3;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .chip {
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--panel-soft);
+        color: #475467;
+        padding: 0 11px;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 248px minmax(0, 1fr) 400px;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .side-card {
+        padding: 12px;
+      }
+
+      .side-card + .side-card {
+        margin-top: 12px;
+      }
+
+      .side-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .project-row {
+        border-radius: 8px;
+        padding: 10px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .project-row.active {
+        background: var(--blue-soft);
+        color: var(--blue-dark);
+      }
+
+      .project-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .project-meta {
+        display: flex;
+        justify-content: space-between;
+        color: #667085;
+        font-size: 11px;
+      }
+
+      .bar {
+        height: 7px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #edf2f7;
+      }
+
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--blue);
+      }
+
+      .quick-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .quick {
+        border-radius: 8px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line-soft);
+        padding: 10px;
+        color: #475467;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .section-tabs {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .tab {
+        height: 28px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: #475467;
+        padding: 0 9px;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .tab.active {
+        border-color: #d8e6ff;
+        background: var(--blue-soft);
+        color: var(--blue-dark);
+      }
+
+      .panel-head {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line-soft);
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .panel-title {
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      .hint {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .count {
+        border-radius: 7px;
+        background: #f2f4f7;
+        color: #475467;
+        padding: 5px 9px;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .timeline {
+        position: relative;
+        padding: 12px 14px 16px 20px;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        top: 26px;
+        bottom: 20px;
+        left: 27px;
+        width: 2px;
+        background: #e6ebf2;
+      }
+
+      .record {
+        position: relative;
+        display: grid;
+        grid-template-columns: 84px minmax(0, 1fr) 126px;
+        gap: 12px;
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        padding: 11px 12px 11px 22px;
+        text-align: left;
+        color: inherit;
+      }
+
+      .record + .record {
+        margin-top: 8px;
+      }
+
+      .record::before {
+        content: "";
+        position: absolute;
+        left: 1px;
+        top: 22px;
+        width: 13px;
+        height: 13px;
+        border-radius: 999px;
+        background: #fff;
+        border: 3px solid #cbd5e1;
+        z-index: 1;
+      }
+
+      .record.active {
+        background: #fff;
+        border-color: #cfe0ff;
+        box-shadow: 0 12px 28px rgba(37, 99, 235, 0.09);
+      }
+
+      .record.active::before {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+
+      .date {
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .owner {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 7px;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        line-height: 1.2;
+      }
+
+      .neutral {
+        background: #f2f4f7;
+        color: #475467;
+        border-color: #e4e7ec;
+      }
+
+      .blue {
+        color: var(--blue-dark);
+        background: var(--blue-soft);
+        border-color: #d8e6ff;
+      }
+
+      .green {
+        color: var(--green);
+        background: var(--green-soft);
+        border-color: #d1fae5;
+      }
+
+      .rose {
+        color: var(--rose);
+        background: var(--rose-soft);
+        border-color: #ffe4e6;
+      }
+
+      .amber {
+        color: var(--amber);
+        background: var(--amber-soft);
+        border-color: #fef3c7;
+      }
+
+      .violet {
+        color: var(--violet);
+        background: var(--violet-soft);
+        border-color: #ede9fe;
+      }
+
+      .record-title {
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.4;
+      }
+
+      .summary {
+        margin-top: 5px;
+        color: #475467;
+        font-size: 13px;
+        line-height: 1.55;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .meta {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .meta strong {
+        color: var(--text);
+        font-weight: 800;
+      }
+
+      .money {
+        text-align: right;
+      }
+
+      .money-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .amount {
+        margin-top: 4px;
+        font-size: 18px;
+        font-weight: 850;
+        tab-size: 4;
+      }
+
+      .evidence-health {
+        margin-top: 7px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 6px;
+        color: #667085;
+        font-size: 11px;
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--blue);
+      }
+
+      .detail {
+        position: sticky;
+        top: 16px;
+      }
+
+      .detail-head {
+        padding: 16px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .detail-topline {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .detail-title {
+        margin-top: 10px;
+        font-size: 18px;
+        line-height: 1.55;
+        font-weight: 850;
+      }
+
+      .detail-amount {
+        flex: 0 0 auto;
+        text-align: right;
+      }
+
+      .detail-amount-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .detail-amount-value {
+        margin-top: 4px;
+        font-size: 20px;
+        font-weight: 850;
+      }
+
+      .detail-project {
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .detail-body {
+        padding: 16px;
+        display: grid;
+        gap: 13px;
+      }
+
+      .workflow {
+        display: grid;
+        gap: 8px;
+      }
+
+      .workflow-step {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 9px;
+        align-items: center;
+        border: 1px solid var(--line-soft);
+        border-radius: 9px;
+        background: var(--panel-soft);
+        padding: 9px;
+      }
+
+      .step-index {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: #fff;
+        color: var(--blue-dark);
+        border: 1px solid #d8e6ff;
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .step-main {
+        min-width: 0;
+      }
+
+      .step-title {
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .step-sub {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .mini-btn {
+        height: 28px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: #344054;
+        padding: 0 9px;
+        font-size: 12px;
+        font-weight: 750;
+        white-space: nowrap;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        color: #344054;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .note {
+        border-radius: 9px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line-soft);
+        padding: 12px;
+        color: #344054;
+        font-size: 13px;
+        line-height: 1.75;
+      }
+
+      .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .mini {
+        border-radius: 9px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line-soft);
+        padding: 11px;
+      }
+
+      .mini-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .mini-value {
+        margin-top: 5px;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .file,
+      .link-row {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+        padding: 10px;
+      }
+
+      .file {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+      }
+
+      .evidence-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .file-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: #f2f4f7;
+        color: #475467;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .file-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      .file-type {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .link-row {
+        margin-top: 8px;
+        color: #344054;
+        font-size: 13px;
+      }
+
+      .todo {
+        display: grid;
+        gap: 8px;
+      }
+
+      .todo-row {
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+        color: #344054;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .check {
+        width: 16px;
+        height: 16px;
+        border-radius: 5px;
+        border: 1px solid #d0d5dd;
+        background: #fff;
+        margin-top: 2px;
+      }
+
+      .check.done {
+        background: var(--green);
+        border-color: var(--green);
+        box-shadow: inset 0 0 0 3px #fff;
+      }
+
+      .score {
+        border-radius: 9px;
+        border: 1px solid #d8e6ff;
+        background: #f5f9ff;
+        padding: 12px;
+      }
+
+      .score-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 9px;
+        color: var(--blue-dark);
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .warning {
+        color: #78350f;
+        background: var(--amber-soft);
+        border: 1px solid #fef3c7;
+        border-radius: 9px;
+        padding: 12px;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .detail-actions {
+        border-top: 1px solid var(--line-soft);
+        padding-top: 13px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .detail-actions .btn {
+        width: 100%;
+      }
+
+      .drawer-mask {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: none;
+        background: rgba(15, 23, 42, 0.28);
+        backdrop-filter: blur(3px);
+      }
+
+      .drawer-mask.open {
+        display: block;
+      }
+
+      .drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 21;
+        width: min(980px, 100vw);
+        height: 100dvh;
+        display: none;
+        grid-template-rows: auto 1fr auto;
+        background: #fff;
+        box-shadow: -26px 0 60px rgba(15, 23, 42, 0.18);
+      }
+
+      .drawer.open {
+        display: grid;
+      }
+
+      .drawer-head {
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+      }
+
+      .drawer-title {
+        font-size: 20px;
+        font-weight: 850;
+      }
+
+      .drawer-sub {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .close-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #475467;
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      .drawer-body {
+        overflow: auto;
+        background: #f6f8fb;
+        padding: 18px 22px 24px;
+      }
+
+      .form-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .form-main {
+        display: grid;
+        gap: 14px;
+      }
+
+      .form-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 14px;
+      }
+
+      .form-card-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 850;
+      }
+
+      .form-card-title strong {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        margin-right: 7px;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: var(--blue-dark);
+        font-size: 12px;
+      }
+
+      .form-card-title span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .form-hero {
+        border: 1px solid #d8e6ff;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #ffffff, #f4f8ff);
+        padding: 14px;
+      }
+
+      .form-hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .form-hero-title {
+        font-size: 15px;
+        font-weight: 850;
+      }
+
+      .stepper {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+
+      .step-pill {
+        display: inline-flex;
+        align-items: center;
+        height: 26px;
+        border-radius: 7px;
+        border: 1px solid #d8e6ff;
+        background: #fff;
+        color: var(--blue-dark);
+        padding: 0 9px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .required-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) 160px 160px;
+        gap: 10px;
+      }
+
+      .quick-type-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .type-card {
+        min-height: 58px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+        padding: 9px;
+        text-align: left;
+      }
+
+      .type-card.active {
+        border-color: #b9d4ff;
+        background: var(--blue-soft);
+      }
+
+      .type-name {
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .type-desc {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .compact-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .money-row {
+        display: grid;
+        grid-template-columns: 160px minmax(0, 1fr) 150px;
+        gap: 10px;
+      }
+
+      .field-full {
+        grid-column: 1 / -1;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 112px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        padding: 10px 11px;
+        font: inherit;
+        line-height: 1.65;
+      }
+
+      textarea:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .upload-box {
+        border: 1px dashed #b8c4d4;
+        border-radius: 10px;
+        background: #f8fbff;
+        padding: 15px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        color: #475467;
+      }
+
+      .upload-icon {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        background: #fff;
+        color: var(--blue-dark);
+        border: 1px solid #d8e6ff;
+        font-weight: 850;
+        margin-bottom: 10px;
+      }
+
+      .upload-title {
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .upload-sub {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .form-aside {
+        position: sticky;
+        top: 0;
+        display: grid;
+        gap: 12px;
+      }
+
+      .assist-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 13px;
+      }
+
+      .assist-card.highlight {
+        border-color: #d8e6ff;
+        background: #f6f9ff;
+      }
+
+      .assist-title {
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .assist-list {
+        margin: 10px 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 8px;
+      }
+
+      .assist-list li {
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
+        gap: 7px;
+        color: #475467;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .assist-dot {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: var(--blue-dark);
+        font-size: 11px;
+        font-weight: 850;
+      }
+
+      .preview-pill-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 10px;
+      }
+
+      .preview-pill {
+        border-radius: 7px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line-soft);
+        color: #475467;
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .check-meter {
+        margin-top: 10px;
+      }
+
+      .check-meter-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #344054;
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 7px;
+      }
+
+      .check-meter .bar {
+        height: 8px;
+        background: #e8eef7;
+      }
+
+      .summary-card {
+        border: 1px solid var(--line-soft);
+        border-radius: 9px;
+        background: var(--panel-soft);
+        padding: 10px;
+        color: #475467;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .drawer-foot {
+        padding: 14px 22px;
+        border-top: 1px solid var(--line);
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .save-hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 1240px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr) 380px;
+        }
+
+        .left-rail {
+          display: none;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .hero-inner,
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .detail {
+          position: static;
+        }
+
+        .toolbar {
+          grid-template-columns: 1fr;
+        }
+
+        .chips {
+          margin-top: 0;
+        }
+
+        .form-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .form-aside {
+          position: static;
+        }
+
+        .required-row,
+        .compact-row,
+        .money-row {
+          grid-template-columns: 1fr;
+        }
+
+        .quick-type-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          padding: 14px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .hero {
+          padding: 16px;
+        }
+
+        h1 {
+          font-size: 25px;
+        }
+
+        .record {
+          grid-template-columns: 1fr;
+        }
+
+        .money {
+          text-align: left;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .mini-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .actions,
+        .top-actions {
+          width: 100%;
+        }
+
+        .btn {
+          flex: 1;
+        }
+
+        .drawer-head,
+        .drawer-body,
+        .drawer-foot {
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .drawer-foot {
+          display: grid;
+        }
+
+        .quick-type-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="topbar">
+        <div class="breadcrumb">项目管理 / <strong>结算证据链</strong></div>
+        <div class="top-actions">
+          <button class="btn">导出Excel台账</button>
+          <button class="btn">下载附件包</button>
+          <button class="btn primary" onclick="openCreateDrawer()">新增证据</button>
+        </div>
+      </div>
+
+      <section class="hero">
+        <div class="hero-inner">
+          <div>
+            <div class="label">预算员专用 / 项目证据沉淀</div>
+            <h1>结算证据链</h1>
+            <p class="sub">
+              按项目沉淀变更、甲方回复、图纸答疑、会议纪要和测算文件，后期结算时直接按时间线追溯。
+            </p>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-title">当前项目预计影响金额</div>
+            <div class="hero-card-value">¥282,500</div>
+            <div class="hero-card-foot">
+              <span>必须结算 1 项</span>
+              <span>争议风险 2 项</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="toolbar">
+        <label>
+          <span>项目</span>
+          <select id="project-filter">
+            <option>全部项目</option>
+            <option>南京中交智慧港项目</option>
+            <option>太原南站配套工程</option>
+            <option>西安高新区厂房改造</option>
+          </select>
+        </label>
+        <label>
+          <span>关键词</span>
+          <div class="search">
+            <span class="search-mark">搜</span>
+            <input id="keyword-filter" placeholder="搜索甲方回复、变更、签证、金额、附件名称" />
+          </div>
+        </label>
+        <div class="chips">
+          <button class="chip">日期倒序</button>
+          <button class="chip">重要程度</button>
+          <button class="chip">跟进状态</button>
+        </div>
+      </section>
+
+      <section class="layout">
+        <aside class="left-rail">
+          <div class="side-card">
+            <div class="side-title">
+              <span>项目概览</span>
+              <span class="count">3 个</span>
+            </div>
+            <div class="project-row active">
+              <div class="project-top">
+                <span>南京中交智慧港项目</span>
+                <span>3</span>
+              </div>
+              <div class="bar"><i style="width: 72%"></i></div>
+              <div class="project-meta">
+                <span>影响 ¥128,500</span>
+                <span>完整度 72%</span>
+              </div>
+            </div>
+            <div class="project-row">
+              <div class="project-top">
+                <span>太原南站配套工程</span>
+                <span>1</span>
+              </div>
+              <div class="bar"><i style="width: 48%"></i></div>
+              <div class="project-meta">
+                <span>影响 ¥118,000</span>
+                <span>完整度 48%</span>
+              </div>
+            </div>
+            <div class="project-row">
+              <div class="project-top">
+                <span>西安高新区厂房改造</span>
+                <span>1</span>
+              </div>
+              <div class="bar"><i style="width: 65%"></i></div>
+              <div class="project-meta">
+                <span>影响 ¥36,000</span>
+                <span>完整度 65%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-card">
+            <div class="side-title">本月关注</div>
+            <div class="quick-list">
+              <div class="quick">止水钢板签证已形成，待确认是否进入月度报量。</div>
+              <div class="quick">夜间施工缺少甲方书面指令，建议补充会议纪要。</div>
+              <div class="quick">修补打磨存在争议，结算说明需提前准备。</div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">证据时间线</div>
+              <div class="hint">按事件日期倒序排列，点击记录查看完整附件和关联业务。</div>
+            </div>
+            <div class="section-tabs">
+              <button class="tab active">全部</button>
+              <button class="tab">待跟进</button>
+              <button class="tab">争议风险</button>
+              <span class="count" id="record-count">5 条</span>
+            </div>
+          </div>
+          <div class="timeline" id="timeline"></div>
+        </div>
+
+        <aside class="panel detail" id="detail"></aside>
+      </section>
+    </main>
+
+    <div class="drawer-mask" id="drawer-mask" onclick="closeCreateDrawer()"></div>
+    <section class="drawer" id="create-drawer" aria-label="新增证据表单">
+      <header class="drawer-head">
+        <div>
+          <div class="drawer-title">新增结算证据</div>
+          <div class="drawer-sub">按“事件留痕、附件归档、业务关联”的顺序录入。先把关键事实存下来，后续再补齐签证、报量和结算动作。</div>
+        </div>
+        <button class="close-btn" onclick="closeCreateDrawer()" aria-label="关闭">×</button>
+      </header>
+
+      <div class="drawer-body">
+        <div class="form-shell">
+          <div class="form-main">
+            <section class="form-hero">
+              <div class="form-hero-top">
+                <div class="form-hero-title">先确定这条证据属于哪个项目、哪一天、什么类型</div>
+                <div class="stepper">
+                  <span class="step-pill">1 记事件</span>
+                  <span class="step-pill">2 补附件</span>
+                  <span class="step-pill">3 关联业务</span>
+                </div>
+              </div>
+              <div class="required-row">
+                <label>
+                  <span>所属项目</span>
+                  <select>
+                    <option>南京中交智慧港项目</option>
+                    <option>太原南站配套工程</option>
+                    <option>西安高新区厂房改造</option>
+                  </select>
+                </label>
+                <label>
+                  <span>事件日期</span>
+                  <input value="2026-07-25" />
+                </label>
+                <label>
+                  <span>当前负责人</span>
+                  <select>
+                    <option>王预算</option>
+                    <option>李预算</option>
+                    <option>张预算</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="form-card">
+              <div class="form-card-title"><div><strong>1</strong>证据类型</div><span>可多次修改</span></div>
+              <div class="quick-type-grid">
+                <button class="type-card active">
+                  <div class="type-name">甲方回复</div>
+                  <div class="type-desc">聊天、函件、邮件等确认内容</div>
+                </button>
+                <button class="type-card">
+                  <div class="type-name">图纸答疑</div>
+                  <div class="type-desc">答疑文件、设计口径调整</div>
+                </button>
+                <button class="type-card">
+                  <div class="type-name">设计变更</div>
+                  <div class="type-desc">图纸变更、方案调整</div>
+                </button>
+                <button class="type-card">
+                  <div class="type-name">合同外施工</div>
+                  <div class="type-desc">新增工序、临时工作</div>
+                </button>
+                <button class="type-card">
+                  <div class="type-name">会议纪要</div>
+                  <div class="type-desc">会议确认、现场协调</div>
+                </button>
+                <button class="type-card">
+                  <div class="type-name">结算争议</div>
+                  <div class="type-desc">差异、扣减、争议事项</div>
+                </button>
+              </div>
+            </section>
+
+            <section class="form-card">
+              <div class="form-card-title"><div><strong>2</strong>事件内容</div><span>核心必填</span></div>
+              <div class="form-grid">
+                <label class="field-full">
+                  <span>证据标题</span>
+                  <input placeholder="例如：甲方要求地下室B区增加止水钢板加固" />
+                </label>
+                <label class="field-full">
+                  <span>事情经过与结算影响</span>
+                  <textarea placeholder="建议按这几个点写：发生了什么；谁确认或要求的；为什么属于合同外、变更或争议；预计会影响哪些工程量或金额。"></textarea>
+                </label>
+                <div class="compact-row field-full">
+                  <label>
+                    <span>来源</span>
+                    <input placeholder="例如：甲方项目群、图纸答疑文件" />
+                  </label>
+                  <label>
+                    <span>重要程度</span>
+                    <select>
+                      <option>重点关注</option>
+                      <option>普通留痕</option>
+                      <option>必须结算</option>
+                      <option>争议风险</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>跟进状态</span>
+                    <select>
+                      <option>待跟进</option>
+                      <option>待补资料</option>
+                      <option>已形成签证</option>
+                      <option>已进入结算</option>
+                      <option>已关闭</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-card">
+              <div class="form-card-title"><div><strong>3</strong>金额与附件</div><span>可先粗估</span></div>
+              <div class="form-grid">
+                <div class="money-row field-full">
+                  <label>
+                    <span>金额方向</span>
+                    <select>
+                      <option>可能增加收入</option>
+                      <option>可能减少收入</option>
+                      <option>仅留痕/暂不确定</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>预计影响金额</span>
+                    <input placeholder="例如：86500" />
+                  </label>
+                  <label>
+                    <span>是否进入结算包</span>
+                    <select>
+                      <option>是</option>
+                      <option>暂不进入</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-full">
+                  <span style="display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700;">附件</span>
+                  <div class="upload-box">
+                    <div class="upload-icon">传</div>
+                    <div class="upload-title">拖入或上传聊天截图、照片、PDF、Word、Excel</div>
+                    <div class="upload-sub">支持多附件。后续导出时自动生成“Excel证据台账 + 附件压缩包”。</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-card">
+              <div class="form-card-title"><div><strong>4</strong>业务关联</div><span>不确定可暂不关联</span></div>
+              <div class="form-grid">
+                <label>
+                  <span>关联签证</span>
+                  <select>
+                    <option>暂不关联</option>
+                    <option>VS-2026-0719 地下室防水附加</option>
+                    <option>VS-2026-0720 设备基础调整</option>
+                  </select>
+                </label>
+                <label>
+                  <span>关联报量/结算</span>
+                  <select>
+                    <option>暂不关联</option>
+                    <option>报量管理：地下室防水附加项</option>
+                    <option>结算争议项：JS-2026-003</option>
+                  </select>
+                </label>
+                <label>
+                  <span>结算阶段</span>
+                  <select>
+                    <option>施工中留痕</option>
+                    <option>月度报量</option>
+                    <option>签证办理</option>
+                    <option>竣工结算</option>
+                  </select>
+                </label>
+                <label>
+                  <span>是否沉淀知识库</span>
+                  <select>
+                    <option>保存后推荐沉淀</option>
+                    <option>仅作为项目证据</option>
+                  </select>
+                </label>
+                <label class="field-full">
+                  <span>下一步动作</span>
+                  <textarea placeholder="例如：补充甲方书面确认后，生成签证草稿；下月报量时纳入地下室防水附加项。"></textarea>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <aside class="form-aside">
+            <section class="assist-card highlight">
+              <div class="assist-title">证据完整度</div>
+              <div class="check-meter">
+                <div class="check-meter-top"><span>当前预估</span><span>72%</span></div>
+                <div class="bar"><i style="width:72%"></i></div>
+              </div>
+              <ul class="assist-list">
+                <li><span class="assist-dot">✓</span><span>项目、日期、类型已明确</span></li>
+                <li><span class="assist-dot">!</span><span>建议上传甲方确认或现场照片</span></li>
+                <li><span class="assist-dot">+</span><span>可补充预计工程量或金额依据</span></li>
+              </ul>
+            </section>
+            <section class="assist-card">
+              <div class="assist-title">常用标签</div>
+              <div class="preview-pill-list">
+                <span class="preview-pill">甲方确认</span>
+                <span class="preview-pill">合同外</span>
+                <span class="preview-pill">需签证</span>
+                <span class="preview-pill">待补资料</span>
+                <span class="preview-pill">争议风险</span>
+              </div>
+            </section>
+            <section class="assist-card">
+              <div class="assist-title">保存预览</div>
+              <div class="summary-card">
+                这条记录会进入当前项目时间线，并可在项目结算时导出到证据台账。若后续关联签证或报量，详情页会自动形成业务链路。
+              </div>
+            </section>
+            <section class="assist-card">
+              <div class="assist-title">保存后可继续</div>
+              <div class="preview-pill-list">
+                <span class="preview-pill">生成签证草稿</span>
+                <span class="preview-pill">加入结算包</span>
+                <span class="preview-pill">沉淀知识库</span>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+
+      <footer class="drawer-foot">
+        <div class="save-hint">建议先保存证据，再根据完整度补附件和关联业务，避免后期漏项。</div>
+        <div class="actions">
+          <button class="btn" onclick="closeCreateDrawer()">取消</button>
+          <button class="btn">保存草稿</button>
+          <button class="btn primary">保存证据</button>
+        </div>
+      </footer>
+    </section>
+
+    <script>
+      const records = [
+        {
+          id: 1,
+          project: "南京中交智慧港项目",
+          date: "2026-07-23",
+          title: "甲方要求地下室B区增加止水钢板加固",
+          type: "甲方回复",
+          source: "甲方项目群聊天截图",
+          importance: "必须结算",
+          status: "已形成签证",
+          direction: "可能增加收入",
+          amount: 86500,
+          owner: "王预算",
+          score: 88,
+          summary:
+            "甲方工程部在项目群中确认地下室B区因现场渗水风险增加止水钢板加固，属于合同外新增工作。当前已整理现场照片、聊天截图和工程量测算，建议继续推进签证确认。",
+          attachments: [
+            ["甲方项目群回复截图-0723.png", "聊天截图"],
+            ["地下室B区现场照片-0723.jpg", "图片"],
+            ["止水钢板工程量测算.xlsx", "Excel"],
+          ],
+          related: ["签证单：VS-2026-0719", "报量管理：地下室防水附加项"],
+          action: "下一步建议：核对工程量后提交项目经理继续推进甲方签字。",
+        },
+        {
+          id: 2,
+          project: "南京中交智慧港项目",
+          date: "2026-07-18",
+          title: "图纸答疑明确设备基础高度调整",
+          type: "图纸答疑",
+          source: "设计答疑文件",
+          importance: "重点关注",
+          status: "待补资料",
+          direction: "可能增加收入",
+          amount: 42000,
+          owner: "王预算",
+          score: 64,
+          summary:
+            "设计答疑中明确设备基础由原设计高度调整为新高度，可能带来模板、钢筋、混凝土工程量增加。还需要补充变更后图纸和现场施工照片。",
+          attachments: [
+            ["设备基础图纸答疑.pdf", "PDF"],
+            ["设备基础调整说明.docx", "Word"],
+          ],
+          related: ["待关联签证", "待补充变更图纸"],
+          action: "下一步建议：补充变更后图纸和现场影像，再判断是否生成签证。",
+        },
+        {
+          id: 3,
+          project: "太原南站配套工程",
+          date: "2026-07-12",
+          title: "赶工期间夜间施工机械台班增加",
+          type: "合同外施工",
+          source: "施工日志与机械台班记录",
+          importance: "争议风险",
+          status: "未处理",
+          direction: "可能增加收入",
+          amount: 118000,
+          owner: "李预算",
+          score: 46,
+          summary:
+            "因甲方要求提前节点，项目连续夜间施工，机械台班和人工夜班费用明显增加。当前只有施工日志和班组记录，缺少甲方书面指令，存在后续结算争议风险。",
+          attachments: [
+            ["夜间施工日志汇总.xlsx", "Excel"],
+            ["机械台班照片.zip", "图片"],
+          ],
+          related: ["施工日志：2026-07-08 至 2026-07-12"],
+          action: "下一步建议：尽快补充甲方书面确认或会议纪要，降低结算争议。",
+        },
+        {
+          id: 4,
+          project: "西安高新区厂房改造",
+          date: "2026-06-29",
+          title: "甲方商务口头反馈修补打磨不单独计价",
+          type: "结算争议",
+          source: "会议纪要",
+          importance: "争议风险",
+          status: "已进入结算",
+          direction: "可能减少收入",
+          amount: 36000,
+          owner: "赵预算",
+          score: 69,
+          summary:
+            "甲方商务认为修补打磨属于施工组织范围，不同意单独计价。预算员已整理内部附加清单、施工日志和材料消耗，结算时需要重点说明该项超出原合同清单边界。",
+          attachments: [
+            ["第18次会议纪要.pdf", "PDF"],
+            ["修补打磨费用测算.xlsx", "Excel"],
+          ],
+          related: ["结算争议项：JS-2026-003"],
+          action: "下一步建议：形成结算说明，补充内部附加清单与现场过程记录。",
+        },
+        {
+          id: 5,
+          project: "南京中交智慧港项目",
+          date: "2026-06-21",
+          title: "变更图纸下发，地下室排水沟位置调整",
+          type: "设计变更",
+          source: "变更图纸",
+          importance: "普通留痕",
+          status: "已关闭",
+          direction: "仅留痕/暂不确定",
+          amount: null,
+          owner: "王预算",
+          score: 78,
+          summary:
+            "设计单位下发地下室排水沟位置调整图纸，经复核该调整暂未形成明显金额变化，作为结算过程留痕资料归档。",
+          attachments: [
+            ["地下室排水沟变更图纸.pdf", "PDF"],
+            ["图纸签收记录.jpg", "图片"],
+          ],
+          related: ["知识库：排水沟位置调整经验"],
+          action: "下一步建议：无需继续推进，保留为项目结算过程资料。",
+        },
+      ];
+
+      let selectedId = 1;
+
+      function openCreateDrawer() {
+        document.getElementById("drawer-mask").classList.add("open");
+        document.getElementById("create-drawer").classList.add("open");
+      }
+
+      function closeCreateDrawer() {
+        document.getElementById("drawer-mask").classList.remove("open");
+        document.getElementById("create-drawer").classList.remove("open");
+      }
+
+      function money(value) {
+        if (value === null) return "暂不确定";
+        return "¥" + value.toLocaleString("zh-CN");
+      }
+
+      function badgeClass(value) {
+        if (value === "必须结算" || value === "可能增加收入") return "green";
+        if (value === "争议风险" || value === "可能减少收入") return "rose";
+        if (value === "重点关注" || value === "已进入结算") return "blue";
+        if (value === "未处理" || value === "待补资料") return "amber";
+        if (value === "已形成签证") return "violet";
+        return "neutral";
+      }
+
+      function filteredRecords() {
+        const project = document.getElementById("project-filter").value;
+        const keyword = document.getElementById("keyword-filter").value.trim().toLowerCase();
+        return records
+          .filter((item) => project === "全部项目" || item.project === project)
+          .filter((item) => {
+            if (!keyword) return true;
+            return [item.project, item.title, item.type, item.source, item.summary, item.owner, ...item.related, ...item.attachments.flat()]
+              .join(" ")
+              .toLowerCase()
+              .includes(keyword);
+          })
+          .sort((a, b) => b.date.localeCompare(a.date));
+      }
+
+      function render() {
+        const list = filteredRecords();
+        if (!list.some((item) => item.id === selectedId) && list[0]) selectedId = list[0].id;
+        document.getElementById("record-count").textContent = list.length + " 条";
+        document.getElementById("timeline").innerHTML = list
+          .map(
+            (item) => `
+              <button class="record ${item.id === selectedId ? "active" : ""}" onclick="selectedId=${item.id}; render();">
+                <div>
+                  <div class="date">${item.date}</div>
+                  <div class="owner">${item.owner}</div>
+                </div>
+                <div>
+                  <div class="badges">
+                    <span class="badge neutral">${item.type}</span>
+                    <span class="badge ${badgeClass(item.importance)}">${item.importance}</span>
+                    <span class="badge ${badgeClass(item.status)}">${item.status}</span>
+                  </div>
+                  <div class="record-title">${item.title}</div>
+                  <div class="summary">${item.summary}</div>
+                  <div class="meta">
+                    <span>${item.project}</span>
+                    <span>附件 <strong>${item.attachments.length}</strong></span>
+                    <span>关联 <strong>${item.related.length}</strong></span>
+                    <span>完整度 <strong>${item.score}%</strong></span>
+                  </div>
+                </div>
+                <div class="money">
+                  <span class="badge ${badgeClass(item.direction)}">${item.direction}</span>
+                  <div class="money-label">预计影响</div>
+                  <div class="amount">${money(item.amount)}</div>
+                  <div class="evidence-health"><span class="dot"></span>${item.score}%完整</div>
+                </div>
+              </button>
+            `
+          )
+          .join("");
+
+        const selected = list.find((item) => item.id === selectedId) || records[0];
+        document.getElementById("detail").innerHTML = `
+          <div class="detail-head">
+            <div class="detail-topline">
+              <div>
+                <div class="badges">
+                  <span class="badge ${badgeClass(selected.importance)}">${selected.importance}</span>
+                  <span class="badge ${badgeClass(selected.status)}">${selected.status}</span>
+                </div>
+                <div class="detail-title">${selected.title}</div>
+                <div class="detail-project">${selected.project} / ${selected.date} / ${selected.source}</div>
+              </div>
+              <div class="detail-amount">
+                <div class="detail-amount-label">预计影响</div>
+                <div class="detail-amount-value">${money(selected.amount)}</div>
+              </div>
+            </div>
+          </div>
+          <div class="detail-body">
+            <section class="score">
+              <div class="score-top">
+                <span>证据完整度</span>
+                <span>${selected.score}%</span>
+              </div>
+              <div class="bar"><i style="width: ${selected.score}%"></i></div>
+            </section>
+            <section>
+              <div class="section-title">事件说明</div>
+              <div class="note">${selected.summary}</div>
+            </section>
+            <section>
+              <div class="section-title">资料检查</div>
+              <div class="todo">
+                <div class="todo-row"><span class="check done"></span><span>已上传原始附件，能证明事件来源。</span></div>
+                <div class="todo-row"><span class="check ${selected.score > 70 ? "done" : ""}"></span><span>已关联签证、报量或结算事项。</span></div>
+                <div class="todo-row"><span class="check ${selected.score > 80 ? "done" : ""}"></span><span>已形成后续可复用的经验说明。</span></div>
+              </div>
+            </section>
+            <section>
+              <div class="section-title">业务推动</div>
+              <div class="workflow">
+                <div class="workflow-step">
+                  <div class="step-index">1</div>
+                  <div class="step-main">
+                    <div class="step-title">形成签证或争议项</div>
+                    <div class="step-sub">把证据转成可推进事项</div>
+                  </div>
+                  <button class="mini-btn">生成</button>
+                </div>
+                <div class="workflow-step">
+                  <div class="step-index">2</div>
+                  <div class="step-main">
+                    <div class="step-title">关联报量或结算</div>
+                    <div class="step-sub">和金额、工程量形成闭环</div>
+                  </div>
+                  <button class="mini-btn">关联</button>
+                </div>
+                <div class="workflow-step">
+                  <div class="step-index">3</div>
+                  <div class="step-main">
+                    <div class="step-title">沉淀到知识库</div>
+                    <div class="step-sub">形成后续投标和结算经验</div>
+                  </div>
+                  <button class="mini-btn">沉淀</button>
+                </div>
+              </div>
+            </section>
+            <section class="mini-grid">
+              <div class="mini"><div class="mini-label">金额方向</div><div class="mini-value">${selected.direction}</div></div>
+              <div class="mini"><div class="mini-label">预计影响</div><div class="mini-value">${money(selected.amount)}</div></div>
+            </section>
+            <section>
+              <div class="section-title">证据附件 <span class="count">${selected.attachments.length} 个</span></div>
+              <div class="evidence-stack">
+                ${selected.attachments
+                  .map(
+                    ([name, type]) => `
+                      <div class="file">
+                        <div class="file-icon">${type.slice(0, 1)}</div>
+                        <div style="min-width:0">
+                          <div class="file-name">${name}</div>
+                          <div class="file-type">${type}</div>
+                        </div>
+                      </div>
+                    `
+                  )
+                  .join("")}
+              </div>
+            </section>
+            <section>
+              <div class="section-title">关联业务</div>
+              ${selected.related.map((item) => `<div class="link-row">${item}</div>`).join("")}
+            </section>
+            <section class="warning">
+              <strong>跟进建议：</strong>${selected.action}
+            </section>
+            <div class="detail-actions">
+              <button class="btn">编辑记录</button>
+              <button class="btn">导出本条</button>
+              <button class="btn">删除</button>
+              <button class="btn primary">更新状态</button>
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById("project-filter").addEventListener("change", render);
+      document.getElementById("keyword-filter").addEventListener("input", render);
+      render();
+    </script>
+  </body>
+</html>

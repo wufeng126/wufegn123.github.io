@@ -161,7 +161,7 @@ const notificationCategoryGroups: Array<{
   desc: string;
   tone: string;
 }> = [
-  { category: 'todo', label: '待办', desc: '需要某个人继续处理，进入工作台待办', tone: '#165DFF' },
+  { category: 'todo', label: '待办', desc: '需要某个人继续处理，进入工作台待办', tone: 'var(--color-primary)' },
   { category: 'risk', label: '风险', desc: '异常、超期、风险确认类提醒，要求尽快确认', tone: '#F53F3F' },
   { category: 'result', label: '结果', desc: '结算、付款、回款、工资等业务结果同步', tone: '#00A870' },
   { category: 'cc', label: '抄送', desc: '公司级广播或结果知会，不进入个人待办', tone: '#722ED1' },
@@ -282,7 +282,7 @@ function getSeverityStyle(severity: string) {
     case 'warning':
       return { bg: '#FFF7E8', border: '#FF7D00', color: '#FF7D00' };
     default:
-      return { bg: '#E8F3FF', border: '#165DFF', color: '#165DFF' };
+      return { bg: 'var(--accent)', border: 'var(--color-primary)', color: 'var(--color-primary)' };
   }
 }
 
@@ -302,7 +302,7 @@ function getNotificationCategoryMeta(type?: string | null) {
   const group = notificationCategoryGroups.find((item) => item.category === routeRule?.category);
   return {
     label: routeRule?.categoryLabel || '其他',
-    tone: group?.tone || '#86909C',
+    tone: group?.tone || 'var(--muted-foreground)',
     actionLabel: routeRule?.actionLabel || '查看详情',
     workbenchTodoLabel: routeRule?.workbenchTodoLabel,
   };
@@ -749,8 +749,8 @@ export default function NotificationsPage() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>消息通知中心</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>自动化通知管理 · 钉钉消息推送</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>消息通知中心</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>自动化通知管理 · 钉钉消息推送</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -777,39 +777,39 @@ export default function NotificationsPage() {
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="hover:shadow-lg transition-all" style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>今日通知</p>
-                <p className="text-2xl font-bold mt-1" style={{ color: '#1D2129' }}>{stats.today}</p>
+                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>今日通知</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: 'var(--foreground)' }}>{stats.today}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#E8F3FF' }}>
-                <Bell className="w-5 h-5" style={{ color: '#165DFF' }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+                <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-all cursor-pointer" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }} onClick={() => setActiveTab('unread')}>
+        <Card className="hover:shadow-lg transition-all cursor-pointer" style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }} onClick={() => setActiveTab('unread')}>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>未读消息</p>
-                <p className="text-2xl font-bold mt-1" style={{ color: '#165DFF' }}>{stats.unread}</p>
+                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>未读消息</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-primary)' }}>{stats.unread}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#E8F3FF' }}>
-                <BellRing className="w-5 h-5" style={{ color: '#165DFF' }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+                <BellRing className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="hover:shadow-lg transition-all" style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>预警消息</p>
+                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>预警消息</p>
                 <p className="text-2xl font-bold mt-1" style={{ color: '#FF7D00' }}>{stats.warning + stats.danger}</p>
               </div>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#FFF7E8' }}>
@@ -819,11 +819,11 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="hover:shadow-lg transition-all" style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>已推送钉钉</p>
+                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>已推送钉钉</p>
                 <p className="text-2xl font-bold mt-1" style={{ color: '#00B42A' }}>
                   {notifications.filter(n => n.is_sent).length}
                 </p>
@@ -838,17 +838,17 @@ export default function NotificationsPage() {
 
       {/* 设置面板 */}
       {showSettings && (
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-          <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#1D2129' }}>
-              <Settings className="w-4 h-4" style={{ color: '#165DFF' }} />
+        <Card style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
+          <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+              <Settings className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
               通知设置
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
             {/* 钉钉Webhook设置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: '#1D2129' }}>钉钉群机器人 Webhook</label>
+              <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>钉钉群机器人 Webhook</label>
               <div className="flex gap-2">
                 <Input
                   value={webhookUrl}
@@ -879,10 +879,10 @@ export default function NotificationsPage() {
                   测试个人
                 </Button>
               </div>
-              <p className="text-xs" style={{ color: '#86909C' }}>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                 群机器人用于群内广播；个人工作通知使用钉钉企业内部应用配置，按接收人推送到对应钉钉账号
               </p>
-              <label className="text-sm font-medium mt-3 block" style={{ color: '#1D2129' }}>钉钉机器人加签密钥 (Secret)</label>
+              <label className="text-sm font-medium mt-3 block" style={{ color: 'var(--foreground)' }}>钉钉机器人加签密钥 (Secret)</label>
               <div className="flex gap-2">
                 <Input
                   value={dingtalkSecret}
@@ -892,7 +892,7 @@ export default function NotificationsPage() {
                   type="password"
                 />
               </div>
-              <p className="text-xs" style={{ color: '#86909C' }}>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                 创建机器人时选择“加签”安全设置，获取SEC开头的密钥
               </p>
             </div>
@@ -903,7 +903,7 @@ export default function NotificationsPage() {
                   label: '自动规则',
                   value: `${enabledRuleCount}/${notificationRules.length}`,
                   desc: '已启用 / 全部',
-                  color: '#165DFF',
+                  color: 'var(--color-primary)',
                 },
                 {
                   label: '可接收人员',
@@ -924,33 +924,33 @@ export default function NotificationsPage() {
                   color: '#FF7D00',
                 },
               ].map((item) => (
-                <div key={item.label} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
+                <div key={item.label} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs" style={{ color: '#86909C' }}>{item.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.label}</p>
                       <p className="mt-1 text-xl font-semibold" style={{ color: item.color }}>{item.value}</p>
                     </div>
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
                   </div>
-                  <p className="mt-2 text-xs" style={{ color: '#86909C' }}>{item.desc}</p>
+                  <p className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.desc}</p>
                 </div>
               ))}
             </div>
 
             {/* 通知开关 */}
             <div className="space-y-3 pt-2">
-              <p className="text-sm font-medium" style={{ color: '#1D2129' }}>通知开关</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>通知开关</p>
               <div className="grid gap-3 lg:grid-cols-2">
                 {notificationSettings.map((item) => (
-                  <div key={item.key} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ background: '#F7F8FA' }}>
+                  <div key={item.key} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ background: 'var(--muted)' }}>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{item.label}</p>
-                      <p className="text-xs leading-5" style={{ color: '#86909C' }}>{item.desc}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{item.label}</p>
+                      <p className="text-xs leading-5" style={{ color: 'var(--muted-foreground)' }}>{item.desc}</p>
                     </div>
                     <Switch
                       checked={settings[item.key]?.enabled ?? false}
                       onCheckedChange={(checked) => toggleSetting(item.key, checked)}
-                      className="shrink-0 data-[state=checked]:bg-blue-500"
+                      className="shrink-0 data-[state=checked]:bg-primary"
                     />
                   </div>
                 ))}
@@ -958,10 +958,10 @@ export default function NotificationsPage() {
             </div>
 
             <div className="space-y-4 pt-2">
-              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#BEDAFF', background: '#F4F9FF' }}>
+              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--color-primary-light)', background: 'var(--accent)' }}>
                 <div>
-                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>自动推送生效条件</p>
-                  <p className="mt-1 text-xs leading-5" style={{ color: '#4E5969' }}>
+                  <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>自动推送生效条件</p>
+                  <p className="mt-1 text-xs leading-5" style={{ color: 'var(--muted-foreground)' }}>
                     实时类消息由业务动作触发；定时类消息需要部署平台按计划调用接口。个人通知按流程负责人或项目角色精准推送，群机器人只用于公司级广播。
                   </p>
                 </div>
@@ -991,8 +991,8 @@ export default function NotificationsPage() {
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>消息类型与接收人</p>
-                  <p className="mt-1 text-xs" style={{ color: '#86909C' }}>
+                  <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>消息类型与接收人</p>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     按待办、风险、结果、抄送分组核对自动推送规则；可绑定接收人的消息可在对应卡片里直接勾选。
                   </p>
                 </div>
@@ -1014,7 +1014,7 @@ export default function NotificationsPage() {
               </div>
 
               {recipientUsers.length === 0 && (
-                <div className="rounded-lg border p-4 text-sm" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                <div className="rounded-lg border p-4 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
                   暂无可绑定用户，请先在用户与权限中维护人员。已有流程负责人或项目角色的消息仍会按业务规则推送。
                 </div>
               )}
@@ -1027,7 +1027,7 @@ export default function NotificationsPage() {
 
               <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: '#86909C' }} />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--muted-foreground)' }} />
                   <Input
                     value={ruleKeyword}
                     onChange={(event) => setRuleKeyword(event.target.value)}
@@ -1057,25 +1057,25 @@ export default function NotificationsPage() {
 
               <div className="grid gap-4">
                 {visibleRuleCount === 0 && (
-                  <div className="rounded-lg border p-4 text-sm" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                  <div className="rounded-lg border p-4 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
                     没有匹配的消息规则，请调整搜索关键词或筛选条件。
                   </div>
                 )}
                 {filteredNotificationCategoryGroups.map((group) => {
                   const enabledCount = group.allRules.filter((rule) => rule.settingKeys.some((key) => settings[key]?.enabled ?? true)).length;
                   return (
-                    <div key={group.category} className="rounded-lg border" style={{ borderColor: '#E5E6EB', background: '#FFFFFF' }}>
-                      <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB', background: '#FAFBFC' }}>
+                    <div key={group.category} className="rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                      <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="h-2.5 w-2.5 rounded-full" style={{ background: group.tone }} />
-                            <p className="text-sm font-semibold" style={{ color: '#1D2129' }}>{group.label}</p>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{group.label}</p>
                             <Badge variant="outline">{enabledCount}/{group.allRules.length} 已启用</Badge>
                             {group.rules.length !== group.allRules.length && (
                               <Badge variant="secondary">当前显示 {group.rules.length}</Badge>
                             )}
                           </div>
-                          <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{group.desc}</p>
+                          <p className="mt-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>{group.desc}</p>
                         </div>
                         <Badge variant="secondary">{group.allRules.length} 类消息</Badge>
                       </div>
@@ -1089,33 +1089,33 @@ export default function NotificationsPage() {
                           const needsBinding = Boolean(bindingItem) && enabled && selectedIds.length === 0;
 
                           return (
-                            <div key={rule.type} className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: enabled ? '#FFFFFF' : '#F7F8FA' }}>
+                            <div key={rule.type} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: enabled ? 'var(--card)' : 'var(--muted)' }}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{rule.title}</p>
+                                    <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{rule.title}</p>
                                     <Badge variant={isScheduled ? 'secondary' : 'outline'}>{rule.mode}</Badge>
                                     {rule.workbenchTodoLabel && <Badge variant="outline">工作台：{rule.workbenchTodoLabel}</Badge>}
                                     {needsBinding && <Badge variant="secondary" className="bg-orange-50 text-orange-700">未配接收人</Badge>}
                                   </div>
-                                  <p className="mt-1 text-xs leading-5" style={{ color: '#86909C' }}>{rule.detail}</p>
+                                  <p className="mt-1 text-xs leading-5" style={{ color: 'var(--muted-foreground)' }}>{rule.detail}</p>
                                 </div>
                                 <Badge variant={enabled ? 'default' : 'secondary'} className="shrink-0">{enabled ? '已启用' : '已停用'}</Badge>
                               </div>
 
-                              <div className="mt-3 grid gap-2 rounded-md px-3 py-2 text-xs" style={{ background: '#F7F8FA', color: '#4E5969' }}>
+                              <div className="mt-3 grid gap-2 rounded-md px-3 py-2 text-xs" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
                                 <p>触发条件：{rule.trigger}</p>
                                 <p>接收对象：{rule.target}</p>
                                 <p>推送通道：{rule.channel}</p>
                                 <p>建议动作：{rule.actionLabel}</p>
                                 <p className="break-all">处理入口：{rule.href}</p>
                                 {rule.cron && (
-                                  <p className="break-all" style={{ color: '#165DFF' }}>定时接口：{rule.cron}</p>
+                                  <p className="break-all" style={{ color: 'var(--color-primary)' }}>定时接口：{rule.cron}</p>
                                 )}
                               </div>
 
-                              <div className="mt-3 rounded-md border px-3 py-2 text-xs" style={{ borderColor: '#BEDAFF', background: '#F4F9FF', color: '#4E5969' }}>
-                                <p className="font-medium" style={{ color: '#1D2129' }}>钉钉样例</p>
+                              <div className="mt-3 rounded-md border px-3 py-2 text-xs" style={{ borderColor: 'var(--color-primary-light)', background: 'var(--accent)', color: 'var(--muted-foreground)' }}>
+                                <p className="font-medium" style={{ color: 'var(--foreground)' }}>钉钉样例</p>
                                 <p className="mt-1">【{rule.categoryLabel}】{rule.title}</p>
                                 <p className="mt-1">摘要：{getSampleSummary(rule.type)}</p>
                                 <p className="mt-1">入口：{rule.href}</p>
@@ -1124,7 +1124,7 @@ export default function NotificationsPage() {
                               {bindingItem && recipientUsers.length > 0 && (
                                 <div className="mt-3">
                                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                                    <p className="text-xs font-medium" style={{ color: '#1D2129' }}>绑定接收人</p>
+                                    <p className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>绑定接收人</p>
                                     <Badge variant="outline">{selectedIds.length} 人</Badge>
                                     <Button
                                       type="button"
@@ -1155,9 +1155,9 @@ export default function NotificationsPage() {
                                         <label
                                           key={`${rule.type}-${user.id}`}
                                           className={`flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-xs ${
-                                            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-gray-50'
+                                            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-muted/40'
                                           }`}
-                                          style={{ borderColor: checked ? '#165DFF' : '#E5E6EB', background: checked ? '#F4F9FF' : '#FFFFFF' }}
+                                          style={{ borderColor: checked ? 'var(--color-primary)' : 'var(--border)', background: checked ? 'var(--accent)' : 'var(--card)' }}
                                         >
                                           <div className="flex min-w-0 items-center gap-2">
                                             <Checkbox
@@ -1166,8 +1166,8 @@ export default function NotificationsPage() {
                                               onCheckedChange={(value) => toggleRecipientBinding(rule.type, user.id, value === true)}
                                             />
                                             <div className="min-w-0">
-                                              <p className="truncate font-medium" style={{ color: '#1D2129' }}>{user.name || user.username}</p>
-                                              <p className="truncate" style={{ color: '#86909C' }}>{user.role || '未设置角色'}</p>
+                                              <p className="truncate font-medium" style={{ color: 'var(--foreground)' }}>{user.name || user.username}</p>
+                                              <p className="truncate" style={{ color: 'var(--muted-foreground)' }}>{user.role || '未设置角色'}</p>
                                             </div>
                                           </div>
                                           {disabled && (
@@ -1195,8 +1195,8 @@ export default function NotificationsPage() {
       )}
 
       {/* 消息列表 */}
-      <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-        <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
+      <Card style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
+        <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Tabs value={activeTab} onValueChange={switchListTab} className="min-w-0">
               <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
@@ -1205,7 +1205,11 @@ export default function NotificationsPage() {
                   return (
                     <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
                       {tab.label}
-                      {count > 0 && <span className="ml-1 text-xs opacity-70">({count})</span>}
+                      {count > 0 && (
+                        <span className="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold leading-none text-primary-foreground tabular-nums">
+                          {count}
+                        </span>
+                      )}
                     </TabsTrigger>
                   );
                 })}
@@ -1222,26 +1226,33 @@ export default function NotificationsPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="py-12 text-center">
-              <RefreshCw className="w-8 h-8 mx-auto animate-spin" style={{ color: '#165DFF' }} />
-              <p className="mt-2 text-sm" style={{ color: '#86909C' }}>加载中...</p>
+              <RefreshCw className="w-8 h-8 mx-auto animate-spin" style={{ color: 'var(--color-primary)' }} />
+              <p className="mt-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>加载中...</p>
             </div>
           ) : notifications.length === 0 ? (
             <div className="py-12 text-center">
-              <Bell className="w-12 h-12 mx-auto" style={{ color: '#C9CDD4' }} />
-              <p className="mt-2 text-sm" style={{ color: '#86909C' }}>暂无通知</p>
+              <Bell className="w-12 h-12 mx-auto" style={{ color: 'var(--muted-foreground)' }} />
+              <p className="mt-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>暂无通知</p>
             </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: '#E5E6EB' }}>
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {notifications.map((notification) => {
                 const severityStyle = getSeverityStyle(notification.severity);
                 const categoryMeta = getNotificationCategoryMeta(notification.type);
                 return (
                   <div
                     key={notification.id}
-                    className={`flex items-start gap-4 p-4 hover:bg-gray-50 transition-colors ${
-                      !notification.is_read ? 'bg-blue-50/30' : ''
+                    className={`relative flex items-start gap-4 p-4 transition-colors ${
+                      !notification.is_read ? 'bg-accent/40' : 'hover:bg-muted/40'
                     }`}
                   >
+                    {/* 未读左侧类型色条 */}
+                    {!notification.is_read && (
+                      <span
+                        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-sm"
+                        style={{ background: categoryMeta.tone }}
+                      />
+                    )}
                     {/* 图标 */}
                     <div className="flex-shrink-0 mt-0.5">
                       {getNotificationIcon(notification.type, notification.severity)}
@@ -1252,7 +1263,7 @@ export default function NotificationsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium" style={{ color: '#1D2129' }}>
+                            <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                               {notification.title}
                             </p>
                             <span
@@ -1277,10 +1288,10 @@ export default function NotificationsPage() {
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700">重要</span>
                             )}
                           </div>
-                          <p className="text-sm mt-1 whitespace-pre-line" style={{ color: '#4E5969' }}>
+                          <p className="text-sm mt-1 whitespace-pre-line" style={{ color: 'var(--muted-foreground)' }}>
                             {notification.content}
                           </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: '#86909C' }}>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                             {categoryMeta.workbenchTodoLabel && (
                               <span className="rounded bg-gray-100 px-2 py-0.5">工作台：{categoryMeta.workbenchTodoLabel}</span>
                             )}
@@ -1292,7 +1303,7 @@ export default function NotificationsPage() {
                             </span>
                           </div>
                         </div>
-                        <span className="text-xs whitespace-nowrap" style={{ color: '#86909C' }}>
+                        <span className="text-xs whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
                           {formatTime(notification.created_at)}
                         </span>
                       </div>
@@ -1305,7 +1316,7 @@ export default function NotificationsPage() {
                             if (!notification.is_read) void markAsRead(notification.id);
                           }}
                           className="text-xs flex items-center gap-1 hover:underline"
-                          style={{ color: '#165DFF' }}
+                          style={{ color: 'var(--color-primary)' }}
                         >
                           查看详情 <ChevronRight className="w-3 h-3" />
                         </Link>
@@ -1313,7 +1324,7 @@ export default function NotificationsPage() {
                           <button
                             onClick={() => markAsRead(notification.id)}
                             className="text-xs px-2 py-0.5 rounded hover:bg-gray-100"
-                            style={{ color: '#86909C' }}
+                            style={{ color: 'var(--muted-foreground)' }}
                           >
                             标记已读
                           </button>
@@ -1335,7 +1346,7 @@ export default function NotificationsPage() {
 
           {/* 分页 */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 py-4 border-t" style={{ borderColor: '#E5E6EB' }}>
+            <div className="flex items-center justify-center gap-2 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
               <Button
                 variant="outline"
                 size="sm"
@@ -1344,7 +1355,7 @@ export default function NotificationsPage() {
               >
                 上一页
               </Button>
-              <span className="text-sm" style={{ color: '#86909C' }}>
+              <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                 {page} / {totalPages}
               </span>
               <Button
