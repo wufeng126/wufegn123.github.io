@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, getErrorMessage } from '@/lib/api-utils';
+import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
 import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 
 type CalendarLogRow = {
@@ -13,6 +14,7 @@ type CalendarLogRow = {
   weather_temperature: string | null;
   user_name: string | null;
   content: string;
+  issues: string | null;
   location: string | null;
   submission_status: string | null;
 };
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
     // 查询该月的所有施工日志
     const { data: logs, error } = await supabase
       .from('construction_logs')
-      .select('id, log_date, status, headcount, weather_condition, weather_temperature, user_name, content, location, submission_status')
+      .select('id, log_date, status, headcount, weather_condition, weather_temperature, user_name, content, issues, location, submission_status')
       .eq('project_id', projectId)
       .gte('log_date', startDate)
       .lte('log_date', endDate)
@@ -72,9 +74,16 @@ export async function GET(request: NextRequest) {
     for (let day = 1; day <= lastDay; day++) {
       const dateStr = `${month}-${String(day).padStart(2, '0')}`;
       const dayLogs = logsByDate[dateStr] || [];
+      const dayRisks = dayLogs.map((log) => detectConstructionLogRisk({ content: log.content, issues: log.issues }));
       const hasLog = dayLogs.length > 0;
-      const hasRisk = dayLogs.some((l) => l.submission_status === 'risk');
+      const hasRisk = dayRisks.some((risk) => risk.hasRisk);
       const isLate = dayLogs.some((l) => l.submission_status === 'late');
+      const riskCount = dayRisks.filter((risk) => risk.hasRisk).length;
+      const totalHeadcount = dayLogs.reduce((sum, l) => sum + (l.headcount || 0), 0);
+      const primaryLog = dayLogs[0];
+      const weatherTemperature = primaryLog?.weather_temperature == null
+        ? null
+        : Number(primaryLog.weather_temperature);
 
       calendarDays.push({
         date: dateStr,
@@ -83,16 +92,24 @@ export async function GET(request: NextRequest) {
         hasLog,
         hasRisk,
         isLate,
+        logId: primaryLog?.id,
         logCount: dayLogs.length,
-        totalHeadcount: dayLogs.reduce((sum, l) => sum + (l.headcount || 0), 0),
-        weather: dayLogs[0]?.weather_condition || null,
-        temperature: dayLogs[0]?.weather_temperature || null,
+        headcount: totalHeadcount,
+        totalHeadcount,
+        riskCount,
+        weather: primaryLog?.weather_condition || null,
+        weatherCondition: primaryLog?.weather_condition || null,
+        temperature: Number.isFinite(weatherTemperature) ? weatherTemperature : null,
+        weatherTemperature: Number.isFinite(weatherTemperature) ? weatherTemperature : null,
         logs: dayLogs.map((l) => ({
           id: l.id,
           content: l.content?.slice(0, 50) || '',
           headcount: l.headcount,
           userName: l.user_name,
+          location: l.location,
           status: l.status,
+          submissionStatus: l.submission_status,
+          hasRisk: detectConstructionLogRisk({ content: l.content, issues: l.issues }).hasRisk,
         })),
       });
     }
@@ -101,7 +118,7 @@ export async function GET(request: NextRequest) {
     const totalLogs = (logs || []).length;
     const daysWithLogs = Object.keys(logsByDate).length;
     const totalHeadcount = (logs || []).reduce((sum, l) => sum + (l.headcount || 0), 0);
-    const riskCount = (logs || []).filter((l) => l.submission_status === 'risk').length;
+    const riskCount = (logs || []).filter((log) => detectConstructionLogRisk({ content: log.content, issues: log.issues }).hasRisk).length;
 
     return NextResponse.json({
       success: true,

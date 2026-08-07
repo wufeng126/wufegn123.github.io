@@ -21,7 +21,6 @@ import {
   RotateCcw,
   Search,
   Trash2,
-  UserRoundCheck,
   Users,
   Settings2,
 } from 'lucide-react';
@@ -298,7 +297,7 @@ function TabButton({
         active
           ? 'bg-blue-600 text-white shadow-sm'
           : 'text-slate-500 hover:bg-white hover:text-slate-950'
-      }`}
+      } focus:outline-none focus:ring-2 focus:ring-blue-100`}
     >
       <Icon className="h-4 w-4" strokeWidth={1.8} />
       {children}
@@ -307,8 +306,7 @@ function TabButton({
 }
 
 export default function ConstructionLogsClient() {
-  const { hasPermission, user, isSuperAdmin } = usePermission();
-  const canViewAttendance = hasPermission('construction_attendance:view');
+  const { user, isSuperAdmin } = usePermission();
   const canManageSubmitters = useMemo(() => {
     const roleText = `${user?.role || ''} ${user?.name || ''}`.toLowerCase();
     return isSuperAdmin || roleText.includes('budget') || roleText.includes('cost') || roleText.includes('estimate') || roleText.includes('预算') || roleText.includes('造价') || roleText.includes('经营');
@@ -337,7 +335,7 @@ export default function ConstructionLogsClient() {
   const [loading, setLoading] = useState(true);
   const [riskLoading, setRiskLoading] = useState(false);
   const [tab, setTab] = useState<'stats' | 'logs' | 'risks' | 'submitters'>(
-    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' || tabParam === 'submitters' ? tabParam : 'risks',
+    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' || tabParam === 'submitters' ? tabParam : 'logs',
   );
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [statsProjectId, setStatsProjectId] = useState('all');
@@ -643,9 +641,9 @@ export default function ConstructionLogsClient() {
   }
 
   return (
-    <div className="min-h-full bg-background p-4 text-slate-950 md:p-6">
+    <div className="min-h-full bg-transparent p-3 text-slate-950 sm:p-4 md:p-6">
       <div className="mx-auto max-w-[1280px] space-y-6">
-        <section className="border-b border-slate-200 pb-5">
+        <header className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -656,22 +654,17 @@ export default function ConstructionLogsClient() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">现场记录、风险提醒、提交统计集中查看，最新记录和待确认风险优先展示。</p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            {canViewAttendance && (
-              <Link href="/construction-logs?tab=attendance" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 hover:border-blue-200 hover:text-blue-700">
-                <UserRoundCheck className="h-4 w-4" strokeWidth={1.8} />人员出勤
-              </Link>
-            )}
-            <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 hover:bg-blue-50">
+            <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-100">
               <Camera className="h-4 w-4" strokeWidth={1.8} />拍照识别
             </Link>
-            <Link href="/construction-logs/new" className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 sm:col-span-1">
+            <Link href="/construction-logs/new" className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100 sm:col-span-1">
               <Plus className="h-4 w-4" strokeWidth={1.8} />写日志
             </Link>
             </div>
           </div>
-        </section>
+        </header>
 
-        <section className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <MetricItem label="总日志数" value={totalLogs} icon={FileText} tone="text-blue-700" />
           <MetricItem label="提交人员" value={totalPeople} icon={Users} tone="text-violet-700" />
           <MetricItem label="有日志项目" value={submittedProjects} icon={ClipboardList} tone="text-emerald-700" />
@@ -685,7 +678,7 @@ export default function ConstructionLogsClient() {
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-xl bg-slate-100 p-1">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <div className="flex min-w-max gap-1">
           <TabButton active={tab === 'risks'} onClick={() => setTab('risks')} icon={AlertTriangle}>风险池</TabButton>
           <TabButton active={tab === 'stats'} onClick={() => setTab('stats')} icon={BarChart3}>提交统计</TabButton>

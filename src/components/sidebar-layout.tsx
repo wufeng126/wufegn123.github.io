@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard,
   Menu,
@@ -77,9 +77,10 @@ const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; 
 const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: BrandIconName; permissions?: string[] }>> = {
   '/construction-logs': [
     { name: '施工日志', href: '/construction-logs', icon: 'crane' },
-    { name: '出勤统计', href: '/construction-attendance', icon: 'worker' },
     { name: '项目日报', href: '/construction-daily-reports', icon: 'doc' },
     { name: '进度计划', href: '/progress-management', icon: 'trend' },
+    { name: '日历视图', href: '/construction-logs?tab=calendar', icon: 'doc' },
+    { name: '出勤统计', href: '/construction-attendance', icon: 'worker' },
   ],
   '/project-center': [
     { name: '项目管理', href: '/project-center', icon: 'building' },
@@ -200,6 +201,7 @@ export default function SidebarLayout({
   const [isMobile, setIsMobile] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(768);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   const { user, isSuperAdmin, isLoading, permissions } = usePermission();
@@ -297,6 +299,20 @@ export default function SidebarLayout({
   const sidebarWidth = isMobile ? 280 : (isEffectivelyCollapsed ? 64 : 220);
 
   const activeMenu = getActiveMenu();
+  const activeConstructionTab = pathname === '/construction-logs'
+    ? searchParams.get('tab') || 'logs'
+    : '';
+
+  const isSecondaryActive = (href: string) => {
+    if (href.startsWith('/construction-logs?tab=')) {
+      const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
+      return pathname === '/construction-logs' && activeConstructionTab === tab;
+    }
+    if (href === '/construction-logs') {
+      return pathname === '/construction-logs' && activeConstructionTab === 'logs';
+    }
+    return pathname.startsWith(href);
+  };
 
   // 获取当前页面标题
   const getPageTitle = () => {
@@ -544,9 +560,7 @@ export default function SidebarLayout({
                     {(isActive || expandedMenu === menu.href) && !isEffectivelyCollapsed && secondaryMenus.length > 0 ? (
                       <div className="mt-1 space-y-1 pb-1 pl-11">
                         {secondaryMenus.map((item) => {
-                          const isSubActive = item.href === '/construction-logs'
-                            ? pathname.startsWith('/construction-logs')
-                            : pathname.startsWith(item.href);
+                          const isSubActive = isSecondaryActive(item.href);
                           return (
                             <Link
                               key={item.href}

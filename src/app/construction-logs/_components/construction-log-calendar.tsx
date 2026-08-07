@@ -30,6 +30,24 @@ type CalendarDay = {
   weatherCondition?: string | null;
   weatherTemperature?: number | null;
   status?: 'submitted' | 'pending' | 'cancelled' | null;
+  hasRisk?: boolean;
+  isLate?: boolean;
+  logCount?: number;
+  totalHeadcount?: number;
+  weather?: string | null;
+  temperature?: number | string | null;
+  logs?: CalendarLogItem[];
+};
+
+type CalendarLogItem = {
+  id: number;
+  content: string;
+  headcount: number | null;
+  userName: string | null;
+  location?: string | null;
+  status?: string | null;
+  submissionStatus?: string | null;
+  hasRisk?: boolean;
 };
 
 type CalendarData = {
@@ -82,6 +100,37 @@ type Project = {
   name: string;
 };
 
+function getDayLogs(day: CalendarDay) {
+  return day.logs || [];
+}
+
+function getDayLogCount(day: CalendarDay) {
+  return day.logCount ?? getDayLogs(day).length ?? (day.hasLog ? 1 : 0);
+}
+
+function getDayHeadcount(day: CalendarDay) {
+  return day.totalHeadcount ?? day.headcount ?? getDayLogs(day).reduce((sum, log) => sum + (log.headcount || 0), 0);
+}
+
+function getDayRiskCount(day: CalendarDay) {
+  return day.riskCount ?? getDayLogs(day).filter((log) => log.hasRisk).length ?? (day.hasRisk ? 1 : 0);
+}
+
+function getDayWeather(day: CalendarDay) {
+  return day.weatherCondition ?? day.weather ?? null;
+}
+
+function getDayTemperature(day: CalendarDay) {
+  const value = day.weatherTemperature ?? day.temperature ?? null;
+  if (value == null || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getPrimaryLogId(day: CalendarDay) {
+  return day.logId ?? getDayLogs(day)[0]?.id;
+}
+
 function CalendarMetric({
   label,
   value,
@@ -92,7 +141,7 @@ function CalendarMetric({
   tone?: string;
 }) {
   return (
-    <div className="rounded-lg bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
       <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className={`mt-1 text-xl font-semibold tabular-nums ${tone}`}>{value}</div>
     </div>
@@ -124,6 +173,7 @@ export default function ConstructionLogCalendar() {
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [message, setMessage] = useState('');
 
   // 获取项目列表
   useEffect(() => {
@@ -131,11 +181,21 @@ export default function ConstructionLogCalendar() {
       try {
         const res = await fetch('/api/projects?includePublicLog=1');
         const json = await res.json();
-        if (json.success && json.data?.projects) {
-          setProjects(json.data.projects.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+        const list = Array.isArray(json.projects)
+          ? json.projects
+          : Array.isArray(json.data?.projects)
+            ? json.data.projects
+            : [];
+        const nextProjects = list.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
+        setProjects(nextProjects);
+        if (nextProjects.length > 0) {
+          setSelectedProjectId(current => current || String(nextProjects[0].id));
+        } else {
+          setMessage('暂无可查看的项目');
         }
       } catch (err) {
         console.error('Failed to fetch projects:', err);
+        setMessage('项目列表加载失败，请稍后重试');
       }
     }
     fetchProjects();
@@ -147,22 +207,31 @@ export default function ConstructionLogCalendar() {
       return;
     }
     setLoading(true);
+    setMessage('');
     try {
       const params = new URLSearchParams({ month: currentMonth, project_id: selectedProjectId });
       const res = await fetch(`/api/construction-logs/calendar?${params}`);
       const json = await res.json();
       if (json.success) {
         setCalendarData(json.data);
+      } else {
+        setCalendarData(null);
+        setMessage(json.error || '日历数据加载失败');
       }
     } catch (err) {
       console.error('Failed to fetch calendar:', err);
+      setCalendarData(null);
+      setMessage('日历数据加载失败，请稍后重试');
     } finally {
       setLoading(false);
     }
   }, [currentMonth, selectedProjectId]);
 
   useEffect(() => {
-    fetchCalendar();
+    const timer = window.setTimeout(() => {
+      void fetchCalendar();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [fetchCalendar]);
 
   const handlePrevMonth = () => {
@@ -220,9 +289,15 @@ export default function ConstructionLogCalendar() {
 
   const selectedProjectName = projects.find((project) => String(project.id) === selectedProjectId)?.name;
   const selectedMonthLabel = `${currentMonth.replace('-', '年')}月`;
+  const selectedLogs = selectedDay ? getDayLogs(selectedDay) : [];
+  const selectedLogId = selectedDay ? getPrimaryLogId(selectedDay) : undefined;
+  const selectedHeadcount = selectedDay ? getDayHeadcount(selectedDay) : 0;
+  const selectedRiskCount = selectedDay ? getDayRiskCount(selectedDay) : 0;
+  const selectedWeather = selectedDay ? getDayWeather(selectedDay) : null;
+  const selectedTemperature = selectedDay ? getDayTemperature(selectedDay) : null;
 
   return (
-    <div className="space-y-4 text-slate-700">
+    <div className="mx-auto max-w-[1360px] space-y-5 p-3 text-slate-700 sm:p-4 md:p-6">
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
           <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950">
@@ -281,11 +356,26 @@ export default function ConstructionLogCalendar() {
         </div>
       </section>
 
+      {message && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {message}
+        </div>
+      )}
+
       {!selectedProjectId ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <CalendarDays className="mx-auto h-10 w-10 text-slate-300" strokeWidth={1.6} />
           <p className="mt-3 text-sm font-medium text-slate-700">请选择项目</p>
           <p className="mt-1 text-xs text-slate-500">选择后会展示该项目当月施工日志提交情况。</p>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {[0, 1, 2, 3, 4].map(item => (
+            <div key={item} className="h-[82px] animate-pulse rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="h-3 w-16 rounded bg-slate-100" />
+              <div className="mt-3 h-6 w-12 rounded bg-slate-200" />
+            </div>
+          ))}
         </div>
       ) : calendarData && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -328,13 +418,26 @@ export default function ConstructionLogCalendar() {
 
             <div className="grid grid-cols-7">
               {loading ? (
-                <div className="col-span-7 py-16 text-center text-sm text-slate-500">加载中...</div>
+                <div className="col-span-7 grid grid-cols-7 gap-px bg-slate-100 p-px">
+                  {Array.from({ length: 35 }).map((_, item) => (
+                    <div key={item} className="min-h-[108px] animate-pulse bg-white p-2">
+                      <div className="h-5 w-6 rounded bg-slate-100" />
+                      <div className="mt-3 h-5 w-16 rounded bg-slate-100" />
+                    </div>
+                  ))}
+                </div>
               ) : calendarGrid.map((day, i) => {
                 if (!day) {
                   return <div key={`empty-${i}`} className="min-h-[112px] border-b border-r border-slate-100 bg-slate-50/70" />;
                 }
 
-                const hasRisk = (day.riskCount || 0) > 0;
+                const riskCount = getDayRiskCount(day);
+                const headcount = getDayHeadcount(day);
+                const logCount = getDayLogCount(day);
+                const weather = getDayWeather(day);
+                const temperature = getDayTemperature(day);
+                const hasRisk = riskCount > 0;
+                const hasLate = Boolean(day.isLate);
                 const isSelected = selectedDay?.date === day.date;
                 let cellClass = 'bg-white hover:bg-slate-50';
                 if (day.hasLog) cellClass = hasRisk ? 'bg-rose-50/70 hover:bg-rose-50' : 'bg-emerald-50/60 hover:bg-emerald-50';
@@ -352,10 +455,10 @@ export default function ConstructionLogCalendar() {
                       <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md text-sm font-semibold tabular-nums ${isToday(day.date) ? 'bg-blue-600 px-1.5 text-white' : 'text-slate-700'}`}>
                         {day.day}
                       </span>
-                      {day.weatherCondition && (
-                        <span className={`inline-flex items-center gap-0.5 text-xs ${getWeatherColor(day.weatherCondition)}`}>
-                          {getWeatherIcon(day.weatherCondition)}
-                          {day.weatherTemperature != null && <span>{day.weatherTemperature}°</span>}
+                      {weather && (
+                        <span className={`inline-flex items-center gap-0.5 text-xs ${getWeatherColor(weather)}`}>
+                          {getWeatherIcon(weather)}
+                          {temperature != null && <span>{temperature}°</span>}
                         </span>
                       )}
                     </div>
@@ -365,12 +468,18 @@ export default function ConstructionLogCalendar() {
                         <>
                           <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${hasRisk ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                             {hasRisk ? <AlertTriangle className="h-3 w-3" strokeWidth={1.8} /> : <CheckCircle2 className="h-3 w-3" strokeWidth={1.8} />}
-                            {hasRisk ? `${day.riskCount}条风险` : '已提交'}
+                            {hasRisk ? `${riskCount}条风险` : hasLate ? '补交' : '已提交'}
                           </span>
-                          {day.headcount != null && day.headcount > 0 && (
+                          {logCount > 1 && (
+                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                              <FileText className="h-3 w-3" strokeWidth={1.8} />
+                              {logCount}条
+                            </span>
+                          )}
+                          {headcount > 0 && (
                             <span className="flex items-center gap-1 text-xs text-slate-500">
                               <Users className="h-3 w-3" strokeWidth={1.8} />
-                              {day.headcount}人
+                              {headcount}人
                             </span>
                           )}
                         </>
@@ -414,37 +523,65 @@ export default function ConstructionLogCalendar() {
                   </div>
                 </div>
 
-                {selectedDay.hasLog && selectedDay.logId ? (
+                {selectedDay.hasLog && selectedLogId ? (
                   <>
                     <div className="space-y-2 rounded-lg bg-slate-50/80 p-3 text-sm ring-1 ring-slate-200">
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">状态</span>
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">已提交</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${selectedRiskCount > 0 ? 'bg-rose-50 text-rose-700 ring-rose-100' : 'bg-emerald-50 text-emerald-700 ring-emerald-100'}`}>
+                          {selectedRiskCount > 0 ? '有风险' : selectedDay.isLate ? '补交' : '已提交'}
+                        </span>
                       </div>
-                      {selectedDay.headcount != null && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">日志</span>
+                        <span className="font-medium text-slate-900">{getDayLogCount(selectedDay)} 条</span>
+                      </div>
+                      {selectedHeadcount > 0 && (
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">出勤</span>
-                          <span className="font-medium text-slate-900">{selectedDay.headcount} 人</span>
+                          <span className="font-medium text-slate-900">{selectedHeadcount} 人</span>
                         </div>
                       )}
-                      {selectedDay.weatherCondition && (
+                      {selectedWeather && (
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">天气</span>
-                          <span className={getWeatherColor(selectedDay.weatherCondition)}>
-                            {selectedDay.weatherCondition}
-                            {selectedDay.weatherTemperature != null && ` ${selectedDay.weatherTemperature}°C`}
+                          <span className={getWeatherColor(selectedWeather)}>
+                            {selectedWeather}
+                            {selectedTemperature != null && ` ${selectedTemperature}°C`}
                           </span>
                         </div>
                       )}
-                      {(selectedDay.riskCount || 0) > 0 && (
+                      {selectedRiskCount > 0 && (
                         <div className="flex items-center justify-between text-rose-700">
                           <span>风险</span>
-                          <span className="font-medium">{selectedDay.riskCount} 条</span>
+                          <span className="font-medium">{selectedRiskCount} 条</span>
                         </div>
                       )}
                     </div>
+                    {selectedLogs.length > 1 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-slate-500">当天日志</p>
+                        <div className="space-y-2">
+                          {selectedLogs.map((log) => (
+                            <Link
+                              key={log.id}
+                              href={`/construction-logs/${log.id}`}
+                              className="block rounded-lg border border-slate-200 bg-white p-3 text-sm transition hover:border-blue-200 hover:bg-blue-50"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium text-slate-900">{log.userName || '提交人'}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[11px] ${log.hasRisk ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
+                                  {log.hasRisk ? '风险' : log.submissionStatus === 'late' ? '补交' : log.status || '已提交'}
+                                </span>
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{log.content || '暂无施工内容摘要'}</p>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <Link
-                      href={`/construction-logs/${selectedDay.logId}`}
+                      href={`/construction-logs/${selectedLogId}`}
                       className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
                     >
                       <FileText className="h-4 w-4" strokeWidth={1.8} />
@@ -480,11 +617,6 @@ export default function ConstructionLogCalendar() {
         </div>
       )}
 
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="text-sm text-slate-500">加载中...</div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, CalendarClock, Camera, CheckCircle2, ClipboardList, Cloud, ImageIcon, Loader2, Plus, RefreshCw, Search, Send, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
 import {
@@ -150,10 +150,17 @@ function getDraftHoursIssue(draft: ProjectLogDraft) {
 
 export default function NewConstructionLogPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedDate = searchParams.get('date') || '';
+  const requestedProjectId = searchParams.get('project_id') || '';
+  const initialLogDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+    ? requestedDate
+    : getDefaultConstructionLogDate();
+  const initialProjectId = /^\d+$/.test(requestedProjectId) ? requestedProjectId : '';
   const { user, isSuperAdmin } = usePermission();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [logDate, setLogDate] = useState(getDefaultConstructionLogDate());
-  const [drafts, setDrafts] = useState<ProjectLogDraft[]>([createDraft()]);
+  const [logDate, setLogDate] = useState(initialLogDate);
+  const [drafts, setDrafts] = useState<ProjectLogDraft[]>([createDraft(initialProjectId)]);
   const [attendanceOptions, setAttendanceOptions] = useState<Record<string, AttendanceOptions>>({});
   const [attendanceLoading, setAttendanceLoading] = useState<Record<string, boolean>>({});
   const [attendanceErrors, setAttendanceErrors] = useState<Record<string, string>>({});
@@ -208,13 +215,16 @@ export default function NewConstructionLogPage() {
           : [];
         setProjects(list);
         if (list.length > 0) {
+          const requestedProjectExists = initialProjectId && list.some((project: Project) => String(project.id) === initialProjectId);
           setDrafts(current => current.map((draft, index) => (
-            index === 0 && !draft.project_id ? { ...draft, project_id: String(list[0].id) } : draft
+            index === 0 && !draft.project_id
+              ? { ...draft, project_id: String(requestedProjectExists ? initialProjectId : list[0].id) }
+              : draft
           )));
         }
       })
       .catch(() => {});
-  }, [user]);
+  }, [initialProjectId, user]);
 
   useEffect(() => {
     const projectIds = Array.from(new Set(drafts.map(draft => draft.project_id).filter(Boolean)));
