@@ -235,7 +235,7 @@ export default function ProjectDetailPage() {
       {
         title: '报量管理',
         desc: '维护预算工程量、对上报量、对下结算和差异提醒',
-        href: `/project-center?tab=quantity-reporting&projectId=${encodedProjectId}`,
+        href: `/quantity-reporting?projectId=${encodedProjectId}`,
         value: `${stats?.workItemCount || 0} 个分项`,
         icon: ListTree,
         color: 'text-blue-700',
@@ -245,7 +245,7 @@ export default function ProjectDetailPage() {
       {
         title: '签证',
         desc: '跟进签证发生、申报和签回情况',
-        href: `/project-center?tab=visas&projectId=${encodedProjectId}`,
+        href: `/visas?projectId=${encodedProjectId}`,
         value: formatCurrency(stats?.totalVisa),
         icon: FileText,
         color: 'text-orange-700',
@@ -255,7 +255,7 @@ export default function ProjectDetailPage() {
       {
         title: '产值结算',
         desc: '进入月度产值结算和甲方确认记录',
-        href: `/project-center?tab=client-reports&project_id=${encodedProjectId}`,
+        href: `/client-reports?project_id=${encodedProjectId}`,
         value: formatCurrency(stats?.totalReport),
         icon: BarChart3,
         color: 'text-cyan-700',
@@ -265,7 +265,7 @@ export default function ProjectDetailPage() {
       {
         title: '甲方回款',
         desc: '查看甲方回款记录和待回款金额',
-        href: `/project-center?tab=client-payments&project_id=${encodedProjectId}`,
+        href: `/client-payments?project_id=${encodedProjectId}`,
         value: formatCurrency(stats?.totalPayment),
         icon: CreditCard,
         color: 'text-green-700',
@@ -287,7 +287,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="text-center py-16">
         <p className="text-sm text-gray-500">{error || '项目不存在'}</p>
-        <Link href="/project-center?tab=projects">
+        <Link href="/project-center">
           <Button className="mt-4" variant="outline">返回项目信息</Button>
         </Link>
       </div>
@@ -298,7 +298,7 @@ export default function ProjectDetailPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-4">
-          <Link href="/project-center?tab=projects">
+          <Link href="/project-center">
             <Button variant="outline" size="sm" className="h-9">
               <ArrowLeft className="w-4 h-4 mr-1.5" />
               返回

@@ -302,6 +302,12 @@ export default function SidebarLayout({
   const activeConstructionTab = pathname === '/construction-logs'
     ? searchParams.get('tab') || 'logs'
     : '';
+  const activeProjectTab = pathname === '/project-center'
+    ? searchParams.get('tab') || 'projects'
+    : '';
+  const activeHrTab = pathname === '/hr-salary'
+    ? searchParams.get('tab') || 'roster'
+    : '';
 
   const isSecondaryActive = (href: string) => {
     if (href.startsWith('/construction-logs?tab=')) {
@@ -310,6 +316,29 @@ export default function SidebarLayout({
     }
     if (href === '/construction-logs') {
       return pathname === '/construction-logs' && activeConstructionTab === 'logs';
+    }
+    if (pathname === '/project-center') {
+      const projectTabHref: Record<string, string> = {
+        projects: '/project-center',
+        'quantity-reporting': '/quantity-reporting',
+        'work-items': '/quantity-reporting',
+        visas: '/visas',
+        'client-reports': '/client-reports',
+        'client-payments': '/client-payments',
+        'evidence-chain': '/evidence-chain',
+      };
+      return projectTabHref[activeProjectTab] === href;
+    }
+    if (pathname === '/hr-salary') {
+      const hrTabHref: Record<string, string> = {
+        roster: '/workers/roster',
+        workers: '/workers/roster',
+        certificates: '/certificates',
+        salaries: '/workers/salaries',
+        payments: '/workers/payments',
+        query: '/workers/query',
+      };
+      return hrTabHref[activeHrTab] === href;
     }
     return pathname.startsWith(href);
   };

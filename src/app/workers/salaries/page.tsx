@@ -79,6 +79,7 @@ export default function WorkerSalariesPage() {
   const monthFromUrl = searchParams.get('month') || searchParams.get('year_month') || searchParams.get('yearMonth');
   const urlYearMonth = parseYearMonthParam(monthFromUrl);
   const projectFromUrl = searchParams.get('project_id') || searchParams.get('projectId') || 'all';
+  const workerNameFromUrl = searchParams.get('worker_name') || searchParams.get('workerName') || '';
   const { toast } = useToast();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -92,7 +93,7 @@ export default function WorkerSalariesPage() {
   const [filterYear, setFilterYear] = useState(urlYearMonth.year || new Date().getFullYear().toString());
   const [filterMonth, setFilterMonth] = useState(urlYearMonth.month || (new Date().getMonth() + 1).toString());
   const [filterProject, setFilterProject] = useState(projectFromUrl);
-  const [searchWorker, setSearchWorker] = useState('');
+  const [searchWorker, setSearchWorker] = useState(workerNameFromUrl);
   
   const [formData, setFormData] = useState({
     worker_id: '',

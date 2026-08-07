@@ -190,6 +190,7 @@ export default function VisasPage() {
   const searchParams = useSearchParams();
   const statusFromUrl = searchParams.get('status');
   const todoFromUrl = searchParams.get('todo');
+  const projectFromUrl = searchParams.get('projectId') || searchParams.get('project_id');
   const targetVisaId = searchParams.get('visa_id') || searchParams.get('visaId');
   const { toast } = useToast();
   const [visas, setVisas] = useState<Visa[]>([]);
@@ -204,7 +205,7 @@ export default function VisasPage() {
 
   // 筛选条件
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projectFromUrl || 'all');
   const [selectedStatus, setSelectedStatus] = useState<string>(statusFromUrl || (todoFromUrl === 'mine' ? 'active' : 'all'));
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');

@@ -1201,7 +1201,7 @@ export default function WorkerRosterPage() {
                                   <TableCell style={{ color: '#C9CDD4' }}>{globalStartIndex + idx + 1}</TableCell>
                                   <TableCell className="font-medium" style={{ color: '#1D2129' }}>
                                     <div className="flex items-center gap-1.5">
-                                      <LinkableCell href={`/hr-salary?tab=salaries&worker_id=${worker.id}`} className="font-medium text-foreground">
+                                      <LinkableCell href={`/workers/salaries?worker_id=${worker.id}&worker_name=${encodeURIComponent(worker.name)}`} className="font-medium text-foreground">
                                         {worker.name}
                                       </LinkableCell>
                                       {worker.is_blacklist && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600">黑</span>}
@@ -1258,7 +1258,7 @@ export default function WorkerRosterPage() {
                                   <Checkbox checked={selectedIds.has(worker.id)} onCheckedChange={() => handleSelectOne(worker.id)} />
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                      <LinkableCell href={`/hr-salary?tab=salaries&worker_id=${worker.id}`} className="truncate text-sm font-semibold text-foreground">
+                                      <LinkableCell href={`/workers/salaries?worker_id=${worker.id}&worker_name=${encodeURIComponent(worker.name)}`} className="truncate text-sm font-semibold text-foreground">
                                         {worker.name}
                                       </LinkableCell>
                                       {worker.is_blacklist && <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-600">黑</span>}
