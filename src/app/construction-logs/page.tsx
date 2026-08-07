@@ -22,7 +22,7 @@ export default function ConstructionManagementPage() {
     <div className="min-h-full bg-background p-4 md:p-6">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-5">
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <TabContainer tabs={tabs} defaultTab="daily-reports" />
+          <TabContainer tabs={tabs} defaultTab="daily-reports" showTabs={false} />
         </section>
       </div>
     </div>
