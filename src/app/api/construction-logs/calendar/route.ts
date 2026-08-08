@@ -37,9 +37,9 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // 检查权限
+    // 检查权限：超管（null）放行；普通用户校验项目归属（与其他路由 Array.isArray 语义一致）
     const allowedProjectIds = await getConstructionLogAccessibleProjectIds(supabase, auth.user);
-    if (!allowedProjectIds || !allowedProjectIds.includes(projectId)) {
+    if (Array.isArray(allowedProjectIds) && !allowedProjectIds.includes(projectId)) {
       return apiBadRequest('无权访问该项目的施工日志');
     }
 
