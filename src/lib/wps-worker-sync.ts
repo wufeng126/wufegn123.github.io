@@ -627,7 +627,7 @@ export async function syncWpsWorkerRecord(
     const isTransfer = existing.project_id && existing.project_id !== project.id;
 
     if (isTransfer) {
-      await transferWorker(client, existing.id, existing.project_id, project.id, entryDate);
+      await transferWorker(client, existing.id, existing.project_id ?? null, project.id, entryDate);
     } else {
       await upsertActiveAssignment(client, existing.id, project.id, entryDate || existing.entry_date || null);
     }
