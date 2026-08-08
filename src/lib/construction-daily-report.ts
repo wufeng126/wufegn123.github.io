@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getReadableDate } from '@/lib/construction-log-deadline';
 import { createLLMClient, getAIConfig } from '@/lib/ai-service';
 import { getUserDisplayName } from '@/lib/user-display-name';
-import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
+import { detectConstructionLogRisk, loadConstructionRiskEvents } from '@/lib/construction-log-risk';
 
 type UserRow = {
   id: number;
@@ -64,6 +64,23 @@ export type DailyReportProjectDetail = {
   ai_sections?: DailyReportSections;
 };
 
+/** 单项目近 7 日趋势数据 */
+export type DailyReportProjectTrend = {
+  project_id: number;
+  project_name: string;
+  log_days: number; // 近 7 日有日志的天数
+  total_logs: number; // 近 7 日日志总数
+  risk_count: number; // 近 7 日风险事件数
+  risk_high_count: number; // 近 7 日高风险事件数
+  unresolved_risk_count: number; // 未闭环风险（pending/confirmed）
+  recent_3d_logs: number; // 前 3 日（含当日）日志数
+  prev_3d_logs: number; // 再前 3 日日志数
+  recent_3d_risks: number; // 前 3 日风险事件数
+  prev_3d_risks: number; // 再前 3 日风险事件数
+  log_trend: 'up' | 'down' | 'flat'; // 日志活跃趋势
+  risk_trend: 'worse' | 'better' | 'flat'; // 风险趋势
+};
+
 export type ConstructionDailyReportSummary = {
   report_date: string;
   report_type?: 'daily_report';
@@ -80,11 +97,14 @@ export type ConstructionDailyReportSummary = {
     headcount_total: number;
     risk_count: number;
     risk_high_count: number;
+    risk_unresolved_count?: number;
     narrative?: string;
     key_points?: string[];
     risk_summary?: string;
   };
   projects: DailyReportProjectDetail[];
+  /** 近 7 日趋势（N 日趋势对比） */
+  trends?: DailyReportProjectTrend[];
 };
 
 type DailyReportSections = {
@@ -149,7 +169,7 @@ function emptySectionText(text: string) {
   return text.trim() || '日志中未单独记录。';
 }
 
-function buildFallbackProjectSections(project: DailyReportProjectDetail): DailyReportSections {
+function buildFallbackProjectSections(project: DailyReportProjectDetail, trend?: DailyReportProjectTrend): DailyReportSections {
   const content = project.contents.slice(0, 4).join('；');
   const issues = project.issues.slice(0, 4).join('；');
   const missingText = project.missing_users.length > 0
@@ -161,19 +181,27 @@ function buildFallbackProjectSections(project: DailyReportProjectDetail): DailyR
   const riskText = project.risk_count > 0
     ? `检测到风险 ${project.risk_count} 条（高风险 ${project.risk_high_count} 条）：${project.risk_summary_text || ''}`
     : '未检测到风险。';
+  const trendText = trend
+    ? [
+      trend.unresolved_risk_count > 0 ? `仍有 ${trend.unresolved_risk_count} 条风险未闭环。` : '',
+      trend.risk_trend === 'worse' ? '风险呈上升趋势（近 3 日较前 3 日增多）。' : '',
+      trend.risk_trend === 'better' ? '风险较前期缓解。' : '',
+      trend.log_trend === 'down' ? '近 3 日日志活跃度较前 3 日下降。' : '',
+    ].filter(Boolean).join('')
+    : '';
 
   return {
     construction_content: emptySectionText(content),
     labor_teams: `当日提交 ${project.submitted_users.length}/${project.expected_users.length} 人，现场出勤合计 ${project.headcount_total} 人。${lateText}${missingText}`.trim(),
     materials_machinery: '日志中未单独记录材料、机械使用情况。',
     quality_safety: issues ? `记录问题/异常：${issues}` : '未记录质量、安全异常。',
-    progress_risks: `${riskText}${project.missing_users.length > 0 ? ` 另有 ${project.missing_users.length} 个未提交人员项。` : ''}`,
+    progress_risks: `${riskText}${trendText ? ` ${trendText}` : ''}${project.missing_users.length > 0 ? ` 另有 ${project.missing_users.length} 个未提交人员项。` : ''}`,
     tomorrow_plan: '日志中未单独记录明日计划。',
   };
 }
 
-function normalizeSections(project: DailyReportProjectDetail, aiSections?: Partial<DailyReportSections>): DailyReportSections {
-  const fallback = buildFallbackProjectSections(project);
+function normalizeSections(project: DailyReportProjectDetail, aiSections?: Partial<DailyReportSections>, trend?: DailyReportProjectTrend): DailyReportSections {
+  const fallback = buildFallbackProjectSections(project, trend);
   return {
     construction_content: emptySectionText(aiSections?.construction_content || fallback.construction_content),
     labor_teams: emptySectionText(aiSections?.labor_teams || fallback.labor_teams),
@@ -185,17 +213,23 @@ function normalizeSections(project: DailyReportProjectDetail, aiSections?: Parti
 }
 
 function buildFallbackCompanyNarrative(summary: ConstructionDailyReportSummary) {
+  const unresolvedText = summary.company.risk_unresolved_count && summary.company.risk_unresolved_count > 0
+    ? `另有 ${summary.company.risk_unresolved_count} 条风险未闭环。`
+    : '';
   const keyPoints = [
     `当日 ${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有施工日志。`,
     `应交 ${summary.company.expected_user_count} 人，已交 ${summary.company.submitted_user_count} 人，未交 ${summary.company.missing_assignment_count} 个项目人员项。`,
     `日志共 ${summary.company.log_count} 条，出勤合计 ${summary.company.headcount_total} 人，问题异常 ${summary.company.issue_count} 条，风险 ${summary.company.risk_count} 条（高风险 ${summary.company.risk_high_count} 条）。`,
   ];
+  const riskTrendInfo = (summary.trends || []).filter(trend => trend.risk_trend === 'worse').length > 0
+    ? '部分项目近 3 日风险呈上升趋势，需重点关注。'
+    : '';
 
   return {
-    narrative: `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。${summary.company.issue_count > 0 ? `共记录 ${summary.company.issue_count} 条问题异常，需相关项目负责人跟进。` : '未记录明显问题异常。'}${summary.company.risk_count > 0 ? `风险检测 ${summary.company.risk_count} 条（高风险 ${summary.company.risk_high_count} 条），需重点关注。` : ''}`,
+    narrative: `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。${summary.company.issue_count > 0 ? `共记录 ${summary.company.issue_count} 条问题异常，需相关项目负责人跟进。` : '未记录明显问题异常。'}${summary.company.risk_count > 0 ? `风险检测 ${summary.company.risk_count} 条（高风险 ${summary.company.risk_high_count} 条），需重点关注。` : ''}${unresolvedText}${riskTrendInfo}`,
     key_points: keyPoints,
     risk_summary: summary.company.risk_count > 0 || summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0
-      ? `存在 ${summary.company.risk_count} 条风险（高风险 ${summary.company.risk_high_count} 条）、${summary.company.issue_count} 条问题异常、${summary.company.missing_assignment_count} 个未提交项目人员项。`
+      ? `存在 ${summary.company.risk_count} 条风险（高风险 ${summary.company.risk_high_count} 条）${summary.company.risk_unresolved_count ? `、${summary.company.risk_unresolved_count} 条未闭环` : ''}、${summary.company.issue_count} 条问题异常、${summary.company.missing_assignment_count} 个未提交项目人员项。${riskTrendInfo}`
       : '未识别到明显日报风险。',
   };
 }
@@ -242,20 +276,38 @@ async function collectLLMText(stream: AsyncIterable<unknown>) {
 }
 
 function buildAiPrompt(summary: ConstructionDailyReportSummary) {
-  const source = summary.projects.map(project => ({
-    project_id: project.project_id,
-    project_name: project.project_name,
-    log_count: project.log_count,
-    headcount_total: project.headcount_total,
-    submitted_users: project.submitted_users.map(user => user.name),
-    late_users: project.late_users.map(user => user.name),
-    missing_users: project.missing_users.map(user => user.name),
-    contents: project.contents.slice(0, 8),
-    issues: project.issues.slice(0, 8),
-    risk_count: project.risk_count,
-    risk_high_count: project.risk_high_count,
-    risk_summary_text: project.risk_summary_text,
-  }));
+  const source = summary.projects.map(project => {
+    const trend = summary.trends?.find(item => item.project_id === project.project_id);
+    return {
+      project_id: project.project_id,
+      project_name: project.project_name,
+      log_count: project.log_count,
+      headcount_total: project.headcount_total,
+      submitted_users: project.submitted_users.map(user => user.name),
+      late_users: project.late_users.map(user => user.name),
+      missing_users: project.missing_users.map(user => user.name),
+      contents: project.contents.slice(0, 8),
+      issues: project.issues.slice(0, 8),
+      risk_count: project.risk_count,
+      risk_high_count: project.risk_high_count,
+      risk_summary_text: project.risk_summary_text,
+      trend: trend
+        ? {
+          log_days: trend.log_days,
+          total_logs: trend.total_logs,
+          risk_count: trend.risk_count,
+          risk_high_count: trend.risk_high_count,
+          unresolved_risk_count: trend.unresolved_risk_count,
+          recent_3d_logs: trend.recent_3d_logs,
+          prev_3d_logs: trend.prev_3d_logs,
+          recent_3d_risks: trend.recent_3d_risks,
+          prev_3d_risks: trend.prev_3d_risks,
+          log_trend: trend.log_trend,
+          risk_trend: trend.risk_trend,
+        }
+        : undefined,
+    };
+  });
 
   return `你是建筑劳务公司项目日报助手。请把施工日志萃取成正式项目日报，不要逐条罗列原始日志。
 
@@ -265,6 +317,10 @@ function buildAiPrompt(summary: ConstructionDailyReportSummary) {
 3. 语言要像公司内部日报，简洁、客观、可直接给全员查看。
 4. 只返回 JSON，不要输出解释。
 5. "进度风险"段落必须结合风险检测结果（risk_count / risk_high_count / risk_summary_text）如实呈现，高风险项目要突出提示。
+6. "进度风险"段落还需结合近 7 日趋势（trend 字段）：
+   - risk_trend=worse 时提示"风险呈上升趋势"，risk_trend=better 时提示"风险较前期缓解"，flat 则不强调；
+   - 有未闭环风险（unresolved_risk_count > 0）时提示"仍有 N 条风险未闭环";
+   - log_trend=down 时提示"近 3 日日志活跃度下降"（可能是施工放缓或记录减少）。
 
 JSON 格式：
 {
@@ -323,11 +379,13 @@ function applyDailyReportNarrative(
   (aiResult?.projects || []).forEach(project => {
     if (project?.project_id) aiProjectMap.set(Number(project.project_id), project.sections || {});
   });
+  const trendByProject = new Map<number, DailyReportProjectTrend>();
+  (summary.trends || []).forEach(trend => trendByProject.set(trend.project_id, trend));
 
   return {
     ...summary,
     report_type: 'daily_report',
-    report_version: 2,
+    report_version: 4,
     company: {
       ...summary.company,
       narrative: emptySectionText(aiResult?.company?.narrative || fallbackCompany.narrative),
@@ -338,13 +396,15 @@ function applyDailyReportNarrative(
     },
     projects: summary.projects.map(project => ({
       ...project,
-      ai_sections: normalizeSections(project, aiProjectMap.get(project.project_id)),
+      ai_sections: normalizeSections(project, aiProjectMap.get(project.project_id), trendByProject.get(project.project_id)),
     })),
   };
 }
 
 function buildReportContent(summary: ConstructionDailyReportSummary) {
   const readableDate = getReadableDate(summary.report_date);
+  const trendByProject = new Map<number, DailyReportProjectTrend>();
+  (summary.trends || []).forEach(trend => trendByProject.set(trend.project_id, trend));
   const lines = [
     `${readableDate} 项目施工日报`,
     '',
@@ -357,7 +417,8 @@ function buildReportContent(summary: ConstructionDailyReportSummary) {
   ];
 
   summary.projects.forEach((project, index) => {
-    const sections = project.ai_sections || buildFallbackProjectSections(project);
+    const trend = trendByProject.get(project.project_id);
+    const sections = project.ai_sections || buildFallbackProjectSections(project, trend);
     lines.push(
       `${index + 1}. ${project.project_name}`,
       `   今日施工内容：${sections.construction_content}`,
@@ -372,8 +433,17 @@ function buildReportContent(summary: ConstructionDailyReportSummary) {
   return lines.join('\n');
 }
 
+function addDays(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 async function getReportSourceData(supabase: SupabaseClient, reportDate: string) {
-  const [projectsRes, usersRes, logsRes] = await Promise.all([
+  const trendStart = addDays(reportDate, -6); // 近 7 日窗口（含当日）
+  const recent3dStart = addDays(reportDate, -2); // 前 3 日窗口起点
+  const prev3dStart = addDays(reportDate, -5); // 再前 3 日窗口起点
+  const [projectsRes, usersRes, logsRes, trendLogsRes] = await Promise.all([
     supabase.from('projects').select('id,name').order('id', { ascending: true }),
     supabase.from('users').select('id,username,name,dingtalk_name,managed_projects,is_disabled,role'),
     supabase
@@ -382,24 +452,106 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
       .eq('log_date', reportDate)
       .neq('status', 'pending')
       .neq('status', 'cancelled'),
+    supabase
+      .from('construction_logs')
+      .select('id,project_id,log_date,content,issues')
+      .gte('log_date', trendStart)
+      .lte('log_date', reportDate)
+      .neq('status', 'pending')
+      .neq('status', 'cancelled'),
   ]);
 
   if (projectsRes.error) throw new Error(projectsRes.error.message);
   if (usersRes.error) throw new Error(usersRes.error.message);
   if (logsRes.error) throw new Error(logsRes.error.message);
+  if (trendLogsRes.error) throw new Error(trendLogsRes.error.message);
 
   const projects = (projectsRes.data || []) as ProjectRow[];
   const users = ((usersRes.data || []) as UserRow[]).filter(user => user.is_disabled !== true && user.role !== 'pending');
   const logs = (logsRes.data || []) as LogRow[];
+  const trendLogs = (trendLogsRes.data || []) as LogRow[];
 
-  return { projects, users, logs };
+  // 近 7 日风险事件（事件流表不存在时返回空数组，向后兼容）
+  let riskEvents = await loadConstructionRiskEvents(supabase, {
+    startDate: trendStart,
+    endDate: reportDate,
+    limit: 2000,
+  });
+
+  // 事件流表尚无数据时（新表刚建/历史日志未回填），用规则检测近 7 日日志兜底，
+  // 保证趋势统计从第一天起就可用。
+  if (riskEvents.length === 0) {
+    riskEvents = (trendLogs as LogRow[])
+      .map(log => {
+        const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
+        return {
+          project_id: Number(log.project_id),
+          level: risk.level || 'low',
+          status: risk.hasRisk ? 'pending' : '',
+          occurred_date: log.log_date,
+        };
+      })
+      .filter(event => event.status !== '');
+  }
+
+  return {
+    projects,
+    users,
+    logs,
+    trendLogs,
+    riskEvents,
+    windows: { trendStart, recent3dStart, prev3dStart },
+  };
+}
+
+function computeProjectTrend(
+  projectId: number,
+  projectName: string,
+  trendLogs: LogRow[],
+  riskEvents: Array<{ project_id: number; level: string; status: string; occurred_date: string }>,
+  windows: { trendStart: string; recent3dStart: string; prev3dStart: string },
+): DailyReportProjectTrend {
+  const projectLogs = trendLogs.filter(log => Number(log.project_id) === projectId);
+  const projectRisks = riskEvents.filter(event => Number(event.project_id) === projectId);
+  const logDays = new Set(projectLogs.map(log => log.log_date)).size;
+
+  const recent3dLogs = projectLogs.filter(log => log.log_date >= windows.recent3dStart).length;
+  const prev3dLogs = projectLogs.filter(
+    log => log.log_date >= windows.prev3dStart && log.log_date < windows.recent3dStart,
+  ).length;
+
+  const recent3dRisks = projectRisks.filter(event => event.occurred_date >= windows.recent3dStart).length;
+  const prev3dRisks = projectRisks.filter(
+    event => event.occurred_date >= windows.prev3dStart && event.occurred_date < windows.recent3dStart,
+  ).length;
+
+  const riskHighCount = projectRisks.filter(event => event.level === 'high').length;
+  const unresolvedRiskCount = projectRisks.filter(
+    event => event.status === 'pending' || event.status === 'confirmed',
+  ).length;
+
+  return {
+    project_id: projectId,
+    project_name: projectName,
+    log_days: logDays,
+    total_logs: projectLogs.length,
+    risk_count: projectRisks.length,
+    risk_high_count: riskHighCount,
+    unresolved_risk_count: unresolvedRiskCount,
+    recent_3d_logs: recent3dLogs,
+    prev_3d_logs: prev3dLogs,
+    recent_3d_risks: recent3dRisks,
+    prev_3d_risks: prev3dRisks,
+    log_trend: recent3dLogs > prev3dLogs ? 'up' : recent3dLogs < prev3dLogs ? 'down' : 'flat',
+    risk_trend: recent3dRisks > prev3dRisks ? 'worse' : recent3dRisks < prev3dRisks ? 'better' : 'flat',
+  };
 }
 
 export async function buildConstructionDailyReportSummary(
   supabase: SupabaseClient,
   reportDate: string,
 ): Promise<ConstructionDailyReportSummary> {
-  const { projects, users, logs } = await getReportSourceData(supabase, reportDate);
+  const { projects, users, logs, trendLogs, riskEvents, windows } = await getReportSourceData(supabase, reportDate);
   const projectNameMap = new Map(projects.map(project => [Number(project.id), project.name || `项目${project.id}`]));
   const userNameMap = new Map(users.map(user => [Number(user.id), getUserName(user)]));
   const expectedByProject = new Map<number, { id: number; name: string }[]>();
@@ -480,17 +632,23 @@ export async function buildConstructionDailyReportSummary(
     };
   });
 
+  // 近 7 日趋势对比（P1-2：日报 N 日趋势）
+  const trends: DailyReportProjectTrend[] = projectDetails.map(project =>
+    computeProjectTrend(project.project_id, project.project_name, trendLogs, riskEvents, windows),
+  );
+
   const expectedUserIds = uniqById(projectDetails.flatMap(project => project.expected_users)).map(user => user.id);
   const submittedUserIds = uniqById(projectDetails.flatMap(project => project.submitted_users)).map(user => user.id);
   const lateUserIds = uniqById(projectDetails.flatMap(project => project.late_users)).map(user => user.id);
 
   const totalRiskCount = projectDetails.reduce((sum, project) => sum + project.risk_count, 0);
   const totalRiskHighCount = projectDetails.reduce((sum, project) => sum + project.risk_high_count, 0);
+  const totalUnresolvedRiskCount = trends.reduce((sum, trend) => sum + trend.unresolved_risk_count, 0);
 
   return {
     report_date: reportDate,
     report_type: 'daily_report',
-    report_version: 3,
+    report_version: 4,
     company: {
       total_projects: projectDetails.length,
       submitted_projects: projectDetails.filter(project => project.log_count > 0).length,
@@ -503,8 +661,10 @@ export async function buildConstructionDailyReportSummary(
       headcount_total: projectDetails.reduce((sum, project) => sum + project.headcount_total, 0),
       risk_count: totalRiskCount,
       risk_high_count: totalRiskHighCount,
+      risk_unresolved_count: totalUnresolvedRiskCount,
     },
     projects: projectDetails,
+    trends,
   };
 }
 
@@ -575,7 +735,7 @@ export async function generateConstructionDailyReport(
     if (existingError) throw new Error(existingError.message);
     if (existing) {
       const existingReport = existing as ConstructionDailyReportRow;
-      const needsRegeneration = existingReport.summary?.report_version !== 3;
+      const needsRegeneration = existingReport.summary?.report_version !== 4;
       if (!needsRegeneration) {
         if (push && !existing.pushed_at) {
           return pushReportNotification(supabase, existingReport, existingReport.summary);

@@ -363,3 +363,181 @@ export function enrichConstructionLog<T extends { content?: string | null; issue
     risk_recommendation: risk.recommendation,
   };
 }
+
+// ============ 风险事件流表（construction_risk_events）============
+
+export interface RiskEventRow {
+  id: number;
+  project_id: number;
+  log_id: number;
+  risk_type: ConstructionRiskType | string;
+  risk_types: ConstructionRiskType[];
+  level: ConstructionRiskLevel | string;
+  status: ConstructionRiskWorkflowStatus | string;
+  occurred_date: string;
+  content?: string | null;
+  issues?: string | null;
+  summary?: string | null;
+  recommendation?: string | null;
+  matched_keywords: string[];
+  confirmed_by?: number | null;
+  confirmed_at?: string | null;
+  resolved_by?: number | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function isRiskEventsTableError(error: unknown) {
+  const err = error as { message?: string; code?: string } | null;
+  const message = String(err?.message || '').toLowerCase();
+  return (
+    err?.code === '42P01' ||
+    err?.code === '42703' ||
+    err?.code === 'PGRST205' ||
+    message.includes('construction_risk_events') ||
+    message.includes('does not exist') ||
+    message.includes('could not find')
+  );
+}
+
+/**
+ * 写入/更新风险事件。日志提交检测到风险时调用（status=pending）；
+ * 状态流转时更新 status 及操作人/时间。表不存在时静默跳过（向后兼容）。
+ */
+export async function upsertConstructionRiskEvent(
+  supabase: ReturnType<typeof import('@/storage/database/supabase-client').getSupabaseClient>,
+  input: {
+    projectId: number;
+    logId: number;
+    risk: ConstructionLogRisk;
+    logDate: string;
+    content?: string | null;
+    issues?: string | null;
+    status?: ConstructionRiskWorkflowStatus;
+    confirmedBy?: number | null;
+  },
+) {
+  if (!input.logId || !input.risk.hasRisk) return;
+  try {
+    const status = input.status || 'pending';
+    const patch: Record<string, unknown> = {
+      project_id: input.projectId,
+      log_id: input.logId,
+      risk_type: input.risk.primaryType || 'change',
+      risk_types: input.risk.types,
+      level: input.risk.level || 'low',
+      status,
+      occurred_date: input.logDate || new Date().toISOString().slice(0, 10),
+      content: input.content || null,
+      issues: input.issues || null,
+      summary: input.risk.summary || null,
+      recommendation: input.risk.recommendation || null,
+      matched_keywords: input.risk.matchedKeywords,
+      updated_at: new Date().toISOString(),
+    };
+    if (status === 'confirmed' && input.confirmedBy) {
+      patch.confirmed_by = input.confirmedBy;
+      patch.confirmed_at = new Date().toISOString();
+    }
+    const { error } = await supabase
+      .from('construction_risk_events')
+      .upsert(patch, { onConflict: 'log_id' });
+    if (error && isRiskEventsTableError(error)) return;
+    if (error) console.warn('[ConstructionLogRisk] upsert risk event failed:', error.message);
+  } catch (err) {
+    console.warn('[ConstructionLogRisk] upsert risk event skipped:', err);
+  }
+}
+
+/** 更新风险事件状态（确认/处理等流转动作） */
+export async function updateConstructionRiskEventStatus(
+  supabase: ReturnType<typeof import('@/storage/database/supabase-client').getSupabaseClient>,
+  logId: number,
+  status: ConstructionRiskWorkflowStatus,
+  operatorId?: number | null,
+) {
+  if (!logId) return;
+  try {
+    const patch: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+    if (operatorId) {
+      if (status === 'confirmed') {
+        patch.confirmed_by = operatorId;
+        patch.confirmed_at = new Date().toISOString();
+      }
+      if (status === 'resolved') {
+        patch.resolved_by = operatorId;
+        patch.resolved_at = new Date().toISOString();
+      }
+    }
+    const { error } = await supabase
+      .from('construction_risk_events')
+      .update(patch)
+      .eq('log_id', logId);
+    if (error && isRiskEventsTableError(error)) return;
+    if (error) console.warn('[ConstructionLogRisk] update risk event status failed:', error.message);
+  } catch (err) {
+    console.warn('[ConstructionLogRisk] update risk event status skipped:', err);
+  }
+}
+
+/** 批量读取风险事件（按项目 + 日期范围），供风险池/日报趋势使用；表不存在返回空数组 */
+export async function loadConstructionRiskEvents(
+  supabase: ReturnType<typeof import('@/storage/database/supabase-client').getSupabaseClient>,
+  input: {
+    projectIds?: number[];
+    startDate?: string;
+    endDate?: string;
+    statuses?: string[];
+    limit?: number;
+  } = {},
+): Promise<RiskEventRow[]> {
+  if (input.projectIds && input.projectIds.length === 0) return [];
+  try {
+    let query = supabase
+      .from('construction_risk_events')
+      .select('*')
+      .order('occurred_date', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(input.limit || 500);
+    if (input.projectIds && input.projectIds.length > 0) {
+      query = query.in('project_id', input.projectIds);
+    }
+    if (input.startDate) query = query.gte('occurred_date', input.startDate);
+    if (input.endDate) query = query.lte('occurred_date', input.endDate);
+    if (input.statuses && input.statuses.length > 0) {
+      query = query.in('status', input.statuses);
+    }
+    const { data, error } = await query;
+    if (error && isRiskEventsTableError(error)) return [];
+    if (error) throw new Error(error.message);
+    return (data || []) as RiskEventRow[];
+  } catch (err) {
+    console.warn('[ConstructionLogRisk] load risk events skipped:', err);
+    return [];
+  }
+}
+
+/** 读取单条日志的风险事件（优先事件表，无则 null） */
+export async function loadConstructionRiskEventByLogId(
+  supabase: ReturnType<typeof import('@/storage/database/supabase-client').getSupabaseClient>,
+  logId: number,
+): Promise<RiskEventRow | null> {
+  if (!logId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('construction_risk_events')
+      .select('*')
+      .eq('log_id', logId)
+      .maybeSingle();
+    if (error && isRiskEventsTableError(error)) return null;
+    if (error) throw new Error(error.message);
+    return (data as RiskEventRow | null) || null;
+  } catch (err) {
+    console.warn('[ConstructionLogRisk] load risk event by log skipped:', err);
+    return null;
+  }
+}

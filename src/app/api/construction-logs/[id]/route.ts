@@ -5,7 +5,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
-import { detectConstructionLogRisk, enrichConstructionLog } from '@/lib/construction-log-risk';
+import { detectConstructionLogRisk, enrichConstructionLog, getRiskWorkflowStatusLabel, loadConstructionRiskEventByLogId } from '@/lib/construction-log-risk';
 import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
 import { hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
 
@@ -245,6 +245,20 @@ async function loadRiskWorkflowStatus(
   logId: number,
   userId: number,
 ) {
+  // 优先读取风险事件流表（完整状态机：pending/confirmed/ignored/resolved/monthly/visa_created）
+  const riskEvent = await loadConstructionRiskEventByLogId(supabase, logId);
+  if (riskEvent) {
+    const status = String(riskEvent.status || 'pending');
+    const isActionable = status === 'pending' || status === 'confirmed';
+    return {
+      workflow_status: status,
+      workflow_status_label: getRiskWorkflowStatusLabel(status),
+      can_acknowledge: isActionable,
+      confirmed_by: riskEvent.confirmed_by || null,
+      confirmed_at: riskEvent.confirmed_at || null,
+    };
+  }
+
   let result: {
     data: NotificationRow[] | null;
     error: { message: string; details?: string; code?: string } | null;

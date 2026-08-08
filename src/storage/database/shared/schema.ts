@@ -926,6 +926,34 @@ export const aiDailyUsage = pgTable("ai_daily_usage", {
 		index("construction_logs_submission_status_idx").using("btree", table.submissionStatus.asc().nullsLast().op("text_ops")),
 	]);
 
+// 施工日志风险事件流：将风险状态从日志 tags 剥离为独立状态机
+export const constructionRiskEvents = pgTable("construction_risk_events", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id").notNull(),
+	logId: integer("log_id").notNull(),
+	riskType: varchar("risk_type", { length: 20 }).default('change').notNull(),
+	riskTypes: text("risk_types").array().default([]).notNull(),
+	level: varchar("level", { length: 10 }).default('low').notNull(),
+	status: varchar("status", { length: 20 }).default('pending').notNull(),
+	occurredDate: date("occurred_date").notNull(),
+	content: text("content"),
+	issues: text("issues"),
+	summary: text("summary"),
+	recommendation: text("recommendation"),
+	matchedKeywords: text("matched_keywords").array().default([]).notNull(),
+	confirmedBy: integer("confirmed_by"),
+	confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: 'string' }),
+	resolvedBy: integer("resolved_by"),
+	resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("construction_risk_events_project_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("construction_risk_events_date_idx").using("btree", table.occurredDate.asc().nullsLast().op("date_ops")),
+	index("construction_risk_events_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("construction_risk_events_project_date_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops"), table.occurredDate.asc().nullsLast().op("date_ops")),
+]);
+
 export const constructionLogSubmitters = pgTable("construction_log_submitters", {
 	id: serial().primaryKey().notNull(),
 	projectId: integer("project_id").notNull(),

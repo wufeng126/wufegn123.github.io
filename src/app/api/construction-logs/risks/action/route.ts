@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
+import { detectConstructionLogRisk, updateConstructionRiskEventStatus } from '@/lib/construction-log-risk';
 import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
@@ -73,6 +73,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.error) throw new Error(result.error.message);
+
+    // 同步更新风险事件流状态（confirmed + 操作人/时间）；表不存在时静默跳过（向后兼容）
+    await updateConstructionRiskEventStatus(supabase, logId, 'confirmed', Number(auth.user.id));
 
     return apiSuccess({
       logId,

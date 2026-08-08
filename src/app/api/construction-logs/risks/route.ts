@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
-import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
+import { detectConstructionLogRisk, loadConstructionRiskEvents } from '@/lib/construction-log-risk';
 import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
@@ -124,6 +124,16 @@ export async function GET(request: NextRequest) {
       Number(auth.user.id),
     );
 
+    // 风险事件流：优先使用事件表的状态（支持 pending/confirmed/ignored/resolved 等完整状态机）
+    const riskEvents = await loadConstructionRiskEvents(
+      supabase,
+      Array.isArray(accessibleProjectIds)
+        ? { projectIds: accessibleProjectIds }
+        : { projectIds: riskRows.map((item) => Number(item.log.project_id)).filter(Boolean) },
+    );
+    const riskEventByLogId = new Map<number, { status: string }>();
+    riskEvents.forEach((event) => riskEventByLogId.set(Number(event.log_id), { status: event.status }));
+
     const projectMap = new Map<number, string>();
     (projects || []).forEach((project: any) => projectMap.set(Number(project.id), project.name));
 
@@ -131,7 +141,8 @@ export async function GET(request: NextRequest) {
       .map(({ log, risk }) => {
         const notificationRows = notificationsByLogId.get(Number(log.id)) || [];
         const hasConfirmedNotification = notificationRows.length > 0 && notificationRows.every((row) => !isUnread(row.is_read));
-        const workflowStatus = hasConfirmedNotification ? 'confirmed' : 'pending';
+        const eventStatus = riskEventByLogId.get(Number(log.id))?.status;
+        const workflowStatus = eventStatus || (hasConfirmedNotification ? 'confirmed' : 'pending');
 
         return {
           id: log.id,
@@ -151,7 +162,7 @@ export async function GET(request: NextRequest) {
           risk_recommendation: risk.recommendation,
           risk_matched_keywords: risk.matchedKeywords,
           workflow_status: workflowStatus,
-          workflow_status_label: workflowStatus === 'confirmed' ? '已确认' : '待确认',
+          workflow_status_label: workflowStatus === 'confirmed' ? '已确认' : workflowStatus === 'resolved' ? '已处理' : workflowStatus === 'ignored' ? '确认无影响' : '待确认',
           workflow_tags: [],
           updated_at: log.updated_at || log.created_at,
         };

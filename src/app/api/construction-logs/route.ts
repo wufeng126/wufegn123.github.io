@@ -13,6 +13,7 @@ import {
   getRiskTypeLabel,
   mergeRiskWithAiRule,
   refineRiskWithAI,
+  upsertConstructionRiskEvent,
 } from '@/lib/construction-log-risk';
 import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
 import { getUserDisplayName } from '@/lib/user-display-name';
@@ -568,6 +569,16 @@ async function createRiskSideEffects(
 
   const recipients = await getProjectBudgetRecipients(supabase, draft.project_id);
   const targetNames = formatRecipientNames(recipients);
+
+  // 写入风险事件流（pending 状态，供风险池/日报趋势/状态机使用）
+  await upsertConstructionRiskEvent(supabase, {
+    projectId: draft.project_id,
+    logId: data.id,
+    risk,
+    logDate,
+    content: draft.content,
+    issues: draft.issues || '',
+  });
 
   const { pushBusinessNotification } = await import('@/lib/business-notification');
   await pushBusinessNotification({
