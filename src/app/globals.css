@@ -1478,6 +1478,288 @@ input::placeholder, textarea::placeholder {
   }
 }
 
+/* 高频业务页手机端细化：工作台、施工日志、通知待办 */
+@media (max-width: 767px) {
+  .mobile-task-page {
+    min-height: 100dvh;
+    padding: 0.75rem !important;
+    padding-bottom: calc(8.75rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  .mobile-task-page > .mx-auto {
+    width: 100%;
+    max-width: 100% !important;
+  }
+
+  .mobile-task-page h1 {
+    font-size: 1.35rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .mobile-task-page h2 {
+    line-height: 1.35 !important;
+  }
+
+  .mobile-page-header {
+    border-radius: 0.875rem !important;
+    padding: 0.9rem !important;
+  }
+
+  .mobile-page-header p {
+    line-height: 1.55 !important;
+  }
+
+  .mobile-hero-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+
+  .mobile-hero-actions > a,
+  .mobile-hero-actions > button {
+    width: 100% !important;
+    min-height: 46px !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    white-space: nowrap !important;
+  }
+
+  .mobile-sticky-actions {
+    position: fixed !important;
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    bottom: calc(4.75rem + env(safe-area-inset-bottom)) !important;
+    z-index: 55 !important;
+    border-radius: 1rem !important;
+    border: 1px solid rgba(226, 232, 240, 0.95) !important;
+    background: rgba(255, 255, 255, 0.97) !important;
+    box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.14) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .mobile-sticky-actions button,
+  .mobile-sticky-actions a {
+    min-height: 48px !important;
+  }
+
+  .mobile-form-section {
+    border-radius: 0.875rem !important;
+  }
+
+  .mobile-form-section > div,
+  .mobile-form-section section {
+    scroll-margin-top: 4.5rem;
+  }
+
+  .construction-log-entry-page form {
+    padding-bottom: 1rem;
+  }
+
+  .construction-log-entry-page textarea {
+    min-height: 112px !important;
+    line-height: 1.65 !important;
+  }
+
+  .construction-log-entry-page label {
+    line-height: 1.45;
+  }
+
+  .construction-log-entry-page input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .construction-log-entry-page select {
+    min-height: 46px !important;
+    font-size: 16px !important;
+  }
+
+  .construction-log-entry-page button,
+  .construction-log-entry-page label.cursor-pointer {
+    min-height: 44px;
+  }
+
+  .construction-log-entry-page .mobile-form-section .grid {
+    gap: 0.75rem !important;
+  }
+
+  .construction-log-entry-page .mobile-form-section [class*="md:grid-cols"],
+  .construction-log-entry-page .mobile-form-section [class*="lg:grid-cols"],
+  .construction-log-entry-page .mobile-form-section [class*="xl:grid-cols"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .construction-log-entry-page .mobile-form-section [class*="max-h-72"],
+  .construction-log-entry-page .mobile-form-section [class*="max-h-64"] {
+    max-height: 16rem !important;
+  }
+
+  .construction-log-entry-page .mobile-form-section img {
+    min-height: 9rem;
+  }
+
+  .construction-log-submit-bar {
+    gap: 0.65rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .construction-log-submit-bar > button:first-child {
+    order: 2;
+    min-height: 42px !important;
+    border-color: #dbeafe !important;
+    background: #f8fbff !important;
+  }
+
+  .construction-log-submit-bar > div {
+    order: 1;
+    gap: 0.5rem !important;
+  }
+
+  .construction-log-submit-bar [type="submit"] {
+    min-height: 50px !important;
+    font-size: 0.98rem !important;
+  }
+
+  .mobile-workbench .mobile-primary-action {
+    border-radius: 1rem !important;
+    padding: 1rem !important;
+  }
+
+  .mobile-workbench .mobile-primary-action > div {
+    gap: 0.9rem !important;
+  }
+
+  .mobile-workbench .mobile-primary-action h2 {
+    font-size: 1.5rem !important;
+  }
+
+  .mobile-workbench .mobile-primary-action-cta {
+    width: 100% !important;
+    min-height: 50px !important;
+  }
+
+  .mobile-workbench .mobile-quick-entry {
+    min-height: 86px !important;
+    border-radius: 0.8rem !important;
+    background: #f8fafc !important;
+  }
+
+  .mobile-workbench .mobile-todo-item {
+    min-height: 78px !important;
+    border-radius: 0.8rem !important;
+    padding: 0.85rem !important;
+    background: #fff !important;
+  }
+
+  .mobile-workbench .mobile-todo-item > span {
+    justify-content: flex-start !important;
+  }
+
+  .mobile-filter-panel {
+    border-radius: 0.875rem !important;
+  }
+
+  .mobile-filter-panel input,
+  .mobile-filter-panel select,
+  .mobile-filter-panel button {
+    min-height: 46px !important;
+    width: 100% !important;
+  }
+
+  .construction-log-list-page .mobile-metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+  }
+
+  .construction-log-list-page .mobile-metric-strip > div:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+
+  .construction-log-list-page .mobile-tab-strip {
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+    border-radius: 0.875rem !important;
+    position: sticky;
+    top: calc(56px + env(safe-area-inset-top));
+    z-index: 20;
+  }
+
+  .construction-log-list-page summary {
+    padding: 0.9rem !important;
+  }
+
+  .construction-log-list-page details article,
+  .construction-log-list-page details .rounded-lg,
+  .construction-log-list-page .mobile-log-card {
+    border-radius: 0.85rem !important;
+  }
+
+  .mobile-card-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+
+  .mobile-card-actions a,
+  .mobile-card-actions button {
+    min-height: 42px !important;
+    justify-content: center !important;
+    border-radius: 0.7rem !important;
+  }
+
+  .notification-task-page {
+    padding: 0.75rem !important;
+    padding-bottom: calc(8.75rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  .notification-task-page .notification-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+  }
+
+  .notification-task-page .notification-list-panel {
+    border-radius: 0.875rem !important;
+    overflow: hidden;
+  }
+
+  .notification-task-page [data-slot="tabs-list"] {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .notification-card-item {
+    gap: 0.75rem !important;
+    padding: 0.9rem !important;
+  }
+
+  .notification-card-item > div:last-child > div:first-child {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .notification-card-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+    margin-top: 0.75rem !important;
+  }
+
+  .notification-card-actions a,
+  .notification-card-actions button {
+    min-height: 40px !important;
+    justify-content: center !important;
+    border-radius: 0.65rem !important;
+    background: #f8fafc !important;
+    padding: 0.35rem 0.65rem !important;
+    text-decoration: none !important;
+  }
+
+  .notification-card-actions a:first-child {
+    grid-column: 1 / -1;
+    background: #eef4ff !important;
+    font-weight: 700 !important;
+  }
+}
+
 /* ========== 平板适配 ========== */
 @media (min-width: 769px) and (max-width: 1024px) {
   .stat-card {

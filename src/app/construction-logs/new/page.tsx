@@ -696,9 +696,9 @@ function NewConstructionLogPageContent() {
   }
 
   return (
-    <div className="min-h-full bg-[#EEF3F8] px-3 py-4 sm:p-4 md:p-6">
+    <div className="mobile-task-page construction-log-entry-page min-h-full bg-[#EEF3F8] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mobile-page-header mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <Link href="/construction-logs" className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-blue-200 hover:text-blue-700">
               <ArrowLeft className="h-4 w-4" />
@@ -714,7 +714,7 @@ function NewConstructionLogPageContent() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <section className="mobile-form-section overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -894,7 +894,7 @@ function NewConstructionLogPageContent() {
                 : 'border-l-slate-300';
 
             return (
-              <section key={draft.id} className={`overflow-hidden rounded-xl border border-l-4 border-slate-200 bg-white shadow-sm ${draftStatusLine}`}>
+              <section key={draft.id} className={`mobile-form-section overflow-hidden rounded-xl border border-l-4 border-slate-200 bg-white shadow-sm ${draftStatusLine}`}>
                 <div className="flex flex-col items-start justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-semibold text-slate-950">项目明细 {index + 1}</h2>
@@ -1338,7 +1338,7 @@ function NewConstructionLogPageContent() {
             </div>
           )}
 
-          <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/90 backdrop-blur sm:sticky sm:bottom-3 sm:z-20 sm:flex-row sm:items-center sm:p-4">
+          <div className="mobile-sticky-actions construction-log-submit-bar flex flex-col items-stretch justify-between gap-3 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/90 backdrop-blur sm:sticky sm:bottom-3 sm:z-20 sm:flex-row sm:items-center sm:p-4">
             <button
               type="button"
               onClick={addDraft}

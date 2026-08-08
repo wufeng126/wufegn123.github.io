@@ -680,9 +680,9 @@ export default function ConstructionLogsClient() {
   }
 
   return (
-    <div className="min-h-full bg-transparent p-3 text-slate-950 sm:p-4 md:p-6">
+    <div className="mobile-task-page construction-log-list-page min-h-full bg-transparent p-3 text-slate-950 sm:p-4 md:p-6">
       <div className="mx-auto max-w-[1280px] space-y-6">
-        <header className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <header className="mobile-page-header rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -692,7 +692,7 @@ export default function ConstructionLogsClient() {
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950 md:text-3xl">施工日志</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">现场记录、风险提醒、提交统计集中查看，最新记录和待确认风险优先展示。</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <div className="mobile-hero-actions grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <Link href="/construction-logs/scan" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-100">
               <Camera className="h-4 w-4" strokeWidth={1.8} />拍照识别
             </Link>
@@ -703,7 +703,7 @@ export default function ConstructionLogsClient() {
           </div>
         </header>
 
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <section className="mobile-metric-strip grid grid-cols-2 gap-3 md:grid-cols-5">
           <MetricItem label="总日志数" value={totalLogs} icon={FileText} tone="text-blue-700" />
           <MetricItem label="提交人员" value={totalPeople} icon={Users} tone="text-violet-700" />
           <MetricItem label="有日志项目" value={submittedProjects} icon={ClipboardList} tone="text-emerald-700" />
@@ -717,7 +717,7 @@ export default function ConstructionLogsClient() {
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="mobile-tab-strip overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <div className="flex min-w-max gap-1">
           <TabButton active={tab === 'risks'} onClick={() => setTab('risks')} icon={AlertTriangle}>风险池</TabButton>
           <TabButton active={tab === 'stats'} onClick={() => setTab('stats')} icon={BarChart3}>提交统计</TabButton>
@@ -730,7 +730,7 @@ export default function ConstructionLogsClient() {
 
         {tab === 'risks' && (
           <div className="space-y-3">
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <section className="mobile-filter-panel overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="font-semibold text-slate-950">风险提醒</h2>
@@ -832,7 +832,7 @@ export default function ConstructionLogsClient() {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2 md:min-w-[150px]">
+                  <div className="mobile-card-actions flex flex-col gap-2 md:min-w-[150px]">
                     <Link href={`/construction-logs/${risk.log_id}`} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:border-blue-200 hover:text-blue-700">
                       <Eye className="h-3.5 w-3.5" />
                       查看详情
@@ -851,7 +851,7 @@ export default function ConstructionLogsClient() {
 
         {tab === 'stats' && (
           <div className="space-y-4">
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <section className="mobile-filter-panel overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-2">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 ring-1 ring-slate-200">
@@ -1154,7 +1154,7 @@ export default function ConstructionLogsClient() {
 
                 <div className="space-y-3 border-t border-slate-100 bg-slate-50/80 p-3 sm:p-4">
                   {group.logs.map(log => (
-                    <div key={log.id} className={`rounded-lg border border-l-4 bg-white p-4 transition hover:border-blue-200 ${log.risk_level ? 'border-l-rose-300' : log.status === 'pending' ? 'border-l-blue-300' : 'border-l-slate-200'}`}>
+                    <div key={log.id} className={`mobile-log-card rounded-lg border border-l-4 bg-white p-4 transition hover:border-blue-200 ${log.risk_level ? 'border-l-rose-300' : log.status === 'pending' ? 'border-l-blue-300' : 'border-l-slate-200'}`}>
                       <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span>{projectNameById.get(Number(log.project_id)) || `项目${log.project_id}`}</span>
                         <span className="h-3 w-px bg-slate-200" />
@@ -1188,7 +1188,7 @@ export default function ConstructionLogsClient() {
                         {log.headcount != null && <span>{log.headcount}人</span>}
                         {highRisks > 0 && log.risk_level === 'high' && <span className="text-rose-700">高风险需优先确认</span>}
                         {log.issues && <span className="text-rose-700">异常：{log.issues}</span>}
-                        <div className="flex w-full shrink-0 items-center justify-end gap-2 md:ml-auto md:w-auto">
+                        <div className="mobile-card-actions flex w-full shrink-0 items-center justify-end gap-2 md:ml-auto md:w-auto">
                           <Link href={`/construction-logs/${log.id}`} className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 font-medium text-blue-700 hover:border-blue-200">查看详情</Link>
                           {log.status === 'pending' && Number(log.user_id) === Number(user?.id) && (
                             <button

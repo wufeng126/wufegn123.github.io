@@ -753,14 +753,14 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="notification-task-page space-y-6">
       {/* 页面标题 */}
-      <div className="flex items-center justify-between">
+      <div className="mobile-page-header flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>消息通知中心</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>自动化通知管理 · 钉钉消息推送</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="mobile-hero-actions flex items-center gap-3">
           <Button
             variant="outline"
             size="sm"
@@ -784,7 +784,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="notification-metrics grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="hover:shadow-lg transition-all" style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between">
@@ -1203,7 +1203,7 @@ export default function NotificationsPage() {
       )}
 
       {/* 消息列表 */}
-      <Card style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
+      <Card className="notification-list-panel" style={{ background: 'var(--card)', border: '1px solid #E5E6EB' }}>
         <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Tabs value={activeTab} onValueChange={switchListTab} className="min-w-0">
@@ -1251,7 +1251,7 @@ export default function NotificationsPage() {
                 return (
                   <div
                     key={notification.id}
-                    className={`relative flex items-start gap-4 p-4 transition-colors ${
+                    className={`notification-card-item relative flex items-start gap-4 p-4 transition-colors ${
                       isUnreadItem ? 'bg-accent/40' : 'hover:bg-muted/40'
                     }`}
                   >
@@ -1318,7 +1318,7 @@ export default function NotificationsPage() {
                       </div>
 
                       {/* 操作按钮 */}
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="notification-card-actions flex items-center gap-2 mt-2">
                         <Link
                           href={getLink(notification)}
                           onClick={() => {

@@ -280,7 +280,7 @@ function ActionCard({ item, large = false }: { item: QuickEntry; large?: boolean
     return (
       <Link
         href={item.href}
-        className="group block rounded-xl border border-border bg-white px-5 py-5 transition hover:border-border hover:bg-white md:px-6"
+        className="mobile-primary-action group block rounded-xl border border-border bg-white px-5 py-5 transition hover:border-border hover:bg-white md:px-6"
       >
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0">
@@ -296,7 +296,7 @@ function ActionCard({ item, large = false }: { item: QuickEntry; large?: boolean
               </div>
             </div>
           </div>
-          <span className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-base font-semibold text-white transition group-hover:bg-primary">
+          <span className="mobile-primary-action-cta inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-base font-semibold text-white transition group-hover:bg-primary">
             立即进入
             <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" strokeWidth={1.8} />
           </span>
@@ -308,7 +308,7 @@ function ActionCard({ item, large = false }: { item: QuickEntry; large?: boolean
   return (
     <Link
       href={item.href}
-      className="group flex min-h-[96px] items-start gap-3 rounded-lg p-3 text-left transition hover:bg-muted/40"
+      className="mobile-quick-entry group flex min-h-[96px] items-start gap-3 rounded-lg p-3 text-left transition hover:bg-muted/40"
     >
       <BrandIconContainer name={item.icon} size={18} className="mt-0.5 rounded-lg p-1.5 shadow-none" />
       <div className="min-w-0 flex-1">
@@ -388,7 +388,7 @@ export default function WorkbenchContent() {
   );
 
   return (
-    <div className="min-h-full bg-background p-4 text-slate-950 md:p-6">
+    <div className="mobile-task-page mobile-workbench min-h-full bg-background p-4 text-slate-950 md:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="flex min-w-0 flex-col gap-6">
@@ -440,7 +440,7 @@ export default function WorkbenchContent() {
                     <Link
                       key={item.key}
                       href={item.href}
-                      className="flex flex-col gap-2.5 rounded-lg px-3.5 py-3 text-left transition hover:bg-muted/40 md:flex-row md:items-center md:justify-between"
+                      className="mobile-todo-item flex flex-col gap-2.5 rounded-lg px-3.5 py-3 text-left transition hover:bg-muted/40 md:flex-row md:items-center md:justify-between"
                     >
                       <div className="flex min-w-0 items-start gap-3">
                         <BrandIconContainer name={visual.icon} size={18} className="mt-0.5 rounded-lg p-1.5 shadow-none" />
