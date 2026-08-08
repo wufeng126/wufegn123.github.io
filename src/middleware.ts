@@ -67,6 +67,7 @@ const INTERNAL_APIS = [
   '/api/init',
   '/api/worker-assignments',
   '/api/workers/check-duplicates',
+  '/api/weather',
 ];
 
 // 返回JSON错误响应

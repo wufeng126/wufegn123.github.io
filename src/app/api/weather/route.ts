@@ -40,6 +40,8 @@ type WeatherData = {
   windSpeed: number;
   windDirection: string;
   windLevel: string;
+  /** 兼容前端展示：人类可读风力描述（如 "3级 东南风"） */
+  wind: string;
   city: string;
 };
 
@@ -66,6 +68,9 @@ async function fetchWeatherFromWttr(city: string): Promise<WeatherData | null> {
     const weatherCode = current.weatherCode || current.weatherDesc?.[0]?.value || '';
     const condition = mapWeatherCode(weatherCode);
     const conditionInfo = WEATHER_CONDITION_MAP[condition] || { label: condition, icon: '🌤️' };
+    const windSpeed = parseFloat(current.windspeedKmph) || 0;
+    const windDirection = current.winddir16Point || '';
+    const windLevel = getWindLevel(windSpeed);
 
     return {
       condition,
@@ -73,9 +78,10 @@ async function fetchWeatherFromWttr(city: string): Promise<WeatherData | null> {
       conditionIcon: conditionInfo.icon,
       temperature: parseFloat(current.temp_C) || 0,
       humidity: parseInt(current.humidity) || 0,
-      windSpeed: parseFloat(current.windspeedKmph) || 0,
-      windDirection: current.winddir16Point || '',
-      windLevel: getWindLevel(parseFloat(current.windspeedKmph) || 0),
+      windSpeed,
+      windDirection,
+      windLevel,
+      wind: [windLevel, windDirection].filter(Boolean).join(' ') || '无风',
       city: data?.nearest_area?.[0]?.areaName?.[0]?.value || city,
     };
   } catch {
@@ -121,6 +127,7 @@ export async function GET(request: NextRequest) {
         windSpeed: 0,
         windDirection: '',
         windLevel: '无风',
+        wind: '无风',
         city,
         isDefault: true,
       });

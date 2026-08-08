@@ -247,7 +247,7 @@ function NewConstructionLogPageContent() {
         const json = await res.json();
         if (json.success && json.data) {
           setWeather({
-            condition: json.data.condition || '',
+            condition: json.data.conditionLabel || json.data.condition || '',
             temperature: json.data.temperature,
             wind: json.data.wind || '',
             humidity: json.data.humidity,
@@ -777,7 +777,7 @@ function NewConstructionLogPageContent() {
                       .then(json => {
                         if (json.success && json.data) {
                           setWeather({
-                            condition: json.data.condition || '',
+                            condition: json.data.conditionLabel || json.data.condition || '',
                             temperature: json.data.temperature,
                             wind: json.data.wind || '',
                             humidity: json.data.humidity,
