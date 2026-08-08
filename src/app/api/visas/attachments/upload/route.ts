@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { verifyRequest } from "@/lib/auth";
-import { S3Storage } from "coze-coding-dev-sdk";
+import { OSSStorage } from '@/lib/oss-storage';
 
 function createStorage() {
-  return new S3Storage({
-    endpointUrl: process.env.OSS_ENDPOINT,
-    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-    bucketName: process.env.OSS_BUCKET_NAME,
-    region: process.env.OSS_REGION || 'cn-beijing',
-  });
+  return new OSSStorage();
 }
 
 // 上传签证附件

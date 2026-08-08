@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { verifyRequest } from "@/lib/auth";
-import { S3Storage } from "coze-coding-dev-sdk";
+import { OSSStorage } from '@/lib/oss-storage';
 
 // 删除签证附件
 export async function DELETE(request: NextRequest) {
@@ -56,13 +56,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 删除文件
-    const storage = new S3Storage({
-      endpointUrl: process.env.OSS_ENDPOINT,
-      accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-      secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-      bucketName: process.env.OSS_BUCKET_NAME,
-      region: process.env.OSS_REGION || 'cn-beijing',
-    });
+    const storage = new OSSStorage();
     await storage.deleteFile({ fileKey: attachment.file_key });
 
     // 删除数据库记录

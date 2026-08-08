@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { Config, FetchClient, S3Storage } from 'coze-coding-dev-sdk';
+import { Config, FetchClient } from 'coze-coding-dev-sdk';
+import { OSSStorage } from '@/lib/oss-storage';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { analyzeConstructionLogOcrQuality, parseConstructionLogText } from '@/lib/construction-log-ocr';
@@ -46,13 +47,7 @@ function cleanAiContent(text: string) {
 }
 
 async function recognizeImage(file: File, request: NextRequest, index: number) {
-  const storage = new S3Storage({
-    endpointUrl: process.env.OSS_ENDPOINT,
-    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-    bucketName: process.env.OSS_BUCKET_NAME,
-    region: process.env.OSS_REGION || 'cn-beijing',
-  });
+  const storage = new OSSStorage();
   const buffer = Buffer.from(await file.arrayBuffer());
   const storageKey = await storage.uploadFile({
     fileContent: buffer,

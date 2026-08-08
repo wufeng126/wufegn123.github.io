@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
@@ -7,13 +7,7 @@ import { getAccessibleProjectIds } from '@/lib/api-project-access';
 const OSS_PROJECT_CONTRACT_PREFIX = 'project-contracts/';
 
 function createStorage() {
-  return new S3Storage({
-    endpointUrl: process.env.OSS_ENDPOINT,
-    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-    bucketName: process.env.OSS_BUCKET_NAME,
-    region: process.env.OSS_REGION || 'cn-beijing',
-  });
+  return new OSSStorage();
 }
 
 function isOssProjectContractPath(path?: string | null) {

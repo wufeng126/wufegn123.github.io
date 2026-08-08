@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { S3Storage } from "coze-coding-dev-sdk";
+import { OSSStorage } from '@/lib/oss-storage';
 import { requireSuperAdmin } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
@@ -11,13 +11,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = getSupabaseClient();
   try {
-    const storage = new S3Storage({
-      endpointUrl: process.env.OSS_ENDPOINT,
-      accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-      secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-      bucketName: process.env.OSS_BUCKET_NAME,
-      region: process.env.OSS_REGION || 'cn-beijing',
-    });
+    const storage = new OSSStorage();
 
     // 获取30天前的日期
     const cutoffDate = new Date();

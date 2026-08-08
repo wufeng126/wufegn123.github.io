@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
@@ -42,13 +42,7 @@ function getAttachmentKey(attachment: LogAttachment) {
 }
 
 function createStorage() {
-  return new S3Storage({
-    endpointUrl: process.env.OSS_ENDPOINT,
-    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-    bucketName: process.env.OSS_BUCKET_NAME,
-    region: process.env.OSS_REGION || 'cn-beijing',
-  });
+  return new OSSStorage();
 }
 
 function buildKnowledgeContent(project: Record<string, unknown>, snapshot: Record<string, unknown>, note: string) {

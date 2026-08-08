@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { KnowledgeClient, FetchClient, Config, DataSourceType, S3Storage } from 'coze-coding-dev-sdk';
+import { KnowledgeClient, FetchClient, Config, DataSourceType } from 'coze-coding-dev-sdk';
+import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { extractForwardHeaders } from '@/lib/ai-service';
 import { upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
@@ -44,13 +45,7 @@ export async function POST(request: NextRequest) {
       error?: string;
     }> = [];
 
-    const storage = new S3Storage({
-      endpointUrl: process.env.OSS_ENDPOINT,
-      accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-      secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-      bucketName: process.env.OSS_BUCKET_NAME,
-      region: process.env.OSS_REGION || 'cn-beijing',
-    });
+    const storage = new OSSStorage();
 
     const config = new Config();
     const knowledgeClient = new KnowledgeClient(config, forwardHeaders);

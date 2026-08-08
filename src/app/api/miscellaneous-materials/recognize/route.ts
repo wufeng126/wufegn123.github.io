@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { ASRClient, Config, FetchClient, S3Storage } from 'coze-coding-dev-sdk';
+import { ASRClient, Config, FetchClient } from 'coze-coding-dev-sdk';
+import { OSSStorage } from '@/lib/oss-storage';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { extractForwardHeaders } from '@/lib/ai-service';
@@ -18,13 +19,7 @@ interface ProjectRow {
 }
 
 function createStorage() {
-  return new S3Storage({
-    endpointUrl: process.env.OSS_ENDPOINT,
-    accessKey: process.env.OSS_ACCESS_KEY_ID || '',
-    secretKey: process.env.OSS_ACCESS_KEY_SECRET || '',
-    bucketName: process.env.OSS_BUCKET_NAME,
-    region: process.env.OSS_REGION || 'cn-beijing',
-  });
+  return new OSSStorage();
 }
 
 async function recognizeImage(file: File, request: NextRequest, index: number) {
