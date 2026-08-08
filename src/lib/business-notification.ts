@@ -8,7 +8,7 @@ import {
   shouldUsePersonalWorkNotice,
   shouldUseRobotBroadcast,
 } from '@/lib/notification-routing';
-import { buildNotificationActionHref } from '@/lib/notification-link';
+import { buildNotificationActionHref, toAbsoluteNotificationHref } from '@/lib/notification-link';
 
 type NotificationSeverity = 'info' | 'warning' | 'danger';
 type NotificationRow = { id?: number | string; recipient_user_id?: number | null };
@@ -255,12 +255,14 @@ export function buildNotificationExtra(params: {
     relatedType: params.relatedType,
     metadata,
   });
+  // 转换为绝对 URL，确保钉钉消息中的链接可点击
+  const absoluteActionHref = actionHref ? toAbsoluteNotificationHref(actionHref) : null;
   if (customAction || routeRule?.actionLabel) extra['建议动作'] = customAction || routeRule?.actionLabel || '';
-  if (actionHref) extra['处理入口'] = actionHref;
+  if (absoluteActionHref) extra['处理入口'] = absoluteActionHref;
 
-  if (actionHref && params.notificationId) {
+  if (absoluteActionHref && params.notificationId) {
     Object.entries(extra).forEach(([key, value]) => {
-      if (value === actionHref) extra[key] = withNotificationId(actionHref, params.notificationId);
+      if (value === absoluteActionHref) extra[key] = withNotificationId(absoluteActionHref, params.notificationId);
     });
   }
 
