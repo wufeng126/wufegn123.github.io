@@ -106,6 +106,7 @@ const OPTIONAL_CONSTRUCTION_LOG_COLUMNS = [
   'source_type',
   'daily_group_id',
   'submission_status',
+  'progress_sync_pending',
   'weather_condition',
   'weather_temperature',
   'weather_wind',
@@ -498,10 +499,14 @@ async function recalculateTaskActualProgress(
   const submittedRows = (entries || []).filter(
     (entry: { construction_logs?: { log_date?: string | null; status?: string | null } | null }) =>
       entry.construction_logs?.status === 'submitted' && entry.construction_logs?.log_date,
-  ) as { actual_progress: number | string; construction_logs: { log_date: string } }[];
+  ) as { log_id: number; actual_progress: number | string; construction_logs: { log_date: string } }[];
 
-  // 按 log_date 降序，取最新一条已提交日志的进度
-  submittedRows.sort((a, b) => String(b.construction_logs.log_date).localeCompare(String(a.construction_logs.log_date)));
+  // 按 log_date 降序取最新；同 log_date（多人同日提交）按 log_id 降序取最新创建的日志，保证选取确定
+  submittedRows.sort((a, b) => {
+    const dateCompare = String(b.construction_logs.log_date).localeCompare(String(a.construction_logs.log_date));
+    if (dateCompare !== 0) return dateCompare;
+    return Number(b.log_id) - Number(a.log_id);
+  });
   const latestEntry = submittedRows[0];
   const nextProgress = latestEntry ? Math.min(Math.max(toNumber(latestEntry.actual_progress), 0), 100) : 0;
 
@@ -574,6 +579,7 @@ async function createRiskSideEffects(
 
 async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
   const nowIso = new Date().toISOString();
+  // 批次1：待自动提交的预约日志（pending 且已到预约时间）
   const { data: dueLogs, error } = await supabase
     .from('construction_logs')
     .select('id,project_id,location,content,issues,log_date,scheduled_submit_at,user_id')
@@ -597,6 +603,8 @@ async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
       status: 'submitted',
       submission_status: window.submissionStatus,
       submitted_at: submittedAt,
+      // 进度同步先标记待补偿：同步成功后会清除，失败则下次批次重试
+      progress_sync_pending: true,
     };
     const updateResult = await updateConstructionLogWithColumnFallback(supabase, log.id, 'pending', updatePayload);
 
@@ -605,7 +613,7 @@ async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
     if (!updatedRows || updatedRows.length === 0) continue;
 
     // 预约日志自动提交：加载创建时预存的进度条目并更新对应任务进度（修复 F-02 链路断裂）
-    await applyStoredProgressEntriesToTasks(supabase, log.id, Number(log.project_id), submittedAt);
+    await syncScheduledLogProgressWithCompensation(supabase, log.id, Number(log.project_id), submittedAt);
 
     await createRiskSideEffects(supabase, { id: log.id }, {
       project_id: Number(log.project_id),
@@ -613,6 +621,76 @@ async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
       content: log.content || '',
       issues: log.issues || null,
     }, log.log_date, Number(log.user_id || 0) || undefined);
+  }
+
+  // 批次2：补偿重试——上一次已提交但进度同步失败的日志（progress_sync_pending=true）
+  await retryPendingProgressSyncLogs(supabase);
+}
+
+/**
+ * 预约日志进度同步 + 补偿：
+ * - 同步成功 → 清除 progress_sync_pending 标记
+ * - 同步失败 → 保留标记（下次 processDueScheduledConstructionLogs 批次2重试），仅告警不中断流程
+ */
+async function syncScheduledLogProgressWithCompensation(
+  supabase: SupabaseClient,
+  logId: number,
+  projectId: number,
+  updatedAt: string,
+) {
+  try {
+    await applyStoredProgressEntriesToTasks(supabase, logId, projectId, updatedAt);
+    // 同步成功，清除补偿标记（列回退：表无此列时忽略错误）
+    const clearResult = await supabase
+      .from('construction_logs')
+      .update({ progress_sync_pending: false })
+      .eq('id', logId);
+    if (clearResult.error) {
+      const message = String(clearResult.error.message || '').toLowerCase();
+      if (
+        clearResult.error.code !== '42703' &&
+        clearResult.error.code !== 'PGRST204' &&
+        !message.includes('schema cache') &&
+        !message.includes('does not exist') &&
+        !message.includes('could not find')
+      ) {
+        console.warn(`[construction-logs] clear progress_sync_pending for log ${logId} failed`, clearResult.error.message);
+      }
+    }
+  } catch (syncError) {
+    console.warn(`[construction-logs] progress sync for scheduled log ${logId} failed, will retry`, syncError instanceof Error ? syncError.message : syncError);
+  }
+}
+
+/**
+ * 补偿批次：扫描已提交但 progress_sync_pending=true 的日志，重试进度同步。
+ * 表无该列（旧环境）时直接跳过——无标记即无需补偿。
+ */
+async function retryPendingProgressSyncLogs(supabase: SupabaseClient) {
+  const { data: pendingLogs, error } = await supabase
+    .from('construction_logs')
+    .select('id,project_id,submitted_at,log_date')
+    .eq('status', 'submitted')
+    .eq('progress_sync_pending', true)
+    .limit(50);
+
+  if (error) {
+    const message = String(error.message || '').toLowerCase();
+    if (
+      error.code === '42703' ||
+      error.code === 'PGRST204' ||
+      message.includes('progress_sync_pending') ||
+      message.includes('schema cache') ||
+      message.includes('does not exist') ||
+      message.includes('could not find')
+    ) {
+      return;
+    }
+    throw new Error(error.message);
+  }
+
+  for (const log of (pendingLogs || []) as { id: number; project_id: number; submitted_at?: string | null }[]) {
+    await syncScheduledLogProgressWithCompensation(supabase, log.id, Number(log.project_id), log.submitted_at || new Date().toISOString());
   }
 }
 

@@ -51,9 +51,14 @@ async function recalculateTaskActualProgress(
   const submittedRows = (entries || []).filter(
     (entry: { construction_logs?: { log_date?: string | null; status?: string | null } | null }) =>
       entry.construction_logs?.status === 'submitted' && entry.construction_logs?.log_date,
-  ) as { actual_progress: number | string; construction_logs: { log_date: string } }[];
+  ) as { log_id: number; actual_progress: number | string; construction_logs: { log_date: string } }[];
 
-  submittedRows.sort((a, b) => String(b.construction_logs.log_date).localeCompare(String(a.construction_logs.log_date)));
+  // 按 log_date 降序取最新；同 log_date（多人同日提交）按 log_id 降序取最新创建的日志，保证选取确定
+  submittedRows.sort((a, b) => {
+    const dateCompare = String(b.construction_logs.log_date).localeCompare(String(a.construction_logs.log_date));
+    if (dateCompare !== 0) return dateCompare;
+    return Number(b.log_id) - Number(a.log_id);
+  });
   const latestEntry = submittedRows[0];
   const nextProgress = latestEntry ? Math.min(Math.max(toNumber(latestEntry.actual_progress), 0), 100) : 0;
 

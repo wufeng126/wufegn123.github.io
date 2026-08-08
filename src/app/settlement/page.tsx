@@ -134,7 +134,16 @@ export default function SettlementPage() {
       const res = await fetch(`/api/supplier-contracts/settlements?${params}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setSettlements(data.settlements || []);
+        const list: Settlement[] = data.settlements || [];
+        setSettlements(list);
+        // 使用后端返回的 summary 精确统计（含付款汇总，避免前端口径偏差）
+        const summary = data.summary || {};
+        setStats({
+          totalSettlement: Number(summary.totalAmount) || 0,
+          totalPayable: Number(summary.totalPayable) || 0,
+          totalPaid: Number(summary.totalPaid) || 0,
+          totalPending: Number(summary.totalProgressPending) ?? Number(summary.totalFinalPending) ?? 0,
+        });
       }
     } catch (e) { console.error(e); }
   }, [filterSupplier]);
