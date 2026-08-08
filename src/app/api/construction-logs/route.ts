@@ -424,6 +424,7 @@ async function syncConstructionLogProgressEntries(
   draft: ConstructionLogDraft,
   logDate: string,
   updatedAt: string,
+  options?: { skipTaskUpdate?: boolean },
 ) {
   const entries = draft.progress_entries || [];
   if (!logId || entries.length === 0) return;
@@ -461,28 +462,65 @@ async function syncConstructionLogProgressEntries(
     throw new Error(progressEntryError.message);
   }
 
+  // 预约日志（skipTaskUpdate=true）仅在自动提交时更新任务进度
+  if (options?.skipTaskUpdate) return;
+
+  // 按最新日志重算任务进度（替代 Math.max，支持进度下调与删除回滚）
   for (const entry of validEntries) {
-    const task = taskById.get(entry.progress_task_id);
-    if (!task) continue;
-    const nextProgress = Math.max(toNumber(task.actual_progress), entry.actual_progress);
-    const patch: Record<string, unknown> = {
-      actual_progress: nextProgress,
-      updated_at: updatedAt,
-    };
-
-    if (!task.actual_start_date && nextProgress > 0) patch.actual_start_date = logDate;
-    if (nextProgress >= 100 && !task.actual_end_date) patch.actual_end_date = logDate;
-    if (draft.issues && !task.issue) patch.issue = draft.issues;
-    if (draft.tomorrow_plan && !task.next_action) patch.next_action = draft.tomorrow_plan;
-
-    const { error: updateError } = await supabase
-      .from('project_progress_tasks')
-      .update(patch)
-      .eq('id', entry.progress_task_id)
-      .eq('project_id', draft.project_id);
-
-    if (updateError) throw new Error(updateError.message);
+    await recalculateTaskActualProgress(supabase, entry.progress_task_id, draft.project_id, updatedAt);
   }
+}
+
+/**
+ * 根据施工日志关联的所有进度条目重算任务实际进度：
+ * - 取「已提交」日志中 log_date 最新一条的 actual_progress 作为任务进度
+ * - 若该任务没有任何已提交日志条目，进度回退为 0 并清空实际起止日期（删除日志后的回滚）
+ * 该函数替代原先 `Math.max` 的只增不减逻辑，保证日志改小/删除后进度可纠错。
+ */
+async function recalculateTaskActualProgress(
+  supabase: SupabaseClient,
+  taskId: number,
+  projectId: number,
+  updatedAt: string,
+) {
+  const { data: entries, error } = await supabase
+    .from('construction_log_progress_entries')
+    .select(`
+      log_id,
+      actual_progress,
+      construction_logs ( log_date, status )
+    `)
+    .eq('progress_task_id', taskId)
+    .eq('project_id', projectId);
+
+  if (error) throw new Error(error.message);
+
+  const submittedRows = (entries || []).filter(
+    (entry: { construction_logs?: { log_date?: string | null; status?: string | null } | null }) =>
+      entry.construction_logs?.status === 'submitted' && entry.construction_logs?.log_date,
+  ) as { actual_progress: number | string; construction_logs: { log_date: string } }[];
+
+  // 按 log_date 降序，取最新一条已提交日志的进度
+  submittedRows.sort((a, b) => String(b.construction_logs.log_date).localeCompare(String(a.construction_logs.log_date)));
+  const latestEntry = submittedRows[0];
+  const nextProgress = latestEntry ? Math.min(Math.max(toNumber(latestEntry.actual_progress), 0), 100) : 0;
+
+  const patch: Record<string, unknown> = {
+    actual_progress: nextProgress,
+    updated_at: updatedAt,
+  };
+  if (nextProgress <= 0) {
+    patch.actual_start_date = null;
+    patch.actual_end_date = null;
+  }
+
+  const { error: updateError } = await supabase
+    .from('project_progress_tasks')
+    .update(patch)
+    .eq('id', taskId)
+    .eq('project_id', projectId);
+
+  if (updateError) throw new Error(updateError.message);
 }
 
 async function createRiskSideEffects(
@@ -566,12 +604,44 @@ async function processDueScheduledConstructionLogs(supabase: SupabaseClient) {
     if (updateError) throw new Error(updateError.message);
     if (!updatedRows || updatedRows.length === 0) continue;
 
+    // 预约日志自动提交：加载创建时预存的进度条目并更新对应任务进度（修复 F-02 链路断裂）
+    await applyStoredProgressEntriesToTasks(supabase, log.id, Number(log.project_id), submittedAt);
+
     await createRiskSideEffects(supabase, { id: log.id }, {
       project_id: Number(log.project_id),
       location: log.location || null,
       content: log.content || '',
       issues: log.issues || null,
     }, log.log_date, Number(log.user_id || 0) || undefined);
+  }
+}
+
+/**
+ * 读取某日志已保存的进度条目，并对每个关联任务执行进度重算。
+ * 用于：预约日志自动提交时补同步进度（F-02）、删除日志后回滚进度（F-03）。
+ */
+async function applyStoredProgressEntriesToTasks(
+  supabase: SupabaseClient,
+  logId: number,
+  projectId: number,
+  updatedAt: string,
+) {
+  const { data: entries, error } = await supabase
+    .from('construction_log_progress_entries')
+    .select('progress_task_id')
+    .eq('log_id', logId)
+    .eq('project_id', projectId);
+
+  if (error) {
+    if (isMissingProgressEntriesTableError(error)) return;
+    throw new Error(error.message);
+  }
+
+  const taskIds = Array.from(new Set(
+    ((entries || []) as { progress_task_id: number }[]).map((entry) => Number(entry.progress_task_id)).filter(Boolean),
+  ));
+  for (const taskId of taskIds) {
+    await recalculateTaskActualProgress(supabase, taskId, projectId, updatedAt);
   }
 }
 
@@ -813,9 +883,12 @@ export async function POST(request: NextRequest) {
       if (scopeError) throw new Error(scopeError.message);
     }
 
-    if (!isScheduled) {
-      for (let index = 0; index < insertedRows.length; index += 1) {
-        await syncConstructionLogProgressEntries(supabase, insertedRows[index].id, drafts[index], log_date, submittedAt);
+    for (let index = 0; index < insertedRows.length; index += 1) {
+      // 预约日志：先存进度条目（skipTaskUpdate），自动提交时再更新任务进度
+      await syncConstructionLogProgressEntries(supabase, insertedRows[index].id, drafts[index], log_date, submittedAt, {
+        skipTaskUpdate: isScheduled,
+      });
+      if (!isScheduled) {
         await createRiskSideEffects(supabase, insertedRows[index], drafts[index], log_date, user?.id);
       }
     }

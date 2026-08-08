@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
@@ -7,6 +8,72 @@ import { getConstructionLogAccessibleProjectIds } from '@/lib/public-log-project
 import { detectConstructionLogRisk, enrichConstructionLog } from '@/lib/construction-log-risk';
 import { getConstructionLogSubmissionWindow } from '@/lib/construction-log-deadline';
 import { hasBudgetRoleInDatabase } from '@/lib/construction-log-submitters';
+
+function toNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isMissingProgressEntriesTableError(error: { message?: string; code?: string } | null | undefined) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error?.code === '42P01' ||
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    message.includes('construction_log_progress_entries') ||
+    message.includes('schema cache')
+  );
+}
+
+/**
+ * 根据施工日志关联的所有进度条目重算任务实际进度（与 route.ts 中实现保持一致）：
+ * - 取「已提交」日志中 log_date 最新一条的 actual_progress
+ * - 无任何已提交日志条目时回退 0 并清空实际起止日期（删除日志后的回滚）
+ */
+async function recalculateTaskActualProgress(
+  supabase: SupabaseClient,
+  taskId: number,
+  projectId: number,
+  updatedAt: string,
+) {
+  const { data: entries, error } = await supabase
+    .from('construction_log_progress_entries')
+    .select(`
+      log_id,
+      actual_progress,
+      construction_logs ( log_date, status )
+    `)
+    .eq('progress_task_id', taskId)
+    .eq('project_id', projectId);
+
+  if (error) throw new Error(error.message);
+
+  const submittedRows = (entries || []).filter(
+    (entry: { construction_logs?: { log_date?: string | null; status?: string | null } | null }) =>
+      entry.construction_logs?.status === 'submitted' && entry.construction_logs?.log_date,
+  ) as { actual_progress: number | string; construction_logs: { log_date: string } }[];
+
+  submittedRows.sort((a, b) => String(b.construction_logs.log_date).localeCompare(String(a.construction_logs.log_date)));
+  const latestEntry = submittedRows[0];
+  const nextProgress = latestEntry ? Math.min(Math.max(toNumber(latestEntry.actual_progress), 0), 100) : 0;
+
+  const patch: Record<string, unknown> = {
+    actual_progress: nextProgress,
+    updated_at: updatedAt,
+  };
+  if (nextProgress <= 0) {
+    patch.actual_start_date = null;
+    patch.actual_end_date = null;
+  }
+
+  const { error: updateError } = await supabase
+    .from('project_progress_tasks')
+    .update(patch)
+    .eq('id', taskId)
+    .eq('project_id', projectId);
+
+  if (updateError) throw new Error(updateError.message);
+}
 
 type LogAttachment = {
   name?: string;
@@ -366,6 +433,20 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return apiForbidden('无权删除该项目施工日志');
     }
 
+    // 删除前收集该日志关联的进度任务，删除后回滚任务进度（F-03：删除日志进度需回滚）
+    const { data: progressEntries, error: progressError } = await supabase
+      .from('construction_log_progress_entries')
+      .select('progress_task_id')
+      .eq('log_id', logId);
+    if (progressError && !isMissingProgressEntriesTableError(progressError)) {
+      throw new Error(progressError.message);
+    }
+    const progressTaskIds = Array.from(new Set(
+      ((progressEntries || []) as { progress_task_id: number }[])
+        .map((entry) => Number(entry.progress_task_id))
+        .filter(Boolean),
+    ));
+
     const { error: deleteDocError } = await supabase
       .from('ai_knowledge_docs')
       .delete()
@@ -386,6 +467,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       .eq('id', logId);
 
     if (deleteLogError) throw new Error(deleteLogError.message);
+
+    // 删除后回滚：对关联任务按剩余日志重新计算进度（无日志则回退 0）
+    for (const taskId of progressTaskIds) {
+      try {
+        await recalculateTaskActualProgress(supabase, taskId, Number(log.project_id), new Date().toISOString());
+      } catch (recalcError) {
+        console.warn(`[construction-logs] rollback progress for task ${taskId} failed`, recalcError instanceof Error ? recalcError.message : recalcError);
+      }
+    }
 
     return apiSuccess({ id: logId });
   } catch (error: unknown) {

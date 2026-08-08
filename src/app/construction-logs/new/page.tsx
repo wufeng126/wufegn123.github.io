@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, CalendarClock, Camera, CheckCircle2, ClipboardList, Cloud, ImageIcon, Loader2, Plus, RefreshCw, Search, Send, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
@@ -198,6 +198,14 @@ function getDraftHoursIssue(draft: ProjectLogDraft) {
 }
 
 export default function NewConstructionLogPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#EEF3F8] flex items-center justify-center text-sm text-slate-500">加载中...</div>}>
+      <NewConstructionLogPageContent />
+    </Suspense>
+  );
+}
+
+function NewConstructionLogPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get('date') || '';

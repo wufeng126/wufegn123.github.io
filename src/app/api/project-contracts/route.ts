@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 const OSS_PROJECT_CONTRACT_PREFIX = 'project-contracts/';
 
@@ -33,6 +34,13 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     if (!projectId) return NextResponse.json({ success: false, error: '缺少 projectId' }, { status: 400 });
     const supabase = getSupabaseClient();
+
+    // 项目归属校验：超管（null）放行；普通用户仅可查看其负责项目的合同
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
+    if (Array.isArray(accessibleProjectIds) && !accessibleProjectIds.includes(parseInt(projectId))) {
+      return NextResponse.json({ success: false, error: '无权查看该项目合同' }, { status: 403 });
+    }
+
     const { data, error } = await supabase.from('project_contracts').select('*').eq('project_id', parseInt(projectId)).order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, data: data || [] });
