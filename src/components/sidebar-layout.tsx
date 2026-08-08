@@ -36,7 +36,7 @@ import {
   FileSignature,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BrandIconContainer, type BrandIconName } from '@/components/ui/brand-icon';
+import { BrandIconContainer, BrandLogo, type BrandIconName } from '@/components/ui/brand-icon';
 import { usePermission } from '@/contexts/permission-context';
 import { FloatingAIAssistant } from '@/components/floating-ai-assistant';
 import NotificationBell from '@/components/notification-bell';
@@ -447,7 +447,7 @@ export default function SidebarLayout({
               justifyContent: 'center',
             }}
           >
-            <BrandIconContainer name="crane" size={28} />
+            <BrandLogo size={42} />
           </div>
           {!isEffectivelyCollapsed && (
             <div style={{ flex: 1, minWidth: 0, marginLeft: '12px' }}>

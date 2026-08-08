@@ -293,3 +293,26 @@ export function BrandIconContainer({ name, size = 28, className }: BrandIconCont
     </span>
   )
 }
+
+export interface BrandLogoProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  size?: number
+}
+
+export function BrandLogo({ size = 40, className, alt = "公司 Logo", style, ...rest }: BrandLogoProps) {
+  return (
+    <img
+      src="/brand-logo.png"
+      alt={alt}
+      width={size}
+      height={Math.round(size * 256 / 288)}
+      className={cn("block object-contain", className)}
+      style={{
+        width: size,
+        height: "auto",
+        maxHeight: size,
+        ...style,
+      }}
+      {...rest}
+    />
+  )
+}

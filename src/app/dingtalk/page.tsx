@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Loader2, Smartphone, ArrowRight } from 'lucide-react';
+import { BrandLogo } from '@/components/ui/brand-icon';
 import { saveToken, isDingTalkClient, resetRedirectCount } from '@/lib/auth-client';
 
 type LoginState = 'detecting' | 'logging_in' | 'success' | 'error' | 'not_dingtalk';
@@ -274,8 +275,8 @@ export default function DingTalkPage() {
           <div className="px-8 py-10">
             {/* Logo + 标题 */}
             <div className="flex items-center gap-3 mb-8">
-              <div className="w-10 h-10 rounded-lg bg-[#165DFF] flex items-center justify-center">
-                <Smartphone className="w-5 h-5 text-white" />
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-white ring-1 ring-blue-100 shadow-sm flex items-center justify-center">
+                <BrandLogo size={40} />
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">建筑劳务管理系统</h1>

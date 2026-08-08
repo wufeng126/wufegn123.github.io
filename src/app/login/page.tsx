@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import { BrandIconContainer } from '@/components/ui/brand-icon';
+import { BrandLogo } from '@/components/ui/brand-icon';
 import { saveToken, isDingTalkClient, resetRedirectCount } from '@/lib/auth-client';
 
 export default function LoginPage() {
@@ -90,7 +90,7 @@ export default function LoginPage() {
       >
         <div>
           <div className="flex items-center gap-3">
-            <BrandIconContainer name="crane" size={26} />
+            <BrandLogo size={42} />
             <div>
               <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3 }}>建筑劳务管理</div>
               <div style={{ fontSize: 10, color: 'var(--color-text-3)', letterSpacing: '0.6px', marginTop: 2 }}>
@@ -143,7 +143,7 @@ export default function LoginPage() {
                 margin: '0 auto 14px',
               }}
             >
-              <BrandIconContainer name="crane" size={32} />
+              <BrandLogo size={50} />
             </div>
             <div style={{ fontSize: 20, fontWeight: 700 }}>建筑劳务管理系统</div>
             <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 6 }}>
