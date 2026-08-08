@@ -554,7 +554,7 @@ function SupplierCostDashboard() {
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm" style={{ minWidth: 1240 }}>
                 <thead>
-                  <tr className="border-b bg-slate-50 text-xs text-slate-600">
+                  <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
                     <th className="w-10 p-3 text-left"></th>
                     <th className="p-3 text-left">项目名称</th>
                     <th className="p-3 text-right">供应商数</th>
@@ -584,7 +584,7 @@ function SupplierCostDashboard() {
                       />
                     );
                   })}
-                  <tr className="border-t-2 bg-slate-50 font-semibold">
+                  <tr className="border-t-2 bg-muted/50 font-semibold">
                     <td className="p-3"></td>
                     <td className="p-3">合计</td>
                     <td className="p-3 text-right">{stats.supplierCount}</td>
@@ -603,25 +603,25 @@ function SupplierCostDashboard() {
 
             <div className="space-y-3 p-3 md:hidden">
               {projectSummaries.length === 0 ? (
-                <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">暂无供应商成本数据</div>
+                <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">暂无供应商成本数据</div>
               ) : projectSummaries.map((project) => {
                 const expanded = expandedProjects.has(project.key);
                 return (
-                  <div key={project.key} className="rounded-lg border bg-white shadow-sm">
+                  <div key={project.key} className="rounded-lg border bg-card shadow-sm">
                     <button
                       type="button"
                       onClick={() => toggleProject(project.key)}
                       className="flex w-full items-start justify-between gap-3 p-3 text-left"
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-medium text-slate-900">{project.projectName}</div>
+                        <div className="truncate font-medium text-foreground">{project.projectName}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                           {project.supplierCount} 个供应商 · {project.contractCount} 份合同 · 付款比例 {project.paymentRatio.toFixed(1)}%
                         </div>
                       </div>
                       {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                     </button>
-                    <div className="grid grid-cols-2 gap-2 border-t bg-slate-50/70 p-3 text-xs">
+                    <div className="grid grid-cols-2 gap-2 border-t bg-muted/50/70 p-3 text-xs">
                       <MobileAmount label="结算" value={project.settlementAmount} />
                       <MobileAmount label="进度应付" value={project.progressPayable} />
                       <MobileAmount label="决算应付" value={project.finalPayable} />
@@ -632,9 +632,9 @@ function SupplierCostDashboard() {
                     {expanded && (
                       <div className="space-y-2 border-t p-3">
                         {project.suppliers.map((supplier) => (
-                          <div key={supplier.key} className="rounded-md bg-slate-50 p-2 text-xs">
+                          <div key={supplier.key} className="rounded-md bg-muted/50 p-2 text-xs">
                             <div className="flex items-center justify-between gap-2">
-                              <div className="font-medium text-slate-800">{supplier.supplierName}</div>
+                              <div className="font-medium text-foreground">{supplier.supplierName}</div>
                               <div className="text-muted-foreground">{supplier.paymentRatio.toFixed(1)}%</div>
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-2">
@@ -670,13 +670,13 @@ function FragmentRows({
 }) {
   return (
     <>
-      <tr className="border-b bg-white hover:bg-slate-50">
+      <tr className="border-b bg-card hover:bg-muted/50">
         <td className="p-3">
-          <button type="button" onClick={onToggle} className="rounded p-1 hover:bg-slate-100" aria-label="展开项目明细">
+          <button type="button" onClick={onToggle} className="rounded p-1 hover:bg-muted" aria-label="展开项目明细">
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
         </td>
-        <td className="p-3 font-medium text-slate-900">{project.projectName}</td>
+        <td className="p-3 font-medium text-foreground">{project.projectName}</td>
         <td className="p-3 text-right">{project.supplierCount}</td>
         <td className="p-3 text-right">{project.contractCount}</td>
         <td className="p-3 text-right tabular-nums">{project.paymentRatio.toFixed(1)}%</td>
@@ -688,13 +688,13 @@ function FragmentRows({
         <td className="p-3 text-right"><AmountCell value={project.finalUnpaid} tone={project.finalUnpaid > 0 ? 'danger' : 'success'} /></td>
       </tr>
       {expanded && (
-        <tr className="border-b bg-slate-50/60">
+        <tr className="border-b bg-muted/50/60">
           <td className="p-0"></td>
           <td colSpan={10} className="p-3">
-            <div className="overflow-hidden rounded-md border bg-white">
+            <div className="overflow-hidden rounded-md border bg-card">
               <table className="w-full text-xs" style={{ minWidth: 980 }}>
                 <thead>
-                  <tr className="border-b bg-slate-50 text-slate-500">
+                  <tr className="border-b bg-muted/50 text-muted-foreground">
                     <th className="p-2 text-left">供应商</th>
                     <th className="p-2 text-left">合同名称</th>
                     <th className="p-2 text-left">合同编号</th>
@@ -739,9 +739,9 @@ function MobileAmount({ label, value, tone }: { label: string; value: number; to
       ? 'text-amber-700'
       : tone === 'danger'
         ? 'text-red-700'
-        : 'text-slate-900';
+        : 'text-foreground';
   return (
-    <div className="rounded bg-white p-2">
+    <div className="rounded bg-card p-2">
       <div className="text-muted-foreground">{label}</div>
       <div className={`mt-1 font-semibold ${toneClass}`}>{formatMoneyShort(value)}</div>
     </div>

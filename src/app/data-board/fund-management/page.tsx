@@ -433,8 +433,8 @@ export default function FundManagementDashboard() {
               <YAxis tickFormatter={(v: number) => formatCurrency(v)} fontSize={12} />
               <Tooltip formatter={(value: number) => formatCurrency(value)} />
               <Legend />
-              <Line type="monotone" dataKey="settlement" name="开票金额" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6' }} />
-              <Line type="monotone" dataKey="payment" name="付款金额" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} />
+              <Line type="monotone" dataKey="settlement" name="开票金额" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#722ED1' }} />
+              <Line type="monotone" dataKey="payment" name="付款金额" stroke="#10b981" strokeWidth={2} dot={{ fill: '#00B42A' }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -525,14 +525,14 @@ export default function FundManagementDashboard() {
       </div>
       <div className="space-y-3 md:hidden">
         {tableData.length === 0 ? (
-          <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
             暂无数据
           </div>
         ) : (
           tableData.map((row, index) => {
             const paymentRate = row.settlement > 0 ? (row.payment / row.settlement) * 100 : 0;
             return (
-              <div key={`mobile-fund-${index}`} className="rounded-lg border bg-white p-3 shadow-sm">
+              <div key={`mobile-fund-${index}`} className="rounded-lg border bg-card p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <LinkableCell href={`/projects/${row.projectId}`}>
@@ -565,7 +565,7 @@ export default function FundManagementDashboard() {
                     <div className="text-red-600">未付款</div>
                     <div className="mt-1 font-semibold text-red-700">{formatCurrency(row.unpaid)}</div>
                   </div>
-                  <div className="rounded bg-slate-50 p-2">
+                  <div className="rounded bg-muted/50 p-2">
                     <div className="text-gray-500">状态</div>
                     <div className="mt-1 font-semibold">{row.unpaid <= 0 ? '已结清' : '待回款'}</div>
                   </div>

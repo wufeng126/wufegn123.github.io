@@ -263,8 +263,8 @@ export default function DingtalkBindingPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-950">组织与账号集成</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">组织与账号集成</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             钉钉作为普通员工唯一账号来源；同步后生成待分配账号，完成岗位和项目分配后正式启用。
           </p>
         </div>
@@ -290,9 +290,9 @@ export default function DingtalkBindingPage() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm text-slate-500">{card.title}</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-950">{card.value}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{card.desc}</p>
+                  <p className="text-sm text-muted-foreground">{card.title}</p>
+                  <p className="mt-1 text-2xl font-semibold text-foreground">{card.value}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.desc}</p>
                 </div>
               </CardContent>
             </Card>
@@ -311,7 +311,7 @@ export default function DingtalkBindingPage() {
               </p>
             </div>
           </div>
-          <Button variant="outline" className="w-full bg-white lg:w-auto" onClick={goPermission}>
+          <Button variant="outline" className="w-full bg-card lg:w-auto" onClick={goPermission}>
             去用户与权限分配
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
@@ -327,7 +327,7 @@ export default function DingtalkBindingPage() {
             </CardDescription>
           </div>
           <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground/80" />
             <Input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
@@ -398,7 +398,7 @@ function UserTable({
 }) {
   if (users.length === 0) {
     return (
-      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
         {loading ? '正在读取账号...' : emptyText}
       </div>
     );
@@ -431,8 +431,8 @@ function UserTable({
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <div className="font-medium text-slate-900">{getUserDisplayName(user)}</div>
-                  <div className="text-xs text-slate-500">{user.username}</div>
+                  <div className="font-medium text-foreground">{getUserDisplayName(user)}</div>
+                  <div className="text-xs text-muted-foreground">{user.username}</div>
                 </TableCell>
                 <TableCell>{user.dingtalk_info?.mobile || '-'}</TableCell>
                 <TableCell>
@@ -450,7 +450,7 @@ function UserTable({
                   {(user.allowed_projects || []).length > 0 ? `${user.allowed_projects?.length} 个项目` : '-'}
                 </TableCell>
                 <TableCell className="font-mono text-xs">{user.dingtalk_info?.user_id || '-'}</TableCell>
-                <TableCell className="text-xs text-slate-500">
+                <TableCell className="text-xs text-muted-foreground">
                   {formatDateTime(user.dingtalk_info?.last_sync)}
                 </TableCell>
                 {actionLabel && (
@@ -471,11 +471,11 @@ function UserTable({
       {users.map((user) => {
         const status = getAccountStatus(user);
         return (
-          <article key={user.id} className="rounded-lg border border-slate-200 bg-white p-3">
+          <article key={user.id} className="rounded-lg border border-border bg-card p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{getUserDisplayName(user)}</p>
-                <p className="mt-1 truncate text-xs text-slate-500">{user.username}</p>
+                <p className="truncate text-sm font-semibold text-foreground">{getUserDisplayName(user)}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{user.username}</p>
               </div>
               <Badge variant="outline" className={`${status.className} shrink-0`}>
                 {status.label}
@@ -484,24 +484,24 @@ function UserTable({
 
             <div className="mt-3 grid gap-2 text-xs">
               <div className="flex justify-between gap-3">
-                <span className="shrink-0 text-slate-500">手机号</span>
-                <span className="truncate font-medium text-slate-900">{user.dingtalk_info?.mobile || '-'}</span>
+                <span className="shrink-0 text-muted-foreground">手机号</span>
+                <span className="truncate font-medium text-foreground">{user.dingtalk_info?.mobile || '-'}</span>
               </div>
               <div className="flex justify-between gap-3">
-                <span className="shrink-0 text-slate-500">岗位模板</span>
-                <span className="truncate font-medium text-slate-900">
+                <span className="shrink-0 text-muted-foreground">岗位模板</span>
+                <span className="truncate font-medium text-foreground">
                   {(user.roles || []).length > 0 ? (user.roles || []).map((role) => role.name).join('、') : '未分配'}
                 </span>
               </div>
               <div className="flex justify-between gap-3">
-                <span className="shrink-0 text-slate-500">可访问项目</span>
-                <span className="font-medium text-slate-900">
+                <span className="shrink-0 text-muted-foreground">可访问项目</span>
+                <span className="font-medium text-foreground">
                   {(user.allowed_projects || []).length > 0 ? `${user.allowed_projects?.length} 个项目` : '-'}
                 </span>
               </div>
               <div className="flex justify-between gap-3">
-                <span className="shrink-0 text-slate-500">最后同步</span>
-                <span className="truncate text-right text-slate-500">{formatDateTime(user.dingtalk_info?.last_sync)}</span>
+                <span className="shrink-0 text-muted-foreground">最后同步</span>
+                <span className="truncate text-right text-muted-foreground">{formatDateTime(user.dingtalk_info?.last_sync)}</span>
               </div>
             </div>
 
@@ -522,7 +522,7 @@ function UserTable({
 function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loading: boolean }) {
   if (contacts.length === 0) {
     return (
-      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
         {loading ? '正在读取通讯录...' : '暂无钉钉通讯录数据'}
       </div>
     );
@@ -559,12 +559,12 @@ function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loa
                   </Badge>
                 )}
               </TableCell>
-              <TableCell className="font-medium text-slate-900">{contact.name}</TableCell>
+              <TableCell className="font-medium text-foreground">{contact.name}</TableCell>
               <TableCell>{contact.mobile || '-'}</TableCell>
               <TableCell>{contact.title || '-'}</TableCell>
               <TableCell className="max-w-64 truncate">{contact.dept_name_list || '-'}</TableCell>
               <TableCell className="font-mono text-xs">{contact.dingtalk_user_id}</TableCell>
-              <TableCell className="text-xs text-slate-500">
+              <TableCell className="text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <Clock3 className="h-3 w-3" />
                   {formatDateTime(contact.sync_time)}
@@ -577,11 +577,11 @@ function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loa
     </div>
     <div className="space-y-3 md:hidden">
       {contacts.map((contact) => (
-        <article key={contact.id} className="rounded-lg border border-slate-200 bg-white p-3">
+        <article key={contact.id} className="rounded-lg border border-border bg-card p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{contact.name}</p>
-              <p className="mt-1 truncate text-xs text-slate-500">{contact.mobile || '-'}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{contact.name}</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{contact.mobile || '-'}</p>
             </div>
             {contact.active === false ? (
               <Badge variant="outline" className="shrink-0 border-red-200 bg-red-50 text-red-700">
@@ -597,20 +597,20 @@ function ContactsTable({ contacts, loading }: { contacts: DingTalkContact[]; loa
           </div>
           <div className="mt-3 grid gap-2 text-xs">
             <div className="flex justify-between gap-3">
-              <span className="shrink-0 text-slate-500">职务</span>
-              <span className="truncate font-medium text-slate-900">{contact.title || '-'}</span>
+              <span className="shrink-0 text-muted-foreground">职务</span>
+              <span className="truncate font-medium text-foreground">{contact.title || '-'}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="shrink-0 text-slate-500">部门</span>
-              <span className="truncate font-medium text-slate-900">{contact.dept_name_list || '-'}</span>
+              <span className="shrink-0 text-muted-foreground">部门</span>
+              <span className="truncate font-medium text-foreground">{contact.dept_name_list || '-'}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="shrink-0 text-slate-500">钉钉 UserId</span>
-              <span className="truncate font-mono text-slate-900">{contact.dingtalk_user_id}</span>
+              <span className="shrink-0 text-muted-foreground">钉钉 UserId</span>
+              <span className="truncate font-mono text-foreground">{contact.dingtalk_user_id}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="shrink-0 text-slate-500">同步时间</span>
-              <span className="truncate text-right text-slate-500">{formatDateTime(contact.sync_time)}</span>
+              <span className="shrink-0 text-muted-foreground">同步时间</span>
+              <span className="truncate text-right text-muted-foreground">{formatDateTime(contact.sync_time)}</span>
             </div>
           </div>
         </article>

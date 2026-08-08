@@ -198,7 +198,7 @@ export default function CostCenterPage() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="w-12 h-12 mx-auto mb-4 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-          <p style={{ color: '#86909C' }}>加载中...</p>
+          <p style={{ color: 'var(--color-text-3)' }}>加载中...</p>
         </div>
       </div>
     }>
@@ -391,7 +391,7 @@ function CostCenterContent() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="w-12 h-12 mx-auto mb-4 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-          <p style={{ color: '#86909C' }}>加载中...</p>
+          <p style={{ color: 'var(--color-text-3)' }}>加载中...</p>
         </div>
       </div>
     );
@@ -402,14 +402,14 @@ function CostCenterContent() {
       {/* 页面标题 */}
       <div className={`flex items-center justify-between transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>成本利润中心</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>项目成本分析 · 利润统计 · 异常预警</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>成本利润中心</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>项目成本分析 · 利润统计 · 异常预警</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={handleExportReport}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors hover:opacity-90"
-            style={{ background: '#165DFF', color: '#FFFFFF' }}
+            style={{ background: 'var(--color-primary)', color: '#FFFFFF' }}
           >
             <Download className="w-4 h-4" />
             导出报表
@@ -417,7 +417,7 @@ function CostCenterContent() {
           <button 
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-gray-100"
-            style={{ color: '#165DFF', border: '1px solid #E5E6EB' }}
+            style={{ color: 'var(--color-primary)', border: '1px solid var(--border)' }}
           >
             <Printer className="w-4 h-4" />
             打印
@@ -425,7 +425,7 @@ function CostCenterContent() {
           <button 
             onClick={fetchData}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-gray-100"
-            style={{ color: '#165DFF', border: '1px solid #E5E6EB' }}
+            style={{ color: 'var(--color-primary)', border: '1px solid var(--border)' }}
           >
             <RefreshCw className="w-4 h-4" />
             刷新
@@ -436,17 +436,17 @@ function CostCenterContent() {
       {/* 项目筛选 */}
       <div className={`flex items-center gap-4 transition-all duration-500 delay-75 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4" style={{ color: '#86909C' }} />
-          <span className="text-sm font-medium" style={{ color: '#1D2129' }}>项目筛选：</span>
+          <Filter className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>项目筛选：</span>
         </div>
         <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="w-[240px] bg-white" style={{ border: '1px solid #E5E6EB' }}>
+          <SelectTrigger className="w-[240px] bg-card" style={{ border: '1px solid var(--border)' }}>
             <SelectValue placeholder="选择项目" />
           </SelectTrigger>
-          <SelectContent className="bg-white">
+          <SelectContent className="bg-card">
             <SelectItem value="all">
               <div className="flex items-center gap-2">
-                <PieChart className="w-4 h-4" style={{ color: '#165DFF' }} />
+                <PieChart className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                 <span>全部项目（{data?.projects?.length || 0}个）</span>
               </div>
             </SelectItem>
@@ -459,7 +459,7 @@ function CostCenterContent() {
                     project.status === '暂停' ? 'bg-yellow-500' : 'bg-gray-400'
                   }`} />
                   <span>{project.name}</span>
-                  <span className="text-xs" style={{ color: '#86909C' }}>({project.status})</span>
+                  <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>({project.status})</span>
                 </div>
               </SelectItem>
             ))}
@@ -469,7 +469,7 @@ function CostCenterContent() {
           <button
             onClick={clearFilter}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-gray-100"
-            style={{ color: '#86909C', border: '1px solid #E5E6EB' }}
+            style={{ color: 'var(--color-text-3)', border: '1px solid var(--border)' }}
           >
             <X className="w-4 h-4" />
             清除筛选
@@ -493,14 +493,14 @@ function CostCenterContent() {
                     className="text-xs px-2 py-1 rounded"
                     style={{
                       background: warning.severity === 'high' ? '#FFECE8' : warning.severity === 'medium' ? '#FFF7E8' : '#E8F3FF',
-                      color: warning.severity === 'high' ? '#F53F3F' : warning.severity === 'medium' ? '#FF7D00' : '#165DFF',
+                      color: warning.severity === 'high' ? '#F53F3F' : warning.severity === 'medium' ? '#FF7D00' : 'var(--color-primary)',
                     }}
                   >
                     {warning.projectName}: {warning.message}
                   </span>
                 ))}
                 {(filteredData.warnings?.length || 0) > 5 && (
-                  <span className="text-xs px-2 py-1 rounded" style={{ background: '#F2F3F5', color: '#86909C' }}>
+                  <span className="text-xs px-2 py-1 rounded" style={{ background: 'var(--color-muted)', color: 'var(--color-text-3)' }}>
                     +{(filteredData.warnings?.length || 0) - 5} 项
                   </span>
                 )}
@@ -524,30 +524,30 @@ function CostCenterContent() {
             return (
               <>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: '#F0F5FF', border: '1px solid #BEDAFF' }}>
-                  <DollarSign className="w-5 h-5" style={{ color: '#165DFF' }} />
+                  <DollarSign className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#86909C' }}>总收入</p>
-                    <p className="text-lg font-bold" style={{ color: '#165DFF' }}>{formatAmountSmart(totalIncome)}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>总收入</p>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>{formatAmountSmart(totalIncome)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: totalCost > totalIncome ? '#FFF2E8' : '#FFF7E8', border: `1px solid ${totalCost > totalIncome ? '#FF7D00' : '#FFCF8B'}` }}>
                   <Wallet className="w-5 h-5" style={{ color: totalCost > totalIncome ? '#F53F3F' : '#FF7D00' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#86909C' }}>总成本</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>总成本</p>
                     <p className="text-lg font-bold" style={{ color: totalCost > totalIncome ? '#F53F3F' : '#FF7D00' }}>{formatAmountSmart(totalCost)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: totalProfit >= 0 ? '#E8FFEA' : '#FFECE8', border: `1px solid ${totalProfit >= 0 ? '#00B42A' : '#F53F3F'}` }}>
                   <TrendingUp className="w-5 h-5" style={{ color: totalProfit >= 0 ? '#00B42A' : '#F53F3F' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#86909C' }}>利润</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>利润</p>
                     <p className="text-lg font-bold" style={{ color: totalProfit >= 0 ? '#00B42A' : '#F53F3F' }}>{formatAmountSmart(totalProfit)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: profitRate >= 0 ? '#E8FFEA' : '#FFECE8', border: `1px solid ${profitRate >= 0 ? '#00B42A' : '#F53F3F'}` }}>
                   <Target className="w-5 h-5" style={{ color: profitRate >= 0 ? '#00B42A' : '#F53F3F' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#86909C' }}>利润率</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>利润率</p>
                     <p className="text-lg font-bold" style={{ color: profitRate >= 0 ? '#00B42A' : '#F53F3F' }}>{formatPercent(profitRate)}</p>
                   </div>
                 </div>
@@ -580,16 +580,16 @@ function CostCenterContent() {
       {/* 核心指标卡片 */}
       <div className={`grid grid-cols-2 lg:grid-cols-6 gap-4 transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         {/* 总成本 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-1">
-                  <p className="text-sm font-medium" style={{ color: '#86909C' }}>总成本</p>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>总成本</p>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: '#C9CDD4' }} />
+                        <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: 'var(--color-text-3)' }} />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <p className="text-xs">总成本 = 材料机械成本 + 工人工资总额 + 综合费用 + 税费</p>
@@ -598,14 +598,14 @@ function CostCenterContent() {
                   </TooltipProvider>
                 </div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-2xl font-bold" style={{ color: '#1D2129' }}>
+                  <span className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
                     {formatWanYuan(filteredData?.summary.totalCost || 0).replace('¥', '')}
                   </span>
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>项目累计投入</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>项目累计投入</p>
               </div>
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300" style={{ background: '#F2F3F5' }}>
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300" style={{ background: 'var(--color-muted)' }}>
                 💰
               </div>
             </div>
@@ -613,18 +613,18 @@ function CostCenterContent() {
         </Card>
 
         {/* 材料机械成本 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: '#86909C' }}>材料机械成本</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>材料机械成本</p>
                 <div className="flex items-baseline gap-1 mt-2">
                   <span className="text-2xl font-bold" style={{ color: '#FF7D00' }}>
                     {formatWanYuan(filteredData?.summary.totalSettlement || 0).replace('¥', '')}
                   </span>
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>供应商及班组结算</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>供应商及班组结算</p>
               </div>
               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300" style={{ background: '#FFF7E8' }}>
                 📦
@@ -634,18 +634,18 @@ function CostCenterContent() {
         </Card>
 
         {/* 工人工资总额 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: '#86909C' }}>工人工资总额</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>工人工资总额</p>
                 <div className="flex items-baseline gap-1 mt-2">
                   <span className="text-2xl font-bold" style={{ color: '#722ED1' }}>
                     {formatWanYuan(filteredData?.summary.totalSalary || 0).replace('¥', '')}
                   </span>
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: filteredData?.summary.avgLaborCostRate && filteredData.summary.avgLaborCostRate > 60 ? '#FF7D00' : '#C9CDD4' }}>
+                <p className="text-xs mt-1" style={{ color: filteredData?.summary.avgLaborCostRate && filteredData.summary.avgLaborCostRate > 60 ? '#FF7D00' : 'var(--color-text-3)' }}>
                   占比 {formatPercent(filteredData?.summary.avgLaborCostRate || 0)}%
                   {filteredData?.summary.avgLaborCostRate && filteredData.summary.avgLaborCostRate > 60 && ' · 偏高'}
                 </p>
@@ -658,18 +658,18 @@ function CostCenterContent() {
         </Card>
 
         {/* 综合费用 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: '#86909C' }}>综合费用</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>综合费用</p>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-2xl font-bold" style={{ color: '#0FC6C2' }}>
+                  <span className="text-2xl font-bold" style={{ color: 'var(--color-cyan)' }}>
                     {formatWanYuan(filteredData?.summary.totalExpense || 0).replace('¥', '')}
                   </span>
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: filteredData?.summary.avgExpenseRate && filteredData.summary.avgExpenseRate > 20 ? '#F53F3F' : '#C9CDD4' }}>
+                <p className="text-xs mt-1" style={{ color: filteredData?.summary.avgExpenseRate && filteredData.summary.avgExpenseRate > 20 ? '#F53F3F' : 'var(--color-text-3)' }}>
                   占比 {formatPercent(filteredData?.summary.avgExpenseRate || 0)}%
                   {filteredData?.summary.avgExpenseRate && filteredData.summary.avgExpenseRate > 20 && ' · 偏高'}
                 </p>
@@ -682,16 +682,16 @@ function CostCenterContent() {
         </Card>
 
         {/* 税费 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-1">
-                  <p className="text-sm font-medium" style={{ color: '#86909C' }}>税费</p>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>税费</p>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: '#C9CDD4' }} />
+                        <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: 'var(--color-text-3)' }} />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <p className="text-xs">税费 = 开票金额 − 不含税收入，从产值结算自动计算</p>
@@ -703,9 +703,9 @@ function CostCenterContent() {
                   <span className="text-2xl font-bold" style={{ color: '#F77234' }}>
                     {formatWanYuan(filteredData?.summary.totalTax || 0).replace('¥', '')}
                   </span>
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>
                   占比 {formatPercent(filteredData?.summary.avgTaxRate || 0)}%
                 </p>
               </div>
@@ -717,16 +717,16 @@ function CostCenterContent() {
         </Card>
 
         {/* 零星材料 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-1">
-                  <p className="text-sm font-medium" style={{ color: '#86909C' }}>零星材料</p>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>零星材料</p>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: '#C9CDD4' }} />
+                        <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: 'var(--color-text-3)' }} />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <p className="text-xs">零星材料成本，自动计入项目总成本</p>
@@ -735,16 +735,16 @@ function CostCenterContent() {
                   </TooltipProvider>
                 </div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-2xl font-bold" style={{ color: '#86909C' }}>
+                  <span className="text-2xl font-bold" style={{ color: 'var(--color-text-3)' }}>
                     {formatWanYuan(filteredData?.summary.totalMiscMaterial || 0).replace('¥', '')}
                   </span>
-                  <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>
                   占比 {formatPercent(filteredData?.summary.avgMiscMaterialRate || 0)}%
                 </p>
               </div>
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300" style={{ background: '#F2F3F5' }}>
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300" style={{ background: 'var(--color-muted)' }}>
                 📦
               </div>
             </div>
@@ -792,10 +792,10 @@ function CostCenterContent() {
       {/* 资金闭环概览 */}
       {filteredData && (
         <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-            <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#1D2129' }}>
-                <Wallet className="w-4 h-4" style={{ color: '#165DFF' }} />
+          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
+            <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                <Wallet className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                 资金闭环概览
               </CardTitle>
             </CardHeader>
@@ -804,15 +804,15 @@ function CostCenterContent() {
                 {[
                   { label: '已回款', value: filteredData.summary.totalClientPaid, desc: `回款率 ${formatPercent(filteredData.summary.avgPaymentRate)}%`, color: '#00B42A', bg: '#E8FFEA' },
                   { label: '应收未回', value: filteredData.summary.totalReceivable, desc: '客户侧待回款', color: filteredData.summary.totalReceivable > 0 ? '#FF7D00' : '#00B42A', bg: filteredData.summary.totalReceivable > 0 ? '#FFF7E8' : '#E8FFEA' },
-                  { label: '已支付', value: filteredData.summary.totalCashOut, desc: `供应商 ${formatAmountSmart(filteredData.summary.totalSupplierPaid)} / 工资 ${formatAmountSmart(filteredData.summary.totalWorkerPaid)}`, color: '#165DFF', bg: '#E8F3FF' },
+                  { label: '已支付', value: filteredData.summary.totalCashOut, desc: `供应商 ${formatAmountSmart(filteredData.summary.totalSupplierPaid)} / 工资 ${formatAmountSmart(filteredData.summary.totalWorkerPaid)}`, color: 'var(--color-primary)', bg: '#E8F3FF' },
                   { label: '应付未付', value: filteredData.summary.totalPayable, desc: `付款率 ${formatPercent(filteredData.summary.avgPayablePaymentRate)}%`, color: filteredData.summary.totalPayable > 0 ? '#F53F3F' : '#00B42A', bg: filteredData.summary.totalPayable > 0 ? '#FFECE8' : '#E8FFEA' },
                   { label: '现金净流', value: filteredData.summary.totalNetCashFlow, desc: '已回款 - 已支付', color: filteredData.summary.totalNetCashFlow >= 0 ? '#00B42A' : '#F53F3F', bg: filteredData.summary.totalNetCashFlow >= 0 ? '#E8FFEA' : '#FFECE8' },
                   { label: '资金缺口', value: filteredData.summary.totalFundingGap, desc: filteredData.summary.totalFundingGap > 0 ? '需重点跟进' : '暂无缺口', color: filteredData.summary.totalFundingGap > 0 ? '#F53F3F' : '#00B42A', bg: filteredData.summary.totalFundingGap > 0 ? '#FFECE8' : '#E8FFEA' },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-lg border px-3 py-3" style={{ borderColor: '#E5E6EB', background: item.bg }}>
-                    <p className="text-xs font-medium" style={{ color: '#4E5969' }}>{item.label}</p>
+                  <div key={item.label} className="rounded-lg border px-3 py-3" style={{ borderColor: 'var(--border)', background: item.bg }}>
+                    <p className="text-xs font-medium" style={{ color: 'var(--color-text-2)' }}>{item.label}</p>
                     <p className="text-xl font-bold tabular-nums mt-1" style={{ color: item.color }}>{formatAmountSmart(item.value)}</p>
-                    <p className="text-xs mt-1 truncate" style={{ color: '#86909C' }} title={item.desc}>{item.desc}</p>
+                    <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-3)' }} title={item.desc}>{item.desc}</p>
                   </div>
                 ))}
               </div>
@@ -828,15 +828,15 @@ function CostCenterContent() {
 
       {/* 项目利润统计表格 */}
       <div className={`transition-all duration-500 delay-300 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-          <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
+        <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
+          <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#1D2129' }}>
-                <BarChart3 className="w-4 h-4" style={{ color: '#165DFF' }} />
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                <BarChart3 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                 项目利润统计
               </CardTitle>
               <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: '#86909C' }}>{filteredData?.projects.length || 0} 个项目</span>
+                <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>{filteredData?.projects.length || 0} 个项目</span>
               </div>
             </div>
           </CardHeader>
@@ -847,20 +847,20 @@ function CostCenterContent() {
                 <div className="hidden md:block overflow-x-auto max-h-96">
                   <table className="w-full">
                     <thead className="sticky top-0 z-10">
-                      <tr style={{ background: '#F7F8FA' }}>
-                        <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>项目名称</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: '#86909C' }}>状态</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>总收入(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>总成本(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>材料机械(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>工人工资(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>综合费用(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>税费(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>零星材料(万元)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>利润(万元)</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: '#86909C' }}>利润率</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: '#86909C' }}>人工占比</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: '#86909C' }}>操作</th>
+                      <tr style={{ background: 'var(--color-muted)' }}>
+                        <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>项目名称</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>状态</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>总收入(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>总成本(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>材料机械(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>工人工资(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>综合费用(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>税费(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>零星材料(万元)</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>利润(万元)</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>利润率</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>人工占比</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -870,17 +870,17 @@ function CostCenterContent() {
                           className={`transition-colors cursor-pointer ${project.profit < 0 ? 'bg-red-50 hover:bg-red-100' : index % 2 === 1 ? 'bg-gray-50 hover:bg-blue-50' : 'hover:bg-blue-50'}`}
                         >
                           <td className="px-4 py-3">
-                            <span className="font-medium text-sm" style={{ color: '#1D2129' }}>
+                            <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
                               {project.name}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
                             {getStatusTag(project.status)}
                           </td>
-                          <td className="px-4 py-3 text-right text-sm" style={{ color: '#165DFF' }}>
+                          <td className="px-4 py-3 text-right text-sm" style={{ color: 'var(--color-primary)' }}>
                             {project.totalIncome > 0 ? formatWanYuan(project.totalIncome) : '暂无数据'}
                           </td>
-                          <td className="px-4 py-3 text-right text-sm" style={{ color: '#1D2129' }}>
+                          <td className="px-4 py-3 text-right text-sm" style={{ color: 'var(--foreground)' }}>
                             {project.totalCost > 0 ? formatWanYuan(project.totalCost) : '暂无数据'}
                           </td>
                           <td className="px-4 py-3 text-right text-sm" style={{ color: '#FF7D00' }}>
@@ -889,13 +889,13 @@ function CostCenterContent() {
                           <td className="px-4 py-3 text-right text-sm" style={{ color: '#722ED1' }}>
                             {project.salaryAmount > 0 ? formatWanYuan(project.salaryAmount) : '暂无数据'}
                           </td>
-                          <td className="px-4 py-3 text-right text-sm" style={{ color: '#0FC6C2' }}>
+                          <td className="px-4 py-3 text-right text-sm" style={{ color: 'var(--color-cyan)' }}>
                             {project.expenseAmount > 0 ? formatWanYuan(project.expenseAmount) : '暂无数据'}
                           </td>
                           <td className="px-4 py-3 text-right text-sm" style={{ color: '#F77234' }}>
                             {project.taxAmount > 0 ? formatWanYuan(project.taxAmount) : '暂无数据'}
                           </td>
-                          <td className="px-4 py-3 text-right text-sm" style={{ color: '#86909C' }}>
+                          <td className="px-4 py-3 text-right text-sm" style={{ color: 'var(--color-text-3)' }}>
                             {(project.miscMaterialAmount || 0) > 0 ? formatWanYuan(project.miscMaterialAmount || 0) : '暂无数据'}
                           </td>
                           <td className="px-4 py-3 text-right text-sm font-medium" style={{ color: project.profit >= 0 ? '#00B42A' : '#F53F3F' }}>
@@ -903,12 +903,12 @@ function CostCenterContent() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <div className="w-16 h-2 rounded-full overflow-hidden" style={{ background: '#F2F3F5' }}>
+                              <div className="w-16 h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-muted)' }}>
                                 <div 
                                   className="h-full rounded-full transition-all"
                                   style={{ 
                                     width: `${Math.min(Math.abs(project.profitRate), 100)}%`,
-                                    background: project.profitRate >= 30 ? '#00B42A' : project.profitRate >= 10 ? '#FFAA00' : project.profitRate >= 0 ? '#FF7D00' : '#F53F3F'
+                                    background: project.profitRate >= 30 ? '#00B42A' : project.profitRate >= 10 ? '#FF7D00' : project.profitRate >= 0 ? '#FF7D00' : '#F53F3F'
                                   }}
                                 />
                               </div>
@@ -935,7 +935,7 @@ function CostCenterContent() {
                                   <Link 
                                     href={`/projects/${project.id}`}
                                     className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
-                                    style={{ background: '#E8F3FF', color: '#165DFF' }}
+                                    style={{ background: '#E8F3FF', color: 'var(--color-primary)' }}
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <Eye className="w-3 h-3" />
@@ -954,14 +954,14 @@ function CostCenterContent() {
                     {/* 合计行 */}
                     <tfoot className="sticky bottom-0 z-10" style={{ background: '#E8F3FF' }}>
                       <tr style={{ background: '#E8F3FF' }}>
-                        <td className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#1D2129' }}>
+                        <td className="px-4 py-3 text-left text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
                           合计 ({filteredData.projects.length}个项目)
                         </td>
-                        <td className="px-4 py-3 text-center text-sm" style={{ color: '#86909C' }}>-</td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#165DFF' }}>
+                        <td className="px-4 py-3 text-center text-sm" style={{ color: 'var(--color-text-3)' }}>-</td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
                           {formatWanYuan(filteredData.summary.totalIncome)}
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#1D2129' }}>
+                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
                           {formatWanYuan(filteredData.summary.totalCost)}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#FF7D00' }}>
@@ -970,30 +970,30 @@ function CostCenterContent() {
                         <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#722ED1' }}>
                           {formatWanYuan(filteredData.summary.totalSalary)}
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#0FC6C2' }}>
+                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: 'var(--color-cyan)' }}>
                           {formatWanYuan(filteredData.summary.totalExpense)}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#F77234' }}>
                           {formatWanYuan(filteredData.summary.totalTax)}
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#86909C' }}>
+                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: 'var(--color-text-3)' }}>
                           {formatWanYuan(filteredData.summary.totalMiscMaterial || 0)}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: (filteredData.summary.totalProfit || 0) >= 0 ? '#00B42A' : '#F53F3F' }}>
                           {(filteredData.summary.totalProfit || 0) < 0 ? '-' : ''}{formatWanYuan(Math.abs(filteredData.summary.totalProfit || 0))}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className="text-xs font-semibold" style={{ color: '#165DFF' }}>
+                          <span className="text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>
                             {formatPercent(filteredData.summary.avgProfitRate)}%
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className="text-xs font-semibold" style={{ color: '#86909C' }}>
+                          <span className="text-xs font-semibold" style={{ color: 'var(--color-text-3)' }}>
                             {formatPercent(filteredData.summary.avgLaborCostRate)}%
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className="text-xs" style={{ color: '#86909C' }}>-</span>
+                          <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>-</span>
                         </td>
                       </tr>
                     </tfoot>
@@ -1005,50 +1005,50 @@ function CostCenterContent() {
                   {filteredData.projects.map((project) => (
                     <div 
                       key={project.id}
-                      className={`p-4 rounded-lg border ${project.profit < 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}
+                      className={`p-4 rounded-lg border ${project.profit < 0 ? 'bg-red-50 border-red-200' : 'bg-card border-gray-200'}`}
                       onClick={() => setSelectedProjectId(project.id.toString())}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-medium" style={{ color: '#1D2129' }}>{project.name}</span>
+                        <span className="font-medium" style={{ color: 'var(--foreground)' }}>{project.name}</span>
                         {getStatusTag(project.status)}
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
-                          <span style={{ color: '#86909C' }}>总收入：</span>
-                          <span style={{ color: '#165DFF' }}>{project.totalIncome > 0 ? `${formatWanYuan(project.totalIncome)} 万元` : '暂无数据'}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>总收入：</span>
+                          <span style={{ color: 'var(--color-primary)' }}>{project.totalIncome > 0 ? `${formatWanYuan(project.totalIncome)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>总成本：</span>
-                          <span style={{ color: '#1D2129' }}>{project.totalCost > 0 ? `${formatWanYuan(project.totalCost)} 万元` : '暂无数据'}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>总成本：</span>
+                          <span style={{ color: 'var(--foreground)' }}>{project.totalCost > 0 ? `${formatWanYuan(project.totalCost)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>材料机械：</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>材料机械：</span>
                           <span style={{ color: '#FF7D00' }}>{project.settlementAmount > 0 ? `${formatWanYuan(project.settlementAmount)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>工人工资：</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>工人工资：</span>
                           <span style={{ color: '#722ED1' }}>{project.salaryAmount > 0 ? `${formatWanYuan(project.salaryAmount)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>综合费用：</span>
-                          <span style={{ color: '#0FC6C2' }}>{project.expenseAmount > 0 ? `${formatWanYuan(project.expenseAmount)} 万元` : '暂无数据'}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>综合费用：</span>
+                          <span style={{ color: 'var(--color-cyan)' }}>{project.expenseAmount > 0 ? `${formatWanYuan(project.expenseAmount)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>税费：</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>税费：</span>
                           <span style={{ color: '#F77234' }}>{project.taxAmount > 0 ? `${formatWanYuan(project.taxAmount)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>零星材料：</span>
-                          <span style={{ color: '#86909C' }}>{(project.miscMaterialAmount || 0) > 0 ? `${formatWanYuan(project.miscMaterialAmount || 0)} 万元` : '暂无数据'}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>零星材料：</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>{(project.miscMaterialAmount || 0) > 0 ? `${formatWanYuan(project.miscMaterialAmount || 0)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>利润：</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>利润：</span>
                           <span style={{ color: project.profit >= 0 ? '#00B42A' : '#F53F3F' }}>
                             {project.profit !== 0 ? `${project.profit < 0 ? '-' : ''}${formatWanYuan(Math.abs(project.profit))} 万元` : '暂无数据'}
                           </span>
                         </div>
                         <div>
-                          <span style={{ color: '#86909C' }}>利润率：</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>利润率：</span>
                           <span className={`${
                             project.profitRate < 0 ? 'text-red-600' :
                             project.profitRate < 10 ? 'text-orange-600' :
@@ -1063,7 +1063,7 @@ function CostCenterContent() {
                         <Link 
                           href={`/projects/${project.id}`}
                           className="inline-flex items-center gap-1 px-3 py-1 rounded text-xs"
-                          style={{ background: '#E8F3FF', color: '#165DFF' }}
+                          style={{ background: '#E8F3FF', color: 'var(--color-primary)' }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Eye className="w-3 h-3" />
@@ -1076,12 +1076,12 @@ function CostCenterContent() {
               </>
             ) : (
               <div className="py-12 text-center">
-                <BarChart3 className="w-12 h-12 mx-auto mb-3" style={{ color: '#C9CDD4' }} />
-                <p className="text-sm" style={{ color: '#86909C' }}>暂无数据</p>
+                <BarChart3 className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--color-text-3)' }} />
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>暂无数据</p>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpCircle className="w-4 h-4 mx-auto mt-2 cursor-help" style={{ color: '#C9CDD4' }} />
+                      <HelpCircle className="w-4 h-4 mx-auto mt-2 cursor-help" style={{ color: 'var(--color-text-3)' }} />
                     </TooltipTrigger>
                     <TooltipContent side="top">
                       <p className="text-xs">请先录入相关业务数据</p>
@@ -1097,8 +1097,8 @@ function CostCenterContent() {
       {/* 成本异常预警 */}
       {filteredData && (filteredData.warnings?.length || 0) > 0 && (
         <div className={`transition-all duration-500 delay-400 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
-            <CardHeader className="py-3 border-b cursor-pointer" style={{ borderColor: '#E5E6EB' }} onClick={() => toggleSection('warnings')}>
+          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
+            <CardHeader className="py-3 border-b cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => toggleSection('warnings')}>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#F53F3F' }}>
                   <AlertTriangle className="w-4 h-4" />
@@ -1109,9 +1109,9 @@ function CostCenterContent() {
                     {filteredData.warnings?.length || 0} 项预警
                   </span>
                   {expandedSections.has('warnings') ? (
-                    <ChevronUp className="w-4 h-4" style={{ color: '#86909C' }} />
+                    <ChevronUp className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
                   ) : (
-                    <ChevronDown className="w-4 h-4" style={{ color: '#86909C' }} />
+                    <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
                   )}
                 </div>
               </div>
@@ -1135,17 +1135,17 @@ function CostCenterContent() {
                           ) : warning.severity === 'medium' ? (
                             <AlertTriangle className="w-4 h-4" style={{ color: '#FF7D00' }} />
                           ) : (
-                            <AlertCircle className="w-4 h-4" style={{ color: '#165DFF' }} />
+                            <AlertCircle className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                           )}
                         </div>
                         <div>
-                          <span className="font-medium" style={{ color: '#1D2129' }}>{warning.projectName}</span>
-                          <span className="text-sm ml-2" style={{ color: warning.severity === 'high' ? '#F53F3F' : warning.severity === 'medium' ? '#FF7D00' : '#165DFF' }}>
+                          <span className="font-medium" style={{ color: 'var(--foreground)' }}>{warning.projectName}</span>
+                          <span className="text-sm ml-2" style={{ color: warning.severity === 'high' ? '#F53F3F' : warning.severity === 'medium' ? '#FF7D00' : 'var(--color-primary)' }}>
                             {warning.message}
                           </span>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4" style={{ color: '#86909C' }} />
+                      <ChevronRight className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
                     </div>
                   ))}
                 </div>
@@ -1158,7 +1158,7 @@ function CostCenterContent() {
       {/* 无预警时显示正常状态 */}
       {filteredData && (filteredData.warnings?.length || 0) === 0 && (
         <div className={`transition-all duration-500 delay-400 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+          <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
             <CardContent className="py-8">
               <div className="flex items-center justify-center gap-3">
                 <CheckCircle2 className="w-6 h-6" style={{ color: '#00B42A' }} />
@@ -1171,9 +1171,9 @@ function CostCenterContent() {
 
       {/* 说明信息 */}
       <div className={`transition-all duration-500 delay-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <Card style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+        <Card style={{ background: 'var(--color-muted)', border: '1px solid var(--border)' }}>
           <CardContent className="py-4">
-            <div className="text-sm space-y-2" style={{ color: '#86909C' }}>
+            <div className="text-sm space-y-2" style={{ color: 'var(--color-text-3)' }}>
               <p><strong>数据说明：</strong></p>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>总收入 = 开票金额总额 + 已签回的签证金额</li>

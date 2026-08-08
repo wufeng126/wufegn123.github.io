@@ -366,7 +366,7 @@ export default function WorkerSalaryQueryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 md:p-6">
+      <div className="min-h-screen bg-gradient-to-br from-muted/50 to-accent p-3 sm:p-4 md:p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
@@ -378,7 +378,7 @@ export default function WorkerSalaryQueryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-muted/50 to-accent p-3 sm:p-4 md:p-6">
       <div className={`max-w-[2000px] mx-auto space-y-5 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {/* 页面标题 */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -526,13 +526,13 @@ export default function WorkerSalaryQueryPage() {
                 workerSummary.map(worker => {
                   const isExpanded = expandedWorkers.has(worker.summary_key);
                   return (
-                    <div key={worker.summary_key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div key={worker.summary_key} className="rounded-xl border border-border bg-card p-3 shadow-sm">
                       <button type="button" onClick={() => toggleExpand(worker.summary_key)} className="flex w-full items-start justify-between gap-3 text-left">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{worker.worker_name}</p>
-                          <p className="mt-1 truncate text-xs text-slate-500">{worker.project_name} · {worker.work_type || '-'}</p>
+                          <p className="truncate text-sm font-semibold text-foreground">{worker.worker_name}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{worker.project_name} · {worker.work_type || '-'}</p>
                         </div>
-                        {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+                        {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground/80" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/80" />}
                       </button>
                       <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                         <div className="rounded-lg bg-blue-50 px-2 py-2">
@@ -543,20 +543,20 @@ export default function WorkerSalaryQueryPage() {
                           <p className="text-purple-600">已发</p>
                           <p className="mt-1 font-semibold text-purple-700">¥{formatCurrency(worker.paid)}</p>
                         </div>
-                        <div className={worker.unpaid > 0 ? 'rounded-lg bg-red-50 px-2 py-2' : 'rounded-lg bg-slate-50 px-2 py-2'}>
-                          <p className={worker.unpaid > 0 ? 'text-red-600' : 'text-slate-500'}>未付</p>
-                          <p className={worker.unpaid > 0 ? 'mt-1 font-semibold text-red-700' : 'mt-1 font-semibold text-slate-700'}>¥{formatCurrency(worker.unpaid)}</p>
+                        <div className={worker.unpaid > 0 ? 'rounded-lg bg-red-50 px-2 py-2' : 'rounded-lg bg-muted/50 px-2 py-2'}>
+                          <p className={worker.unpaid > 0 ? 'text-red-600' : 'text-muted-foreground'}>未付</p>
+                          <p className={worker.unpaid > 0 ? 'mt-1 font-semibold text-red-700' : 'mt-1 font-semibold text-foreground/80'}>¥{formatCurrency(worker.unpaid)}</p>
                         </div>
                       </div>
                       {isExpanded && (
-                        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                        <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
                           {worker.records.map(record => (
                             <div key={record.id} className="rounded-lg bg-amber-50/70 p-2 text-xs">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-medium text-amber-700">{record.year_month}</span>
                                 <span className="font-semibold text-green-700">实发 ¥{formatCurrency(record.net_pay)}</span>
                               </div>
-                              <div className="mt-2 grid grid-cols-2 gap-2 text-slate-600">
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-muted-foreground">
                                 <span>工时 {formatNumber(record.work_hours)}</span>
                                 <span>工价 {formatNumber(record.hourly_rate)}</span>
                                 <span>包活 {formatNumber(record.contract_work_pay)}</span>
@@ -570,7 +570,7 @@ export default function WorkerSalaryQueryPage() {
                   );
                 })
               ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
+                <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground/80">
                   请先在&quot;月度工资&quot;中录入工资数据
                 </div>
               )}
@@ -578,9 +578,9 @@ export default function WorkerSalaryQueryPage() {
             <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-gradient-to-r from-slate-100 to-blue-50">
-                    <TableHead className="sticky left-0 bg-slate-100 z-10 min-w-12 font-semibold"></TableHead>
-                    <TableHead className="sticky left-12 bg-slate-100 z-10 min-w-24 font-semibold">姓名</TableHead>
+                  <TableRow className="bg-gradient-to-r from-muted to-accent">
+                    <TableHead className="sticky left-0 bg-muted z-10 min-w-12 font-semibold"></TableHead>
+                    <TableHead className="sticky left-12 bg-muted z-10 min-w-24 font-semibold">姓名</TableHead>
                     <TableHead className="min-w-20 font-semibold">工种</TableHead>
                     <TableHead className="min-w-28 font-semibold">项目</TableHead>
                     <TableHead className="text-center min-w-24 font-semibold bg-blue-50">应发</TableHead>
@@ -599,10 +599,10 @@ export default function WorkerSalaryQueryPage() {
                       return (
                         <Fragment key={worker.summary_key}>
                           <TableRow 
-                            className={`${index % 2 === 1 ? 'bg-slate-50/50' : ''} hover:bg-blue-50/50 cursor-pointer`}
+                            className={`${index % 2 === 1 ? 'bg-muted/50/50' : ''} hover:bg-blue-50/50 cursor-pointer`}
                             onClick={() => toggleExpand(worker.summary_key)}
                           >
-                            <TableCell className="sticky left-0 bg-white z-10 w-12">
+                            <TableCell className="sticky left-0 bg-card z-10 w-12">
                               <button className="p-1 hover:bg-gray-100 rounded">
                                 {isExpanded ? (
                                   <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -611,7 +611,7 @@ export default function WorkerSalaryQueryPage() {
                                 )}
                               </button>
                             </TableCell>
-                            <TableCell className="sticky left-12 bg-white z-10 font-medium">
+                            <TableCell className="sticky left-12 bg-card z-10 font-medium">
                               {worker.worker_name}
                             </TableCell>
                             <TableCell className="text-gray-500">
@@ -651,7 +651,7 @@ export default function WorkerSalaryQueryPage() {
                                     <Clock className="w-4 h-4" />
                                     {worker.worker_name} - {worker.monthly_count}个月工资明细
                                   </div>
-                                  <Table className="bg-white rounded border">
+                                  <Table className="bg-card rounded border">
                                     <TableHeader>
                                       <TableRow className="bg-gray-50 text-xs">
                                         <TableHead className="text-center py-1">月份</TableHead>
@@ -704,9 +704,9 @@ export default function WorkerSalaryQueryPage() {
                     </TableRow>
                   )}
                   {workerSummary.length > 0 && (
-                    <TableRow className="bg-gradient-to-r from-slate-100 to-blue-50 font-semibold">
-                      <TableCell className="sticky left-0 bg-slate-100 z-10"></TableCell>
-                      <TableCell className="sticky left-12 bg-slate-100 z-10">合计</TableCell>
+                    <TableRow className="bg-gradient-to-r from-muted to-accent font-semibold">
+                      <TableCell className="sticky left-0 bg-muted z-10"></TableCell>
+                      <TableCell className="sticky left-12 bg-muted z-10">合计</TableCell>
                       <TableCell></TableCell>
                       <TableCell></TableCell>
                       <TableCell className="text-right bg-blue-50">{formatNumber(stats.totalGrossPay)}</TableCell>

@@ -551,8 +551,8 @@ export default function WorkerSalariesPage() {
       {/* 页面标题 */}
       <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>月度工资</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>按月录入和管理工人工资</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>月度工资</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>按月录入和管理工人工资</p>
         </div>
         <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
           <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9">
@@ -580,7 +580,7 @@ export default function WorkerSalariesPage() {
               <DialogHeader><DialogTitle className="dialog-header">新增工资记录</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>工人 *</Label>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>工人 *</Label>
                     <Popover open={workerSearchOpen} onOpenChange={setWorkerSearchOpen}>
                       <PopoverTrigger asChild>
                         <Button
@@ -629,28 +629,28 @@ export default function WorkerSalariesPage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>项目 *</Label>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目 *</Label>
                     <Select value={formData.project_id} onValueChange={(value) => setFormData({ ...formData, project_id: value })}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择项目" /></SelectTrigger>
                       <SelectContent>{projects.map(p => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}</SelectContent>
                     </Select>
                   </div>
                 </div>
-                <div><Label className="text-sm" style={{ color: '#1D2129' }}>年月 *</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" /></div>
+                <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>年月 *</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>工时</Label><Input type="number" value={formData.work_hours} onChange={(e) => setFormData({ ...formData, work_hours: e.target.value })} className="mt-1.5" /></div>
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>时薪</Label><Input type="number" step="0.01" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>工时</Label><Input type="number" value={formData.work_hours} onChange={(e) => setFormData({ ...formData, work_hours: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>时薪</Label><Input type="number" step="0.01" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="mt-1.5" /></div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>包工工资</Label><Input type="number" step="0.01" value={formData.contract_work_pay} onChange={(e) => setFormData({ ...formData, contract_work_pay: e.target.value })} className="mt-1.5" /></div>
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>个人所得税</Label><Input type="number" step="0.01" value={formData.income_tax} onChange={(e) => setFormData({ ...formData, income_tax: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>包工工资</Label><Input type="number" step="0.01" value={formData.contract_work_pay} onChange={(e) => setFormData({ ...formData, contract_work_pay: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>个人所得税</Label><Input type="number" step="0.01" value={formData.income_tax} onChange={(e) => setFormData({ ...formData, income_tax: e.target.value })} className="mt-1.5" /></div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>预支款</Label><Input type="number" step="0.01" value={formData.advance_pay} onChange={(e) => setFormData({ ...formData, advance_pay: e.target.value })} className="mt-1.5" /></div>
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>劳保费</Label><Input type="number" step="0.01" value={formData.labor_insurance} onChange={(e) => setFormData({ ...formData, labor_insurance: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>预支款</Label><Input type="number" step="0.01" value={formData.advance_pay} onChange={(e) => setFormData({ ...formData, advance_pay: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>劳保费</Label><Input type="number" step="0.01" value={formData.labor_insurance} onChange={(e) => setFormData({ ...formData, labor_insurance: e.target.value })} className="mt-1.5" /></div>
                 </div>
-                <div><Label className="text-sm" style={{ color: '#1D2129' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
+                <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: 'var(--border)' }}>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">取消</Button>
                   <Button type="submit" className="btn-primary">保存</Button>
                 </div>
@@ -666,7 +666,7 @@ export default function WorkerSalariesPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>应发工资总额</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>应发工资总额</p>
                 <p className="text-xl font-bold mt-2 stat-number-blue">{formatCurrency(stats.totalGrossPay)}</p>
               </div>
               <div className="stat-icon-container stat-icon-blue">
@@ -680,7 +680,7 @@ export default function WorkerSalariesPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>实发工资总额</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>实发工资总额</p>
                 <p className="text-xl font-bold mt-2 stat-number-green">{formatCurrency(stats.totalNetPay)}</p>
               </div>
               <div className="stat-icon-container stat-icon-green">
@@ -694,8 +694,8 @@ export default function WorkerSalariesPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>涉及工人</p>
-                <p className="text-3xl font-bold mt-2 stat-number-purple">{stats.workerCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>人</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>涉及工人</p>
+                <p className="text-3xl font-bold mt-2 stat-number-purple">{stats.workerCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>人</span></p>
               </div>
               <div className="stat-icon-container stat-icon-purple">
                 <Users className="w-5 h-5 text-white" />
@@ -709,38 +709,38 @@ export default function WorkerSalariesPage() {
       {projectSummary.length > 0 && (
         <Card className={`transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
           <CardContent className="pt-5">
-            <h3 className="text-base font-semibold mb-4" style={{ color: '#1D2129' }}>项目工资汇总</h3>
+            <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--foreground)' }}>项目工资汇总</h3>
             <div className="hidden md:block overflow-x-auto">
               <Table className="zebra-table">
               <TableHeader>
                   <TableRow>
-                    <TableHead className="font-medium" style={{ color: '#86909C' }}>项目名称</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>应发工资</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>个税</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>预支款</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>劳保费</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>罚款</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>实发工资</TableHead>
-                    <TableHead className="text-right font-medium" style={{ color: '#86909C' }}>人数</TableHead>
+                    <TableHead className="font-medium" style={{ color: 'var(--color-text-3)' }}>项目名称</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>应发工资</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>个税</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>预支款</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>劳保费</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>罚款</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>实发工资</TableHead>
+                    <TableHead className="text-right font-medium" style={{ color: 'var(--color-text-3)' }}>人数</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {projectSummary.map((item, index) => (
                     <TableRow key={item.project_id || index}>
-                      <TableCell className="font-medium" style={{ color: '#1D2129' }}>{item.project_name}</TableCell>
-                      <TableCell className="text-right" style={{ color: '#165DFF' }}>{formatCurrency(item.total_gross_pay)}</TableCell>
+                      <TableCell className="font-medium" style={{ color: 'var(--foreground)' }}>{item.project_name}</TableCell>
+                      <TableCell className="text-right" style={{ color: 'var(--color-primary)' }}>{formatCurrency(item.total_gross_pay)}</TableCell>
                       <TableCell className="text-right" style={{ color: '#F53F3F' }}>{formatCurrency(item.total_income_tax)}</TableCell>
                       <TableCell className="text-right" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_advance_pay)}</TableCell>
                       <TableCell className="text-right" style={{ color: '#722ED1' }}>{formatCurrency(item.total_labor_insurance)}</TableCell>
-                      <TableCell className="text-right" style={{ color: '#E5C07B' }}>{formatCurrency(item.total_fine)}</TableCell>
+                      <TableCell className="text-right" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_fine)}</TableCell>
                       <TableCell className="text-right font-semibold" style={{ color: '#00B42A' }}>{formatCurrency(item.total_net_pay)}</TableCell>
-                      <TableCell className="text-right" style={{ color: '#86909C' }}>{item.worker_count}人</TableCell>
+                      <TableCell className="text-right" style={{ color: 'var(--color-text-3)' }}>{item.worker_count}人</TableCell>
                     </TableRow>
                   ))}
                   {/* 合计行 */}
-                  <TableRow style={{ backgroundColor: '#F7F8FA' }}>
-                    <TableCell className="font-bold" style={{ color: '#1D2129' }}>合计</TableCell>
-                    <TableCell className="text-right font-bold" style={{ color: '#165DFF' }}>
+                  <TableRow style={{ backgroundColor: 'var(--color-muted)' }}>
+                    <TableCell className="font-bold" style={{ color: 'var(--foreground)' }}>合计</TableCell>
+                    <TableCell className="text-right font-bold" style={{ color: 'var(--color-primary)' }}>
                       {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_gross_pay, 0))}
                     </TableCell>
                     <TableCell className="text-right font-bold" style={{ color: '#F53F3F' }}>
@@ -752,13 +752,13 @@ export default function WorkerSalariesPage() {
                     <TableCell className="text-right font-bold" style={{ color: '#722ED1' }}>
                       {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_labor_insurance, 0))}
                     </TableCell>
-                    <TableCell className="text-right font-bold" style={{ color: '#E5C07B' }}>
+                    <TableCell className="text-right font-bold" style={{ color: '#FF7D00' }}>
                       {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_fine, 0))}
                     </TableCell>
                     <TableCell className="text-right font-bold" style={{ color: '#00B42A' }}>
                       {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_net_pay, 0))}
                     </TableCell>
-                    <TableCell className="text-right font-bold" style={{ color: '#86909C' }}>
+                    <TableCell className="text-right font-bold" style={{ color: 'var(--color-text-3)' }}>
                       {projectSummary.reduce((sum, p) => sum + p.worker_count, 0)}人
                     </TableCell>
                   </TableRow>
@@ -770,28 +770,28 @@ export default function WorkerSalariesPage() {
                 <div key={item.project_id || index} className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{item.project_name}</p>
-                      <p className="mt-1 text-xs" style={{ color: '#86909C' }}>{item.worker_count}人</p>
+                      <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{item.project_name}</p>
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>{item.worker_count}人</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs" style={{ color: '#86909C' }}>实发</p>
+                      <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>实发</p>
                       <p className="text-base font-bold" style={{ color: '#00B42A' }}>{formatCurrency(item.total_net_pay)}</p>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div><span style={{ color: '#86909C' }}>应发 </span><span className="font-medium" style={{ color: '#165DFF' }}>{formatCurrency(item.total_gross_pay)}</span></div>
-                    <div><span style={{ color: '#86909C' }}>个税 </span><span className="font-medium" style={{ color: '#F53F3F' }}>{formatCurrency(item.total_income_tax)}</span></div>
-                    <div><span style={{ color: '#86909C' }}>预支 </span><span className="font-medium" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_advance_pay)}</span></div>
-                    <div><span style={{ color: '#86909C' }}>劳保 </span><span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(item.total_labor_insurance)}</span></div>
+                    <div><span style={{ color: 'var(--color-text-3)' }}>应发 </span><span className="font-medium" style={{ color: 'var(--color-primary)' }}>{formatCurrency(item.total_gross_pay)}</span></div>
+                    <div><span style={{ color: 'var(--color-text-3)' }}>个税 </span><span className="font-medium" style={{ color: '#F53F3F' }}>{formatCurrency(item.total_income_tax)}</span></div>
+                    <div><span style={{ color: 'var(--color-text-3)' }}>预支 </span><span className="font-medium" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_advance_pay)}</span></div>
+                    <div><span style={{ color: 'var(--color-text-3)' }}>劳保 </span><span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(item.total_labor_insurance)}</span></div>
                   </div>
                 </div>
               ))}
               <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold" style={{ color: '#1D2129' }}>合计</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>合计</span>
                   <span className="text-base font-bold" style={{ color: '#00B42A' }}>{formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_net_pay, 0))}</span>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: '#86909C' }}>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
                   <span>应发 {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_gross_pay, 0))}</span>
                   <span>{projectSummary.reduce((sum, p) => sum + p.worker_count, 0)}人</span>
                 </div>
@@ -804,7 +804,7 @@ export default function WorkerSalariesPage() {
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="filter-bar mobile-filter-grid sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-          <Calendar className="w-4 h-4" style={{ color: '#86909C' }} />
+          <Calendar className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
           <Select value={filterYear} onValueChange={setFilterYear}>
             <SelectTrigger className="w-full sm:w-24 h-9 sm:h-8"><SelectValue /></SelectTrigger>
             <SelectContent>{yearOptions.map(y => (<SelectItem key={y} value={y}>{y}年</SelectItem>))}</SelectContent>
@@ -821,11 +821,11 @@ export default function WorkerSalariesPage() {
             </SelectContent>
           </Select>
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#C9CDD4' }} />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-3)' }} />
             <Input placeholder="搜索工人姓名" value={searchWorker} onChange={(e) => setSearchWorker(e.target.value)} className="w-full sm:w-40 pl-9 h-9 sm:h-8" />
           </div>
           {searchWorker && (
-            <Button variant="ghost" size="sm" onClick={() => setSearchWorker('')} className="h-8" style={{ color: '#86909C' }}>
+            <Button variant="ghost" size="sm" onClick={() => setSearchWorker('')} className="h-8" style={{ color: 'var(--color-text-3)' }}>
               <X className="w-4 h-4 mr-1" />清除
             </Button>
           )}
@@ -834,7 +834,7 @@ export default function WorkerSalariesPage() {
 
       {/* 工资列表 */}
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <Card className="overflow-hidden border" style={{ borderColor: '#E5E6EB' }}>
+        <Card className="overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -861,11 +861,11 @@ export default function WorkerSalariesPage() {
                     const isCollapsed = mainCollapsedProjects.has(projectName);
 
                     return (
-                      <div key={projectName} className="border rounded-lg overflow-hidden" style={{ borderColor: '#E5E6EB' }}>
+                      <div key={projectName} className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                         {/* 项目标题行 - 可折叠 */}
                         <div
                           className="flex flex-col gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:py-2.5"
-                          style={{ background: '#F7F8FA' }}
+                          style={{ background: 'var(--color-muted)' }}
                           onClick={() => {
                             const newCollapsed = new Set(mainCollapsedProjects);
                             if (isCollapsed) {
@@ -891,13 +891,13 @@ export default function WorkerSalariesPage() {
                               }}
                               onClick={(e) => e.stopPropagation()}
                             />
-                            <span className="truncate font-medium" style={{ color: '#1D2129' }}>{projectName}</span>
-                            <span className="shrink-0 text-sm" style={{ color: '#86909C' }}>({projectSalaries.length}人)</span>
+                            <span className="truncate font-medium" style={{ color: 'var(--foreground)' }}>{projectName}</span>
+                            <span className="shrink-0 text-sm" style={{ color: 'var(--color-text-3)' }}>({projectSalaries.length}人)</span>
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-sm sm:flex sm:items-center sm:gap-6">
-                            <span style={{ color: '#86909C' }}>应发: <span className="font-medium" style={{ color: '#165DFF' }}>{formatCurrency(projectGrossPay)}</span></span>
-                            <span style={{ color: '#86909C' }}>实发: <span className="font-medium" style={{ color: '#00B42A' }}>{formatCurrency(projectNetPay)}</span></span>
-                            <span style={{ color: '#86909C' }}>已发: <span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(projectPaid)}</span></span>
+                            <span style={{ color: 'var(--color-text-3)' }}>应发: <span className="font-medium" style={{ color: 'var(--color-primary)' }}>{formatCurrency(projectGrossPay)}</span></span>
+                            <span style={{ color: 'var(--color-text-3)' }}>实发: <span className="font-medium" style={{ color: '#00B42A' }}>{formatCurrency(projectNetPay)}</span></span>
+                            <span style={{ color: 'var(--color-text-3)' }}>已发: <span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(projectPaid)}</span></span>
                           </div>
                         </div>
                         {/* 项目内明细表格 */}
@@ -905,31 +905,31 @@ export default function WorkerSalariesPage() {
                           <>
                           <Table className="zebra-table hidden md:table">
               <TableHeader>
-                              <TableRow style={{ background: '#FAFBFD', borderBottom: '1px solid #E5E6EB' }}>
+                              <TableRow style={{ background: 'var(--color-muted)', borderBottom: '1px solid #E5E6EB' }}>
                                 <TableHead className="w-12"></TableHead>
-                                <TableHead style={{ color: '#1D2129' }}>工人</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>工时</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>时薪</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>包工工资</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>应发工资</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>个税</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>预支</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>劳保</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>罚款</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>实发工资</TableHead>
-                                <TableHead className="text-center" style={{ color: '#1D2129' }}>发放状态</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>已发</TableHead>
+                                <TableHead style={{ color: 'var(--foreground)' }}>工人</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>工时</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>时薪</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>包工工资</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>应发工资</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>个税</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>预支</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>劳保</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>罚款</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>实发工资</TableHead>
+                                <TableHead className="text-center" style={{ color: 'var(--foreground)' }}>发放状态</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>已发</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {projectSalaries.map((salary) => (
                                 <TableRow key={salary.id} style={{ background: selectedIds.has(salary.id) ? '#E8F3FF' : 'transparent', borderBottom: '1px solid #E5E6EB' }}>
                                   <TableCell><Checkbox checked={selectedIds.has(salary.id)} onCheckedChange={() => handleSelectOne(salary.id)} /></TableCell>
-                                  <TableCell className="font-medium" style={{ color: '#1D2129' }}>{salary.worker_name}</TableCell>
-                                  <TableCell className="text-right" style={{ color: '#4E5969' }}>{salary.work_hours}</TableCell>
-                                  <TableCell className="text-right" style={{ color: '#4E5969' }}>{salary.hourly_rate}</TableCell>
-                                  <TableCell className="text-right" style={{ color: '#4E5969' }}>{salary.contract_work_pay}</TableCell>
-                                  <TableCell className="text-right font-medium" style={{ color: '#165DFF' }}>
+                                  <TableCell className="font-medium" style={{ color: 'var(--foreground)' }}>{salary.worker_name}</TableCell>
+                                  <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.work_hours}</TableCell>
+                                  <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.hourly_rate}</TableCell>
+                                  <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.contract_work_pay}</TableCell>
+                                  <TableCell className="text-right font-medium" style={{ color: 'var(--color-primary)' }}>
                                     {(() => {
                                       const currentGross = parseFloat(salary.gross_pay) || 0;
                                       const sameWorkerSalaries = salaries.filter(s => s.worker_id === salary.worker_id && s.year_month < salary.year_month);
@@ -944,10 +944,10 @@ export default function WorkerSalariesPage() {
                                       );
                                     })()}
                                   </TableCell>
-                                  <TableCell className="text-right" style={{ color: '#4E5969' }}>{salary.income_tax}</TableCell>
-                                  <TableCell className="text-right" style={{ color: '#4E5969' }}>{salary.advance_pay}</TableCell>
-                                  <TableCell className="text-right" style={{ color: '#4E5969' }}>{salary.labor_insurance}</TableCell>
-                                  <TableCell className="text-right" style={{ color: '#E5C07B' }}>{salary.fine}</TableCell>
+                                  <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.income_tax}</TableCell>
+                                  <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.advance_pay}</TableCell>
+                                  <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.labor_insurance}</TableCell>
+                                  <TableCell className="text-right" style={{ color: '#FF7D00' }}>{salary.fine}</TableCell>
                                   <TableCell className="text-right font-medium" style={{ color: '#00B42A' }}>{formatCurrency(salary.net_pay)}</TableCell>
                                   <TableCell className="text-center">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
@@ -962,7 +962,7 @@ export default function WorkerSalariesPage() {
                                       <p className="mt-1 text-xs text-red-600">{salary.payment_warning}</p>
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-right" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : '#86909C' }}>
+                                  <TableCell className="text-right" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : 'var(--color-text-3)' }}>
                                     {formatCurrency(salary.paid || 0)}
                                   </TableCell>
                                 </TableRow>
@@ -977,8 +977,8 @@ export default function WorkerSalariesPage() {
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{salary.worker_name}</p>
-                                        <p className="mt-0.5 text-xs" style={{ color: '#86909C' }}>工时 {salary.work_hours} · 时薪 {salary.hourly_rate}</p>
+                                        <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{salary.worker_name}</p>
+                                        <p className="mt-0.5 text-xs" style={{ color: 'var(--color-text-3)' }}>工时 {salary.work_hours} · 时薪 {salary.hourly_rate}</p>
                                       </div>
                                       <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
                                         salary.payment_status === 'overpaid' ? 'bg-red-50 text-red-700' :
@@ -991,27 +991,27 @@ export default function WorkerSalariesPage() {
                                     </div>
                                     <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                                       <div>
-                                        <p style={{ color: '#86909C' }}>应发</p>
-                                        <p className="font-semibold" style={{ color: '#165DFF' }}>{formatCurrency(salary.gross_pay)}</p>
+                                        <p style={{ color: 'var(--color-text-3)' }}>应发</p>
+                                        <p className="font-semibold" style={{ color: 'var(--color-primary)' }}>{formatCurrency(salary.gross_pay)}</p>
                                       </div>
                                       <div>
-                                        <p style={{ color: '#86909C' }}>实发</p>
+                                        <p style={{ color: 'var(--color-text-3)' }}>实发</p>
                                         <p className="font-semibold" style={{ color: '#00B42A' }}>{formatCurrency(salary.net_pay)}</p>
                                       </div>
                                       <div>
-                                        <p style={{ color: '#86909C' }}>已发</p>
-                                        <p className="font-semibold" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : '#86909C' }}>{formatCurrency(salary.paid || 0)}</p>
+                                        <p style={{ color: 'var(--color-text-3)' }}>已发</p>
+                                        <p className="font-semibold" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : 'var(--color-text-3)' }}>{formatCurrency(salary.paid || 0)}</p>
                                       </div>
                                       <div>
-                                        <p style={{ color: '#86909C' }}>包工</p>
-                                        <p style={{ color: '#4E5969' }}>{salary.contract_work_pay}</p>
+                                        <p style={{ color: 'var(--color-text-3)' }}>包工</p>
+                                        <p style={{ color: 'var(--color-text-2)' }}>{salary.contract_work_pay}</p>
                                       </div>
                                       <div>
-                                        <p style={{ color: '#86909C' }}>扣减</p>
-                                        <p style={{ color: '#4E5969' }}>{formatCurrency((Number(salary.income_tax) || 0) + (Number(salary.advance_pay) || 0) + (Number(salary.labor_insurance) || 0) + (Number(salary.fine) || 0))}</p>
+                                        <p style={{ color: 'var(--color-text-3)' }}>扣减</p>
+                                        <p style={{ color: 'var(--color-text-2)' }}>{formatCurrency((Number(salary.income_tax) || 0) + (Number(salary.advance_pay) || 0) + (Number(salary.labor_insurance) || 0) + (Number(salary.fine) || 0))}</p>
                                       </div>
                                       <div>
-                                        <p style={{ color: '#86909C' }}>未发</p>
+                                        <p style={{ color: 'var(--color-text-3)' }}>未发</p>
                                         <p style={{ color: '#F53F3F' }}>{formatCurrency(salary.unpaid_amount || 0)}</p>
                                       </div>
                                     </div>
@@ -1033,7 +1033,7 @@ export default function WorkerSalariesPage() {
             ) : (
               <div className="empty-state py-12">
                 <div className="empty-state-icon">
-                  <FileText className="w-10 h-10" style={{ color: '#C9CDD4' }} />
+                  <FileText className="w-10 h-10" style={{ color: 'var(--color-text-3)' }} />
                 </div>
                 <p className="empty-state-title text-base">当月暂无工资数据</p>
                 <p className="empty-state-description mb-4">可切换月份查看历史数据，或导入当月工资</p>
@@ -1062,7 +1062,7 @@ export default function WorkerSalariesPage() {
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader><DialogTitle className="dialog-header">批量修改（已选 {selectedIds.size} 项）</DialogTitle></DialogHeader>
           <form onSubmit={handleBatchEdit} className="space-y-4">
-            <div><Label className="text-sm" style={{ color: '#1D2129' }}>选择要修改的字段</Label>
+            <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>选择要修改的字段</Label>
               <Select value={batchEditField} onValueChange={setBatchEditField}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择字段" /></SelectTrigger>
                 <SelectContent>
@@ -1075,8 +1075,8 @@ export default function WorkerSalariesPage() {
                 </SelectContent>
               </Select>
             </div>
-            {batchEditField && <div><Label className="text-sm" style={{ color: '#1D2129' }}>新值</Label><Input type="number" step="0.01" value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>}
-            <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:flex sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
+            {batchEditField && <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>新值</Label><Input type="number" step="0.01" value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>}
+            <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:flex sm:justify-end" style={{ borderColor: 'var(--border)' }}>
               <Button type="button" variant="outline" onClick={() => setBatchEditDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" disabled={!batchEditField} className="btn-primary">确认修改</Button>
             </div>
@@ -1239,7 +1239,7 @@ export default function WorkerSalariesPage() {
                   );
                 })()}
               </div>
-              <div className="flex flex-col gap-3 pt-4 border-t sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
+              <div className="flex flex-col gap-3 pt-4 border-t sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)' }}>
                 <div className="text-sm text-gray-500">
                   共 {allSalaries.length} 条记录，已选择 {deleteSelectedIds.size} 条（跨 {(() => { const groups = new Set(Array.from(deleteSelectedIds).map(id => allSalaries.find(s => s.id === id)?.project_name)); return groups.size; })()} 个项目）
                 </div>

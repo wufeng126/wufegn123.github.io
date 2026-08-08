@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -91,8 +91,8 @@ const toneMeta: Record<ProjectTone, { label: string; className: string; marker: 
   },
   attention: {
     label: '暂无动态',
-    className: 'bg-slate-100 text-slate-600 ring-slate-200',
-    marker: 'border-l-slate-300',
+    className: 'bg-muted text-muted-foreground ring-border',
+    marker: 'border-l-border',
     rank: 2,
   },
   steady: {
@@ -193,12 +193,12 @@ function SectionBlock({
 }) {
   const isRisk = tone === 'risk';
   return (
-    <section className={isRisk ? 'rounded-lg border border-amber-100 bg-amber-50 p-4' : 'rounded-lg bg-slate-50 p-4'}>
-      <div className={isRisk ? 'mb-3 flex items-center gap-2 text-sm font-semibold text-amber-800' : 'mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900'}>
+    <section className={isRisk ? 'rounded-lg border border-amber-100 bg-amber-50 p-4' : 'rounded-lg bg-muted/50 p-4'}>
+      <div className={isRisk ? 'mb-3 flex items-center gap-2 text-sm font-semibold text-amber-800' : 'mb-3 flex items-center gap-2 text-sm font-semibold text-foreground'}>
         <Icon className="h-4 w-4" />
         {title}
       </div>
-      <p className={isRisk ? 'text-sm leading-6 text-amber-900' : 'text-sm leading-6 text-slate-700'}>{children}</p>
+      <p className={isRisk ? 'text-sm leading-6 text-amber-900' : 'text-sm leading-6 text-foreground/80'}>{children}</p>
     </section>
   );
 }
@@ -210,20 +210,20 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
   const sections = getProjectSections(project);
 
   return (
-    <article className={`overflow-hidden rounded-lg border border-slate-200 border-l-4 ${meta.marker} bg-white shadow-sm`}>
+    <article className={`overflow-hidden rounded-xl border border-border border-l-4 ${meta.marker} bg-card shadow-sm`}>
       <button
         type="button"
         onClick={() => setOpen(value => !value)}
-        className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left hover:bg-slate-50 sm:px-5"
+        className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left transition hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/15 sm:px-5"
       >
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-950">{project.project_name}</h3>
+            <h3 className="text-base font-semibold text-foreground">{project.project_name}</h3>
             <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ring-1 ${meta.className}`}>
               {meta.label}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+          <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <FileText className="h-3.5 w-3.5" />
               日志 {project.log_count} 条
@@ -237,13 +237,13 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
               异常 {project.issue_count} 条
             </span>
           </div>
-          <p className="mt-3 max-w-5xl text-sm leading-6 text-slate-700">{sections.construction_content}</p>
+          <p className="mt-3 max-w-5xl text-sm leading-6 text-foreground/80">{sections.construction_content}</p>
         </div>
-        <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-muted-foreground/80 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open ? (
-        <div className="border-t border-slate-100 px-4 py-4 sm:px-5">
+        <div className="border-t border-border/60 px-4 py-4 sm:px-5">
           <div className="grid gap-3 lg:grid-cols-2">
             <SectionBlock title="施工进展" icon={ClipboardList}>
               {sections.construction_content}
@@ -275,8 +275,36 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
 
 function EmptyState({ message }: { message?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
-      {message || '暂无日报数据'}
+    <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+      <FileText className="mx-auto h-10 w-10 text-muted-foreground/40" />
+      <p className="mt-3 text-sm font-medium text-foreground/80">{message || '暂无日报数据'}</p>
+      <p className="mt-1 text-xs text-muted-foreground">切换日期或重新生成后再查看。</p>
+    </div>
+  );
+}
+
+function ReportSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        {[0, 1].map(item => (
+          <div key={item} className="animate-pulse rounded-xl border border-border bg-card p-5 shadow-sm">
+            <div className="h-5 w-1/3 rounded bg-muted-foreground/20" />
+            <div className="mt-5 space-y-3">
+              <div className="h-3 rounded bg-muted" />
+              <div className="h-3 w-5/6 rounded bg-muted" />
+              <div className="h-3 w-2/3 rounded bg-muted" />
+            </div>
+          </div>
+        ))}
+      </div>
+      {[0, 1, 2].map(item => (
+        <div key={item} className="animate-pulse rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="h-5 w-1/4 rounded bg-muted-foreground/20" />
+          <div className="mt-4 h-3 rounded bg-muted" />
+          <div className="mt-2 h-3 w-4/5 rounded bg-muted" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -294,7 +322,7 @@ export default function ConstructionDailyReportsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState('');
 
-  async function loadReport(targetDate = date) {
+  const loadReport = useCallback(async (targetDate: string) => {
     setLoading(true);
     setMessage('');
     try {
@@ -308,7 +336,7 @@ export default function ConstructionDailyReportsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   async function refreshReport() {
     setRefreshing(true);
@@ -331,12 +359,18 @@ export default function ConstructionDailyReportsPage() {
   }
 
   useEffect(() => {
-    void loadReport(date);
-  }, [date]);
+    const timer = window.setTimeout(() => {
+      void loadReport(date);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [date, loadReport]);
 
   useEffect(() => {
     if (!isReportDate(queryDate)) return;
-    setDate(currentDate => (currentDate === queryDate ? currentDate : queryDate));
+    const timer = window.setTimeout(() => {
+      setDate(currentDate => (currentDate === queryDate ? currentDate : queryDate));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [queryDate]);
 
   const summary = report?.summary;
@@ -363,31 +397,31 @@ export default function ConstructionDailyReportsPage() {
   const readStatus = report?.read_status || { read_count: 0, total_count: 0 };
 
   return (
-    <main className="min-h-screen bg-[#f6f7f9] text-slate-950">
+    <main className="min-h-full bg-[var(--color-muted)] text-foreground">
       <div className="mx-auto max-w-[1360px] space-y-5 p-3 sm:p-4 md:p-6">
-        <header className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <header className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm sm:px-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <Link href="/workspace" className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900">
+              <Link href="/construction-logs?tab=logs" className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
                 <ArrowLeft className="h-4 w-4" />
-                返回工作台
+                返回施工日志
               </Link>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-primary/15">
                 <Sparkles className="h-3.5 w-3.5" />
                 AI 萃取日报
               </div>
               <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">项目日报汇总</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
                 先看公司整体情况，再展开单个项目查看施工进展、资源投入、风险提醒和明日计划。页面面向所有员工阅读，不展示提交统计和人员名单。
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <div className="inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700">
+              <div className="inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 shadow-sm">
                 已阅 {readStatus.read_count}/{readStatus.total_count} 人
               </div>
-              <label className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                <CalendarDays className="h-4 w-4 text-blue-600" />
+              <label className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-foreground/80 shadow-sm transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+                <CalendarDays className="h-4 w-4 text-primary" />
                 <input
                   type="date"
                   value={date}
@@ -399,7 +433,7 @@ export default function ConstructionDailyReportsPage() {
                 type="button"
                 onClick={refreshReport}
                 disabled={refreshing || loading}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 重新生成
@@ -409,42 +443,39 @@ export default function ConstructionDailyReportsPage() {
         </header>
 
         {message ? (
-          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          <div className="rounded-lg border border-primary/15 bg-accent px-4 py-3 text-sm text-primary">
             {message}
           </div>
         ) : null}
 
         {loading ? (
-          <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-600" />
-            <span className="text-sm text-slate-500">正在加载日报...</span>
-          </div>
+          <ReportSkeleton />
         ) : summary ? (
           <>
             <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-              <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <article className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <CloudSun className="h-5 w-5 text-blue-600" />
+                    <CloudSun className="h-5 w-5 text-primary" />
                     <h2 className="text-base font-semibold">{getReadableDate(summary.report_date)} 公司项目总览</h2>
                   </div>
-                  <div className="rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-600">
+                  <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
                     AI 状态：{report?.ai_status === 'done' ? '已生成' : report?.ai_status === 'fallback' ? '本地兜底' : '待生成'}
                   </div>
                 </div>
-                <p className="text-sm leading-7 text-slate-700">
+                <p className="text-sm leading-7 text-foreground/80">
                   {cleanCompanyNarrative(summary)}
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {getCompanyHighlights(summary).map((item, index) => (
-                    <div key={`${item}-${index}`} className="rounded-lg bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
+                    <div key={`${item}-${index}`} className="rounded-lg bg-muted/50 px-3 py-3 text-sm leading-6 text-foreground/80 ring-1 ring-border/60">
                       {item}
                     </div>
                   ))}
                 </div>
               </article>
 
-              <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <article className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-amber-600" />
                   <h2 className="text-base font-semibold">今日优先关注</h2>
@@ -464,7 +495,7 @@ export default function ConstructionDailyReportsPage() {
                       );
                     })
                   ) : (
-                    <div className="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+                    <div className="rounded-lg bg-muted/50 p-3 text-sm leading-6 text-muted-foreground">
                       当前日期暂无需要重点关注的项目。
                     </div>
                   )}
@@ -476,9 +507,9 @@ export default function ConstructionDailyReportsPage() {
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold">单项目日报</h2>
-                  <p className="mt-1 text-sm text-slate-500">按风险优先排序，默认展开需要关注的项目，其他项目可点击查看详情。</p>
+                  <p className="mt-1 text-sm text-muted-foreground">按风险优先排序，默认展开需要关注的项目，其他项目可点击查看详情。</p>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-muted-foreground">
                   生成时间：{report?.generated_at ? new Date(report.generated_at).toLocaleString('zh-CN') : '-'}
                 </div>
               </div>
@@ -492,8 +523,8 @@ export default function ConstructionDailyReportsPage() {
               )}
 
               {quietProjects.length > 0 ? (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
-                  <div className="font-medium text-slate-900">当日暂无动态项目</div>
+                <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+                  <div className="font-medium text-foreground">当日暂无动态项目</div>
                   <p className="mt-2 leading-6">
                     {quietProjects.map(project => project.project_name).join('、')}
                   </p>

@@ -134,18 +134,18 @@ export default function BidEstimationPage() {
   }));
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[var(--color-muted)] p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-[#1D2129]">投标测算</h1>
-            <p className="mt-1 text-sm text-[#86909C]">先看历史中标价趋势，再结合内部成本形成新项目报价。</p>
+            <h1 className="text-2xl font-bold text-[var(--foreground)]">投标测算</h1>
+            <p className="mt-1 text-sm text-[var(--color-text-3)]">先看历史中标价趋势，再结合内部成本形成新项目报价。</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/cost-estimation/bid/library" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129] hover:bg-[#F7F8FA]">
+            <Link href="/cost-estimation/bid/library" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-card px-4 text-sm text-[var(--foreground)] hover:bg-[var(--color-muted)]">
               <BookOpen className="h-4 w-4" />资料库
             </Link>
-            <Link href="/cost-estimation/bid/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white shadow-sm hover:bg-[#0E49D8]">
+            <Link href="/cost-estimation/bid/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm text-white shadow-sm hover:bg-[var(--color-primary)]">
               <Plus className="h-4 w-4" />新建测算
             </Link>
           </div>
@@ -158,22 +158,22 @@ export default function BidEstimationPage() {
           <StatCard title="最近下降" value={`${trendStats.down}`} unit="项" tone="down" />
         </div>
 
-        <section className="rounded-xl border border-[#E5E6EB] bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E6EB] px-4 py-3">
+        <section className="rounded-xl border border-[var(--border)] bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[#165DFF]" />
-              <span className="font-medium text-[#1D2129]">常用清单项报价趋势</span>
+              <TrendingUp className="h-4 w-4 text-[var(--color-primary)]" />
+              <span className="font-medium text-[var(--foreground)]">常用清单项报价趋势</span>
             </div>
-            <span className="text-xs text-[#86909C]">按最近一次中标单价对比上一次中标单价</span>
+            <span className="text-xs text-[var(--color-text-3)]">按最近一次中标单价对比上一次中标单价</span>
           </div>
 
           {loading ? (
-            <div className="py-16 text-center text-sm text-[#86909C]">正在读取历史中标价...</div>
+            <div className="py-16 text-center text-sm text-[var(--color-text-3)]">正在读取历史中标价...</div>
           ) : trends.length === 0 ? (
             <EmptyState text="暂无标准清单，请先进入资料库维护常用清单项。" />
           ) : (
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_440px]">
-              <div className="grid content-start gap-3 border-b border-[#E5E6EB] p-4 sm:grid-cols-2 lg:border-b-0 lg:border-r">
+              <div className="grid content-start gap-3 border-b border-[var(--border)] p-4 sm:grid-cols-2 lg:border-b-0 lg:border-r">
                 {trends.map(item => (
                   <TrendCard
                     key={item.id}
@@ -189,13 +189,13 @@ export default function BidEstimationPage() {
           )}
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
-          <div className="flex items-center justify-between border-b border-[#E5E6EB] px-4 py-3">
+        <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-card">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-[#165DFF]" />
-              <span className="font-medium text-[#1D2129]">测算项目台账</span>
+              <FileSpreadsheet className="h-4 w-4 text-[var(--color-primary)]" />
+              <span className="font-medium text-[var(--foreground)]">测算项目台账</span>
             </div>
-            <div className="hidden gap-4 text-xs text-[#86909C] md:flex">
+            <div className="hidden gap-4 text-xs text-[var(--color-text-3)] md:flex">
               <span>测算项目 {bids.length} 个</span>
               <span>测算中 {bidStats.active} 个</span>
               <span>累计测算额 {money(bidStats.total)} 元</span>
@@ -204,19 +204,19 @@ export default function BidEstimationPage() {
           </div>
 
           {loading ? (
-            <div className="py-16 text-center text-sm text-[#86909C]">正在读取测算项目...</div>
+            <div className="py-16 text-center text-sm text-[var(--color-text-3)]">正在读取测算项目...</div>
           ) : bids.length === 0 ? (
             <div className="px-6 py-16 text-center">
-              <FileSpreadsheet className="mx-auto mb-4 h-12 w-12 text-[#C9CDD4]" />
-              <p className="mb-2 text-base font-medium text-[#1D2129]">暂无投标测算项目</p>
-              <p className="mb-5 text-sm text-[#86909C]">先维护资料库，再上传甲方清单生成第一版测算。</p>
-              <Link href="/cost-estimation/bid/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm text-white">新建测算</Link>
+              <FileSpreadsheet className="mx-auto mb-4 h-12 w-12 text-[var(--color-text-3)]" />
+              <p className="mb-2 text-base font-medium text-[var(--foreground)]">暂无投标测算项目</p>
+              <p className="mb-5 text-sm text-[var(--color-text-3)]">先维护资料库，再上传甲方清单生成第一版测算。</p>
+              <Link href="/cost-estimation/bid/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white">新建测算</Link>
             </div>
           ) : (
             <>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] text-sm">
-                <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
+                <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
                   <tr>
                     <th className="px-4 py-3 text-left font-medium">项目名称</th>
                     <th className="px-4 py-3 text-left font-medium">地区 / 类型</th>
@@ -227,20 +227,20 @@ export default function BidEstimationPage() {
                     <th className="px-4 py-3 text-left font-medium">状态</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E6EB]">
+                <tbody className="divide-y divide-[var(--border)]">
                   {bids.map(bid => (
-                    <tr key={bid.id} className="hover:bg-[#F7F8FA]">
+                    <tr key={bid.id} className="hover:bg-[var(--color-muted)]">
                       <td className="px-4 py-3">
-                        <Link href={`/cost-estimation/bid/${bid.id}`} className="font-medium text-[#165DFF] hover:underline">{bid.name}</Link>
-                        <div className="mt-1 text-xs text-[#86909C]">{bid.created_at?.slice(0, 10) || '-'}</div>
+                        <Link href={`/cost-estimation/bid/${bid.id}`} className="font-medium text-[var(--color-primary)] hover:underline">{bid.name}</Link>
+                        <div className="mt-1 text-xs text-[var(--color-text-3)]">{bid.created_at?.slice(0, 10) || '-'}</div>
                       </td>
-                      <td className="px-4 py-3 text-[#4E5969]">{bid.region || '-'} / {bid.project_type || '-'}</td>
+                      <td className="px-4 py-3 text-[var(--color-text-2)]">{bid.region || '-'} / {bid.project_type || '-'}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{money(bid.total_labor_cost)} 元</td>
                       <td className="px-4 py-3 text-right tabular-nums">{money(bid.management_fee)} 元</td>
-                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-[#1D2129]">{money(bid.total_amount)} 元</td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-[var(--foreground)]">{money(bid.total_amount)} 元</td>
                       <td className="px-4 py-3 text-center">{bid.version_count || 0}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded-full bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{bid.status || '测算中'}</span>
+                        <span className="rounded-full bg-[var(--color-accent)] px-2 py-1 text-xs text-[var(--color-primary)]">{bid.status || '测算中'}</span>
                       </td>
                     </tr>
                   ))}
@@ -252,31 +252,31 @@ export default function BidEstimationPage() {
                 <Link
                   key={bid.id}
                   href={`/cost-estimation/bid/${bid.id}`}
-                  className="block rounded-lg border border-[#E5E6EB] bg-white p-3 shadow-sm"
+                  className="block rounded-lg border border-[var(--border)] bg-card p-3 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[#165DFF]">{bid.name}</p>
-                      <p className="mt-1 text-xs text-[#86909C]">{bid.region || '-'} / {bid.project_type || '-'} / {bid.created_at?.slice(0, 10) || '-'}</p>
+                      <p className="truncate text-sm font-semibold text-[var(--color-primary)]">{bid.name}</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-3)]">{bid.region || '-'} / {bid.project_type || '-'} / {bid.created_at?.slice(0, 10) || '-'}</p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{bid.status || '测算中'}</span>
+                    <span className="shrink-0 rounded-full bg-[var(--color-accent)] px-2 py-1 text-xs text-[var(--color-primary)]">{bid.status || '测算中'}</span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md bg-[#F7F8FA] p-2">
-                      <div className="text-[#86909C]">内部成本</div>
-                      <div className="mt-1 font-semibold text-[#1D2129]">{money(bid.total_labor_cost)} 元</div>
+                    <div className="rounded-md bg-[var(--color-muted)] p-2">
+                      <div className="text-[var(--color-text-3)]">内部成本</div>
+                      <div className="mt-1 font-semibold text-[var(--foreground)]">{money(bid.total_labor_cost)} 元</div>
                     </div>
-                    <div className="rounded-md bg-[#F7F8FA] p-2">
-                      <div className="text-[#86909C]">管理费</div>
-                      <div className="mt-1 font-semibold text-[#1D2129]">{money(bid.management_fee)} 元</div>
+                    <div className="rounded-md bg-[var(--color-muted)] p-2">
+                      <div className="text-[var(--color-text-3)]">管理费</div>
+                      <div className="mt-1 font-semibold text-[var(--foreground)]">{money(bid.management_fee)} 元</div>
                     </div>
-                    <div className="rounded-md bg-[#E8F3FF] p-2">
-                      <div className="text-[#165DFF]">测算总价</div>
-                      <div className="mt-1 font-semibold text-[#165DFF]">{money(bid.total_amount)} 元</div>
+                    <div className="rounded-md bg-[var(--color-accent)] p-2">
+                      <div className="text-[var(--color-primary)]">测算总价</div>
+                      <div className="mt-1 font-semibold text-[var(--color-primary)]">{money(bid.total_amount)} 元</div>
                     </div>
-                    <div className="rounded-md bg-[#F7F8FA] p-2">
-                      <div className="text-[#86909C]">保存版本</div>
-                      <div className="mt-1 font-semibold text-[#1D2129]">{bid.version_count || 0} 个</div>
+                    <div className="rounded-md bg-[var(--color-muted)] p-2">
+                      <div className="text-[var(--color-text-3)]">保存版本</div>
+                      <div className="mt-1 font-semibold text-[var(--foreground)]">{bid.version_count || 0} 个</div>
                     </div>
                   </div>
                 </Link>
@@ -292,11 +292,11 @@ export default function BidEstimationPage() {
 
 function StatCard({ title, value, unit, tone }: { title: string; value: string; unit: string; tone?: 'up' | 'down' }) {
   return (
-    <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
-      <p className="text-xs text-[#86909C]">{title}</p>
+    <div className="rounded-xl border border-[var(--border)] bg-card p-4">
+      <p className="text-xs text-[var(--color-text-3)]">{title}</p>
       <div className="mt-2 flex items-end gap-1">
-        <span className={cn('text-2xl font-bold text-[#1D2129]', tone === 'up' && 'text-[#D92D20]', tone === 'down' && 'text-[#079455]')}>{value}</span>
-        <span className="pb-1 text-xs text-[#86909C]">{unit}</span>
+        <span className={cn('text-2xl font-bold text-[var(--foreground)]', tone === 'up' && 'text-[#F53F3F]', tone === 'down' && 'text-[#00B42A]')}>{value}</span>
+        <span className="pb-1 text-xs text-[var(--color-text-3)]">{unit}</span>
       </div>
     </div>
   );
@@ -309,33 +309,33 @@ function TrendCard({ item, selected, onClick }: { item: TrendItem; selected: boo
       type="button"
       onClick={onClick}
       className={cn(
-        'min-h-[132px] rounded-lg border bg-white p-4 text-left transition hover:border-[#165DFF]/40 hover:shadow-sm',
-        selected ? 'border-[#165DFF] shadow-sm ring-2 ring-[#E8F3FF]' : 'border-[#E5E6EB]',
+        'min-h-[132px] rounded-lg border bg-card p-4 text-left transition hover:border-[var(--color-primary)]/40 hover:shadow-sm',
+        selected ? 'border-[var(--color-primary)] shadow-sm ring-2 ring-[var(--color-accent)]' : 'border-[var(--border)]',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="rounded bg-[#F2F3F5] px-1.5 py-0.5 text-[11px] font-medium text-[#4E5969]">{item.code}</span>
-            <span className="truncate text-xs text-[#86909C]">{item.category || '未分类'}</span>
+            <span className="rounded bg-[var(--color-muted)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-2)]">{item.code}</span>
+            <span className="truncate text-xs text-[var(--color-text-3)]">{item.category || '未分类'}</span>
           </div>
-          <h3 className="mt-2 truncate text-sm font-semibold text-[#1D2129]">{item.name}</h3>
-          <p className="mt-1 text-xs text-[#86909C]">{item.unit || '-'} · {item.material_included ? '默认含材料' : '默认不含材料'}</p>
+          <h3 className="mt-2 truncate text-sm font-semibold text-[var(--foreground)]">{item.name}</h3>
+          <p className="mt-1 text-xs text-[var(--color-text-3)]">{item.unit || '-'} · {item.material_included ? '默认含材料' : '默认不含材料'}</p>
         </div>
-        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#C9CDD4]" />
+        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[var(--color-text-3)]" />
       </div>
 
       <div className="mt-4 flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs text-[#86909C]">最近中标单价</p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-[#1D2129]">
+          <p className="text-xs text-[var(--color-text-3)]">最近中标单价</p>
+          <p className="mt-1 text-xl font-bold tabular-nums text-[var(--foreground)]">
             {price(item.latest_price)}
-            {item.latest_price ? <span className="ml-1 text-xs font-normal text-[#86909C]">元/{item.unit || '单位'}</span> : null}
+            {item.latest_price ? <span className="ml-1 text-xs font-normal text-[var(--color-text-3)]">元/{item.unit || '单位'}</span> : null}
           </p>
         </div>
         <TrendBadge tone={tone} change={item.change} changeRate={item.change_rate} />
       </div>
-      <p className="mt-3 text-xs text-[#86909C]">历史报价 {item.sample_count} 次</p>
+      <p className="mt-3 text-xs text-[var(--color-text-3)]">历史报价 {item.sample_count} 次</p>
     </button>
   );
 }
@@ -345,9 +345,9 @@ function TrendBadge({ tone, change, changeRate }: { tone: 'up' | 'down' | 'flat'
   return (
     <div className={cn(
       'flex h-9 items-center gap-1 rounded-full px-2.5 text-xs font-medium',
-      tone === 'up' && 'bg-[#FFF1F0] text-[#D92D20]',
-      tone === 'down' && 'bg-[#ECFDF3] text-[#079455]',
-      tone === 'flat' && 'bg-[#F2F3F5] text-[#86909C]',
+      tone === 'up' && 'bg-[#FFF1F0] text-[#F53F3F]',
+      tone === 'down' && 'bg-[#ECFDF3] text-[#00B42A]',
+      tone === 'flat' && 'bg-[var(--color-muted)] text-[var(--color-text-3)]',
     )}>
       <Icon className="h-3.5 w-3.5" />
       <span>{change === null ? '暂无对比' : `${change > 0 ? '+' : ''}${price(change)} / ${percent(changeRate)}`}</span>
@@ -363,24 +363,24 @@ function TrendDetail({ item, chartData }: { item?: TrendItem; chartData: Array<{
       <div className="mb-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs text-[#86909C]">趋势详情</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#1D2129]">{item.name}</h2>
+            <p className="text-xs text-[var(--color-text-3)]">趋势详情</p>
+            <h2 className="mt-1 text-lg font-semibold text-[var(--foreground)]">{item.name}</h2>
           </div>
-          <span className="rounded-full bg-[#F2F3F5] px-2.5 py-1 text-xs text-[#4E5969]">{item.sample_count} 次报价</span>
+          <span className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs text-[var(--color-text-2)]">{item.sample_count} 次报价</span>
         </div>
       </div>
 
-      <div className="h-[260px] rounded-lg border border-[#E5E6EB] p-3">
+      <div className="h-[260px] rounded-lg border border-[var(--border)] p-3">
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#EEF0F4" strokeDasharray="3 3" />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#86909C' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#86909C' }} axisLine={false} tickLine={false} width={44} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--color-text-3)' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-3)' }} axisLine={false} tickLine={false} width={44} />
               <Tooltip
                 formatter={(value) => [`${price(Number(value))} 元/${chartData[0]?.unit || item.unit || ''}`, '中标单价']}
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.project || '-'}
-                contentStyle={{ borderRadius: 8, borderColor: '#E5E6EB', fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, borderColor: 'var(--border)', fontSize: 12 }}
               />
               <Line type="monotone" dataKey="price" stroke="#165DFF" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             </LineChart>
@@ -390,9 +390,9 @@ function TrendDetail({ item, chartData }: { item?: TrendItem; chartData: Array<{
         )}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-[#E5E6EB]">
+      <div className="mt-4 overflow-hidden rounded-lg border border-[var(--border)]">
         <table className="w-full text-sm">
-          <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
+          <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
             <tr>
               <th className="px-3 py-3 text-left font-medium">项目名称</th>
               <th className="px-3 py-3 text-center font-medium">年份</th>
@@ -401,18 +401,18 @@ function TrendDetail({ item, chartData }: { item?: TrendItem; chartData: Array<{
               <th className="px-3 py-3 text-right font-medium">单价</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E5E6EB]">
+          <tbody className="divide-y divide-[var(--border)]">
             {[...item.history].reverse().map(row => (
               <tr key={row.id}>
-                <td className="px-3 py-3 text-[#1D2129]">{row.project_name || '-'}</td>
-                <td className="px-3 py-3 text-center text-[#4E5969]">{row.bid_year || '-'}</td>
-                <td className="px-3 py-3 text-[#4E5969]">{row.project_type || '-'}</td>
-                <td className="px-3 py-3 text-[#4E5969]">{row.material_included ? '含材料' : '不含材料'}</td>
-                <td className="px-3 py-3 text-right font-medium tabular-nums text-[#1D2129]">{price(row.price)} 元/{row.unit || item.unit || '-'}</td>
+                <td className="px-3 py-3 text-[var(--foreground)]">{row.project_name || '-'}</td>
+                <td className="px-3 py-3 text-center text-[var(--color-text-2)]">{row.bid_year || '-'}</td>
+                <td className="px-3 py-3 text-[var(--color-text-2)]">{row.project_type || '-'}</td>
+                <td className="px-3 py-3 text-[var(--color-text-2)]">{row.material_included ? '含材料' : '不含材料'}</td>
+                <td className="px-3 py-3 text-right font-medium tabular-nums text-[var(--foreground)]">{price(row.price)} 元/{row.unit || item.unit || '-'}</td>
               </tr>
             ))}
             {item.history.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-10 text-center text-[#86909C]">暂无历史项目明细</td></tr>
+              <tr><td colSpan={5} className="px-3 py-10 text-center text-[var(--color-text-3)]">暂无历史项目明细</td></tr>
             )}
           </tbody>
         </table>
@@ -423,8 +423,8 @@ function TrendDetail({ item, chartData }: { item?: TrendItem; chartData: Array<{
 
 function EmptyState({ text, compact = false }: { text: string; compact?: boolean }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center text-center text-sm text-[#86909C]', compact ? 'h-full' : 'py-14')}>
-      <TrendingUp className="mb-3 h-9 w-9 text-[#C9CDD4]" />
+    <div className={cn('flex flex-col items-center justify-center text-center text-sm text-[var(--color-text-3)]', compact ? 'h-full' : 'py-14')}>
+      <TrendingUp className="mb-3 h-9 w-9 text-[var(--color-text-3)]" />
       <p>{text}</p>
     </div>
   );

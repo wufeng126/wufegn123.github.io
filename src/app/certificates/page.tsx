@@ -367,8 +367,8 @@ export default function CertificatesPage() {
   // 获取文件图标
   const getFileIcon = (fileName: string) => {
     const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileName);
-    if (isImage) return <ImageIcon className="w-4 h-4" style={{ color: '#165DFF' }} />;
-    return <FileIcon className="w-4 h-4" style={{ color: '#86909C' }} />;
+    if (isImage) return <ImageIcon className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />;
+    return <FileIcon className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />;
   };
 
   // 判断是否为图片文件
@@ -637,7 +637,7 @@ export default function CertificatesPage() {
             onClick={handleAdd}
             className="gap-2 h-9 px-4"
             style={{ 
-              background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)',
+              background: 'var(--color-primary-gradient)',
               boxShadow: '0 2px 8px rgba(22, 93, 255, 0.25)'
             }}
           >
@@ -648,7 +648,7 @@ export default function CertificatesPage() {
             variant="outline"
             onClick={handleExport}
             className="gap-2 h-9 px-4"
-            style={{ borderColor: '#E5E6EB', color: '#4E5969' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--color-text-2)' }}
           >
             <Download className="w-4 h-4" />
             导出证件数据
@@ -664,7 +664,7 @@ export default function CertificatesPage() {
                 ? 'text-white shadow-md' 
                 : 'hover:bg-gray-100'
             }`}
-            style={selectedStatus === 'all' ? { background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' } : { color: '#4E5969' }}
+            style={selectedStatus === 'all' ? { background: 'var(--color-primary-gradient)' } : { color: 'var(--color-text-2)' }}
           >
             全部
           </button>
@@ -714,26 +714,26 @@ export default function CertificatesPage() {
       {/* 数据概览区域 */}
       <div className={`grid grid-cols-12 gap-4 transition-all duration-500 delay-100 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         {/* 左侧大卡片 - 证件概览 */}
-        <Card className="col-span-12 lg:col-span-5 hover:shadow-lg transition-all duration-300" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card className="col-span-12 lg:col-span-5 hover:shadow-lg transition-all duration-300" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           <CardContent className="pt-6 pb-6">
             <div className="flex items-center gap-2 mb-5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-primary-gradient)' }}>
                 <CreditCard className="w-5 h-5 text-white" />
               </div>
-              <span className="text-base font-semibold" style={{ color: '#1D2129' }}>证件概览</span>
+              <span className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>证件概览</span>
             </div>
             
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
               <div>
-                <p className="text-sm mb-2" style={{ color: '#86909C' }}>证件总数</p>
-                <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{stats.totalCount}</p>
+                <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>证件总数</p>
+                <p className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>{stats.totalCount}</p>
               </div>
               <div>
-                <p className="text-sm mb-2" style={{ color: '#86909C' }}>公司证件</p>
-                <p className="text-3xl font-bold" style={{ color: '#1D2129' }}>{stats.companyCount}</p>
+                <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>公司证件</p>
+                <p className="text-3xl font-bold" style={{ color: 'var(--foreground)' }}>{stats.companyCount}</p>
               </div>
               <div>
-                <p className="text-sm mb-2" style={{ color: '#86909C' }}>人员证件</p>
+                <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>人员证件</p>
                 <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{stats.personnelCount}</p>
               </div>
             </div>
@@ -745,24 +745,24 @@ export default function CertificatesPage() {
           {/* 证件总数 */}
           <Card 
             className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer" 
-            style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}
+            style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}
             onClick={() => { setSelectedOwnerType('all'); setSelectedStatus('all'); }}
           >
             <CardContent className="pt-5 pb-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#E8F3FF' }}>
-                  <FileCheck className="w-5 h-5" style={{ color: '#165DFF' }} />
+                  <FileCheck className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                 </div>
               </div>
-              <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{stats.totalCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>证件总数</p>
+              <p className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>{stats.totalCount}</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>证件总数</p>
             </CardContent>
           </Card>
 
           {/* 公司证件 */}
           <Card 
             className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedOwnerType === 'company' ? 'ring-2 ring-blue-400' : ''}`} 
-            style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}
+            style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}
             onClick={() => setSelectedOwnerType(selectedOwnerType === 'company' ? 'all' : 'company')}
           >
             <CardContent className="pt-5 pb-5">
@@ -772,7 +772,7 @@ export default function CertificatesPage() {
                 </div>
               </div>
               <p className="text-3xl font-bold" style={{ color: '#00B42A' }}>{stats.companyCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>公司证件</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>公司证件</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#00B42A' }}>点击筛选 →</p>
             </CardContent>
           </Card>
@@ -780,7 +780,7 @@ export default function CertificatesPage() {
           {/* 即将到期 */}
           <Card 
             className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedStatus === 'expiring' ? 'ring-2 ring-amber-400' : ''}`} 
-            style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}
+            style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}
             onClick={() => setSelectedStatus(selectedStatus === 'expiring' ? 'all' : 'expiring')}
           >
             <CardContent className="pt-5 pb-5">
@@ -795,7 +795,7 @@ export default function CertificatesPage() {
                 )}
               </div>
               <p className="text-3xl font-bold" style={{ color: '#FF7D00' }}>{stats.expiringCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>即将到期</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>即将到期</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#FF7D00' }}>点击查看 →</p>
             </CardContent>
           </Card>
@@ -803,7 +803,7 @@ export default function CertificatesPage() {
           {/* 已过期 */}
           <Card 
             className={`group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer ${selectedStatus === 'expired' ? 'ring-2 ring-red-400' : ''}`} 
-            style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}
+            style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}
             onClick={() => setSelectedStatus(selectedStatus === 'expired' ? 'all' : 'expired')}
           >
             <CardContent className="pt-5 pb-5">
@@ -818,7 +818,7 @@ export default function CertificatesPage() {
                 )}
               </div>
               <p className="text-3xl font-bold" style={{ color: '#F53F3F' }}>{stats.expiredCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>已过期</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>已过期</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#F53F3F' }}>点击查看 →</p>
             </CardContent>
           </Card>
@@ -827,16 +827,16 @@ export default function CertificatesPage() {
 
       {/* 证件列表区域 */}
       <div id="certificate-list-section" className={`transition-all duration-500 delay-300 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
+        <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
           {/* 筛选区域 */}
-          <CardContent className="pt-4 pb-3 border-b" style={{ borderColor: '#E5E6EB' }}>
+          <CardContent className="pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
             <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
               {/* 当前筛选状态提示 */}
               {(selectedStatus !== 'all' || selectedOwnerType !== 'all') && (
                 <div className="mb-2 flex w-full flex-wrap items-center gap-2">
-                  <span className="text-xs" style={{ color: '#86909C' }}>当前筛选：</span>
+                  <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>当前筛选：</span>
                   {selectedOwnerType !== 'all' && (
-                    <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: '#165DFF', color: '#165DFF' }}>
+                    <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
                       {selectedOwnerType === 'company' ? '公司证件' : '人员证件'}
                       <button onClick={() => setSelectedOwnerType('all')} className="ml-1 hover:bg-blue-100 rounded-full p-0.5">×</button>
                     </Badge>
@@ -850,14 +850,14 @@ export default function CertificatesPage() {
                   <button 
                     onClick={handleReset}
                     className="text-xs hover:underline" 
-                    style={{ color: '#165DFF' }}
+                    style={{ color: 'var(--color-primary)' }}
                   >
                     清除筛选
                   </button>
                 </div>
               )}
               <div className="flex min-w-0 items-center gap-2">
-                <Search className="w-4 h-4" style={{ color: '#86909C' }} />
+                <Search className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
                 <Input
                   placeholder="搜索证件名称/编号..."
                   value={searchKeyword}
@@ -898,23 +898,23 @@ export default function CertificatesPage() {
             <div className="hidden overflow-x-auto md:block">
             <Table className="min-w-[920px]">
               <TableHeader>
-                <TableRow style={{ background: '#F7F8FA' }}>
-                  <TableHead className="font-medium h-10" style={{ color: '#86909C' }}>证件名称</TableHead>
-                  <TableHead className="font-medium" style={{ color: '#86909C' }}>证件编号</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>归属类型</TableHead>
-                  <TableHead className="font-medium" style={{ color: '#86909C' }}>关联名称</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>发证日期</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>到期日期</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>状态</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>附件</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>操作</TableHead>
+                <TableRow style={{ background: 'var(--color-muted)' }}>
+                  <TableHead className="font-medium h-10" style={{ color: 'var(--color-text-3)' }}>证件名称</TableHead>
+                  <TableHead className="font-medium" style={{ color: 'var(--color-text-3)' }}>证件编号</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>归属类型</TableHead>
+                  <TableHead className="font-medium" style={{ color: 'var(--color-text-3)' }}>关联名称</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>发证日期</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>到期日期</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>状态</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>附件</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12">
-                      <div className="flex items-center justify-center gap-2" style={{ color: '#86909C' }}>
+                      <div className="flex items-center justify-center gap-2" style={{ color: 'var(--color-text-3)' }}>
                         <RefreshCw className="w-4 h-4 animate-spin" />
                         <span>加载中...</span>
                       </div>
@@ -923,7 +923,7 @@ export default function CertificatesPage() {
                 ) : certificates.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12">
-                      <div className="flex flex-col items-center gap-2" style={{ color: '#86909C' }}>
+                      <div className="flex flex-col items-center gap-2" style={{ color: 'var(--color-text-3)' }}>
                         <CreditCard className="w-10 h-10 opacity-30" />
                         <span>暂无证件数据</span>
                       </div>
@@ -940,10 +940,10 @@ export default function CertificatesPage() {
                         cert.status === 'expiring' ? 'bg-amber-50/30' : ''
                       }`}
                     >
-                      <TableCell className="font-medium max-w-[150px] truncate py-3" style={{ color: '#1D2129' }}>
+                      <TableCell className="font-medium max-w-[150px] truncate py-3" style={{ color: 'var(--foreground)' }}>
                         {cert.name}
                       </TableCell>
-                      <TableCell className="font-mono text-sm py-3" style={{ color: '#165DFF' }}>
+                      <TableCell className="font-mono text-sm py-3" style={{ color: 'var(--color-primary)' }}>
                         {cert.certificate_number}
                       </TableCell>
                       <TableCell className="text-center py-3">
@@ -953,20 +953,20 @@ export default function CertificatesPage() {
                           ) : (
                             <User className="w-3.5 h-3.5" style={{ color: '#722ED1' }} />
                           )}
-                          <span className="text-sm" style={{ color: '#4E5969' }}>
+                          <span className="text-sm" style={{ color: 'var(--color-text-2)' }}>
                             {cert.owner_type === 'company' ? '公司' : '人员'}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="py-3">
-                        <span className="text-sm truncate max-w-[100px] block" style={{ color: '#4E5969' }}>
+                        <span className="text-sm truncate max-w-[100px] block" style={{ color: 'var(--color-text-2)' }}>
                           {cert.owner_name}
                         </span>
                       </TableCell>
-                      <TableCell className="text-center text-sm py-3" style={{ color: '#4E5969' }}>
+                      <TableCell className="text-center text-sm py-3" style={{ color: 'var(--color-text-2)' }}>
                         {cert.issue_date}
                       </TableCell>
-                      <TableCell className="text-center text-sm py-3" style={{ color: '#4E5969' }}>
+                      <TableCell className="text-center text-sm py-3" style={{ color: 'var(--color-text-2)' }}>
                         <div className="flex flex-col items-center">
                           <span>{cert.expiry_date}</span>
                           {cert.status !== 'normal' && (
@@ -996,17 +996,17 @@ export default function CertificatesPage() {
                               </div>
                             ))}
                             {cert.attachments.filter(att => isImageFile(att.name)).length === 0 && (
-                              <Paperclip className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />
+                              <Paperclip className="w-3.5 h-3.5" style={{ color: 'var(--color-primary)' }} />
                             )}
                             {cert.attachments.length > 2 && (
-                              <span className="text-xs" style={{ color: '#165DFF' }}>+{cert.attachments.length - 2}</span>
+                              <span className="text-xs" style={{ color: 'var(--color-primary)' }}>+{cert.attachments.length - 2}</span>
                             )}
                             {cert.attachments.length <= 2 && cert.attachments.filter(att => isImageFile(att.name)).length === 0 && (
-                              <span className="text-xs" style={{ color: '#165DFF' }}>{cert.attachments.length}</span>
+                              <span className="text-xs" style={{ color: 'var(--color-primary)' }}>{cert.attachments.length}</span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs" style={{ color: '#C9CDD4' }}>-</span>
+                          <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>-</span>
                         )}
                       </TableCell>
                       <TableCell className="py-3">
@@ -1018,7 +1018,7 @@ export default function CertificatesPage() {
                             className="h-7 w-7 p-0"
                             title="查看"
                           >
-                            <Eye className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />
+                            <Eye className="w-3.5 h-3.5" style={{ color: 'var(--color-primary)' }} />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1048,12 +1048,12 @@ export default function CertificatesPage() {
             </div>
             <div className="space-y-3 p-3 md:hidden">
               {loading ? (
-                <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed py-8 text-sm" style={{ color: '#86909C' }}>
+                <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed py-8 text-sm" style={{ color: 'var(--color-text-3)' }}>
                   <RefreshCw className="h-4 w-4 animate-spin" />
                   <span>加载中...</span>
                 </div>
               ) : certificates.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-sm" style={{ color: '#86909C' }}>
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-sm" style={{ color: 'var(--color-text-3)' }}>
                   <CreditCard className="h-10 w-10 opacity-30" />
                   <span>暂无证件数据</span>
                 </div>
@@ -1070,31 +1070,31 @@ export default function CertificatesPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate font-medium" style={{ color: '#1D2129' }}>{cert.name}</div>
-                          <div className="mt-1 truncate font-mono text-xs" style={{ color: '#165DFF' }}>{cert.certificate_number}</div>
+                          <div className="truncate font-medium" style={{ color: 'var(--foreground)' }}>{cert.name}</div>
+                          <div className="mt-1 truncate font-mono text-xs" style={{ color: 'var(--color-primary)' }}>{cert.certificate_number}</div>
                         </div>
                         <Badge variant="outline" className={`${getStatusStyle(cert.status)} shrink-0 font-medium`}>
                           {getStatusText(cert.status)}
                         </Badge>
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-lg bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>归属</div>
-                          <div className="mt-1 truncate" style={{ color: '#1D2129' }}>{cert.owner_name || '-'}</div>
+                        <div className="rounded-lg bg-muted p-2">
+                          <div style={{ color: 'var(--color-text-3)' }}>归属</div>
+                          <div className="mt-1 truncate" style={{ color: 'var(--foreground)' }}>{cert.owner_name || '-'}</div>
                         </div>
-                        <div className="rounded-lg bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>类型</div>
-                          <div className="mt-1" style={{ color: '#1D2129' }}>
+                        <div className="rounded-lg bg-muted p-2">
+                          <div style={{ color: 'var(--color-text-3)' }}>类型</div>
+                          <div className="mt-1" style={{ color: 'var(--foreground)' }}>
                             {cert.owner_type === 'company' ? '公司' : '人员'}
                           </div>
                         </div>
-                        <div className="rounded-lg bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>发证日期</div>
-                          <div className="mt-1" style={{ color: '#1D2129' }}>{cert.issue_date || '-'}</div>
+                        <div className="rounded-lg bg-muted p-2">
+                          <div style={{ color: 'var(--color-text-3)' }}>发证日期</div>
+                          <div className="mt-1" style={{ color: 'var(--foreground)' }}>{cert.issue_date || '-'}</div>
                         </div>
-                        <div className="rounded-lg bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>到期日期</div>
-                          <div className="mt-1" style={{ color: cert.status === 'expired' ? '#F53F3F' : cert.status === 'expiring' ? '#FF7D00' : '#1D2129' }}>
+                        <div className="rounded-lg bg-muted p-2">
+                          <div style={{ color: 'var(--color-text-3)' }}>到期日期</div>
+                          <div className="mt-1" style={{ color: cert.status === 'expired' ? '#F53F3F' : cert.status === 'expiring' ? '#FF7D00' : 'var(--foreground)' }}>
                             {cert.expiry_date || '-'}
                             {cert.status !== 'normal' && (
                               <span className="ml-1">
@@ -1127,8 +1127,8 @@ export default function CertificatesPage() {
 
           {/* 分页 */}
           {pagination.totalPages > 1 && (
-            <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
-              <div className="text-sm" style={{ color: '#86909C' }}>
+            <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)' }}>
+              <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                 共 {pagination.total} 条记录，第 {pagination.page} / {pagination.totalPages} 页
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
@@ -1162,7 +1162,7 @@ export default function CertificatesPage() {
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>新增证件</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>新增证件</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1244,7 +1244,7 @@ export default function CertificatesPage() {
                     onChange={(e) => handleFileUpload(e)}
                     disabled={uploadingFile}
                   />
-                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-blue-50 transition-colors" style={{ color: '#165DFF' }}>
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-blue-50 transition-colors" style={{ color: 'var(--color-primary)' }}>
                     <Upload className="w-3.5 h-3.5" />
                     {uploadingFile ? '上传中...' : '上传文件'}
                   </span>
@@ -1265,7 +1265,7 @@ export default function CertificatesPage() {
                             />
                           ) : (
                             <div className="w-full h-20 flex items-center justify-center bg-gray-50">
-                              <ImageIcon className="w-6 h-6" style={{ color: '#C9CDD4' }} />
+                              <ImageIcon className="w-6 h-6" style={{ color: 'var(--color-text-3)' }} />
                             </div>
                           )}
                           <button
@@ -1286,8 +1286,8 @@ export default function CertificatesPage() {
                   {formAttachments.filter(att => !isImageFile(att.name)).map((att) => (
                     <div key={att.key} className="flex items-center gap-2 p-2 rounded-md bg-gray-50 group hover:bg-gray-100 transition-colors">
                       {getFileIcon(att.name)}
-                      <span className="text-sm flex-1 truncate" style={{ color: '#1D2129' }}>{att.name}</span>
-                      <span className="text-xs" style={{ color: '#86909C' }}>{formatFileSize(att.size)}</span>
+                      <span className="text-sm flex-1 truncate" style={{ color: 'var(--foreground)' }}>{att.name}</span>
+                      <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>{formatFileSize(att.size)}</span>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1300,7 +1300,7 @@ export default function CertificatesPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 rounded-md border border-dashed" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                <div className="text-center py-4 rounded-md border border-dashed" style={{ borderColor: 'var(--border)', color: 'var(--color-text-3)' }}>
                   <Paperclip className="w-6 h-6 mx-auto mb-1 opacity-40" />
                   <p className="text-xs">暂无附件，点击上方按钮上传</p>
                 </div>
@@ -1309,7 +1309,7 @@ export default function CertificatesPage() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveAdd} disabled={saving} className="gap-1.5" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+            <Button onClick={handleSaveAdd} disabled={saving} className="gap-1.5" style={{ background: 'var(--color-primary-gradient)' }}>
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
               保存
             </Button>
@@ -1321,7 +1321,7 @@ export default function CertificatesPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>编辑证件</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>编辑证件</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1403,7 +1403,7 @@ export default function CertificatesPage() {
                     onChange={(e) => currentCertificate ? handleFileUpload(e, currentCertificate.id) : handleFileUpload(e)}
                     disabled={uploadingFile}
                   />
-                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-blue-50 transition-colors" style={{ color: '#165DFF' }}>
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-blue-50 transition-colors" style={{ color: 'var(--color-primary)' }}>
                     <Upload className="w-3.5 h-3.5" />
                     {uploadingFile ? '上传中...' : '上传文件'}
                   </span>
@@ -1424,7 +1424,7 @@ export default function CertificatesPage() {
                             />
                           ) : (
                             <div className="w-full h-20 flex items-center justify-center bg-gray-50">
-                              <ImageIcon className="w-6 h-6" style={{ color: '#C9CDD4' }} />
+                              <ImageIcon className="w-6 h-6" style={{ color: 'var(--color-text-3)' }} />
                             </div>
                           )}
                           <button
@@ -1450,9 +1450,9 @@ export default function CertificatesPage() {
                         type="button"
                       >
                         {getFileIcon(att.name)}
-                        <span className="text-sm truncate hover:underline" style={{ color: '#165DFF' }}>{att.name}</span>
+                        <span className="text-sm truncate hover:underline" style={{ color: 'var(--color-primary)' }}>{att.name}</span>
                       </button>
-                      <span className="text-xs shrink-0" style={{ color: '#86909C' }}>{formatFileSize(att.size)}</span>
+                      <span className="text-xs shrink-0" style={{ color: 'var(--color-text-3)' }}>{formatFileSize(att.size)}</span>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1465,7 +1465,7 @@ export default function CertificatesPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 rounded-md border border-dashed" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                <div className="text-center py-4 rounded-md border border-dashed" style={{ borderColor: 'var(--border)', color: 'var(--color-text-3)' }}>
                   <Paperclip className="w-6 h-6 mx-auto mb-1 opacity-40" />
                   <p className="text-xs">暂无附件，点击上方按钮上传</p>
                 </div>
@@ -1474,7 +1474,7 @@ export default function CertificatesPage() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveEdit} disabled={saving} className="gap-1.5" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+            <Button onClick={handleSaveEdit} disabled={saving} className="gap-1.5" style={{ background: 'var(--color-primary-gradient)' }}>
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
               保存
             </Button>
@@ -1486,51 +1486,51 @@ export default function CertificatesPage() {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>证件详情</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>证件详情</DialogTitle>
           </DialogHeader>
           {currentCertificate && (
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>证件名称</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.name}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>证件名称</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentCertificate.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>证件编号</p>
-                  <p className="font-mono font-medium" style={{ color: '#165DFF' }}>{currentCertificate.certificate_number}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>证件编号</p>
+                  <p className="font-mono font-medium" style={{ color: 'var(--color-primary)' }}>{currentCertificate.certificate_number}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>归属类型</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>归属类型</p>
                   <div className="flex items-center gap-1">
                     {currentCertificate.owner_type === 'company' ? (
                       <Building2 className="w-4 h-4" style={{ color: '#00B42A' }} />
                     ) : (
                       <User className="w-4 h-4" style={{ color: '#722ED1' }} />
                     )}
-                    <span style={{ color: '#1D2129' }}>
+                    <span style={{ color: 'var(--foreground)' }}>
                       {currentCertificate.owner_type === 'company' ? '公司证件' : '人员证件'}
                     </span>
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>关联名称</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.owner_name}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>关联名称</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentCertificate.owner_name}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>发证日期</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.issue_date}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>发证日期</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentCertificate.issue_date}</p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>到期日期</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentCertificate.expiry_date}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>到期日期</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentCertificate.expiry_date}</p>
                 </div>
               </div>
               <div>
-                <p className="text-sm mb-1" style={{ color: '#86909C' }}>状态</p>
+                <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>状态</p>
                 <Badge variant="outline" className={`${getStatusStyle(currentCertificate.status)} font-medium`}>
                   {getStatusText(currentCertificate.status)}
                 </Badge>
@@ -1544,17 +1544,17 @@ export default function CertificatesPage() {
               </div>
               {currentCertificate.remark && (
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>备注说明</p>
-                  <p style={{ color: '#4E5969' }}>{currentCertificate.remark}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>备注说明</p>
+                  <p style={{ color: 'var(--color-text-2)' }}>{currentCertificate.remark}</p>
                 </div>
               )}
               {/* 附件展示区域 */}
               <div>
                 <div className="flex items-center gap-1 mb-2">
-                  <Paperclip className="w-4 h-4" style={{ color: '#86909C' }} />
-                  <p className="text-sm" style={{ color: '#86909C' }}>附件</p>
+                  <Paperclip className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
+                  <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>附件</p>
                   {currentCertificate.attachments && currentCertificate.attachments.length > 0 && (
-                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-50" style={{ color: '#165DFF' }}>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-50" style={{ color: 'var(--color-primary)' }}>
                       {currentCertificate.attachments.length}
                     </span>
                   )}
@@ -1578,7 +1578,7 @@ export default function CertificatesPage() {
                               />
                             ) : (
                               <div className="w-full h-24 flex items-center justify-center bg-gray-50">
-                                <ImageIcon className="w-8 h-8 animate-pulse" style={{ color: '#C9CDD4' }} />
+                                <ImageIcon className="w-8 h-8 animate-pulse" style={{ color: 'var(--color-text-3)' }} />
                               </div>
                             )}
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -1600,21 +1600,21 @@ export default function CertificatesPage() {
                           type="button"
                         >
                           {getFileIcon(att.name)}
-                          <span className="text-sm truncate hover:underline" style={{ color: '#165DFF' }}>{att.name}</span>
+                          <span className="text-sm truncate hover:underline" style={{ color: 'var(--color-primary)' }}>{att.name}</span>
                         </button>
-                        <span className="text-xs shrink-0" style={{ color: '#86909C' }}>{formatFileSize(att.size)}</span>
+                        <span className="text-xs shrink-0" style={{ color: 'var(--color-text-3)' }}>{formatFileSize(att.size)}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm" style={{ color: '#C9CDD4' }}>暂无附件</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>暂无附件</p>
                 )}
               </div>
             </div>
           )}
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setViewDialogOpen(false)}>关闭</Button>
-            <Button onClick={() => { setViewDialogOpen(false); handleEdit(currentCertificate!); }} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+            <Button onClick={() => { setViewDialogOpen(false); handleEdit(currentCertificate!); }} style={{ background: 'var(--color-primary-gradient)' }}>
               编辑
             </Button>
           </DialogFooter>
@@ -1650,7 +1650,7 @@ export default function CertificatesPage() {
       <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) { setPreviewUrl(null); setPreviewName(''); } }}>
         <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>{previewName}</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>{previewName}</DialogTitle>
           </DialogHeader>
           {previewUrl && (
             <div className="flex items-center justify-center py-4">

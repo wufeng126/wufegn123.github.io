@@ -84,7 +84,7 @@ function formatCurrency(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const CHART_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#ec4899', '#06b6d4', '#84cc16'];
 
 export default function WorkerCostDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -345,7 +345,7 @@ export default function WorkerCostDashboard() {
                     dataKey="amount" 
                     stroke="#3b82f6" 
                     strokeWidth={2}
-                    dot={{ fill: '#3b82f6', r: 4 }}
+                    dot={{ fill: 'var(--color-primary)', r: 4 }}
                     name="已付工资"
                   />
                 </LineChart>
@@ -413,7 +413,7 @@ export default function WorkerCostDashboard() {
           </div>
           <div className="space-y-3 md:hidden">
             {projectSummaryData.map((item, idx) => (
-              <div key={`mobile-worker-cost-${idx}`} className="rounded-lg border bg-white p-3 shadow-sm">
+              <div key={`mobile-worker-cost-${idx}`} className="rounded-lg border bg-card p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <LinkableCell href={`/projects/${item.id || ''}`}>{item.name}</LinkableCell>
@@ -444,7 +444,7 @@ export default function WorkerCostDashboard() {
               </div>
             ))}
             {projectSummaryData.length === 0 && (
-              <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
                 暂无数据
               </div>
             )}

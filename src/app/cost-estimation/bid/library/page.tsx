@@ -531,33 +531,33 @@ export default function BidLibraryPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6">
+    <div className="min-h-full bg-[var(--color-muted)] p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Link href="/cost-estimation/bid" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E6EB] bg-white hover:bg-[#F7F8FA]">
-              <ArrowLeft className="h-4 w-4 text-[#4E5969]" />
+            <Link href="/cost-estimation/bid" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-card hover:bg-[var(--color-muted)]">
+              <ArrowLeft className="h-4 w-4 text-[var(--color-text-2)]" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-[#1D2129]">投标测算资料库</h1>
-              <p className="mt-1 text-sm text-[#86909C]">维护标准清单、历史中标价和内部结算成本价。</p>
+              <h1 className="text-2xl font-bold text-[var(--foreground)]">投标测算资料库</h1>
+              <p className="mt-1 text-sm text-[var(--color-text-3)]">维护标准清单、历史中标价和内部结算成本价。</p>
             </div>
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
           {stats.map(item => (
-            <div key={item.label} className="rounded-xl border border-[#E5E6EB] bg-white p-4">
-              <p className="text-xs text-[#86909C]">{item.label}</p>
-              <p className="mt-2 text-2xl font-bold text-[#1D2129]">{item.value}<span className="ml-1 text-xs font-normal text-[#86909C]">{item.unit}</span></p>
+            <div key={item.label} className="rounded-xl border border-[var(--border)] bg-card p-4">
+              <p className="text-xs text-[var(--color-text-3)]">{item.label}</p>
+              <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">{item.value}<span className="ml-1 text-xs font-normal text-[var(--color-text-3)]">{item.unit}</span></p>
             </div>
           ))}
         </div>
 
-        <section className="rounded-xl border border-[#E5E6EB] bg-white p-4">
+        <section className="rounded-xl border border-[var(--border)] bg-card p-4">
           <div className="mb-3 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-[#165DFF]" />
-            <span className="font-medium text-[#1D2129]">资料库维护重点</span>
+            <TrendingUp className="h-4 w-4 text-[var(--color-primary)]" />
+            <span className="font-medium text-[var(--foreground)]">资料库维护重点</span>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <LibraryHint title="先建标准清单" desc="标准编码和名称是导入匹配、趋势分析和后续报价复用的统一口径。" />
@@ -566,14 +566,14 @@ export default function BidLibraryPage() {
           </div>
         </section>
 
-        <div className="rounded-xl border border-[#E5E6EB] bg-white">
-          <div className="flex border-b border-[#E5E6EB] px-4">
+        <div className="rounded-xl border border-[var(--border)] bg-card">
+          <div className="flex border-b border-[var(--border)] px-4">
             {[
               ['standard', '标准清单库'],
               ['bidPrice', '历史中标单价库'],
               ['costPrice', '内部结算单价库'],
             ].map(([key, label]) => (
-              <button key={key} onClick={() => setTab(key as Tab)} className={`h-12 border-b-2 px-4 text-sm ${tab === key ? 'border-[#165DFF] text-[#165DFF]' : 'border-transparent text-[#4E5969]'}`}>
+              <button key={key} onClick={() => setTab(key as Tab)} className={`h-12 border-b-2 px-4 text-sm ${tab === key ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-2)]'}`}>
                 {label}
               </button>
             ))}
@@ -581,36 +581,36 @@ export default function BidLibraryPage() {
 
           {tab === 'standard' ? (
             <div className="grid gap-5 p-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-              <section className="rounded-lg border border-[#E5E6EB] p-4">
-                <div className="mb-3 flex items-center gap-2 font-medium text-[#1D2129]"><Plus className="h-4 w-4" />新增标准清单</div>
+              <section className="rounded-lg border border-[var(--border)] p-4">
+                <div className="mb-3 flex items-center gap-2 font-medium text-[var(--foreground)]"><Plus className="h-4 w-4" />新增标准清单</div>
                 <div className="space-y-3">
                   <Input label="标准编码" value={standardForm.code} onChange={v => setStandardForm({ ...standardForm, code: v })} placeholder="例如 MB-001" />
                   <Input label="清单名称" value={standardForm.name} onChange={v => setStandardForm({ ...standardForm, name: v })} placeholder="例如 模板安装拆除" />
                   <Input label="单位" value={standardForm.unit} onChange={v => setStandardForm({ ...standardForm, unit: v })} placeholder="m2 / m3 / t" />
                   <Input label="分类" value={standardForm.category} onChange={v => setStandardForm({ ...standardForm, category: v })} placeholder="模板工程" />
-                  <label className="flex items-center gap-2 text-sm text-[#4E5969]">
+                  <label className="flex items-center gap-2 text-sm text-[var(--color-text-2)]">
                     <input type="checkbox" checked={standardForm.material_included} onChange={e => setStandardForm({ ...standardForm, material_included: e.target.checked })} />
                     默认含材料
                   </label>
-                  <button disabled={saving} onClick={saveStandard} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#165DFF] text-sm text-white disabled:opacity-60">
+                  <button disabled={saving} onClick={saveStandard} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] text-sm text-white disabled:opacity-60">
                     <Save className="h-4 w-4" />保存标准清单
                   </button>
                 </div>
               </section>
 
               <section className="space-y-3">
-                <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-4">
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--color-muted)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-[#1D2129]">标准清单库台账</p>
-                      <p className="mt-1 text-xs text-[#86909C]">支持 Excel/CSV 批量导入；标准编码重复时自动更新，不重复建档。</p>
+                      <p className="text-sm font-medium text-[var(--foreground)]">标准清单库台账</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-3)]">支持 Excel/CSV 批量导入；标准编码重复时自动更新，不重复建档。</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={downloadStandardTemplate} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#1D2129] hover:bg-[#F7F8FA]">
+                      <button onClick={downloadStandardTemplate} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--border)] bg-card px-3 text-xs text-[var(--foreground)] hover:bg-[var(--color-muted)]">
                         <Download className="h-4 w-4" />模板
                       </button>
                       <input ref={standardImportRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) importStandardFile(e.target.files[0]); }} />
-                      <button disabled={saving} onClick={() => standardImportRef.current?.click()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">
+                      <button disabled={saving} onClick={() => standardImportRef.current?.click()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-xs text-white disabled:opacity-60">
                         <Upload className="h-4 w-4" />批量导入
                       </button>
                     </div>
@@ -621,12 +621,12 @@ export default function BidLibraryPage() {
             </div>
           ) : (
             <div className="grid gap-5 p-4 lg:grid-cols-[380px_minmax(0,1fr)]">
-              <section className="rounded-lg border border-[#E5E6EB] p-4">
-                <div className="mb-3 flex items-center gap-2 font-medium text-[#1D2129]"><Database className="h-4 w-4" />新增{priceTypeLabel}</div>
+              <section className="rounded-lg border border-[var(--border)] p-4">
+                <div className="mb-3 flex items-center gap-2 font-medium text-[var(--foreground)]"><Database className="h-4 w-4" />新增{priceTypeLabel}</div>
                 <div className="space-y-3">
                   <label className="block text-sm">
-                    <span className="mb-1 block text-[#4E5969]">标准清单</span>
-                    <select value={priceForm.standard_item_id} onChange={e => setPriceForm({ ...priceForm, standard_item_id: e.target.value })} className="h-10 w-full rounded-lg border border-[#D9DCE3] px-3 text-sm outline-none focus:border-[#165DFF]">
+                    <span className="mb-1 block text-[var(--color-text-2)]">标准清单</span>
+                    <select value={priceForm.standard_item_id} onChange={e => setPriceForm({ ...priceForm, standard_item_id: e.target.value })} className="h-10 w-full rounded-lg border border-[var(--border)] px-3 text-sm outline-none focus:border-[var(--color-primary)]">
                       <option value="">请选择</option>
                       {standards.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
                     </select>
@@ -640,32 +640,32 @@ export default function BidLibraryPage() {
                     <Input label="单价" type="number" value={priceForm.price} onChange={v => setPriceForm({ ...priceForm, price: v })} />
                     <Input label="年份" type="number" value={priceForm.year} onChange={v => setPriceForm({ ...priceForm, year: v })} />
                   </div>
-                  <label className="flex items-center gap-2 text-sm text-[#4E5969]">
+                  <label className="flex items-center gap-2 text-sm text-[var(--color-text-2)]">
                     <input type="checkbox" checked={priceForm.material_included} onChange={e => setPriceForm({ ...priceForm, material_included: e.target.checked })} />
                     含材料
                   </label>
                   <Input label="备注" value={priceForm.remark} onChange={v => setPriceForm({ ...priceForm, remark: v })} />
-                  <button disabled={saving} onClick={savePrice} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#165DFF] text-sm text-white disabled:opacity-60">
+                  <button disabled={saving} onClick={savePrice} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] text-sm text-white disabled:opacity-60">
                     <Save className="h-4 w-4" />保存单价
                   </button>
                 </div>
               </section>
 
               <section className="space-y-3">
-                <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-4">
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--color-muted)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-[#1D2129]">{priceTypeLabel}台账</p>
-                      <p className="mt-1 text-xs text-[#86909C]">
+                      <p className="text-sm font-medium text-[var(--foreground)]">{priceTypeLabel}台账</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-3)]">
                         这里维护的是后续自动匹配和报价趋势的数据源。历史中标价默认代表已中标项目，不需要再单独标记状态。
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={downloadTemplate} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#1D2129] hover:bg-[#F7F8FA]">
+                      <button onClick={downloadTemplate} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--border)] bg-card px-3 text-xs text-[var(--foreground)] hover:bg-[var(--color-muted)]">
                         <Download className="h-4 w-4" />模板
                       </button>
                       <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) importPriceFile(e.target.files[0]); }} />
-                      <button disabled={saving} onClick={() => importRef.current?.click()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">
+                      <button disabled={saving} onClick={() => importRef.current?.click()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-xs text-white disabled:opacity-60">
                         <Upload className="h-4 w-4" />批量导入
                       </button>
                     </div>
@@ -694,9 +694,9 @@ export default function BidLibraryPage() {
 
 function LibraryHint({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="rounded-lg border border-[#E5E6EB] bg-[#FAFBFC] p-3">
-      <p className="text-sm font-medium text-[#1D2129]">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-[#86909C]">{desc}</p>
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--color-muted)] p-3">
+      <p className="text-sm font-medium text-[var(--foreground)]">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--color-text-3)]">{desc}</p>
     </div>
   );
 }
@@ -704,8 +704,8 @@ function LibraryHint({ title, desc }: { title: string; desc: string }) {
 function Input({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-[#4E5969]">{label}</span>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="h-10 w-full rounded-lg border border-[#D9DCE3] px-3 text-sm outline-none focus:border-[#165DFF]" />
+      <span className="mb-1 block text-[var(--color-text-2)]">{label}</span>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="h-10 w-full rounded-lg border border-[var(--border)] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
     </label>
   );
 }
@@ -733,18 +733,18 @@ function ImportReviewTable({
     <section className="overflow-hidden rounded-lg border border-[#FADC9D] bg-[#FFFDF7]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#FADC9D] px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-[#1D2129]">导入待确认</p>
-          <p className="mt-1 text-xs text-[#86909C]">先确认匹配关系和单价，再写入历史库；原始清单名称会自动沉淀为别名。</p>
+          <p className="text-sm font-medium text-[var(--foreground)]">导入待确认</p>
+          <p className="mt-1 text-xs text-[var(--color-text-3)]">先确认匹配关系和单价，再写入历史库；原始清单名称会自动沉淀为别名。</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
-          <span className="col-span-2 text-xs text-[#86909C] sm:col-span-1">可导入 {validCount} 条 / 需处理 {problemCount} 条</span>
-          <button onClick={onCancel} className="h-8 rounded-lg border border-[#D9DCE3] bg-white px-3 text-xs text-[#4E5969]">取消</button>
-          <button disabled={saving || validCount === 0} onClick={onConfirm} className="h-8 rounded-lg bg-[#165DFF] px-3 text-xs text-white disabled:opacity-60">确认入库</button>
+          <span className="col-span-2 text-xs text-[var(--color-text-3)] sm:col-span-1">可导入 {validCount} 条 / 需处理 {problemCount} 条</span>
+          <button onClick={onCancel} className="h-8 rounded-lg border border-[var(--border)] bg-card px-3 text-xs text-[var(--color-text-2)]">取消</button>
+          <button disabled={saving || validCount === 0} onClick={onConfirm} className="h-8 rounded-lg bg-[var(--color-primary)] px-3 text-xs text-white disabled:opacity-60">确认入库</button>
         </div>
       </div>
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1180px] text-sm">
-          <thead className="bg-[#FFF7E8] text-xs text-[#86909C]">
+          <thead className="bg-[#FFF7E8] text-xs text-[var(--color-text-3)]">
             <tr>
               <th className="px-3 py-3 text-left font-medium">原始清单</th>
               <th className="px-3 py-3 text-left font-medium">匹配标准清单</th>
@@ -757,35 +757,35 @@ function ImportReviewTable({
               <th className="px-3 py-3 text-center font-medium">处理</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#FADC9D] bg-white">
+          <tbody className="divide-y divide-[#FADC9D] bg-card">
             {rows.map(row => (
-              <tr key={row.rowId} className={row.ignored ? 'bg-[#F7F8FA] text-[#86909C]' : ''}>
+              <tr key={row.rowId} className={row.ignored ? 'bg-[var(--color-muted)] text-[var(--color-text-3)]' : ''}>
                 <td className="px-3 py-3">
-                  <input value={row.originalName} onChange={e => onChange(row.rowId, { originalName: e.target.value })} className="h-9 w-52 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
-                  <div className="mt-1 text-xs text-[#86909C]">匹配度 {row.matchScore}</div>
+                  <input value={row.originalName} onChange={e => onChange(row.rowId, { originalName: e.target.value })} className="h-9 w-52 rounded-lg border border-[var(--border)] px-2 text-sm" />
+                  <div className="mt-1 text-xs text-[var(--color-text-3)]">匹配度 {row.matchScore}</div>
                 </td>
                 <td className="px-3 py-3">
-                  <select value={row.standardItemId} onChange={e => onChange(row.rowId, { standardItemId: Number(e.target.value) || '', ignored: !e.target.value || row.price <= 0, matchScore: e.target.value ? 100 : row.matchScore })} className="h-9 w-64 rounded-lg border border-[#D9DCE3] px-2 text-sm">
+                  <select value={row.standardItemId} onChange={e => onChange(row.rowId, { standardItemId: Number(e.target.value) || '', ignored: !e.target.value || row.price <= 0, matchScore: e.target.value ? 100 : row.matchScore })} className="h-9 w-64 rounded-lg border border-[var(--border)] px-2 text-sm">
                     <option value="">未匹配</option>
                     {standards.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
                   </select>
                   {!row.standardItemId && (
-                    <button onClick={() => onCreateStandard(row)} className="mt-2 h-7 rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF]">新增标准清单</button>
+                    <button onClick={() => onCreateStandard(row)} className="mt-2 h-7 rounded-md border border-[var(--border)] px-2 text-xs text-[var(--color-primary)]">新增标准清单</button>
                   )}
                 </td>
-                <td className="px-3 py-3"><input value={row.projectName} onChange={e => onChange(row.rowId, { projectName: e.target.value })} className="h-9 w-40 rounded-lg border border-[#D9DCE3] px-2 text-sm" /></td>
+                <td className="px-3 py-3"><input value={row.projectName} onChange={e => onChange(row.rowId, { projectName: e.target.value })} className="h-9 w-40 rounded-lg border border-[var(--border)] px-2 text-sm" /></td>
                 <td className="px-3 py-3">
                   <div className="flex gap-2">
-                    <input value={row.region} onChange={e => onChange(row.rowId, { region: e.target.value })} placeholder="地区" className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
-                    <input value={row.projectType} onChange={e => onChange(row.rowId, { projectType: e.target.value })} placeholder="类型" className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-sm" />
+                    <input value={row.region} onChange={e => onChange(row.rowId, { region: e.target.value })} placeholder="地区" className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-sm" />
+                    <input value={row.projectType} onChange={e => onChange(row.rowId, { projectType: e.target.value })} placeholder="类型" className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-sm" />
                   </div>
                 </td>
-                <td className="px-3 py-3 text-center"><input value={row.unit} onChange={e => onChange(row.rowId, { unit: e.target.value })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-center text-sm" /></td>
-                <td className="px-3 py-3 text-right"><input type="number" value={row.price || ''} onChange={e => onChange(row.rowId, { price: Number(e.target.value) || 0, ignored: !row.standardItemId || Number(e.target.value) <= 0 })} className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm" /></td>
-                <td className="px-3 py-3 text-center"><input type="number" value={row.year || ''} onChange={e => onChange(row.rowId, { year: Number(e.target.value) || new Date().getFullYear() })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-center text-sm" /></td>
+                <td className="px-3 py-3 text-center"><input value={row.unit} onChange={e => onChange(row.rowId, { unit: e.target.value })} className="h-9 w-20 rounded-lg border border-[var(--border)] px-2 text-center text-sm" /></td>
+                <td className="px-3 py-3 text-right"><input type="number" value={row.price || ''} onChange={e => onChange(row.rowId, { price: Number(e.target.value) || 0, ignored: !row.standardItemId || Number(e.target.value) <= 0 })} className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-right text-sm" /></td>
+                <td className="px-3 py-3 text-center"><input type="number" value={row.year || ''} onChange={e => onChange(row.rowId, { year: Number(e.target.value) || new Date().getFullYear() })} className="h-9 w-20 rounded-lg border border-[var(--border)] px-2 text-center text-sm" /></td>
                 <td className="px-3 py-3 text-center"><input type="checkbox" checked={row.materialIncluded} onChange={e => onChange(row.rowId, { materialIncluded: e.target.checked })} /></td>
                 <td className="px-3 py-3 text-center">
-                  <label className="inline-flex items-center gap-1 text-xs text-[#4E5969]">
+                  <label className="inline-flex items-center gap-1 text-xs text-[var(--color-text-2)]">
                     <input type="checkbox" checked={row.ignored} onChange={e => onChange(row.rowId, { ignored: e.target.checked })} />
                     忽略
                   </label>
@@ -797,55 +797,55 @@ function ImportReviewTable({
       </div>
       <div className="space-y-3 p-3 md:hidden">
         {rows.map(row => (
-          <article key={row.rowId} className={`rounded-lg border bg-white p-3 ${row.ignored ? 'border-[#E5E6EB] opacity-70' : row.standardItemId && row.price > 0 ? 'border-[#E5E6EB]' : 'border-[#FADC9D]'}`}>
+          <article key={row.rowId} className={`rounded-lg border bg-card p-3 ${row.ignored ? 'border-[var(--border)] opacity-70' : row.standardItemId && row.price > 0 ? 'border-[var(--border)]' : 'border-[#FADC9D]'}`}>
             <div className="mb-3 flex items-start justify-between gap-3">
-              <label className="min-w-0 flex-1 text-xs text-[#86909C]">
+              <label className="min-w-0 flex-1 text-xs text-[var(--color-text-3)]">
                 原始清单
-                <input value={row.originalName} onChange={e => onChange(row.rowId, { originalName: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                <input value={row.originalName} onChange={e => onChange(row.rowId, { originalName: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
               </label>
-              <span className="shrink-0 rounded-full bg-[#F7F8FA] px-2 py-1 text-xs text-[#4E5969]">匹配 {row.matchScore}</span>
+              <span className="shrink-0 rounded-full bg-[var(--color-muted)] px-2 py-1 text-xs text-[var(--color-text-2)]">匹配 {row.matchScore}</span>
             </div>
 
             <div className="space-y-3">
-              <label className="block text-xs text-[#86909C]">
+              <label className="block text-xs text-[var(--color-text-3)]">
                 匹配标准清单
-                <select value={row.standardItemId} onChange={e => onChange(row.rowId, { standardItemId: Number(e.target.value) || '', ignored: !e.target.value || row.price <= 0, matchScore: e.target.value ? 100 : row.matchScore })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]">
+                <select value={row.standardItemId} onChange={e => onChange(row.rowId, { standardItemId: Number(e.target.value) || '', ignored: !e.target.value || row.price <= 0, matchScore: e.target.value ? 100 : row.matchScore })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]">
                   <option value="">未匹配</option>
                   {standards.map(item => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
                 </select>
               </label>
               {!row.standardItemId && (
-                <button onClick={() => onCreateStandard(row)} className="h-8 w-full rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF]">新增标准清单</button>
+                <button onClick={() => onCreateStandard(row)} className="h-8 w-full rounded-md border border-[var(--border)] px-2 text-xs text-[var(--color-primary)]">新增标准清单</button>
               )}
 
               <div className="grid grid-cols-2 gap-2">
-                <label className="block text-xs text-[#86909C]">
+                <label className="block text-xs text-[var(--color-text-3)]">
                   来源项目
-                  <input value={row.projectName} onChange={e => onChange(row.rowId, { projectName: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                  <input value={row.projectName} onChange={e => onChange(row.rowId, { projectName: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
                 </label>
-                <label className="block text-xs text-[#86909C]">
+                <label className="block text-xs text-[var(--color-text-3)]">
                   单位
-                  <input value={row.unit} onChange={e => onChange(row.rowId, { unit: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                  <input value={row.unit} onChange={e => onChange(row.rowId, { unit: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
                 </label>
-                <label className="block text-xs text-[#86909C]">
+                <label className="block text-xs text-[var(--color-text-3)]">
                   地区
-                  <input value={row.region} onChange={e => onChange(row.rowId, { region: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                  <input value={row.region} onChange={e => onChange(row.rowId, { region: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
                 </label>
-                <label className="block text-xs text-[#86909C]">
+                <label className="block text-xs text-[var(--color-text-3)]">
                   工程类型
-                  <input value={row.projectType} onChange={e => onChange(row.rowId, { projectType: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                  <input value={row.projectType} onChange={e => onChange(row.rowId, { projectType: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
                 </label>
-                <label className="block text-xs text-[#86909C]">
+                <label className="block text-xs text-[var(--color-text-3)]">
                   单价
-                  <input type="number" value={row.price || ''} onChange={e => onChange(row.rowId, { price: Number(e.target.value) || 0, ignored: !row.standardItemId || Number(e.target.value) <= 0 })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                  <input type="number" value={row.price || ''} onChange={e => onChange(row.rowId, { price: Number(e.target.value) || 0, ignored: !row.standardItemId || Number(e.target.value) <= 0 })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
                 </label>
-                <label className="block text-xs text-[#86909C]">
+                <label className="block text-xs text-[var(--color-text-3)]">
                   年份
-                  <input type="number" value={row.year || ''} onChange={e => onChange(row.rowId, { year: Number(e.target.value) || new Date().getFullYear() })} className="mt-1 h-9 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm text-[#1D2129]" />
+                  <input type="number" value={row.year || ''} onChange={e => onChange(row.rowId, { year: Number(e.target.value) || new Date().getFullYear() })} className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)]" />
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 border-t border-[#F2F3F5] pt-3 text-xs text-[#4E5969]">
+              <div className="grid grid-cols-2 gap-2 border-t border-[var(--color-muted)] pt-3 text-xs text-[var(--color-text-2)]">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={row.materialIncluded} onChange={e => onChange(row.rowId, { materialIncluded: e.target.checked })} />
                   含材料
@@ -865,9 +865,9 @@ function ImportReviewTable({
 
 function StandardTable({ standards, insights }: { standards: StandardItem[]; insights: Record<number, StandardInsight> }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-[#E5E6EB]">
+    <section className="overflow-hidden rounded-lg border border-[var(--border)]">
       <table className="hidden w-full min-w-[860px] text-sm md:table">
-        <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
+        <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
           <tr>
             <th className="px-3 py-3 text-left font-medium">编码</th>
             <th className="px-3 py-3 text-left font-medium">清单名称</th>
@@ -880,20 +880,20 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
             <th className="px-3 py-3 text-right font-medium">最近中标价</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E5E6EB]">
+        <tbody className="divide-y divide-[var(--border)]">
           {standards.map(item => {
             const insight = insights[item.id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
             return (
               <tr key={item.id}>
-                <td className="px-3 py-3 font-medium text-[#165DFF]">{item.code}</td>
-                <td className="px-3 py-3 text-[#1D2129]">{item.name}</td>
-                <td className="px-3 py-3 text-[#4E5969]">{item.unit || '-'}</td>
-                <td className="px-3 py-3 text-[#4E5969]">{item.category || '-'}</td>
-                <td className="px-3 py-3 text-[#4E5969]">{item.material_included ? '含材料' : '不含材料'}</td>
-                <td className="px-3 py-3 text-right text-[#4E5969]">{insight.bidCount}</td>
-                <td className="px-3 py-3 text-right text-[#4E5969]">{insight.costCount}</td>
-                <td className="px-3 py-3 text-right text-[#4E5969]">{insight.aliasCount}</td>
-                <td className="px-3 py-3 text-right font-medium text-[#1D2129]">
+                <td className="px-3 py-3 font-medium text-[var(--color-primary)]">{item.code}</td>
+                <td className="px-3 py-3 text-[var(--foreground)]">{item.name}</td>
+                <td className="px-3 py-3 text-[var(--color-text-2)]">{item.unit || '-'}</td>
+                <td className="px-3 py-3 text-[var(--color-text-2)]">{item.category || '-'}</td>
+                <td className="px-3 py-3 text-[var(--color-text-2)]">{item.material_included ? '含材料' : '不含材料'}</td>
+                <td className="px-3 py-3 text-right text-[var(--color-text-2)]">{insight.bidCount}</td>
+                <td className="px-3 py-3 text-right text-[var(--color-text-2)]">{insight.costCount}</td>
+                <td className="px-3 py-3 text-right text-[var(--color-text-2)]">{insight.aliasCount}</td>
+                <td className="px-3 py-3 text-right font-medium text-[var(--foreground)]">
                   {insight.latestBidPrice ? `${Number(insight.latestBidPrice).toLocaleString()} 元/${item.unit || '-'}` : '-'}
                 </td>
               </tr>
@@ -905,34 +905,34 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
         {standards.map(item => {
           const insight = insights[item.id] || { bidCount: 0, costCount: 0, aliasCount: 0, latestBidPrice: 0 };
           return (
-            <article key={item.id} className="rounded-lg border border-[#E5E6EB] bg-white p-3">
+            <article key={item.id} className="rounded-lg border border-[var(--border)] bg-card p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[#1D2129]">{item.name}</p>
-                  <p className="mt-1 text-xs text-[#165DFF]">{item.code} / {item.unit || '-'}</p>
+                  <p className="truncate text-sm font-semibold text-[var(--foreground)]">{item.name}</p>
+                  <p className="mt-1 text-xs text-[var(--color-primary)]">{item.code} / {item.unit || '-'}</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-[#F7F8FA] px-2 py-1 text-xs text-[#4E5969]">
+                <span className="shrink-0 rounded-full bg-[var(--color-muted)] px-2 py-1 text-xs text-[var(--color-text-2)]">
                   {item.material_included ? '含材料' : '不含材料'}
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-md bg-[#F7F8FA] p-2">
-                  <div className="text-[#86909C]">分类</div>
-                  <div className="mt-1 truncate font-medium text-[#1D2129]">{item.category || '-'}</div>
+                <div className="rounded-md bg-[var(--color-muted)] p-2">
+                  <div className="text-[var(--color-text-3)]">分类</div>
+                  <div className="mt-1 truncate font-medium text-[var(--foreground)]">{item.category || '-'}</div>
                 </div>
-                <div className="rounded-md bg-[#E8F3FF] p-2">
-                  <div className="text-[#165DFF]">最近中标价</div>
-                  <div className="mt-1 truncate font-medium text-[#165DFF]">
+                <div className="rounded-md bg-[var(--color-accent)] p-2">
+                  <div className="text-[var(--color-primary)]">最近中标价</div>
+                  <div className="mt-1 truncate font-medium text-[var(--color-primary)]">
                     {insight.latestBidPrice ? `${Number(insight.latestBidPrice).toLocaleString()} 元/${item.unit || '-'}` : '-'}
                   </div>
                 </div>
-                <div className="rounded-md bg-[#F7F8FA] p-2">
-                  <div className="text-[#86909C]">中标价记录</div>
-                  <div className="mt-1 font-medium text-[#1D2129]">{insight.bidCount}</div>
+                <div className="rounded-md bg-[var(--color-muted)] p-2">
+                  <div className="text-[var(--color-text-3)]">中标价记录</div>
+                  <div className="mt-1 font-medium text-[var(--foreground)]">{insight.bidCount}</div>
                 </div>
-                <div className="rounded-md bg-[#F7F8FA] p-2">
-                  <div className="text-[#86909C]">成本价记录</div>
-                  <div className="mt-1 font-medium text-[#1D2129]">{insight.costCount}</div>
+                <div className="rounded-md bg-[var(--color-muted)] p-2">
+                  <div className="text-[var(--color-text-3)]">成本价记录</div>
+                  <div className="mt-1 font-medium text-[var(--foreground)]">{insight.costCount}</div>
                 </div>
               </div>
             </article>
@@ -945,9 +945,9 @@ function StandardTable({ standards, insights }: { standards: StandardItem[]; ins
 
 function PriceTable({ rows, type }: { rows: PriceRow[]; type: Tab }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-[#E5E6EB]">
+    <section className="overflow-hidden rounded-lg border border-[var(--border)]">
       <table className="hidden w-full min-w-[760px] text-sm md:table">
-        <thead className="bg-[#F7F8FA] text-xs text-[#86909C]">
+        <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
           <tr>
             <th className="px-3 py-3 text-left font-medium">标准清单</th>
             <th className="px-3 py-3 text-left font-medium">来源项目</th>
@@ -957,44 +957,44 @@ function PriceTable({ rows, type }: { rows: PriceRow[]; type: Tab }) {
             <th className="px-3 py-3 text-left font-medium">备注</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E5E6EB]">
+        <tbody className="divide-y divide-[var(--border)]">
           {rows.map(row => (
             <tr key={row.id}>
-              <td className="px-3 py-3 text-[#1D2129]">{row.bid_standard_items?.code || '-'} · {row.bid_standard_items?.name || '-'}</td>
-              <td className="px-3 py-3 text-[#4E5969]">{row.project_name || '-'}</td>
-              <td className="px-3 py-3 text-[#4E5969]">{row.region || '-'} / {row.project_type || '-'}</td>
+              <td className="px-3 py-3 text-[var(--foreground)]">{row.bid_standard_items?.code || '-'} · {row.bid_standard_items?.name || '-'}</td>
+              <td className="px-3 py-3 text-[var(--color-text-2)]">{row.project_name || '-'}</td>
+              <td className="px-3 py-3 text-[var(--color-text-2)]">{row.region || '-'} / {row.project_type || '-'}</td>
               <td className="px-3 py-3 text-right font-medium tabular-nums">{Number(row.price || 0).toLocaleString()} 元</td>
               <td className="px-3 py-3 text-center">{type === 'bidPrice' ? row.bid_year : row.cost_year}</td>
-              <td className="px-3 py-3 text-[#4E5969]">{row.remark || '-'}</td>
+              <td className="px-3 py-3 text-[var(--color-text-2)]">{row.remark || '-'}</td>
             </tr>
           ))}
           {rows.length === 0 && (
-            <tr><td colSpan={6} className="px-3 py-12 text-center text-[#86909C]">暂无数据</td></tr>
+            <tr><td colSpan={6} className="px-3 py-12 text-center text-[var(--color-text-3)]">暂无数据</td></tr>
           )}
         </tbody>
       </table>
       <div className="space-y-3 p-3 md:hidden">
         {rows.length === 0 ? (
-          <div className="rounded-lg bg-[#F7F8FA] px-4 py-8 text-center text-sm text-[#86909C]">暂无数据</div>
+          <div className="rounded-lg bg-[var(--color-muted)] px-4 py-8 text-center text-sm text-[var(--color-text-3)]">暂无数据</div>
         ) : (
           rows.map(row => (
-            <article key={row.id} className="rounded-lg border border-[#E5E6EB] bg-white p-3">
+            <article key={row.id} className="rounded-lg border border-[var(--border)] bg-card p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[#1D2129]">
+                  <p className="truncate text-sm font-semibold text-[var(--foreground)]">
                     {row.bid_standard_items?.code || '-'} / {row.bid_standard_items?.name || '-'}
                   </p>
-                  <p className="mt-1 text-xs text-[#86909C]">{row.project_name || '-'} / {row.region || '-'} / {row.project_type || '-'}</p>
+                  <p className="mt-1 text-xs text-[var(--color-text-3)]">{row.project_name || '-'} / {row.region || '-'} / {row.project_type || '-'}</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">
+                <span className="shrink-0 rounded-full bg-[var(--color-accent)] px-2 py-1 text-xs text-[var(--color-primary)]">
                   {type === 'bidPrice' ? row.bid_year : row.cost_year}
                 </span>
               </div>
-              <div className="mt-3 rounded-md bg-[#F7F8FA] p-3">
-                <div className="text-xs text-[#86909C]">单价</div>
-                <div className="mt-1 text-lg font-semibold text-[#1D2129]">{Number(row.price || 0).toLocaleString()} 元</div>
+              <div className="mt-3 rounded-md bg-[var(--color-muted)] p-3">
+                <div className="text-xs text-[var(--color-text-3)]">单价</div>
+                <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">{Number(row.price || 0).toLocaleString()} 元</div>
               </div>
-              {row.remark && <p className="mt-2 line-clamp-2 text-xs text-[#4E5969]">{row.remark}</p>}
+              {row.remark && <p className="mt-2 line-clamp-2 text-xs text-[var(--color-text-2)]">{row.remark}</p>}
             </article>
           ))
         )}

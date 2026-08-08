@@ -62,22 +62,22 @@ const categories: string[] = [...KNOWLEDGE_CATEGORY_FILTERS];
 const quickLinks = ['项目经验', '成本经验', '签证变更', '施工管理', '合同结算', '标准资料', '月度分析'];
 
 const categoryColors: Record<string, string> = {
-  项目经验: '#165DFF',
+  项目经验: 'var(--color-primary)',
   成本经验: '#0EA5E9',
   签证变更: '#14B8A6',
-  施工管理: '#F59E0B',
-  合同结算: '#7C3AED',
-  标准资料: '#64748B',
-  投标策略: '#7C3AED',
-  月度分析: '#D46B08',
-  default: '#64748B',
+  施工管理: '#FF7D00',
+  合同结算: '#722ED1',
+  标准资料: 'var(--color-text-3)',
+  投标策略: '#722ED1',
+  月度分析: '#FF7D00',
+  default: 'var(--color-text-3)',
 };
 
 const qualityColors: Record<string, string> = {
-  原始记录: 'bg-[#F2F3F5] text-[#4E5969]',
-  已整理: 'bg-[#E8F3FF] text-[#165DFF]',
-  推荐复用: 'bg-[#FFF7E8] text-[#D46B08]',
-  标准经验: 'bg-[#E8FFEA] text-[#00A870]',
+  原始记录: 'bg-[var(--color-muted)] text-[var(--color-text-2)]',
+  已整理: 'bg-[var(--color-accent)] text-[var(--color-primary)]',
+  推荐复用: 'bg-[#FFF7E8] text-[#FF7D00]',
+  标准经验: 'bg-[#E8FFEA] text-[#00B42A]',
 };
 
 type MonthlyWorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
@@ -110,11 +110,11 @@ const monthlyStateTagMap: Record<string, MonthlyWorkflowState> = {
 };
 
 const monthlyStateBadgeClasses: Record<MonthlyWorkflowState, string> = {
-  draft: 'bg-[#F2F3F5] text-[#4E5969]',
-  manager_review: 'bg-[#E8F3FF] text-[#165DFF]',
+  draft: 'bg-[var(--color-muted)] text-[var(--color-text-2)]',
+  manager_review: 'bg-[var(--color-accent)] text-[var(--color-primary)]',
   budget_confirm: 'bg-[#F5EEFF] text-[#722ED1]',
-  boss_review: 'bg-[#FFF7E8] text-[#D46B08]',
-  completed: 'bg-[#E8FFEA] text-[#00A870]',
+  boss_review: 'bg-[#FFF7E8] text-[#FF7D00]',
+  completed: 'bg-[#E8FFEA] text-[#00B42A]',
 };
 
 function getCategoryLabel(doc: Pick<KnowledgeDoc, 'category' | 'tags'>) {
@@ -386,7 +386,7 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
         ctx.stroke();
 
         ctx.font = '12px sans-serif';
-        ctx.fillStyle = '#1D2129';
+        ctx.fillStyle = 'var(--foreground)';
         ctx.textAlign = 'center';
         ctx.fillText(node.label.slice(0, 8), node.x, node.y + size + 14);
       });
@@ -495,10 +495,10 @@ function KnowledgeGraph({ docs }: { docs: KnowledgeDoc[] }) {
           <p>分类数</p>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-3 text-[10px] text-[#8A8F98]">
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#165DFF] mr-1" />项目经验</span>
+      <div className="mt-2 flex items-center gap-3 text-[10px] text-[var(--color-text-3)]">
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[var(--color-primary)] mr-1" />项目经验</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#0EA5E9] mr-1" />成本经验</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#F59E0B] mr-1" />施工管理</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#FF7D00] mr-1" />施工管理</span>
       </div>
     </section>
   );
@@ -556,25 +556,25 @@ function KnowledgeReusePanel({ docs }: { docs: KnowledgeDoc[] }) {
       <div className="mt-4 space-y-4">
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-[#171717]">高复用知识</p>
-            <Link href="/knowledge?query=推荐复用" className="text-xs text-[#165DFF] hover:underline">查看更多</Link>
+            <p className="text-sm font-medium text-[var(--foreground)]">高复用知识</p>
+            <Link href="/knowledge?query=推荐复用" className="text-xs text-[var(--color-primary)] hover:underline">查看更多</Link>
           </div>
           <div className="space-y-2">
             {highReuseDocs.length > 0 ? highReuseDocs.map(doc => {
               const tags = normalizeKnowledgeTags(doc.tags);
               const quality = getKnowledgeQuality(tags, doc.source_type, doc.category);
               return (
-                <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg border border-[#E5E6EB] p-3 transition hover:border-[#165DFF]/40 hover:bg-[#F8FAFF]">
+                <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg border border-[var(--border)] p-3 transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-accent)]">
                   <div className="flex items-center gap-2">
                     <span className={`rounded px-1.5 py-0.5 text-[10px] ${qualityColors[quality]}`}>{quality}</span>
-                    <span className="text-[10px] text-[#8A8F98]">{getCategoryLabel(doc)}</span>
+                    <span className="text-[10px] text-[var(--color-text-3)]">{getCategoryLabel(doc)}</span>
                   </div>
-                  <p className="mt-1 line-clamp-1 text-sm font-medium text-[#171717]">{doc.title}</p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#8A8F98]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
+                  <p className="mt-1 line-clamp-1 text-sm font-medium text-[var(--foreground)]">{doc.title}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-3)]">{stripMarkdown(doc.content) || '暂无摘要'}</p>
                 </Link>
               );
             }) : (
-              <p className="rounded-lg border border-dashed border-[#DADDE5] p-3 text-xs leading-5 text-[#8A8F98]">
+              <p className="rounded-lg border border-dashed border-[#DADDE5] p-3 text-xs leading-5 text-[var(--color-text-3)]">
                 暂无推荐复用知识，可在详情中补充复用建议并提升知识等级。
               </p>
             )}
@@ -582,32 +582,32 @@ function KnowledgeReusePanel({ docs }: { docs: KnowledgeDoc[] }) {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#171717]">最近沉淀</p>
+          <p className="mb-2 text-sm font-medium text-[var(--foreground)]">最近沉淀</p>
           <div className="space-y-2">
             {recentDocs.map(doc => (
-              <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-[#F8FAFF]">
+              <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition hover:bg-[var(--color-accent)]">
                 <div className="min-w-0">
-                  <p className="line-clamp-1 text-sm text-[#171717]">{doc.title}</p>
-                  <p className="mt-0.5 text-xs text-[#8A8F98]">{getCategoryLabel(doc)} · {formatDate(doc.updated_at || doc.created_at)}</p>
+                  <p className="line-clamp-1 text-sm text-[var(--foreground)]">{doc.title}</p>
+                  <p className="mt-0.5 text-xs text-[var(--color-text-3)]">{getCategoryLabel(doc)} · {formatDate(doc.updated_at || doc.created_at)}</p>
                 </div>
-                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[#C9CDD4]" />
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-3)]" />
               </Link>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#171717]">待补关联</p>
+          <p className="mb-2 text-sm font-medium text-[var(--foreground)]">待补关联</p>
           {weakRelationDocs.length > 0 ? (
             <div className="space-y-2">
               {weakRelationDocs.map(doc => (
-                <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg bg-[#FBFCFF] px-3 py-2 text-sm text-[#4E5969] transition hover:bg-[#F0F5FF] hover:text-[#165DFF]">
+                <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg bg-[var(--color-accent)] px-3 py-2 text-sm text-[var(--color-text-2)] transition hover:bg-[var(--color-accent)] hover:text-[var(--color-primary)]">
                   {doc.title}
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="rounded-lg bg-[#F6FFED] p-3 text-xs text-[#00A870]">当前知识关联情况较好。</p>
+            <p className="rounded-lg bg-[#F6FFED] p-3 text-xs text-[#00B42A]">当前知识关联情况较好。</p>
           )}
         </div>
       </div>
@@ -715,9 +715,9 @@ export default function KnowledgePage() {
       return getCategoryLabel(doc) === '施工管理' || tags.some(tag => tag.includes('风险'));
     }).length;
     return [
-      { label: '经验总数', value: docs.length, hint: '全部沉淀', color: '#165DFF' },
-      { label: '推荐复用', value: recommended, hint: '可直接参考', color: '#D46B08' },
-      { label: '风险命中', value: riskHits, hint: '施工与经营提醒', color: '#F59E0B' },
+      { label: '经验总数', value: docs.length, hint: '全部沉淀', color: 'var(--color-primary)' },
+      { label: '推荐复用', value: recommended, hint: '可直接参考', color: '#FF7D00' },
+      { label: '风险命中', value: riskHits, hint: '施工与经营提醒', color: '#FF7D00' },
       { label: '待复核', value: pendingCount, hint: pendingCount > 0 ? '需要处理' : '暂无待办', color: '#00A870' },
     ];
   }, [docs, pendingCount, qualityStats]);
@@ -731,15 +731,15 @@ export default function KnowledgePage() {
   return (
     <div className="min-h-full bg-[#F5F7FB] p-3 md:p-6">
       <style jsx global>{`
-        .kb-panel { border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF; box-shadow: 0 8px 20px rgba(15,23,42,0.035); }
+        .kb-panel { border: 1px solid var(--border); border-radius: 8px; background: #FFFFFF; box-shadow: 0 8px 20px rgba(15,23,42,0.035); }
         .kb-pill { white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1px solid transparent; color: #64748B; transition: all .15s; }
         .kb-pill-active, .kb-pill:hover { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
       `}</style>
 
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#0F172A] md:text-2xl">知识库经验台账</h1>
-          <p className="mt-1 text-xs text-[#64748B] md:text-sm">公司经验大脑：自动萃取、人工沉淀、业务调用。</p>
+          <h1 className="text-xl font-bold text-[var(--foreground)] md:text-2xl">知识库经验台账</h1>
+          <p className="mt-1 text-xs text-[var(--color-text-3)] md:text-sm">公司经验大脑：自动萃取、人工沉淀、业务调用。</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {pendingCount > 0 && (
@@ -751,10 +751,10 @@ export default function KnowledgePage() {
               待复核 {pendingCount}
             </button>
           )}
-          <Link href="/knowledge/new" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-3 text-xs font-semibold text-white hover:bg-[#1D4ED8] md:text-sm">
+          <Link href="/knowledge/new" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs font-semibold text-white hover:bg-[var(--color-primary)] md:text-sm">
             <Plus className="h-4 w-4" />写经验
           </Link>
-          <Link href="/knowledge/monthly/new" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#334155] hover:border-[#2563EB] hover:text-[#2563EB] md:text-sm">
+          <Link href="/knowledge/monthly/new" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-card px-3 text-xs font-semibold text-[var(--color-text-2)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] md:text-sm">
             <FileText className="h-4 w-4" />月度分析
           </Link>
         </div>
@@ -764,10 +764,10 @@ export default function KnowledgePage() {
         {metricCards.map(card => (
           <div key={card.label} className="kb-panel flex min-h-[76px] items-center justify-between p-3">
             <div>
-              <p className="text-xs text-[#64748B]">{card.label}</p>
+              <p className="text-xs text-[var(--color-text-3)]">{card.label}</p>
               <p className="mt-1 text-2xl font-bold" style={{ color: card.color }}>{card.value}</p>
             </div>
-            <span className="rounded-full bg-[#F1F5F9] px-2 py-1 text-xs font-semibold text-[#64748B]">{card.hint}</span>
+            <span className="rounded-full bg-[var(--color-muted)] px-2 py-1 text-xs font-semibold text-[var(--color-text-3)]">{card.hint}</span>
           </div>
         ))}
       </div>
@@ -775,12 +775,12 @@ export default function KnowledgePage() {
       <div className="kb-panel mb-3 p-3">
         <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto] lg:items-center">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-3)]" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="搜索经验、项目、风险、单价、签证或结算要点"
-              className="h-10 w-full rounded-lg border border-[#D8E0EC] bg-[#FBFCFF] pl-10 pr-4 text-sm text-[#0F172A] outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+              className="h-10 w-full rounded-lg border border-[#D8E0EC] bg-[var(--color-accent)] pl-10 pr-4 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -807,7 +807,7 @@ export default function KnowledgePage() {
 
       <div className="grid gap-3 xl:grid-cols-[220px_minmax(0,1fr)_340px]">
         <aside className="kb-panel p-3">
-          <div className="mb-2 text-sm font-bold text-[#334155]">经验类型</div>
+          <div className="mb-2 text-sm font-bold text-[var(--color-text-2)]">经验类型</div>
           <div className="space-y-1">
             {categoryStats.map(item => (
               <button
@@ -818,23 +818,23 @@ export default function KnowledgePage() {
                   setShowMoreCategories(false);
                 }}
                 className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
-                  activeCategory === item.category ? 'bg-[#EFF6FF] font-bold text-[#1D4ED8]' : 'text-[#334155] hover:bg-[#F8FAFC]'
+                  activeCategory === item.category ? 'bg-[var(--color-accent)] font-bold text-[var(--color-primary)]' : 'text-[var(--color-text-2)] hover:bg-[var(--color-muted)]'
                 }`}
               >
                 <span>{item.category}</span>
-                <span className="text-xs text-[#94A3B8]">{item.count}</span>
+                <span className="text-xs text-[var(--color-text-3)]">{item.count}</span>
               </button>
             ))}
           </div>
 
-          <div className="mt-4 border-t border-[#E2E8F0] pt-3">
-            <div className="mb-2 text-sm font-bold text-[#334155]">常用调用</div>
+          <div className="mt-4 border-t border-[var(--border)] pt-3">
+            <div className="mb-2 text-sm font-bold text-[var(--color-text-2)]">常用调用</div>
             <div className="flex flex-wrap gap-2">
               {quickLinks.map(link => (
                 <button
                   key={link}
                   type="button"
-                  className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-semibold text-[#475569] hover:bg-[#E0F2FE] hover:text-[#0369A1]"
+                  className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text-2)] hover:bg-[#E0F2FE] hover:text-[#0369A1]"
                   onClick={() => {
                     setQuery(link);
                     setActiveCategory(categories.includes(link) ? link : '全部');
@@ -849,15 +849,15 @@ export default function KnowledgePage() {
 
         <main className="min-w-0">
           <div className="kb-panel overflow-hidden">
-            <div className="grid grid-cols-[minmax(220px,1fr)_86px_92px_76px] gap-2 border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs font-bold text-[#64748B] max-lg:hidden">
+            <div className="grid grid-cols-[minmax(220px,1fr)_86px_92px_76px] gap-2 border-b border-[var(--border)] bg-[var(--color-muted)] px-3 py-2 text-xs font-bold text-[var(--color-text-3)] max-lg:hidden">
               <span>经验</span>
               <span>来源</span>
               <span>适用场景</span>
               <span>引用</span>
             </div>
-            <div className="divide-y divide-[#E2E8F0]">
+            <div className="divide-y divide-[var(--border)]">
               {loading ? (
-                <div className="py-12 text-center text-sm text-[#64748B]">正在加载经验台账...</div>
+                <div className="py-12 text-center text-sm text-[var(--color-text-3)]">正在加载经验台账...</div>
               ) : filteredDocs.length > 0 ? (
                 filteredDocs.map(doc => {
                   const tags = normalizeKnowledgeTags(doc.tags);
@@ -883,7 +883,7 @@ export default function KnowledgePage() {
                       role="button"
                       tabIndex={0}
                       className={`grid w-full grid-cols-1 gap-2 px-3 py-3 text-left transition lg:grid-cols-[minmax(220px,1fr)_86px_92px_76px] ${
-                        isSelected ? 'bg-[#EFF6FF]' : 'bg-white hover:bg-[#F8FAFC]'
+                        isSelected ? 'bg-[var(--color-accent)]' : 'bg-card hover:bg-[var(--color-muted)]'
                       }`}
                     >
                       <div className="min-w-0">
@@ -894,30 +894,30 @@ export default function KnowledgePage() {
                               {monthlyStateLabels[monthlyState]}
                             </span>
                           )}
-                          <span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 text-[11px] text-[#475569]">{category}</span>
+                          <span className="rounded bg-[var(--color-muted)] px-1.5 py-0.5 text-[11px] text-[var(--color-text-2)]">{category}</span>
                         </div>
-                        <p className="mt-2 line-clamp-1 text-sm font-bold text-[#0F172A]">{doc.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#64748B]">{compactText(doc.content, 110)}</p>
+                        <p className="mt-2 line-clamp-1 text-sm font-bold text-[var(--foreground)]">{doc.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-3)]">{compactText(doc.content, 110)}</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {displayTags.slice(0, 3).map(tag => (
-                            <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[11px] text-[#64748B]">
+                            <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-muted)] px-2 py-0.5 text-[11px] text-[var(--color-text-3)]">
                               <Tag className="h-3 w-3" />{tag}
                             </span>
                           ))}
                         </div>
                       </div>
-                      <div className="text-xs leading-5 text-[#475569]">
-                        <span className="font-semibold text-[#0F172A] lg:block">{sourceLabel}</span>
+                      <div className="text-xs leading-5 text-[var(--color-text-2)]">
+                        <span className="font-semibold text-[var(--foreground)] lg:block">{sourceLabel}</span>
                         <span>{formatDate(doc.updated_at || doc.created_at)}</span>
                       </div>
-                      <div className="text-xs leading-5 text-[#475569]">
+                      <div className="text-xs leading-5 text-[var(--color-text-2)]">
                         {scenarioTags.slice(0, 2).map(tag => (
-                          <span key={tag} className="mr-1 inline-block rounded bg-[#F1F5F9] px-1.5 py-0.5">{tag}</span>
+                          <span key={tag} className="mr-1 inline-block rounded bg-[var(--color-muted)] px-1.5 py-0.5">{tag}</span>
                         ))}
                       </div>
-                      <div className="flex items-center justify-between gap-2 text-xs text-[#64748B] lg:block">
+                      <div className="flex items-center justify-between gap-2 text-xs text-[var(--color-text-3)] lg:block">
                         <span>{doc.file_key && !doc.file_key.startsWith('bid:') ? '含附件' : '详情'}</span>
-                        <Link href={`/knowledge/${doc.id}`} className="font-semibold text-[#2563EB] hover:underline" onClick={event => event.stopPropagation()}>
+                        <Link href={`/knowledge/${doc.id}`} className="font-semibold text-[var(--color-primary)] hover:underline" onClick={event => event.stopPropagation()}>
                           查看
                         </Link>
                       </div>
@@ -925,7 +925,7 @@ export default function KnowledgePage() {
                   );
                 })
               ) : (
-                <div className="py-12 text-center text-sm text-[#64748B]">没有匹配的经验，可调整筛选或新增经验。</div>
+                <div className="py-12 text-center text-sm text-[var(--color-text-3)]">没有匹配的经验，可调整筛选或新增经验。</div>
               )}
             </div>
           </div>
@@ -937,48 +937,48 @@ export default function KnowledgePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <span className={`rounded px-2 py-1 text-xs font-semibold ${qualityColors[selectedQuality]}`}>{selectedQuality}</span>
-                  <h2 className="mt-3 text-lg font-bold leading-7 text-[#0F172A]">{selectedDoc.title}</h2>
+                  <h2 className="mt-3 text-lg font-bold leading-7 text-[var(--foreground)]">{selectedDoc.title}</h2>
                 </div>
-                <Link href={`/knowledge/${selectedDoc.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#CBD5E1] px-2 text-xs font-semibold text-[#334155] hover:border-[#2563EB] hover:text-[#2563EB]">
+                <Link href={`/knowledge/${selectedDoc.id}`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-2 text-xs font-semibold text-[var(--color-text-2)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
                   详情<ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <span className="rounded-full bg-[#EFF6FF] px-2 py-1 text-xs font-semibold text-[#2563EB]">{selectedCategory}</span>
+                <span className="rounded-full bg-[var(--color-accent)] px-2 py-1 text-xs font-semibold text-[var(--color-primary)]">{selectedCategory}</span>
                 {selectedScenarioTags.slice(0, 4).map(tag => (
-                  <span key={tag} className="rounded-full bg-[#F1F5F9] px-2 py-1 text-xs text-[#475569]">{tag}</span>
+                  <span key={tag} className="rounded-full bg-[var(--color-muted)] px-2 py-1 text-xs text-[var(--color-text-2)]">{tag}</span>
                 ))}
               </div>
 
               <div className="mt-4 space-y-4">
-                <div className="border-t border-[#E2E8F0] pt-4">
-                  <p className="text-xs font-bold text-[#64748B]">结论</p>
-                  <p className="mt-2 text-sm leading-6 text-[#0F172A]">{compactText(selectedDoc.content, 150)}</p>
+                <div className="border-t border-[var(--border)] pt-4">
+                  <p className="text-xs font-bold text-[var(--color-text-3)]">结论</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">{compactText(selectedDoc.content, 150)}</p>
                 </div>
-                <div className="border-t border-[#E2E8F0] pt-4">
-                  <p className="text-xs font-bold text-[#64748B]">建议动作</p>
-                  <p className="mt-2 text-sm leading-6 text-[#0F172A]">{getSuggestedAction(selectedDoc, selectedTags)}</p>
+                <div className="border-t border-[var(--border)] pt-4">
+                  <p className="text-xs font-bold text-[var(--color-text-3)]">建议动作</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">{getSuggestedAction(selectedDoc, selectedTags)}</p>
                 </div>
-                <div className="border-t border-[#E2E8F0] pt-4">
-                  <p className="text-xs font-bold text-[#64748B]">依据</p>
-                  <div className="mt-2 grid gap-2 text-sm text-[#475569]">
+                <div className="border-t border-[var(--border)] pt-4">
+                  <p className="text-xs font-bold text-[var(--color-text-3)]">依据</p>
+                  <div className="mt-2 grid gap-2 text-sm text-[var(--color-text-2)]">
                     <div className="flex justify-between gap-3">
                       <span>来源</span>
-                      <strong className="text-right font-semibold text-[#0F172A]">{selectedSource}</strong>
+                      <strong className="text-right font-semibold text-[var(--foreground)]">{selectedSource}</strong>
                     </div>
                     <div className="flex justify-between gap-3">
                       <span>作者</span>
-                      <strong className="text-right font-semibold text-[#0F172A]">{selectedDoc.created_by || '系统'}</strong>
+                      <strong className="text-right font-semibold text-[var(--foreground)]">{selectedDoc.created_by || '系统'}</strong>
                     </div>
                     <div className="flex justify-between gap-3">
                       <span>更新</span>
-                      <strong className="text-right font-semibold text-[#0F172A]">{formatDate(selectedDoc.updated_at || selectedDoc.created_at)}</strong>
+                      <strong className="text-right font-semibold text-[var(--foreground)]">{formatDate(selectedDoc.updated_at || selectedDoc.created_at)}</strong>
                     </div>
                     {selectedDoc.file_key && !selectedDoc.file_key.startsWith('bid:') && (
                       <div className="flex justify-between gap-3">
                         <span>附件</span>
-                        <strong className="text-right font-semibold text-[#0F172A]">{selectedDoc.file_name || '已上传'}</strong>
+                        <strong className="text-right font-semibold text-[var(--foreground)]">{selectedDoc.file_name || '已上传'}</strong>
                       </div>
                     )}
                   </div>
@@ -986,7 +986,7 @@ export default function KnowledgePage() {
               </div>
             </div>
           ) : (
-            <div className="py-10 text-center text-sm text-[#64748B]">选择一条经验后查看复用要点。</div>
+            <div className="py-10 text-center text-sm text-[var(--color-text-3)]">选择一条经验后查看复用要点。</div>
           )}
         </aside>
       </div>

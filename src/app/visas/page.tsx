@@ -1048,7 +1048,7 @@ export default function VisasPage() {
             onClick={handleAdd}
             className="gap-2 h-9 px-4"
             style={{ 
-              background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)',
+              background: 'var(--color-primary-gradient)',
               boxShadow: '0 2px 8px rgba(22, 93, 255, 0.25)'
             }}
           >
@@ -1059,7 +1059,7 @@ export default function VisasPage() {
             variant="outline"
             onClick={handleExport}
             className="gap-2 h-9 px-4"
-            style={{ borderColor: '#E5E6EB', color: '#4E5969' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--color-text-2)' }}
           >
             <Download className="w-4 h-4" />
             导出签证数据
@@ -1075,7 +1075,7 @@ export default function VisasPage() {
                 ? 'text-white shadow-md' 
                 : 'hover:bg-gray-100'
             }`}
-            style={selectedStatus === 'all' ? { background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' } : { color: '#4E5969' }}
+            style={selectedStatus === 'all' ? { background: 'var(--color-primary-gradient)' } : { color: 'var(--color-text-2)' }}
           >
             全部
           </button>
@@ -1122,7 +1122,7 @@ export default function VisasPage() {
           
           {/* 风险预警提示 */}
           {(stats.overdueCount > 0 || stats.warningCount > 0) && (
-            <div className="flex items-center gap-2 ml-4 pl-4 border-l" style={{ borderColor: '#E5E6EB' }}>
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l" style={{ borderColor: 'var(--border)' }}>
               {stats.overdueCount > 0 && (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 animate-pulse">
                   <AlertCircle className="w-3.5 h-3.5" style={{ color: '#F53F3F' }} />
@@ -1151,13 +1151,13 @@ export default function VisasPage() {
           <CardContent className="pt-6 pb-6">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-primary-gradient)' }}>
                   <BarChart3 className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-base font-semibold" style={{ color: '#1D2129' }}>签证概览</span>
+                <span className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>签证概览</span>
               </div>
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="w-40 h-8 text-sm" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+                <SelectTrigger className="w-40 h-8 text-sm" style={{ background: 'var(--color-muted)', border: '1px solid #E5E6EB' }}>
                   <SelectValue placeholder="选择项目筛选" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1173,24 +1173,24 @@ export default function VisasPage() {
             
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
-                <p className="text-sm mb-2" style={{ color: '#86909C' }}>签证总份数</p>
-                <p className="text-3xl font-bold" style={{ color: '#1D2129' }}>{stats.totalCount}</p>
+                <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>签证总份数</p>
+                <p className="text-3xl font-bold" style={{ color: 'var(--foreground)' }}>{stats.totalCount}</p>
               </div>
               <div>
-                <p className="text-sm mb-2" style={{ color: '#86909C' }}>签证总金额</p>
+                <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>签证总金额</p>
                 <p className="text-2xl font-bold" style={{ color: '#722ED1' }}>
                   ¥<AnimatedNumber value={stats.totalAmount} format={(v) => v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })} />
                 </p>
               </div>
             </div>
             
-            <div className="pt-4 border-t" style={{ borderColor: '#E5E6EB' }}>
+            <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium" style={{ color: '#4E5969' }}>签回完成率</p>
-                <p className="text-lg font-bold" style={{ color: '#165DFF' }}>{stats.completedRate.toFixed(1)}%</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-2)' }}>签回完成率</p>
+                <p className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>{stats.completedRate.toFixed(1)}%</p>
               </div>
-              <Progress value={stats.completedRate} className="h-3" style={{ background: '#E5E6EB' }} />
-              <div className="flex items-center justify-between mt-2 text-xs" style={{ color: '#86909C' }}>
+              <Progress value={stats.completedRate} className="h-3" style={{ background: 'var(--border)' }} />
+              <div className="flex items-center justify-between mt-2 text-xs" style={{ color: 'var(--color-text-3)' }}>
                 <span>已完成 {stats.completedCount} 份</span>
                 <span>共 {stats.totalCount} 份</span>
               </div>
@@ -1209,11 +1209,11 @@ export default function VisasPage() {
             <CardContent className="pt-5 pb-5">
               <div className="flex min-w-0 items-center justify-between gap-2 mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#E8F3FF' }}>
-                  <Building2 className="w-5 h-5" style={{ color: '#165DFF' }} />
+                  <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                 </div>
               </div>
-              <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{stats.activeProjectsCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>进行中项目</p>
+              <p className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>{stats.activeProjectsCount}</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>进行中项目</p>
             </CardContent>
           </Card>
 
@@ -1230,7 +1230,7 @@ export default function VisasPage() {
                 </div>
               </div>
               <p className="text-3xl font-bold" style={{ color: '#00B42A' }}>{stats.totalCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>签证总数</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>签证总数</p>
             </CardContent>
           </Card>
 
@@ -1252,7 +1252,7 @@ export default function VisasPage() {
                 )}
               </div>
               <p className="text-3xl font-bold" style={{ color: '#FF7D00' }}>{stats.pendingCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>流转中签证</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>流转中签证</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#FF7D00' }}>点击查看 →</p>
             </CardContent>
           </Card>
@@ -1270,7 +1270,7 @@ export default function VisasPage() {
                 </div>
               </div>
               <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{stats.completedCount}</p>
-              <p className="text-sm mt-1" style={{ color: '#86909C' }}>已完成签证</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>已完成签证</p>
               <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#722ED1' }}>点击查看 →</p>
             </CardContent>
           </Card>
@@ -1282,15 +1282,15 @@ export default function VisasPage() {
         {/* 左侧辅助信息区 */}
         <Card className="col-span-12 lg:col-span-3 hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
           <CardHeader className="pb-2 pt-4">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#1D2129' }}>
-              <Building2 className="w-4 h-4" style={{ color: '#165DFF' }} />
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+              <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
               进行中项目
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-2">
               {activeProjectsWithVisa.length === 0 ? (
-                <div className="text-center py-8" style={{ color: '#86909C' }}>
+                <div className="text-center py-8" style={{ color: 'var(--color-text-3)' }}>
                   <Building2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">暂无进行中项目</p>
                 </div>
@@ -1306,10 +1306,10 @@ export default function VisasPage() {
                     onClick={() => handleProjectClick(project.id)}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${selectedProjectId === project.id.toString() ? 'bg-blue-600' : ''}`} style={{ background: selectedProjectId === project.id.toString() ? '#165DFF' : '#165DFF' }} />
-                      <span className="text-sm truncate max-w-[120px]" style={{ color: selectedProjectId === project.id.toString() ? '#165DFF' : '#1D2129', fontWeight: selectedProjectId === project.id.toString() ? 600 : 400 }}>{project.name}</span>
+                      <div className={`w-2 h-2 rounded-full ${selectedProjectId === project.id.toString() ? 'bg-blue-600' : ''}`} style={{ background: selectedProjectId === project.id.toString() ? 'var(--color-primary)' : 'var(--color-primary)' }} />
+                      <span className="text-sm truncate max-w-[120px]" style={{ color: selectedProjectId === project.id.toString() ? 'var(--color-primary)' : 'var(--foreground)', fontWeight: selectedProjectId === project.id.toString() ? 600 : 400 }}>{project.name}</span>
                     </div>
-                    <Badge variant="outline" className={`text-xs font-medium ${selectedProjectId === project.id.toString() ? 'border-blue-300 text-blue-600' : ''}`} style={{ borderColor: selectedProjectId === project.id.toString() ? '#165DFF' : '#E5E6EB', color: selectedProjectId === project.id.toString() ? '#165DFF' : '#4E5969' }}>
+                    <Badge variant="outline" className={`text-xs font-medium ${selectedProjectId === project.id.toString() ? 'border-blue-300 text-blue-600' : ''}`} style={{ borderColor: selectedProjectId === project.id.toString() ? 'var(--color-primary)' : 'var(--border)', color: selectedProjectId === project.id.toString() ? 'var(--color-primary)' : 'var(--color-text-2)' }}>
                       {project.visaCount} 份
                     </Badge>
                   </div>
@@ -1317,10 +1317,10 @@ export default function VisasPage() {
               )}
             </div>
             {activeProjectsWithVisa.length > 6 && (
-              <div className="pt-2 mt-2 border-t text-center" style={{ borderColor: '#E5E6EB' }}>
+              <div className="pt-2 mt-2 border-t text-center" style={{ borderColor: 'var(--border)' }}>
                 <button 
                   className="text-xs font-medium hover:underline" 
-                  style={{ color: '#165DFF' }}
+                  style={{ color: 'var(--color-primary)' }}
                   onClick={() => setSelectedProjectId('all')}
                 >
                   查看全部 {activeProjectsWithVisa.length} 个项目
@@ -1333,8 +1333,8 @@ export default function VisasPage() {
         {/* 右侧图表区 */}
         <Card className="col-span-12 lg:col-span-9 hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
           <CardHeader className="pb-2 pt-4">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#1D2129' }}>
-              <TrendingUp className="w-4 h-4" style={{ color: '#165DFF' }} />
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+              <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
               签证趋势 · 近6个月
             </CardTitle>
           </CardHeader>
@@ -1343,8 +1343,8 @@ export default function VisasPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E6EB" />
-                  <XAxis dataKey="name" tick={{ fill: '#86909C', fontSize: 12 }} axisLine={{ stroke: '#E5E6EB' }} />
-                  <YAxis tick={{ fill: '#86909C', fontSize: 12 }} axisLine={{ stroke: '#E5E6EB' }} />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--color-text-3)', fontSize: 12 }} axisLine={{ stroke: 'var(--border)' }} />
+                  <YAxis tick={{ fill: 'var(--color-text-3)', fontSize: 12 }} axisLine={{ stroke: 'var(--border)' }} />
                   <Tooltip 
                     contentStyle={{ 
                       background: '#FFFFFF', 
@@ -1358,7 +1358,7 @@ export default function VisasPage() {
                     }}
                   />
                   <Legend />
-                  <Line type="monotone" dataKey="新增签证" stroke="#165DFF" strokeWidth={2} dot={{ fill: '#165DFF', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="新增签证" stroke="#165DFF" strokeWidth={2} dot={{ fill: 'var(--color-primary)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                   <Line type="monotone" dataKey="已完成签证" stroke="#00B42A" strokeWidth={2} dot={{ fill: '#00B42A', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                   <Line type="monotone" dataKey="涉及金额" stroke="#FF7D00" strokeWidth={2} dot={{ fill: '#FF7D00', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
@@ -1366,10 +1366,10 @@ export default function VisasPage() {
             </div>
             
             {/* 图表下方标注 */}
-            <div className="grid grid-cols-1 gap-3 pt-4 border-t mt-4 sm:grid-cols-3 sm:gap-4" style={{ borderColor: '#E5E6EB' }}>
+            <div className="grid grid-cols-1 gap-3 pt-4 border-t mt-4 sm:grid-cols-3 sm:gap-4" style={{ borderColor: 'var(--border)' }}>
               <div className="text-center">
-                <p className="text-xs mb-1" style={{ color: '#86909C' }}>本月新增</p>
-                <p className="text-2xl font-bold" style={{ color: '#165DFF' }}>{stats.currentMonthNew}</p>
+                <p className="text-xs mb-1" style={{ color: 'var(--color-text-3)' }}>本月新增</p>
+                <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>{stats.currentMonthNew}</p>
                 <div className="flex items-center justify-center gap-1 mt-1">
                   {parseFloat(stats.newGrowth) >= 0 ? (
                     <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#00B42A' }} />
@@ -1382,7 +1382,7 @@ export default function VisasPage() {
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-xs mb-1" style={{ color: '#86909C' }}>本月已完成</p>
+                <p className="text-xs mb-1" style={{ color: 'var(--color-text-3)' }}>本月已完成</p>
                 <p className="text-2xl font-bold" style={{ color: '#00B42A' }}>{stats.currentMonthCompleted}</p>
                 <div className="flex items-center justify-center gap-1 mt-1">
                   {parseFloat(stats.completedGrowth) >= 0 ? (
@@ -1396,7 +1396,7 @@ export default function VisasPage() {
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-xs mb-1" style={{ color: '#86909C' }}>本月金额</p>
+                <p className="text-xs mb-1" style={{ color: 'var(--color-text-3)' }}>本月金额</p>
                 <p className="text-2xl font-bold" style={{ color: '#FF7D00' }}>
                   ¥{(stats.currentMonthAmount / 10000).toFixed(1)}万
                 </p>
@@ -1420,14 +1420,14 @@ export default function VisasPage() {
       <div id="visa-list-section" className={`transition-all duration-500 delay-300 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB' }}>
           {/* 筛选区域 */}
-          <CardContent className="pt-4 pb-3 border-b" style={{ borderColor: '#E5E6EB' }}>
+          <CardContent className="pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
             <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
               {/* 当前筛选状态提示 */}
               {(selectedStatus !== 'all' || selectedProjectId !== 'all') && (
                 <div className="mb-2 flex w-full flex-wrap items-center gap-2">
-                  <span className="text-xs" style={{ color: '#86909C' }}>当前筛选：</span>
+                  <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>当前筛选：</span>
                   {selectedProjectId !== 'all' && (
-                    <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: '#165DFF', color: '#165DFF' }}>
+                    <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
                       <Building2 className="w-3 h-3" />
                       {projects.find(p => p.id.toString() === selectedProjectId)?.name}
                       <button onClick={() => setSelectedProjectId('all')} className="ml-1 hover:bg-blue-100 rounded-full p-0.5">×</button>
@@ -1443,14 +1443,14 @@ export default function VisasPage() {
                   <button 
                     onClick={handleReset}
                     className="text-xs hover:underline" 
-                    style={{ color: '#165DFF' }}
+                    style={{ color: 'var(--color-primary)' }}
                   >
                     清除筛选
                   </button>
                 </div>
               )}
               <div className="flex min-w-0 items-center gap-2">
-                <Search className="w-4 h-4" style={{ color: '#86909C' }} />
+                <Search className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
                 <Input
                   placeholder="搜索编号/名称..."
                   value={searchKeyword}
@@ -1481,7 +1481,7 @@ export default function VisasPage() {
                   className="h-8 w-full sm:w-32"
                   placeholder="开始日期"
                 />
-                <span style={{ color: '#86909C' }}>至</span>
+                <span style={{ color: 'var(--color-text-3)' }}>至</span>
                 <Input
                   type="date"
                   value={endDate}
@@ -1512,24 +1512,24 @@ export default function VisasPage() {
             <div className="hidden overflow-x-auto md:block">
             <Table className="min-w-[1080px]">
               <TableHeader>
-                <TableRow style={{ background: '#F7F8FA' }}>
-                  <TableHead className="font-medium h-10" style={{ color: '#86909C' }}>签证编号</TableHead>
-                  <TableHead className="font-medium" style={{ color: '#86909C' }}>签证名称</TableHead>
-                  <TableHead className="font-medium" style={{ color: '#86909C' }}>关联项目</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>发生日期</TableHead>
-                  <TableHead className="font-medium text-right" style={{ color: '#86909C' }}>工程量</TableHead>
-                  <TableHead className="font-medium text-right" style={{ color: '#86909C' }}>金额</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>状态</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>当前负责人</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>风险预警</TableHead>
-                  <TableHead className="font-medium text-center" style={{ color: '#86909C' }}>操作</TableHead>
+                <TableRow style={{ background: 'var(--color-muted)' }}>
+                  <TableHead className="font-medium h-10" style={{ color: 'var(--color-text-3)' }}>签证编号</TableHead>
+                  <TableHead className="font-medium" style={{ color: 'var(--color-text-3)' }}>签证名称</TableHead>
+                  <TableHead className="font-medium" style={{ color: 'var(--color-text-3)' }}>关联项目</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>发生日期</TableHead>
+                  <TableHead className="font-medium text-right" style={{ color: 'var(--color-text-3)' }}>工程量</TableHead>
+                  <TableHead className="font-medium text-right" style={{ color: 'var(--color-text-3)' }}>金额</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>状态</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>当前负责人</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>风险预警</TableHead>
+                  <TableHead className="font-medium text-center" style={{ color: 'var(--color-text-3)' }}>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-12">
-                      <div className="flex items-center justify-center gap-2" style={{ color: '#86909C' }}>
+                      <div className="flex items-center justify-center gap-2" style={{ color: 'var(--color-text-3)' }}>
                         <RefreshCw className="w-4 h-4 animate-spin" />
                         <span>加载中...</span>
                       </div>
@@ -1538,7 +1538,7 @@ export default function VisasPage() {
                 ) : visas.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-12">
-                      <div className="flex flex-col items-center gap-2" style={{ color: '#86909C' }}>
+                      <div className="flex flex-col items-center gap-2" style={{ color: 'var(--color-text-3)' }}>
                         <FileCheck className="w-10 h-10 opacity-30" />
                         <span>暂无签证数据</span>
                       </div>
@@ -1549,22 +1549,22 @@ export default function VisasPage() {
                     const riskWarning = getRiskWarning(visa);
                     return (
                     <TableRow key={visa.id} className={`hover:bg-blue-50/50 transition-colors ${riskWarning.type === 'overdue' ? 'bg-red-50/30' : riskWarning.type === 'warning' ? 'bg-amber-50/30' : ''}`}>
-                      <TableCell className="font-mono text-sm py-3" style={{ color: '#165DFF' }}>
+                      <TableCell className="font-mono text-sm py-3" style={{ color: 'var(--color-primary)' }}>
                         {visa.visa_number}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[180px] truncate py-3" style={{ color: '#1D2129' }}>
+                      <TableCell className="font-medium max-w-[180px] truncate py-3" style={{ color: 'var(--foreground)' }}>
                         {visa.visa_name}
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5" style={{ color: '#86909C' }} />
-                          <span className="text-sm truncate max-w-[100px]" style={{ color: '#4E5969' }}>{visa.projects?.name || '-'}</span>
+                          <Building2 className="w-3.5 h-3.5" style={{ color: 'var(--color-text-3)' }} />
+                          <span className="text-sm truncate max-w-[100px]" style={{ color: 'var(--color-text-2)' }}>{visa.projects?.name || '-'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center text-sm py-3" style={{ color: '#4E5969' }}>
+                      <TableCell className="text-center text-sm py-3" style={{ color: 'var(--color-text-2)' }}>
                         {visa.occurrence_date}
                       </TableCell>
-                      <TableCell className="text-right text-sm py-3" style={{ color: '#4E5969' }}>
+                      <TableCell className="text-right text-sm py-3" style={{ color: 'var(--color-text-2)' }}>
                         {visa.visa_quantity ? `${parseFloat(visa.visa_quantity).toLocaleString()} ${visa.visa_unit || ''}` : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium py-3" style={{ color: '#722ED1' }}>
@@ -1575,7 +1575,7 @@ export default function VisasPage() {
                           {getVisaStatusLabel(visa.status)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center text-sm py-3" style={{ color: '#4E5969' }}>
+                      <TableCell className="text-center text-sm py-3" style={{ color: 'var(--color-text-2)' }}>
                         {visa.current_responsible_name || (isDoneVisaStatus(visa.status) ? '-' : visa.project_manager_name || visa.handler || '-')}
                       </TableCell>
                       <TableCell className="text-center py-3">
@@ -1613,7 +1613,7 @@ export default function VisasPage() {
                             className="h-7 w-7 p-0"
                             title="查看"
                           >
-                            <Eye className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />
+                            <Eye className="w-3.5 h-3.5" style={{ color: 'var(--color-primary)' }} />
                           </Button>
                           {canEditVisa(visa.status) && (
                             <Button
@@ -1644,7 +1644,7 @@ export default function VisasPage() {
                               onClick={() => handleReview(visa)}
                               className="h-7 px-2"
                               title="确认签字"
-                              style={{ color: '#165DFF' }}
+                              style={{ color: 'var(--color-primary)' }}
                             >
                               签字
                             </Button>
@@ -1674,7 +1674,7 @@ export default function VisasPage() {
                             </Button>
                           )}
                           {isDoneVisaStatus(visa.status) && (
-                            <span className="text-xs px-2 py-1 rounded" style={{ background: '#F6FFED', color: '#52C41A' }}>
+                            <span className="text-xs px-2 py-1 rounded" style={{ background: '#F6FFED', color: '#00B42A' }}>
                               已完成
                             </span>
                           )}
@@ -1688,12 +1688,12 @@ export default function VisasPage() {
             </div>
             <div className="space-y-3 p-3 md:hidden">
               {loading ? (
-                <div className="flex items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white py-10 text-sm" style={{ color: '#86909C' }}>
+                <div className="flex items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white py-10 text-sm" style={{ color: 'var(--color-text-3)' }}>
                   <RefreshCw className="w-4 h-4 animate-spin" />
                   <span>加载中...</span>
                 </div>
               ) : visas.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-[#E5E6EB] bg-white py-12 text-sm" style={{ color: '#86909C' }}>
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-[#E5E6EB] bg-white py-12 text-sm" style={{ color: 'var(--color-text-3)' }}>
                   <FileCheck className="w-10 h-10 opacity-30" />
                   <span>暂无签证数据</span>
                 </div>
@@ -1704,10 +1704,10 @@ export default function VisasPage() {
                     <article key={visa.id} className={`rounded-lg border bg-white p-3 ${riskWarning.type === 'overdue' ? 'border-red-200 bg-red-50/30' : riskWarning.type === 'warning' ? 'border-amber-200 bg-amber-50/30' : 'border-[#E5E6EB]'}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate font-mono text-xs" style={{ color: '#165DFF' }}>{visa.visa_number}</p>
-                          <h3 className="mt-1 line-clamp-2 text-sm font-semibold" style={{ color: '#1D2129' }}>{visa.visa_name}</h3>
-                          <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: '#4E5969' }}>
-                            <Building2 className="h-3.5 w-3.5 shrink-0" style={{ color: '#86909C' }} />
+                          <p className="truncate font-mono text-xs" style={{ color: 'var(--color-primary)' }}>{visa.visa_number}</p>
+                          <h3 className="mt-1 line-clamp-2 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{visa.visa_name}</h3>
+                          <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-2)' }}>
+                            <Building2 className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-text-3)' }} />
                             <span className="truncate">{visa.projects?.name || '-'}</span>
                           </div>
                         </div>
@@ -1718,23 +1718,23 @@ export default function VisasPage() {
 
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                         <div className="rounded-md bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>发生日期</div>
-                          <div className="mt-1 font-medium" style={{ color: '#1D2129' }}>{visa.occurrence_date || '-'}</div>
+                          <div style={{ color: 'var(--color-text-3)' }}>发生日期</div>
+                          <div className="mt-1 font-medium" style={{ color: 'var(--foreground)' }}>{visa.occurrence_date || '-'}</div>
                         </div>
                         <div className="rounded-md bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>当前负责人</div>
-                          <div className="mt-1 truncate font-medium" style={{ color: '#1D2129' }}>
+                          <div style={{ color: 'var(--color-text-3)' }}>当前负责人</div>
+                          <div className="mt-1 truncate font-medium" style={{ color: 'var(--foreground)' }}>
                             {visa.current_responsible_name || (isDoneVisaStatus(visa.status) ? '-' : visa.project_manager_name || visa.handler || '-')}
                           </div>
                         </div>
                         <div className="rounded-md bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>工程量</div>
-                          <div className="mt-1 font-medium" style={{ color: '#1D2129' }}>
+                          <div style={{ color: 'var(--color-text-3)' }}>工程量</div>
+                          <div className="mt-1 font-medium" style={{ color: 'var(--foreground)' }}>
                             {visa.visa_quantity ? `${parseFloat(visa.visa_quantity).toLocaleString()} ${visa.visa_unit || ''}` : '-'}
                           </div>
                         </div>
                         <div className="rounded-md bg-[#F7F8FA] p-2">
-                          <div style={{ color: '#86909C' }}>金额</div>
+                          <div style={{ color: 'var(--color-text-3)' }}>金额</div>
                           <div className="mt-1 font-semibold" style={{ color: '#722ED1' }}>
                             ¥{parseFloat(visa.visa_amount || '0').toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                           </div>
@@ -1742,7 +1742,7 @@ export default function VisasPage() {
                       </div>
 
                       <div className="mt-3 flex items-center justify-between rounded-md bg-[#F7F8FA] px-3 py-2 text-xs">
-                        <span style={{ color: '#86909C' }}>风险预警</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>风险预警</span>
                         {riskWarning.type === 'overdue' && (
                           <span className="inline-flex items-center gap-1 font-medium" style={{ color: '#F53F3F' }}>
                             <AlertCircle className="h-3.5 w-3.5" />
@@ -1790,8 +1790,8 @@ export default function VisasPage() {
 
           {/* 分页 */}
           {pagination.totalPages > 1 && (
-            <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
-              <div className="text-sm" style={{ color: '#86909C' }}>
+            <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)' }}>
+              <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                 共 {pagination.total} 条记录，第 {pagination.page} / {pagination.totalPages} 页
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
@@ -1825,7 +1825,7 @@ export default function VisasPage() {
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>新增签证</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>新增签证</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1983,7 +1983,7 @@ export default function VisasPage() {
                       onChange={handleAddDialogFileSelect}
                       className="hidden"
                     />
-                    <div className="ml-4 px-4 py-2 rounded-lg text-sm font-medium" style={{ background: addDialogAttachments.length > 0 ? '#EBF5FF' : '#F2F3F5', color: '#165DFF' }}>
+                    <div className="ml-4 px-4 py-2 rounded-lg text-sm font-medium" style={{ background: addDialogAttachments.length > 0 ? '#EBF5FF' : 'var(--color-muted)', color: 'var(--color-primary)' }}>
                       {addDialogAttachments.length > 0 ? `已选 ${addDialogAttachments.length} 个文件` : '选择文件'}
                     </div>
                   </label>
@@ -1993,7 +1993,7 @@ export default function VisasPage() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => { setAddDialogOpen(false); setAddDialogAttachments([]); }}>取消</Button>
-            <Button onClick={handleSaveAdd} disabled={saving} className="gap-1.5" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+            <Button onClick={handleSaveAdd} disabled={saving} className="gap-1.5" style={{ background: 'var(--color-primary-gradient)' }}>
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
               保存
             </Button>
@@ -2005,7 +2005,7 @@ export default function VisasPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>编辑签证</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>编辑签证</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -2131,7 +2131,7 @@ export default function VisasPage() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveEdit} disabled={saving} className="gap-1.5" style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+            <Button onClick={handleSaveEdit} disabled={saving} className="gap-1.5" style={{ background: 'var(--color-primary-gradient)' }}>
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
               保存
             </Button>
@@ -2143,31 +2143,31 @@ export default function VisasPage() {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>签证详情</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>签证详情</DialogTitle>
           </DialogHeader>
           {currentVisa && (
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>签证编号</p>
-                  <p className="font-mono font-medium" style={{ color: '#165DFF' }}>{currentVisa.visa_number}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>签证编号</p>
+                  <p className="font-mono font-medium" style={{ color: 'var(--color-primary)' }}>{currentVisa.visa_number}</p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>发生日期</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.occurrence_date}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>发生日期</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.occurrence_date}</p>
                 </div>
               </div>
               <div>
-                <p className="text-sm mb-1" style={{ color: '#86909C' }}>签证名称/事由</p>
-                <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.visa_name}</p>
+                <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>签证名称/事由</p>
+                <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.visa_name}</p>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>关联项目</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.projects?.name || '-'}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>关联项目</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.projects?.name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>办理状态</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>办理状态</p>
                   <Badge variant="outline" className={`${getStatusStyle(currentVisa.status)} font-medium`}>
                     {getVisaStatusLabel(currentVisa.status)}
                   </Badge>
@@ -2175,88 +2175,88 @@ export default function VisasPage() {
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>发起预算员</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.budget_user_name || currentVisa.submitter_name || '-'}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>发起预算员</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.budget_user_name || currentVisa.submitter_name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>项目经理</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.project_manager_name || '-'}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>项目经理</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.project_manager_name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>当前负责人</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.current_responsible_name || (isDoneVisaStatus(currentVisa.status) ? '-' : currentVisa.project_manager_name || '-')}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>当前负责人</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.current_responsible_name || (isDoneVisaStatus(currentVisa.status) ? '-' : currentVisa.project_manager_name || '-')}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>工程量</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>工程量</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>
                     {currentVisa.visa_quantity ? `${currentVisa.visa_quantity} ${currentVisa.visa_unit || ''}` : '-'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>签证金额</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>签证金额</p>
                   <p className="font-medium" style={{ color: '#722ED1' }}>
                     ¥{parseFloat(currentVisa.visa_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>办理人</p>
-                  <p className="font-medium" style={{ color: '#1D2129' }}>{currentVisa.handler || '-'}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>办理人</p>
+                  <p className="font-medium" style={{ color: 'var(--foreground)' }}>{currentVisa.handler || '-'}</p>
                 </div>
               </div>
               {currentVisa.remark && (
                 <div>
-                  <p className="text-sm mb-1" style={{ color: '#86909C' }}>备注</p>
-                  <p style={{ color: '#4E5969' }}>{currentVisa.remark}</p>
+                  <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>备注</p>
+                  <p style={{ color: 'var(--color-text-2)' }}>{currentVisa.remark}</p>
                 </div>
               )}
 
               {/* 流转信息区域 */}
               {(currentVisa.submitted_at || currentVisa.reviewed_at || currentVisa.reject_reason || currentVisa.review_comment) && (
                 <div className="border-t pt-4 mt-4">
-                  <p className="text-sm font-medium mb-3" style={{ color: '#1D2129' }}>流转信息</p>
-                  <div className="space-y-3 p-3 rounded-lg" style={{ background: '#F7F8FA' }}>
+                  <p className="text-sm font-medium mb-3" style={{ color: 'var(--foreground)' }}>流转信息</p>
+                  <div className="space-y-3 p-3 rounded-lg" style={{ background: 'var(--color-muted)' }}>
                     {currentVisa.submitter_name && (
                       <div className="grid gap-1 text-sm sm:flex sm:items-center sm:gap-4">
-                        <span style={{ color: '#86909C' }}>提交人：</span>
-                        <span style={{ color: '#1D2129' }}>{currentVisa.submitter_name}</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>提交人：</span>
+                        <span style={{ color: 'var(--foreground)' }}>{currentVisa.submitter_name}</span>
                         {currentVisa.submitted_at && (
-                          <span style={{ color: '#86909C' }}>{new Date(currentVisa.submitted_at).toLocaleString('zh-CN')}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>{new Date(currentVisa.submitted_at).toLocaleString('zh-CN')}</span>
                         )}
                       </div>
                     )}
                     {currentVisa.reviewer_name && (
                       <div className="grid gap-1 text-sm sm:flex sm:items-center sm:gap-4">
-                        <span style={{ color: '#86909C' }}>最近办理人：</span>
-                        <span style={{ color: '#1D2129' }}>{currentVisa.reviewer_name}</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>最近办理人：</span>
+                        <span style={{ color: 'var(--foreground)' }}>{currentVisa.reviewer_name}</span>
                         {currentVisa.reviewed_at && (
-                          <span style={{ color: '#86909C' }}>{new Date(currentVisa.reviewed_at).toLocaleString('zh-CN')}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>{new Date(currentVisa.reviewed_at).toLocaleString('zh-CN')}</span>
                         )}
                       </div>
                     )}
                     {currentVisa.signed_at && (
                       <div className="text-sm">
-                        <span style={{ color: '#86909C' }}>工程部签字：</span>
-                        <span style={{ color: '#1D2129' }}>{new Date(currentVisa.signed_at).toLocaleString('zh-CN')}</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>工程部签字：</span>
+                        <span style={{ color: 'var(--foreground)' }}>{new Date(currentVisa.signed_at).toLocaleString('zh-CN')}</span>
                       </div>
                     )}
                     {currentVisa.business_confirmed_at && (
                       <div className="text-sm">
-                        <span style={{ color: '#86909C' }}>商务确认：</span>
-                        <span style={{ color: '#1D2129' }}>{new Date(currentVisa.business_confirmed_at).toLocaleString('zh-CN')}</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>商务确认：</span>
+                        <span style={{ color: 'var(--foreground)' }}>{new Date(currentVisa.business_confirmed_at).toLocaleString('zh-CN')}</span>
                       </div>
                     )}
                     {currentVisa.completed_at && (
                       <div className="text-sm">
-                        <span style={{ color: '#86909C' }}>预算员确认完成：</span>
-                        <span style={{ color: '#1D2129' }}>{new Date(currentVisa.completed_at).toLocaleString('zh-CN')}</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>预算员确认完成：</span>
+                        <span style={{ color: 'var(--foreground)' }}>{new Date(currentVisa.completed_at).toLocaleString('zh-CN')}</span>
                       </div>
                     )}
                     {currentVisa.review_comment && (
                       <div className="text-sm">
-                        <span style={{ color: '#86909C' }}>流转备注：</span>
-                        <span style={{ color: '#1D2129' }}>{currentVisa.review_comment}</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>流转备注：</span>
+                        <span style={{ color: 'var(--foreground)' }}>{currentVisa.review_comment}</span>
                       </div>
                     )}
                     {currentVisa.reject_reason && (
@@ -2272,7 +2272,7 @@ export default function VisasPage() {
               {/* 附件管理区域 */}
               <div className="border-t pt-4 mt-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
-                  <p className="text-sm font-medium" style={{ color: '#1D2129' }}>
+                  <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                     附件列表 {attachments.length > 0 && `(${attachments.length})`}
                   </p>
                   {(currentVisa?.status === '已提交' || currentVisa?.status === '已驳回') ? (
@@ -2298,19 +2298,19 @@ export default function VisasPage() {
                 </div>
                 
                 {loadingAttachments ? (
-                  <div className="text-center py-4 text-sm" style={{ color: '#86909C' }}>加载附件...</div>
+                  <div className="text-center py-4 text-sm" style={{ color: 'var(--color-text-3)' }}>加载附件...</div>
                 ) : attachments.length === 0 ? (
-                  <div className="text-center py-6 text-sm" style={{ color: '#86909C', background: '#F7F8FA', borderRadius: '8px' }}>
+                  <div className="text-center py-6 text-sm" style={{ color: 'var(--color-text-3)', background: 'var(--color-muted)', borderRadius: '8px' }}>
                     暂无附件，点击上方按钮上传
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {attachments.map((att) => (
-                      <div key={att.id} className="flex items-center justify-between p-2 rounded-lg" style={{ background: '#F7F8FA' }}>
+                      <div key={att.id} className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'var(--color-muted)' }}>
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <FileText className="w-4 h-4 flex-shrink-0" style={{ color: getFileColor(att.file_type) }} />
-                          <span className="text-sm truncate" style={{ color: '#4E5969' }}>{att.file_name}</span>
-                          <span className="text-xs flex-shrink-0" style={{ color: '#86909C' }}>{formatFileSize(att.file_size)}</span>
+                          <span className="text-sm truncate" style={{ color: 'var(--color-text-2)' }}>{att.file_name}</span>
+                          <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-text-3)' }}>{formatFileSize(att.file_size)}</span>
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <Button variant="ghost" size="sm" onClick={() => handlePreview(att)}>预览</Button>
@@ -2336,7 +2336,7 @@ export default function VisasPage() {
               </>
             )}
             {(currentVisa?.status === '已提交' || currentVisa?.status === '已签字') && (
-              <Button onClick={() => { setViewDialogOpen(false); handleReview(currentVisa); }} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+              <Button onClick={() => { setViewDialogOpen(false); handleReview(currentVisa); }} style={{ background: 'var(--color-primary-gradient)' }}>
                 {currentVisa.status === '已提交' ? '确认签字' : '商务确认'}
               </Button>
             )}
@@ -2378,21 +2378,21 @@ export default function VisasPage() {
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>
               {currentVisa?.status === '已签字' ? '确认甲方商务' : '确认工程部签字'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg" style={{ background: '#F7F8FA' }}>
-              <p className="text-sm mb-2" style={{ color: '#86909C' }}>签证信息</p>
-              <p className="font-mono font-medium mb-1" style={{ color: '#165DFF' }}>{currentVisa?.visa_number}</p>
-              <p className="text-sm" style={{ color: '#4E5969' }}>{currentVisa?.visa_name}</p>
+            <div className="p-4 rounded-lg" style={{ background: 'var(--color-muted)' }}>
+              <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>签证信息</p>
+              <p className="font-mono font-medium mb-1" style={{ color: 'var(--color-primary)' }}>{currentVisa?.visa_number}</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-2)' }}>{currentVisa?.visa_name}</p>
               <p className="text-lg font-medium mt-2" style={{ color: '#722ED1' }}>
                 ¥{currentVisa ? parseFloat(currentVisa.visa_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '0.00'}
               </p>
             </div>
             {currentVisa?.status === '已提交' && (
-              <div className="text-sm rounded-lg p-3" style={{ background: '#FFF7E8', color: '#AD5A00' }}>
+              <div className="text-sm rounded-lg p-3" style={{ background: '#FFF7E8', color: '#FF7D00' }}>
                 请确认已上传甲方工程部签字后的最新附件。该附件会替换原始附件，作为后续商务确认依据。
               </div>
             )}
@@ -2410,7 +2410,7 @@ export default function VisasPage() {
             <Button variant="outline" onClick={handleReject} style={{ color: '#F53F3F', borderColor: '#F53F3F' }}>
               驳回
             </Button>
-            <Button onClick={handleApprove} disabled={saving} style={{ background: 'linear-gradient(135deg, #165DFF 0%, #4080FF 100%)' }}>
+            <Button onClick={handleApprove} disabled={saving} style={{ background: 'var(--color-primary-gradient)' }}>
               {saving ? '处理中...' : (currentVisa?.status === '已签字' ? '提交预算员确认' : '确认已签字')}
             </Button>
           </DialogFooter>
@@ -2421,13 +2421,13 @@ export default function VisasPage() {
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle style={{ color: '#1D2129' }}>驳回签证</DialogTitle>
+            <DialogTitle style={{ color: 'var(--foreground)' }}>驳回签证</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 rounded-lg" style={{ background: '#FFF2F0' }}>
               <p className="text-sm mb-2" style={{ color: '#F53F3F' }}>签证信息</p>
-              <p className="font-mono font-medium mb-1" style={{ color: '#165DFF' }}>{currentVisa?.visa_number}</p>
-              <p className="text-sm" style={{ color: '#4E5969' }}>{currentVisa?.visa_name}</p>
+              <p className="font-mono font-medium mb-1" style={{ color: 'var(--color-primary)' }}>{currentVisa?.visa_number}</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-2)' }}>{currentVisa?.visa_name}</p>
             </div>
             <div className="space-y-2">
               <Label className="required">驳回原因</Label>

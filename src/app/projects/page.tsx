@@ -54,18 +54,18 @@ interface Project {
 
 // 可选图标列表
 const ICON_OPTIONS = [
-  { value: 'HardHat', label: '安全帽', icon: HardHat, color: '#165DFF', bg: '#E8F3FF' },
+  { value: 'HardHat', label: '安全帽', icon: HardHat, color: 'var(--color-primary)', bg: '#E8F3FF' },
   { value: 'Building', label: '商业建筑', icon: Building, color: '#FF7D00', bg: '#FFF7E8' },
   { value: 'Home', label: '住宅', icon: Home, color: '#00B42A', bg: '#E8FFEA' },
   { value: 'Factory', label: '工厂', icon: Factory, color: '#722ED1', bg: '#F5E8FF' },
-  { value: 'Plane', label: '机场', icon: Plane, color: '#165DFF', bg: '#E8F3FF' },
+  { value: 'Plane', label: '机场', icon: Plane, color: 'var(--color-primary)', bg: '#E8F3FF' },
   { value: 'Ship', label: '港口', icon: Ship, color: '#00B42A', bg: '#E8FFEA' },
   { value: 'Warehouse', label: '仓库', icon: Warehouse, color: '#FF7D00', bg: '#FFF7E8' },
   { value: 'Store', label: '商业', icon: Store, color: '#FF7D00', bg: '#FFF7E8' },
   { value: 'Landmark', label: '地标', icon: Landmark, color: '#722ED1', bg: '#F5E8FF' },
-  { value: 'Mountain', label: '基建', icon: Mountain, color: '#86909C', bg: '#F2F3F5' },
-  { value: 'Hammer', label: '施工', icon: Hammer, color: '#165DFF', bg: '#E8F3FF' },
-  { value: 'Wrench', label: '维修', icon: Wrench, color: '#86909C', bg: '#F2F3F5' },
+  { value: 'Mountain', label: '基建', icon: Mountain, color: 'var(--color-text-3)', bg: 'var(--color-muted)' },
+  { value: 'Hammer', label: '施工', icon: Hammer, color: 'var(--color-primary)', bg: '#E8F3FF' },
+  { value: 'Wrench', label: '维修', icon: Wrench, color: 'var(--color-text-3)', bg: 'var(--color-muted)' },
 ];
 
 const PROJECT_STATUS_OPTIONS = ['在建', '竣工结算', '质保期', '质保期满'] as const;
@@ -259,11 +259,11 @@ export default function ProjectsPage() {
 
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) {
-      return <ArrowUpDown className="w-3.5 h-3.5" style={{ color: '#C9CDD4' }} />;
+      return <ArrowUpDown className="w-3.5 h-3.5" style={{ color: 'var(--color-text-3)' }} />;
     }
     return sortOrder === 'asc' 
-      ? <ArrowUp className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />
-      : <ArrowDown className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />;
+      ? <ArrowUp className="w-3.5 h-3.5" style={{ color: 'var(--color-primary)' }} />
+      : <ArrowDown className="w-3.5 h-3.5" style={{ color: 'var(--color-primary)' }} />;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -391,18 +391,18 @@ export default function ProjectsPage() {
     switch (status) {
       case '在建':
       case '进行中':
-        return { bg: '#E8F3FF', color: '#165DFF', border: '#B5D8FF' };
+        return { bg: '#E8F3FF', color: 'var(--color-primary)', border: '#B5D8FF' };
       case '竣工结算':
       case '已完成':
         return { bg: '#E8FFEA', color: '#00B42A', border: '#9FD9A8' };
       case '质保期':
         return { bg: '#F5EEFF', color: '#722ED1', border: '#D8B9FF' };
       case '质保期满':
-        return { bg: '#FFF7E8', color: '#D46B08', border: '#FFCF8B' };
+        return { bg: '#FFF7E8', color: '#FF7D00', border: '#FFCF8B' };
       case '暂停':
         return { bg: '#FFF7E8', color: '#FF7D00', border: '#FFCF8B' };
       default:
-        return { bg: '#F2F3F5', color: '#86909C', border: '#C9CDD4' };
+        return { bg: 'var(--color-muted)', color: 'var(--color-text-3)', border: 'var(--color-text-3)' };
     }
   };
 
@@ -411,8 +411,8 @@ export default function ProjectsPage() {
       {/* 页面标题 */}
       <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>项目信息</h1>
-          <p className="text-sm mt-0.5" style={{ color: '#86909C' }}>项目基础档案台账，集中维护项目名称、甲方、地址和合同信息</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>项目信息</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-3)' }}>项目基础档案台账，集中维护项目名称、甲方、地址和合同信息</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -428,7 +428,7 @@ export default function ProjectsPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>项目名称 *</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目名称 *</Label>
                   <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -438,7 +438,7 @@ export default function ProjectsPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>年度 *</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>年度 *</Label>
                   <Input
                     type="number"
                     value={formData.year}
@@ -449,7 +449,7 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div>
-                <Label className="text-sm" style={{ color: '#1D2129' }}>项目地址</Label>
+                <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目地址</Label>
                 <Input
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -459,7 +459,7 @@ export default function ProjectsPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>合作单位</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>合作单位</Label>
                   <Input
                     value={formData.partner}
                     onChange={(e) => setFormData({ ...formData, partner: e.target.value })}
@@ -468,7 +468,7 @@ export default function ProjectsPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>合同额</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>合同额</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -481,7 +481,7 @@ export default function ProjectsPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>状态</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>状态</Label>
                   <Select
                     value={formData.status}
                     onValueChange={(value) => setFormData({ ...formData, status: value })}
@@ -497,7 +497,7 @@ export default function ProjectsPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>建筑面积（㎡）</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>建筑面积（㎡）</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -510,7 +510,7 @@ export default function ProjectsPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>适用税率（%）</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>适用税率（%）</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -519,10 +519,10 @@ export default function ProjectsPage() {
                     placeholder="9"
                     className="mt-1.5"
                   />
-                  <p className="text-xs mt-1" style={{ color: '#86909C' }}>产值结算时将自动使用此税率</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>产值结算时将自动使用此税率</p>
                 </div>
                 <div>
-                  <Label className="text-sm" style={{ color: '#1D2129' }}>预计完工日期</Label>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>预计完工日期</Label>
                   <Input
                     type="date"
                     value={formData.expected_completion_date || ''}
@@ -531,14 +531,14 @@ export default function ProjectsPage() {
                   />
                 </div>
               </div>
-              <div className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', background: '#FAFAFA' }}>
+              <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--color-muted)' }}>
                 <div className="mb-3">
-                  <div className="text-sm font-medium" style={{ color: '#1D2129' }}>经营应收配置</div>
-                  <p className="mt-1 text-xs" style={{ color: '#86909C' }}>不同项目可单独维护状态付款比例，经营总览会按当前状态自动计算应收。</p>
+                  <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>经营应收配置</div>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>不同项目可单独维护状态付款比例，经营总览会按当前状态自动计算应收。</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>在建付款比例（%）</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>在建付款比例（%）</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -549,7 +549,7 @@ export default function ProjectsPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>竣工结算付款比例（%）</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>竣工结算付款比例（%）</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -560,7 +560,7 @@ export default function ProjectsPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>质保期付款比例（%）</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>质保期付款比例（%）</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -571,7 +571,7 @@ export default function ProjectsPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>质保期满付款比例（%）</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>质保期满付款比例（%）</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -582,7 +582,7 @@ export default function ProjectsPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>完工日期</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>完工日期</Label>
                     <Input
                       type="date"
                       value={formData.completion_date || ''}
@@ -591,7 +591,7 @@ export default function ProjectsPage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>质保期天数</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>质保期天数</Label>
                     <Input
                       type="number"
                       step="1"
@@ -605,8 +605,8 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div>
-                <Label className="text-sm" style={{ color: '#1D2129' }}>项目图标</Label>
-                <div className="mt-1.5 grid grid-cols-3 gap-2 border p-3 sm:grid-cols-6 rounded-lg" style={{ borderColor: '#E5E6EB', background: '#FAFAFA' }}>
+                <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目图标</Label>
+                <div className="mt-1.5 grid grid-cols-3 gap-2 border p-3 sm:grid-cols-6 rounded-lg" style={{ borderColor: 'var(--border)', background: 'var(--color-muted)' }}>
                   {ICON_OPTIONS.map((option) => {
                     const IconComponent = option.icon;
                     const isSelected = formData.icon === option.value;
@@ -626,7 +626,7 @@ export default function ProjectsPage() {
                         >
                           <IconComponent className="w-5 h-5" style={{ color: option.color }} />
                         </div>
-                        <span className="text-xs mt-1" style={{ color: isSelected ? '#165DFF' : '#86909C' }}>
+                        <span className="text-xs mt-1" style={{ color: isSelected ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                           {option.label}
                         </span>
                       </button>
@@ -634,7 +634,7 @@ export default function ProjectsPage() {
                   })}
                 </div>
               </div>
-              <div className="flex flex-col-reverse gap-3 border-t pt-3 sm:flex-row sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
+              <div className="flex flex-col-reverse gap-3 border-t pt-3 sm:flex-row sm:justify-end" style={{ borderColor: 'var(--border)' }}>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">
                   取消
                 </Button>
@@ -654,8 +654,8 @@ export default function ProjectsPage() {
                 <FolderOpen className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>项目总数</p>
-                <p className="text-2xl font-bold" style={{ color: '#1D2129' }}>{stats.totalCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>个</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>项目总数</p>
+                <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>{stats.totalCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>个</span></p>
               </div>
             </div>
           </CardContent>
@@ -668,8 +668,8 @@ export default function ProjectsPage() {
                 <Building2 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>在施项目</p>
-                <p className="text-2xl font-bold stat-number-blue">{stats.activeCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>个</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>在施项目</p>
+                <p className="text-2xl font-bold stat-number-blue">{stats.activeCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>个</span></p>
               </div>
             </div>
           </CardContent>
@@ -682,7 +682,7 @@ export default function ProjectsPage() {
                 <TrendingUp className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>总合同额</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>总合同额</p>
                 <p className="text-xl font-bold stat-number-green">¥{stats.totalAmount.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</p>
               </div>
             </div>
@@ -696,8 +696,8 @@ export default function ProjectsPage() {
                 <Calendar className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>本年度项目</p>
-                <p className="text-2xl font-bold stat-number-orange">{stats.currentYearCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>个</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>本年度项目</p>
+                <p className="text-2xl font-bold stat-number-orange">{stats.currentYearCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>个</span></p>
               </div>
             </div>
           </CardContent>
@@ -707,21 +707,21 @@ export default function ProjectsPage() {
       {/* 搜索与筛选栏 */}
       <div className={`grid gap-3 mb-4 sm:flex sm:flex-wrap sm:items-center transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="relative min-w-0 flex-1 sm:min-w-[200px] sm:max-w-[320px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#86909C' }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
           <input
             type="text"
             placeholder="搜索项目名称、甲方或地址..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            style={{ borderColor: '#E5E6EB' }}
+            style={{ borderColor: 'var(--border)' }}
           />
         </div>
         <select
           value={filterYear}
           onChange={e => setFilterYear(e.target.value)}
           className="w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 sm:w-auto"
-          style={{ borderColor: '#E5E6EB' }}
+          style={{ borderColor: 'var(--border)' }}
         >
           <option value="all">全部年度</option>
           {[2026, 2025, 2024, 2023].map(y => <option key={y} value={String(y)}>{y}年</option>)}
@@ -730,21 +730,21 @@ export default function ProjectsPage() {
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
           className="w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 sm:w-auto"
-          style={{ borderColor: '#E5E6EB' }}
+          style={{ borderColor: 'var(--border)' }}
         >
           <option value="all">全部状态</option>
           {PROJECT_STATUS_OPTIONS.map(status => (
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
-        <span className="text-xs" style={{ color: '#86909C' }}>
+        <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
           共 {filteredAndSortedProjects.length} 个项目
         </span>
       </div>
 
       {/* 数据表格 */}
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <Card className="overflow-hidden border" style={{ borderColor: '#E5E6EB' }}>
+        <Card className="overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -754,10 +754,10 @@ export default function ProjectsPage() {
               <>
               <div className="space-y-3 p-3 md:hidden">
                 {filteredAndSortedProjects.length === 0 && (
-                  <div className="rounded-xl border border-dashed bg-white px-4 py-10 text-center" style={{ borderColor: '#E5E6EB' }}>
-                    <FolderOpen className="mx-auto h-8 w-8" style={{ color: '#C9CDD4' }} />
-                    <p className="mt-3 text-sm font-medium" style={{ color: '#1D2129' }}>暂无项目</p>
-                    <p className="mt-1 text-xs" style={{ color: '#86909C' }}>点击新增项目按钮添加第一个项目</p>
+                  <div className="rounded-xl border border-dashed bg-white px-4 py-10 text-center" style={{ borderColor: 'var(--border)' }}>
+                    <FolderOpen className="mx-auto h-8 w-8" style={{ color: 'var(--color-text-3)' }} />
+                    <p className="mt-3 text-sm font-medium" style={{ color: 'var(--foreground)' }}>暂无项目</p>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>点击新增项目按钮添加第一个项目</p>
                   </div>
                 )}
                 {filteredAndSortedProjects.map((project) => {
@@ -766,7 +766,7 @@ export default function ProjectsPage() {
                   const statusStyle = getStatusStyle(project.status);
 
                   return (
-                    <div key={project.id} className="rounded-xl border bg-white p-3" style={{ borderColor: '#E5E6EB' }}>
+                    <div key={project.id} className="rounded-xl border bg-white p-3" style={{ borderColor: 'var(--border)' }}>
                       <div className="flex items-start gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: projectIcon.bg }}>
                           <IconComponent className="h-5 w-5" style={{ color: projectIcon.color }} />
@@ -782,25 +782,25 @@ export default function ProjectsPage() {
                             >
                               {project.status}
                             </span>
-                            <span className="text-xs" style={{ color: '#86909C' }}>{project.year}</span>
+                            <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>{project.year}</span>
                           </div>
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 text-xs">
                         <div className="flex justify-between gap-3">
-                          <span className="shrink-0" style={{ color: '#86909C' }}>甲方</span>
-                          <span className="truncate font-medium" style={{ color: '#1D2129' }}>{project.partner || '-'}</span>
+                          <span className="shrink-0" style={{ color: 'var(--color-text-3)' }}>甲方</span>
+                          <span className="truncate font-medium" style={{ color: 'var(--foreground)' }}>{project.partner || '-'}</span>
                         </div>
                         <div className="flex justify-between gap-3">
-                          <span className="shrink-0" style={{ color: '#86909C' }}>地址</span>
-                          <span className="truncate font-medium" style={{ color: '#1D2129' }}>{project.address || '-'}</span>
+                          <span className="shrink-0" style={{ color: 'var(--color-text-3)' }}>地址</span>
+                          <span className="truncate font-medium" style={{ color: 'var(--foreground)' }}>{project.address || '-'}</span>
                         </div>
                         <div className="flex justify-between gap-3">
-                          <span className="shrink-0" style={{ color: '#86909C' }}>合同金额</span>
-                          <span className="font-semibold" style={{ color: '#165DFF' }}>{formatCurrency(project.contract_amount)}</span>
+                          <span className="shrink-0" style={{ color: 'var(--color-text-3)' }}>合同金额</span>
+                          <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>{formatCurrency(project.contract_amount)}</span>
                         </div>
                       </div>
-                      <div className="mt-3 flex justify-end gap-2 border-t pt-3" style={{ borderColor: '#F2F3F5' }}>
+                      <div className="mt-3 flex justify-end gap-2 border-t pt-3" style={{ borderColor: 'var(--color-muted)' }}>
                         <Link href={`/projects/${project.id}`}>
                           <Button size="sm" variant="outline" className="h-8 px-3" title="查看详情">
                             <Eye className="h-4 w-4" />
@@ -827,21 +827,21 @@ export default function ProjectsPage() {
                     className="grid items-center border-b"
                     style={{
                       gridTemplateColumns: 'minmax(200px,1.25fr) minmax(130px,.85fr) minmax(180px,1fr) 120px 80px 116px 112px',
-                      background: '#F7F8FA',
-                      borderColor: '#E5E6EB',
+                      background: 'var(--color-muted)',
+                      borderColor: 'var(--border)',
                     }}
                   >
-                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>
+                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
                       <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4" style={{ color: '#165DFF' }} />
+                        <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                         项目名称
                       </div>
                     </div>
-                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>甲方</div>
-                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: '#1D2129' }}>地址</div>
+                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>甲方</div>
+                    <div className="px-4 py-3.5 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>地址</div>
                     <div 
                       className="px-4 py-3.5 text-sm font-semibold text-right cursor-pointer transition-colors flex items-center justify-end gap-1"
-                      style={{ color: '#1D2129' }}
+                      style={{ color: 'var(--foreground)' }}
                       onClick={() => handleSort('contract_amount')}
                     >
                       合同金额
@@ -849,7 +849,7 @@ export default function ProjectsPage() {
                     </div>
                     <div 
                       className="px-4 py-3.5 text-sm font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-1 whitespace-nowrap"
-                      style={{ color: '#1D2129' }}
+                      style={{ color: 'var(--foreground)' }}
                       onClick={() => handleSort('year')}
                     >
                       年度
@@ -857,17 +857,17 @@ export default function ProjectsPage() {
                     </div>
                     <div 
                       className="px-4 py-3.5 text-sm font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-1 whitespace-nowrap"
-                      style={{ color: '#1D2129' }}
+                      style={{ color: 'var(--foreground)' }}
                       onClick={() => handleSort('status')}
                     >
                       项目状态
                       {getSortIcon('status')}
                     </div>
-                    <div className="px-4 py-3.5 text-sm font-semibold text-right" style={{ color: '#1D2129' }}>操作</div>
+                    <div className="px-4 py-3.5 text-sm font-semibold text-right" style={{ color: 'var(--foreground)' }}>操作</div>
                   </div>
 
                   {/* 表格内容 */}
-                  <div className="divide-y" style={{ borderColor: '#E5E6EB' }}>
+                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                     {filteredAndSortedProjects.map((project, index) => {
                       const projectIcon = getProjectIcon(project.name, project.icon);
                       const IconComponent = projectIcon.icon;
@@ -899,22 +899,22 @@ export default function ProjectsPage() {
                           </div>
                           
                           {/* 甲方 */}
-                          <div className="px-4 py-3.5 text-sm truncate" style={{ color: '#4E5969' }}>
+                          <div className="px-4 py-3.5 text-sm truncate" style={{ color: 'var(--color-text-2)' }}>
                             {project.partner || '-'}
                           </div>
                           
                           {/* 地址 */}
-                          <div className="px-4 py-3.5 text-sm truncate" style={{ color: '#4E5969' }}>
+                          <div className="px-4 py-3.5 text-sm truncate" style={{ color: 'var(--color-text-2)' }}>
                             {project.address || '-'}
                           </div>
                           
                           {/* 合同额 */}
                           <div className="px-4 py-3.5 text-right">
-                            <span className="font-bold" style={{ color: '#165DFF' }}>{formatCurrency(project.contract_amount)}</span>
+                            <span className="font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrency(project.contract_amount)}</span>
                           </div>
                           
                           {/* 年度 */}
-                          <div className="px-4 py-3.5 text-center text-sm" style={{ color: '#1D2129' }}>
+                          <div className="px-4 py-3.5 text-center text-sm" style={{ color: 'var(--foreground)' }}>
                             {project.year}
                           </div>
                           
@@ -935,7 +935,7 @@ export default function ProjectsPage() {
                           {/* 操作 */}
                           <div className="px-4 py-3.5 flex justify-end gap-2">
                             <Link href={`/projects/${project.id}`}>
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" style={{ color: '#165DFF' }} title="查看详情">
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" style={{ color: 'var(--color-primary)' }} title="查看详情">
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
@@ -954,7 +954,7 @@ export default function ProjectsPage() {
                     {filteredAndSortedProjects.length === 0 && (
                       <div className="px-4 py-14 text-center">
                         <div className="empty-state-icon mx-auto">
-                          <FolderOpen className="w-8 h-8" style={{ color: '#C9CDD4' }} />
+                          <FolderOpen className="w-8 h-8" style={{ color: 'var(--color-text-3)' }} />
                         </div>
                         <p className="empty-state-title mt-3">暂无项目</p>
                         <p className="empty-state-description">点击&quot;新增项目&quot;按钮添加第一个项目</p>

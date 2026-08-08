@@ -486,7 +486,7 @@ export default function SuppliersPage() {
 
         {/* 统计卡片 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-          <Card className="border-gray-200 bg-white shadow-sm">
+          <Card className="border-gray-200 bg-card shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -501,7 +501,7 @@ export default function SuppliersPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 bg-white shadow-sm">
+          <Card className="border-gray-200 bg-card shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -516,7 +516,7 @@ export default function SuppliersPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 bg-white shadow-sm">
+          <Card className="border-gray-200 bg-card shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -531,7 +531,7 @@ export default function SuppliersPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 bg-white shadow-sm">
+          <Card className="border-gray-200 bg-card shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -562,8 +562,8 @@ export default function SuppliersPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <TabsList className="grid w-full grid-cols-2 bg-gray-100 sm:w-auto">
-              <TabsTrigger value="suppliers" className="data-[state=active]:bg-white">供应商台账</TabsTrigger>
-              <TabsTrigger value="contracts" className="data-[state=active]:bg-white">合同管理</TabsTrigger>
+              <TabsTrigger value="suppliers" className="data-[state=active]:bg-card">供应商台账</TabsTrigger>
+              <TabsTrigger value="contracts" className="data-[state=active]:bg-card">合同管理</TabsTrigger>
             </TabsList>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               {activeTab === 'suppliers' && canManage && (
@@ -654,7 +654,7 @@ export default function SuppliersPage() {
                         </div>
                       </TableCell></TableRow>
                     ) : filteredStats.map((supplier, index: number) => (
-                      <TableRow key={supplier.id} className="hover:bg-blue-50/30 transition-colors" style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
+                      <TableRow key={supplier.id} className="hover:bg-blue-50/30 transition-colors" style={{ background: index % 2 === 1 ? 'var(--color-muted)' : 'transparent' }}>
                         <TableCell className="font-medium text-gray-900">
                           <LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`}>
                             {String(supplier.name || '')}
@@ -702,7 +702,7 @@ export default function SuppliersPage() {
                 {filteredStats.length === 0 ? (
                   <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">暂无供应商数据</div>
                 ) : filteredStats.map((supplier) => (
-                  <article key={supplier.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <article key={supplier.id} className="rounded-lg border border-gray-200 bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <LinkableCell href={`/supplier-expense?tab=settlement&supplier_id=${supplier.id}`} className="truncate text-sm font-semibold text-gray-900">
@@ -820,7 +820,7 @@ export default function SuppliersPage() {
                     {filteredContracts.length === 0 ? (
                       <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-500">暂无合同数据</TableCell></TableRow>
                     ) : filteredContracts.map((contract, index: number) => (
-                      <TableRow key={contract.id} style={{ background: index % 2 === 1 ? '#FAFBFD' : 'transparent' }}>
+                      <TableRow key={contract.id} style={{ background: index % 2 === 1 ? 'var(--color-muted)' : 'transparent' }}>
                         <TableCell className="font-medium">{String(contract.supplier_name || '')}</TableCell>
                         <TableCell className="text-gray-500">{String(contract.contract_no || '-')}</TableCell>
                         <TableCell>{String(contract.contract_name || '')}</TableCell>
@@ -854,7 +854,7 @@ export default function SuppliersPage() {
                 {filteredContracts.length === 0 ? (
                   <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">暂无合同数据</div>
                 ) : filteredContracts.map((contract) => (
-                  <article key={contract.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <article key={contract.id} className="rounded-lg border border-gray-200 bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold text-gray-900">{String(contract.contract_name || '')}</h3>
@@ -1023,7 +1023,7 @@ export default function SuppliersPage() {
                 
                 {/* 自动计算预览 */}
                 {contractForm.payment_ratio && (
-                  <div className="bg-white p-3 rounded-lg border border-blue-100 text-sm">
+                  <div className="bg-card p-3 rounded-lg border border-blue-100 text-sm">
                     <div className="text-gray-500 mb-2">自动计算预览（基于累计对账金额）</div>
                     <div className="grid gap-2 text-gray-600 sm:grid-cols-2">
                       <span>应付金额 = 对账金额 × {contractForm.payment_ratio}%</span>

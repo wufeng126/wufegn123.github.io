@@ -17,7 +17,7 @@ const tabs: TabItem[] = [
 
 export default function ConstructionManagementPage() {
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-muted/50">
       <TabContainer tabs={tabs} defaultTab="logs" showTabs={false} />
     </div>
   );

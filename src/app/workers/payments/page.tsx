@@ -566,8 +566,8 @@ export default function WorkerPaymentsPage() {
       {/* 页面标题 */}
       <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>工资发放</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>按项目、批次管理工人工资发放记录</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>工资发放</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>按项目、批次管理工人工资发放记录</p>
         </div>
         <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
           <Button variant="outline" onClick={fetchPayments} className="btn-secondary h-9">
@@ -599,7 +599,7 @@ export default function WorkerPaymentsPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>工人 *</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>工人 *</Label>
                     <Popover open={workerSearchOpen} onOpenChange={setWorkerSearchOpen}>
                       <PopoverTrigger asChild>
                         <Button
@@ -649,7 +649,7 @@ export default function WorkerPaymentsPage() {
                     </Popover>
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: '#1D2129' }}>项目</Label>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目</Label>
                     <div className="mt-1.5 flex h-10 items-center px-3 py-2 rounded-md border border-input bg-gray-50 text-sm text-gray-600">
                       {formData.project_id
                         ? projects.find(p => p.id.toString() === formData.project_id)?.name || '未知项目'
@@ -658,11 +658,11 @@ export default function WorkerPaymentsPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>付款日期 *</Label><Input type="date" value={formData.payment_date} onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })} className="mt-1.5" required /></div>
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>金额 *</Label><Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} className="mt-1.5" required /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>付款日期 *</Label><Input type="date" value={formData.payment_date} onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })} className="mt-1.5" required /></div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>金额 *</Label><Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} className="mt-1.5" required /></div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>付款类型</Label>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>付款类型</Label>
                     <Select value={formData.payment_type} onValueChange={(v) => setFormData({ ...formData, payment_type: v })}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -673,7 +673,7 @@ export default function WorkerPaymentsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label className="text-sm" style={{ color: '#1D2129' }}>付款方式</Label>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>付款方式</Label>
                     <Select value={formData.payment_method} onValueChange={(v) => setFormData({ ...formData, payment_method: v })}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -685,9 +685,9 @@ export default function WorkerPaymentsPage() {
                     </Select>
                   </div>
                 </div>
-                <div><Label className="text-sm" style={{ color: '#1D2129' }}>年月</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" placeholder="2025-01" /></div>
-                <div><Label className="text-sm" style={{ color: '#1D2129' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: '#E5E6EB' }}>
+                <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>年月</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" placeholder="2025-01" /></div>
+                <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: 'var(--border)' }}>
                   <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)} className="border-gray-300">取消</Button>
                   <Button type="submit" className="btn-primary">保存</Button>
                 </div>
@@ -703,7 +703,7 @@ export default function WorkerPaymentsPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>发放总额</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>发放总额</p>
                 <p className="text-xl font-bold mt-2 stat-number-blue">{formatCurrency(stats.totalAmount)}</p>
               </div>
               <div className="stat-icon-container stat-icon-blue">
@@ -717,8 +717,8 @@ export default function WorkerPaymentsPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>发放笔数</p>
-                <p className="text-xl font-bold mt-2 stat-number-green">{stats.recordCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>笔</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>发放笔数</p>
+                <p className="text-xl font-bold mt-2 stat-number-green">{stats.recordCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>笔</span></p>
               </div>
               <div className="stat-icon-container stat-icon-green">
                 <CreditCard className="w-5 h-5 text-white" />
@@ -731,8 +731,8 @@ export default function WorkerPaymentsPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>涉及项目</p>
-                <p className="text-xl font-bold mt-2 stat-number-orange">{stats.projectCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>个</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>涉及项目</p>
+                <p className="text-xl font-bold mt-2 stat-number-orange">{stats.projectCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>个</span></p>
               </div>
               <div className="stat-icon-container stat-icon-orange">
                 <FolderOpen className="w-5 h-5 text-white" />
@@ -745,8 +745,8 @@ export default function WorkerPaymentsPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>发放批次</p>
-                <p className="text-xl font-bold mt-2 stat-number-purple">{stats.batchCount}<span className="text-sm font-normal ml-1" style={{ color: '#C9CDD4' }}>批</span></p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>发放批次</p>
+                <p className="text-xl font-bold mt-2 stat-number-purple">{stats.batchCount}<span className="text-sm font-normal ml-1" style={{ color: 'var(--color-text-3)' }}>批</span></p>
               </div>
               <div className="stat-icon-container stat-icon-purple">
                 <Users className="w-5 h-5 text-white" />
@@ -759,7 +759,7 @@ export default function WorkerPaymentsPage() {
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="filter-bar mobile-filter-grid sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-          <Filter className="w-4 h-4" style={{ color: '#86909C' }} />
+          <Filter className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
           <Select value={filterProject} onValueChange={setFilterProject}>
             <SelectTrigger className="w-full sm:w-36 h-9 sm:h-8"><SelectValue placeholder="全部项目" /></SelectTrigger>
             <SelectContent>
@@ -775,22 +775,22 @@ export default function WorkerPaymentsPage() {
             </SelectContent>
           </Select>
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#C9CDD4' }} />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-3)' }} />
             <Input placeholder="搜索工人" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} className="w-full sm:w-36 pl-9 h-9 sm:h-8" />
           </div>
           {(filterProject !== 'all' || filterYearMonth !== 'all' || searchKeyword) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFilterProject('all'); setFilterYearMonth('all'); setSearchKeyword(''); }} className="h-8" style={{ color: '#86909C' }}>
+            <Button variant="ghost" size="sm" onClick={() => { setFilterProject('all'); setFilterYearMonth('all'); setSearchKeyword(''); }} className="h-8" style={{ color: 'var(--color-text-3)' }}>
               <X className="w-4 h-4 mr-1" />清除筛选
             </Button>
           )}
-          <p className="text-sm sm:ml-auto" style={{ color: '#86909C' }}>共 {filteredPayments.length} 条记录</p>
+          <p className="text-sm sm:ml-auto" style={{ color: 'var(--color-text-3)' }}>共 {filteredPayments.length} 条记录</p>
         </div>
       </div>
 
       {/* 按项目 → 批次分组展示 */}
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {loading ? (
-          <Card className="overflow-hidden border" style={{ borderColor: '#E5E6EB' }}>
+          <Card className="overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
             <CardContent className="p-0">
               <div className="flex items-center justify-center py-16">
                 <div className="loading-spinner" />
@@ -805,7 +805,7 @@ export default function WorkerPaymentsPage() {
               const projectSelectedCount = group.batches.flatMap(b => b.payments).filter(p => selectedIds.has(p.id)).length;
 
               return (
-                <Card key={projectKey} className="overflow-hidden border" style={{ borderColor: '#E5E6EB' }}>
+                <Card key={projectKey} className="overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
                   <CardContent className="p-0">
                     {/* 项目汇总行 */}
                     <div
@@ -814,17 +814,17 @@ export default function WorkerPaymentsPage() {
                       style={{ background: projectExpanded ? '#F0F5FF' : 'transparent', borderBottom: projectExpanded ? '1px solid #E5E6EB' : 'none' }}
                     >
                       {projectExpanded
-                        ? <ChevronDown className="w-5 h-5 shrink-0" style={{ color: '#165DFF' }} />
-                        : <ChevronRight className="w-5 h-5 shrink-0" style={{ color: '#86909C' }} />
+                        ? <ChevronDown className="w-5 h-5 shrink-0" style={{ color: 'var(--color-primary)' }} />
+                        : <ChevronRight className="w-5 h-5 shrink-0" style={{ color: 'var(--color-text-3)' }} />
                       }
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <FolderOpen className="w-5 h-5 shrink-0" style={{ color: '#165DFF' }} />
-                        <span className="truncate font-semibold text-base" style={{ color: '#1D2129' }}>{group.projectName}</span>
+                        <FolderOpen className="w-5 h-5 shrink-0" style={{ color: 'var(--color-primary)' }} />
+                        <span className="truncate font-semibold text-base" style={{ color: 'var(--foreground)' }}>{group.projectName}</span>
                       </div>
                       <div className="ml-8 grid w-full grid-cols-3 gap-2 sm:ml-auto sm:w-auto sm:flex sm:items-center sm:gap-4">
-                        <span className="text-sm" style={{ color: '#86909C' }}>{group.batches.length} 个批次</span>
-                        <span className="text-sm" style={{ color: '#86909C' }}>{group.count} 笔</span>
-                        <span className="font-bold text-base sm:text-right" style={{ color: '#165DFF' }}>{formatCurrencyFull(group.totalAmount)}</span>
+                        <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>{group.batches.length} 个批次</span>
+                        <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>{group.count} 笔</span>
+                        <span className="font-bold text-base sm:text-right" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(group.totalAmount)}</span>
                       </div>
                     </div>
 
@@ -842,62 +842,62 @@ export default function WorkerPaymentsPage() {
                               <div
                                 className="flex flex-wrap items-center gap-2 px-4 py-3 cursor-pointer transition-colors sm:gap-3"
                                 onClick={() => toggleBatch(batchKey)}
-                                style={{ background: batchExpanded ? '#FAFBFD' : 'transparent', borderBottom: batchExpanded ? '1px solid #E5E6EB' : '1px solid #F2F3F5' }}
+                                style={{ background: batchExpanded ? 'var(--color-muted)' : 'transparent', borderBottom: batchExpanded ? '1px solid #E5E6EB' : '1px solid #F2F3F5' }}
                               >
                                 {batchExpanded
-                                  ? <ChevronDown className="w-4 h-4 shrink-0 ml-4" style={{ color: '#4E5969' }} />
-                                  : <ChevronRight className="w-4 h-4 shrink-0 ml-4" style={{ color: '#C9CDD4' }} />
+                                  ? <ChevronDown className="w-4 h-4 shrink-0 ml-4" style={{ color: 'var(--color-text-2)' }} />
+                                  : <ChevronRight className="w-4 h-4 shrink-0 ml-4" style={{ color: 'var(--color-text-3)' }} />
                                 }
                                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                                  <span className="font-medium text-sm" style={{ color: '#4E5969' }}>{batch.label}</span>
-                                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#F2F3F5', color: '#86909C' }}>{batch.count} 笔</span>
+                                  <span className="font-medium text-sm" style={{ color: 'var(--color-text-2)' }}>{batch.label}</span>
+                                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-muted)', color: 'var(--color-text-3)' }}>{batch.count} 笔</span>
                                   {batchSelectedCount > 0 && (
-                                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: '#165DFF' }}>已选 {batchSelectedCount}</span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: 'var(--color-primary)' }}>已选 {batchSelectedCount}</span>
                                   )}
                                 </div>
-                                <span className="ml-8 w-full font-semibold text-sm sm:ml-auto sm:w-auto" style={{ color: '#165DFF' }}>{formatCurrencyFull(batch.totalAmount)}</span>
+                                <span className="ml-8 w-full font-semibold text-sm sm:ml-auto sm:w-auto" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(batch.totalAmount)}</span>
                               </div>
 
                               {/* 展开的明细表格 */}
                               {batchExpanded && (
-                                <div style={{ background: '#FAFBFD' }}>
+                                <div style={{ background: 'var(--color-muted)' }}>
                                   <div className="hidden overflow-x-auto md:block">
                                   <Table>
                                     <TableHeader>
-                                      <TableRow style={{ background: '#F7F8FA', borderBottom: '1px solid #E5E6EB' }}>
+                                      <TableRow style={{ background: 'var(--color-muted)', borderBottom: '1px solid #E5E6EB' }}>
                                         <TableHead className="w-12">
                                           <Checkbox
                                             checked={batch.payments.length > 0 && batch.payments.every(p => selectedIds.has(p.id))}
                                             onCheckedChange={(checked) => handleSelectAll(checked as boolean, batch.payments)}
                                           />
                                         </TableHead>
-                                        <TableHead className="text-xs" style={{ color: '#86909C' }}>工人</TableHead>
-                                        <TableHead className="text-xs" style={{ color: '#86909C' }}>付款日期</TableHead>
-                                        <TableHead className="text-xs" style={{ color: '#86909C' }}>付款类型</TableHead>
-                                        <TableHead className="text-xs text-right" style={{ color: '#86909C' }}>金额</TableHead>
-                                        <TableHead className="text-xs" style={{ color: '#86909C' }}>付款方式</TableHead>
-                                        <TableHead className="text-xs" style={{ color: '#86909C' }}>备注</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>工人</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款日期</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款类型</TableHead>
+                                        <TableHead className="text-xs text-right" style={{ color: 'var(--color-text-3)' }}>金额</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款方式</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>备注</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                       {batch.payments.map((payment, index) => {
                                         const isSelected = selectedIds.has(payment.id);
                                         return (
-                                          <TableRow key={payment.id} style={{ background: isSelected ? '#E8F3FF' : index % 2 === 1 ? '#FAFBFD' : 'transparent', borderBottom: '1px solid #F2F3F5' }}>
+                                          <TableRow key={payment.id} style={{ background: isSelected ? '#E8F3FF' : index % 2 === 1 ? 'var(--color-muted)' : 'transparent', borderBottom: '1px solid #F2F3F5' }}>
                                             <TableCell><Checkbox checked={isSelected} onCheckedChange={(checked) => handleSelectOne(payment.id, checked as boolean)} /></TableCell>
-                                            <TableCell className="font-medium text-sm" style={{ color: '#1D2129' }}>{payment.worker_name}</TableCell>
-                                            <TableCell className="text-sm" style={{ color: '#4E5969' }}>{payment.payment_date}</TableCell>
-                                            <TableCell className="text-sm" style={{ color: '#4E5969' }}>{payment.payment_type}</TableCell>
-                                            <TableCell className="text-sm text-right font-medium" style={{ color: '#165DFF' }}>{formatCurrencyFull(parseFloat(payment.amount))}</TableCell>
-                                            <TableCell className="text-sm" style={{ color: '#4E5969' }}>{payment.payment_method}</TableCell>
-                                            <TableCell className="text-sm" style={{ color: '#4E5969' }}>{payment.remark || '-'}</TableCell>
+                                            <TableCell className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{payment.worker_name}</TableCell>
+                                            <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_date}</TableCell>
+                                            <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_type}</TableCell>
+                                            <TableCell className="text-sm text-right font-medium" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(parseFloat(payment.amount))}</TableCell>
+                                            <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_method}</TableCell>
+                                            <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.remark || '-'}</TableCell>
                                           </TableRow>
                                         );
                                       })}
                                       {/* 批次合计行 */}
-                                      <TableRow style={{ background: '#F7F8FA', borderBottom: '1px solid #E5E6EB' }}>
-                                        <TableCell colSpan={4} className="text-sm font-semibold" style={{ color: '#1D2129' }}>本批次合计</TableCell>
-                                        <TableCell className="text-sm text-right font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(batch.totalAmount)}</TableCell>
+                                      <TableRow style={{ background: 'var(--color-muted)', borderBottom: '1px solid #E5E6EB' }}>
+                                        <TableCell colSpan={4} className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>本批次合计</TableCell>
+                                        <TableCell className="text-sm text-right font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(batch.totalAmount)}</TableCell>
                                         <TableCell colSpan={2} />
                                       </TableRow>
                                     </TableBody>
@@ -905,13 +905,13 @@ export default function WorkerPaymentsPage() {
                                   </div>
                                   <div className="space-y-2 p-3 md:hidden">
                                     <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2">
-                                      <span className="text-sm font-medium" style={{ color: '#1D2129' }}>本批次</span>
+                                      <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>本批次</span>
                                       <div className="flex items-center gap-2">
                                         <Checkbox
                                           checked={batch.payments.length > 0 && batch.payments.every(p => selectedIds.has(p.id))}
                                           onCheckedChange={(checked) => handleSelectAll(checked as boolean, batch.payments)}
                                         />
-                                        <span className="text-sm font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(batch.totalAmount)}</span>
+                                        <span className="text-sm font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(batch.totalAmount)}</span>
                                       </div>
                                     </div>
                                     {batch.payments.map((payment) => {
@@ -923,23 +923,23 @@ export default function WorkerPaymentsPage() {
                                             <div className="min-w-0 flex-1">
                                               <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
-                                                  <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{payment.worker_name}</p>
-                                                  <p className="mt-0.5 text-xs" style={{ color: '#86909C' }}>{payment.payment_date} · {payment.payment_type}</p>
+                                                  <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{payment.worker_name}</p>
+                                                  <p className="mt-0.5 text-xs" style={{ color: 'var(--color-text-3)' }}>{payment.payment_date} · {payment.payment_type}</p>
                                                 </div>
-                                                <p className="shrink-0 text-base font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(parseFloat(payment.amount))}</p>
+                                                <p className="shrink-0 text-base font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(parseFloat(payment.amount))}</p>
                                               </div>
                                               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                                                 <div>
-                                                  <p style={{ color: '#86909C' }}>付款方式</p>
-                                                  <p style={{ color: '#4E5969' }}>{payment.payment_method}</p>
+                                                  <p style={{ color: 'var(--color-text-3)' }}>付款方式</p>
+                                                  <p style={{ color: 'var(--color-text-2)' }}>{payment.payment_method}</p>
                                                 </div>
                                                 <div>
-                                                  <p style={{ color: '#86909C' }}>所属月份</p>
-                                                  <p style={{ color: '#4E5969' }}>{payment.year_month || '-'}</p>
+                                                  <p style={{ color: 'var(--color-text-3)' }}>所属月份</p>
+                                                  <p style={{ color: 'var(--color-text-2)' }}>{payment.year_month || '-'}</p>
                                                 </div>
                                               </div>
                                               {payment.remark && (
-                                                <p className="mt-2 rounded bg-gray-50 px-2 py-1 text-xs" style={{ color: '#4E5969' }}>{payment.remark}</p>
+                                                <p className="mt-2 rounded bg-gray-50 px-2 py-1 text-xs" style={{ color: 'var(--color-text-2)' }}>{payment.remark}</p>
                                               )}
                                             </div>
                                           </div>
@@ -955,13 +955,13 @@ export default function WorkerPaymentsPage() {
 
                         {/* 项目合计行 */}
                         <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center" style={{ background: '#F0F5FF', borderTop: '1px solid #E5E6EB' }}>
-                          <span className="text-sm font-semibold sm:ml-9" style={{ color: '#1D2129' }}>{group.projectName} 合计</span>
+                          <span className="text-sm font-semibold sm:ml-9" style={{ color: 'var(--foreground)' }}>{group.projectName} 合计</span>
                           <div className="flex items-center gap-4 sm:ml-auto">
-                            <span className="text-sm" style={{ color: '#86909C' }}>{group.count} 笔</span>
+                            <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>{group.count} 笔</span>
                             {projectSelectedCount > 0 && (
-                              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: '#165DFF' }}>已选 {projectSelectedCount}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#E8F3FF', color: 'var(--color-primary)' }}>已选 {projectSelectedCount}</span>
                             )}
-                            <span className="font-bold text-base" style={{ color: '#165DFF' }}>{formatCurrencyFull(group.totalAmount)}</span>
+                            <span className="font-bold text-base" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(group.totalAmount)}</span>
                           </div>
                         </div>
                       </div>
@@ -972,24 +972,24 @@ export default function WorkerPaymentsPage() {
             })}
 
             {/* 全局合计 */}
-            <Card className="overflow-hidden border" style={{ borderColor: '#165DFF', background: 'linear-gradient(135deg, #F0F5FF 0%, #E8F3FF 100%)' }}>
+            <Card className="overflow-hidden border" style={{ borderColor: 'var(--color-primary)', background: 'linear-gradient(135deg, #F0F5FF 0%, #E8F3FF 100%)' }}>
               <CardContent className="py-4 px-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-bold" style={{ color: '#1D2129' }}>全部项目合计</span>
+                  <span className="font-bold" style={{ color: 'var(--foreground)' }}>全部项目合计</span>
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
-                    <span className="text-sm" style={{ color: '#86909C' }}>{projectGroups.length} 个项目 · {filteredPayments.length} 笔</span>
-                    <span className="text-xl font-bold" style={{ color: '#165DFF' }}>{formatCurrencyFull(stats.totalAmount)}</span>
+                    <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>{projectGroups.length} 个项目 · {filteredPayments.length} 笔</span>
+                    <span className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(stats.totalAmount)}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         ) : (
-          <Card className="overflow-hidden border" style={{ borderColor: '#E5E6EB' }}>
+          <Card className="overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
             <CardContent className="p-0">
               <div className="empty-state">
                 <div className="empty-state-icon">
-                  <FileText className="w-8 h-8" style={{ color: '#C9CDD4' }} />
+                  <FileText className="w-8 h-8" style={{ color: 'var(--color-text-3)' }} />
                 </div>
                 <p className="empty-state-title">暂无付款记录</p>
                 <p className="empty-state-description">点击"新增发放记录"添加</p>
@@ -1003,7 +1003,7 @@ export default function WorkerPaymentsPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle style={{ color: '#1D2129' }}>确认删除</AlertDialogTitle>
+            <AlertDialogTitle style={{ color: 'var(--foreground)' }}>确认删除</AlertDialogTitle>
             <AlertDialogDescription>确定要删除选中的 {selectedIds.size} 条付款记录吗？此操作不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -221,12 +221,12 @@ export default function AuditLogsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6" style={{ backgroundColor: '#F2F3F5', minHeight: 'calc(100vh - 64px)' }}>
+    <div className="p-6 space-y-6" style={{ backgroundColor: 'var(--color-muted)', minHeight: 'calc(100vh - 64px)' }}>
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>日志管理</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>查看系统操作记录，追踪数据变更历史</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>日志管理</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>查看系统操作记录，追踪数据变更历史</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExport} disabled={logs.length === 0} className="gap-2">
@@ -406,7 +406,7 @@ export default function AuditLogsPage() {
               </div>
               <div className="space-y-3 md:hidden">
                 {logs.map((log) => (
-                  <div key={log.id} className="rounded-lg border bg-white p-4 shadow-sm">
+                  <div key={log.id} className="rounded-lg border bg-card p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-xs text-gray-500">{formatTime(log.created_at)}</div>

@@ -113,7 +113,7 @@ export default function WorkerRosterPage() {
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
 
   // 饼图颜色
-  const PIE_COLORS = ['#165DFF', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#EB0AA4', '#0FC6C2', '#AD8B00'];
+  const PIE_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#F53F3F', 'var(--color-cyan)', '#FF7D00'];
 
   useEffect(() => {
     fetchWorkers();
@@ -694,8 +694,8 @@ export default function WorkerRosterPage() {
       {/* 页面标题 */}
       <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>花名册</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>工人基本信息管理</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>花名册</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>工人基本信息管理</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap sm:justify-end">
           <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9 w-full sm:w-auto">
@@ -738,25 +738,25 @@ export default function WorkerRosterPage() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>姓名 *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="mt-1.5" required /></div>
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>工种</Label><Input value={formData.work_type} onChange={(e) => setFormData({ ...formData, work_type: e.target.value })} placeholder="如：木工、钢筋工" className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>姓名 *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="mt-1.5" required /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>工种</Label><Input value={formData.work_type} onChange={(e) => setFormData({ ...formData, work_type: e.target.value })} placeholder="如：木工、钢筋工" className="mt-1.5" /></div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>身份证号</Label><Input value={formData.id_card} onChange={(e) => setFormData({ ...formData, id_card: e.target.value })} maxLength={18} className="mt-1.5" /></div>
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>联系方式</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>身份证号</Label><Input value={formData.id_card} onChange={(e) => setFormData({ ...formData, id_card: e.target.value })} maxLength={18} className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>联系方式</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="mt-1.5" /></div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>银行卡号</Label><Input value={formData.bank_card} onChange={(e) => setFormData({ ...formData, bank_card: e.target.value })} className="mt-1.5" /></div>
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>入职日期</Label><Input type="date" value={formData.entry_date} onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })} className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>银行卡号</Label><Input value={formData.bank_card} onChange={(e) => setFormData({ ...formData, bank_card: e.target.value })} className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>入职日期</Label><Input type="date" value={formData.entry_date} onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })} className="mt-1.5" /></div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>所属项目</Label>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>所属项目</Label>
                 <Select value={formData.project_id} onValueChange={(value) => setFormData({ ...formData, project_id: value })}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择项目" /></SelectTrigger>
                   <SelectContent>{projects.map((p) => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}</SelectContent>
                 </Select>
               </div>
-              <div><Label className="text-sm" style={{ color: '#1D2129' }}>所属班组</Label><Input value={formData.team_name} onChange={(e) => setFormData({ ...formData, team_name: e.target.value })} placeholder="如：木工班、钢筋班" className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>所属班组</Label><Input value={formData.team_name} onChange={(e) => setFormData({ ...formData, team_name: e.target.value })} placeholder="如：木工班、钢筋班" className="mt-1.5" /></div>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox 
@@ -764,12 +764,12 @@ export default function WorkerRosterPage() {
                 checked={formData.is_blacklist}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_blacklist: checked as boolean })}
               />
-              <Label htmlFor="is_blacklist" className="text-sm cursor-pointer" style={{ color: formData.is_blacklist ? '#F53F3F' : '#1D2129' }}>
+              <Label htmlFor="is_blacklist" className="text-sm cursor-pointer" style={{ color: formData.is_blacklist ? '#F53F3F' : 'var(--foreground)' }}>
                 加入黑名单
               </Label>
             </div>
-            <div><Label className="text-sm" style={{ color: '#1D2129' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} placeholder="记录重要信息" className="mt-1.5" /></div>
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t sm:flex sm:justify-end sm:gap-3" style={{ borderColor: '#E5E6EB' }}>
+            <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} placeholder="记录重要信息" className="mt-1.5" /></div>
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t sm:flex sm:justify-end sm:gap-3" style={{ borderColor: 'var(--border)' }}>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" className="btn-primary">{editingWorker ? '保存' : '新增'}</Button>
             </div>
@@ -791,9 +791,9 @@ export default function WorkerRosterPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>在册工人总数</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>在册工人总数</p>
                 <p className="text-3xl font-bold mt-2 stat-number-blue">{stats.inService}</p>
-                {stats.left > 0 && <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>已退场: {stats.left} 人</p>}
+                {stats.left > 0 && <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>已退场: {stats.left} 人</p>}
               </div>
               <div className="stat-icon-container stat-icon-blue">
                 <Users className="w-5 h-5 text-white" />
@@ -806,9 +806,9 @@ export default function WorkerRosterPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>在场人数</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>在场人数</p>
                 <p className="text-3xl font-bold mt-2 stat-number-green">{stats.filteredInService}</p>
-                <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>当前在场工人</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>当前在场工人</p>
               </div>
               <div className="stat-icon-container stat-icon-green">
                 <UserCheck className="w-5 h-5 text-white" />
@@ -821,9 +821,9 @@ export default function WorkerRosterPage() {
           <CardContent className="pt-5 pb-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>退场人数</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>退场人数</p>
                 <p className="text-3xl font-bold mt-2 stat-number-orange">{stats.filteredLeft}</p>
-                <p className="text-xs mt-1" style={{ color: '#C9CDD4' }}>已退场工人</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>已退场工人</p>
               </div>
               <div className="stat-icon-container stat-icon-orange">
                 <LogOut className="w-5 h-5 text-white" />
@@ -844,8 +844,8 @@ export default function WorkerRosterPage() {
               <CardContent className="pt-4 pb-2">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" style={{ color: '#165DFF' }} />
-                    <span className="font-semibold" style={{ color: '#1D2129' }}>{chartTitle}</span>
+                    <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                    <span className="font-semibold" style={{ color: 'var(--foreground)' }}>{chartTitle}</span>
                   </div>
                   <Select value={String(chartProjectFilter)} onValueChange={(v) => setChartProjectFilter(v === 'all' ? 'all' : parseInt(v))}>
                     <SelectTrigger className="w-36 h-8 text-xs">
@@ -861,8 +861,8 @@ export default function WorkerRosterPage() {
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={workTypeBarData} margin={{ top: 15, right: 5, left: -15, bottom: 5 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#86909C' }} />
-                    <YAxis tick={{ fontSize: 11, fill: '#86909C' }} allowDecimals={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--color-text-3)' }} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-3)' }} allowDecimals={false} />
                     <Tooltip 
                       contentStyle={{ border: '1px solid #E5E6EB', borderRadius: '8px', fontSize: 12 }}
                       formatter={(value: number) => [`${value}人`, '人数']}
@@ -872,7 +872,7 @@ export default function WorkerRosterPage() {
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Bar>
-                    <LabelList dataKey="value" position="top" style={{ fontSize: 11, fill: '#1D2129', fontWeight: 500 }} />
+                    <LabelList dataKey="value" position="top" style={{ fontSize: 11, fill: 'var(--foreground)', fontWeight: 500 }} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -884,10 +884,10 @@ export default function WorkerRosterPage() {
             <Card style={{ border: '1px solid #E5E6EB' }}>
               <CardContent className="pt-4 pb-2">
                 <div className="flex items-center gap-2 mb-4">
-                  <HardHat className="w-4 h-4" style={{ color: '#165DFF' }} />
-                  <span className="font-semibold" style={{ color: '#1D2129' }}>工种人数占比</span>
+                  <HardHat className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                  <span className="font-semibold" style={{ color: 'var(--foreground)' }}>工种人数占比</span>
                   {chartProjectFilter !== 'all' && (
-                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#E8F3FF', color: '#165DFF' }}>
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#E8F3FF', color: 'var(--color-primary)' }}>
                       {projects.find(p => p.id === chartProjectFilter)?.name}
                     </span>
                   )}
@@ -922,9 +922,9 @@ export default function WorkerRosterPage() {
                       <div key={item.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5">
                           <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
-                          <span style={{ color: '#4E5969' }}>{item.name}</span>
+                          <span style={{ color: 'var(--color-text-2)' }}>{item.name}</span>
                         </div>
-                        <span className="font-medium" style={{ color: '#1D2129' }}>{item.value}</span>
+                        <span className="font-medium" style={{ color: 'var(--foreground)' }}>{item.value}</span>
                       </div>
                     ))}
                   </div>
@@ -944,25 +944,25 @@ export default function WorkerRosterPage() {
               onClick={() => setShowProjectStats(!showProjectStats)}
             >
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4" style={{ color: '#165DFF' }} />
-                <span className="font-semibold" style={{ color: '#1D2129' }}>项目人数统计</span>
-                <span className="text-sm" style={{ color: '#86909C' }}>（{projectStats.length} 个项目）</span>
+                <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                <span className="font-semibold" style={{ color: 'var(--foreground)' }}>项目人数统计</span>
+                <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>（{projectStats.length} 个项目）</span>
               </div>
-              {showProjectStats ? <ChevronUp className="w-4 h-4" style={{ color: '#86909C' }} /> : <ChevronDown className="w-4 h-4" style={{ color: '#86909C' }} />}
+              {showProjectStats ? <ChevronUp className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} /> : <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />}
             </div>
             {showProjectStats && (
-              <div className="border-t" style={{ borderColor: '#E5E6EB' }}>
+              <div className="border-t" style={{ borderColor: 'var(--border)' }}>
                 <div className="hidden overflow-x-auto md:block">
                   <table className="w-full">
                     <thead>
-                      <tr style={{ background: '#F7F8FA' }}>
-                        <th className="text-left px-5 py-3 text-sm font-semibold" style={{ color: '#1D2129' }}>项目名称</th>
-                        <th className="text-center px-5 py-3 text-sm font-semibold" style={{ color: '#1D2129' }}>在场人数</th>
-                        <th className="text-center px-5 py-3 text-sm font-semibold" style={{ color: '#1D2129' }}>退场人数</th>
-                        <th className="text-center px-5 py-3 text-sm font-semibold" style={{ color: '#1D2129' }}>总人数</th>
+                      <tr style={{ background: 'var(--color-muted)' }}>
+                        <th className="text-left px-5 py-3 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>项目名称</th>
+                        <th className="text-center px-5 py-3 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>在场人数</th>
+                        <th className="text-center px-5 py-3 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>退场人数</th>
+                        <th className="text-center px-5 py-3 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>总人数</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y" style={{ borderColor: '#E5E6EB' }}>
+                    <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
                       {projectStats.map((proj, index) => {
                         const isHighlighted = highlightProjectId === proj.projectId;
                         return (
@@ -970,7 +970,7 @@ export default function WorkerRosterPage() {
                             key={proj.projectId} 
                             className="hover:bg-gray-50 cursor-pointer transition-colors"
                             style={{ 
-                              background: isHighlighted ? '#E8F3FF' : index % 2 === 1 ? '#FAFBFD' : 'transparent',
+                              background: isHighlighted ? '#E8F3FF' : index % 2 === 1 ? 'var(--color-muted)' : 'transparent',
                               borderLeft: isHighlighted ? '3px solid #165DFF' : '3px solid transparent'
                             }}
                             onClick={() => {
@@ -983,12 +983,12 @@ export default function WorkerRosterPage() {
                               <div className="flex items-center gap-2">
                                 <div 
                                   className="w-2 h-2 rounded-full"
-                                  style={{ background: proj.projectId === 0 ? '#86909C' : '#165DFF' }}
+                                  style={{ background: proj.projectId === 0 ? 'var(--color-text-3)' : 'var(--color-primary)' }}
                                 />
-                                <span className="font-medium" style={{ color: '#1D2129' }}>
+                                <span className="font-medium" style={{ color: 'var(--foreground)' }}>
                                   {proj.projectName}
                                 </span>
-                                {isHighlighted && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#165DFF', color: '#fff' }}>已筛选</span>}
+                                {isHighlighted && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--color-primary)', color: '#fff' }}>已筛选</span>}
                               </div>
                             </td>
                             <td className="px-5 py-3 text-center">
@@ -1004,7 +1004,7 @@ export default function WorkerRosterPage() {
                               </span>
                             </td>
                             <td className="px-5 py-3 text-center">
-                              <span className="font-medium" style={{ color: '#1D2129' }}>{proj.total}</span>
+                              <span className="font-medium" style={{ color: 'var(--foreground)' }}>{proj.total}</span>
                             </td>
                           </tr>
                         );
@@ -1021,7 +1021,7 @@ export default function WorkerRosterPage() {
                         type="button"
                         className="rounded-lg border p-3 text-left transition"
                         style={{
-                          borderColor: isHighlighted ? '#165DFF' : '#E5E6EB',
+                          borderColor: isHighlighted ? 'var(--color-primary)' : 'var(--border)',
                           background: isHighlighted ? '#E8F3FF' : '#fff',
                         }}
                         onClick={() => {
@@ -1031,8 +1031,8 @@ export default function WorkerRosterPage() {
                         }}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <span className="truncate text-sm font-medium" style={{ color: '#1D2129' }}>{proj.projectName}</span>
-                          <span className="text-xs" style={{ color: '#86909C' }}>{proj.total}</span>
+                          <span className="truncate text-sm font-medium" style={{ color: 'var(--foreground)' }}>{proj.projectName}</span>
+                          <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>{proj.total}</span>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                           <span className="rounded-md px-2 py-1" style={{ background: '#E8FFEA', color: '#00B42A' }}>在场 {proj.inService}</span>
@@ -1042,7 +1042,7 @@ export default function WorkerRosterPage() {
                     );
                   })}
                 </div>
-                <div className="px-5 py-2.5 border-t text-xs" style={{ borderColor: '#E5E6EB', color: '#86909C' }}>
+                <div className="px-5 py-2.5 border-t text-xs" style={{ borderColor: 'var(--border)', color: 'var(--color-text-3)' }}>
                   提示：点击项目行可筛选该项目工人
                 </div>
               </div>
@@ -1054,9 +1054,9 @@ export default function WorkerRosterPage() {
       {/* 筛选栏 */}
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
         <div className="filter-bar grid gap-2 sm:flex sm:flex-wrap">
-          <Filter className="w-4 h-4 flex-shrink-0" style={{ color: '#86909C' }} />
+          <Filter className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-text-3)' }} />
           <div className="relative w-full sm:w-auto sm:flex-shrink-0">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#C9CDD4' }} />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--color-text-3)' }} />
             <Input placeholder="搜索姓名或工种" value={searchName} onChange={(e) => setSearchName(e.target.value)} className="h-9 w-full pl-9 sm:h-8 sm:w-40" />
           </div>
           <Select value={filterProject} onValueChange={setFilterProject}>
@@ -1104,13 +1104,13 @@ export default function WorkerRosterPage() {
             </Button>
           </div>
           {(searchName || filterProject !== 'all' || filterWorkType !== 'all' || filterStatus !== 'all') && (
-            <Button variant="ghost" size="sm" onClick={() => { setSearchName(''); setFilterProject('all'); setFilterWorkType('all'); setFilterStatus('all'); }} className="h-9 sm:h-8" style={{ color: '#86909C' }}>
+            <Button variant="ghost" size="sm" onClick={() => { setSearchName(''); setFilterProject('all'); setFilterWorkType('all'); setFilterStatus('all'); }} className="h-9 sm:h-8" style={{ color: 'var(--color-text-3)' }}>
               <X className="w-4 h-4 mr-1" />重置
             </Button>
           )}
-          <div className="grid grid-cols-2 gap-2 border-t pt-2 sm:ml-2 sm:flex sm:items-center sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0" style={{ borderColor: '#E5E6EB' }}>
+          <div className="grid grid-cols-2 gap-2 border-t pt-2 sm:ml-2 sm:flex sm:items-center sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0" style={{ borderColor: 'var(--border)' }}>
             {selectedIds.size > 0 && (
-              <span className="text-sm" style={{ color: '#86909C' }}>已选 {selectedIds.size} 项</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>已选 {selectedIds.size} 项</span>
             )}
             <Button variant="outline" size="sm" onClick={openBatchEditDialog} disabled={selectedIds.size === 0} className="h-8"><Pencil className="w-4 h-4 mr-1" />批量修改</Button>
             <Button variant="outline" size="sm" onClick={handleBatchLeave} disabled={selectedIds.size === 0} className="h-8 text-orange-600 border-orange-300 hover:bg-orange-50"><LogOut className="w-4 h-4 mr-1" />批量退场</Button>
@@ -1121,7 +1121,7 @@ export default function WorkerRosterPage() {
 
       {/* 工人列表 - 按项目折叠 */}
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <Card className="overflow-hidden border" style={{ borderColor: '#E5E6EB' }}>
+        <Card className="overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
           <CardContent className="p-0">
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -1137,11 +1137,11 @@ export default function WorkerRosterPage() {
                   const globalStartIndex = workers.indexOf(group.workers[0]);
 
                   return (
-                    <div key={group.key} className="border-b last:border-b-0" style={{ borderColor: '#E5E6EB' }}>
+                    <div key={group.key} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
                       {/* 项目标题行 - 可折叠 */}
                       <div
                         className="flex flex-col gap-2 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-2.5"
-                        style={{ background: '#F7F8FA' }}
+                        style={{ background: 'var(--color-muted)' }}
                         onClick={() => {
                           const newCollapsed = new Set(collapsedProjects);
                           if (isCollapsed) {
@@ -1167,13 +1167,13 @@ export default function WorkerRosterPage() {
                             }}
                             onClick={(e) => e.stopPropagation()}
                           />
-                          <Building2 className="w-4 h-4" style={{ color: group.key === '__unassigned__' ? '#86909C' : '#165DFF' }} />
-                          <span className="min-w-0 flex-1 truncate font-medium sm:flex-none" style={{ color: '#1D2129' }}>{group.projectName}</span>
-                          <span className="text-sm" style={{ color: '#86909C' }}>({group.workers.length}人)</span>
+                          <Building2 className="w-4 h-4" style={{ color: group.key === '__unassigned__' ? 'var(--color-text-3)' : 'var(--color-primary)' }} />
+                          <span className="min-w-0 flex-1 truncate font-medium sm:flex-none" style={{ color: 'var(--foreground)' }}>{group.projectName}</span>
+                          <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>({group.workers.length}人)</span>
                         </div>
                         <div className="flex w-full items-center gap-4 pl-12 text-sm sm:w-auto sm:pl-0">
-                          <span style={{ color: '#86909C' }}>在场: <span className="font-medium" style={{ color: '#00B42A' }}>{inServiceCount}</span></span>
-                          <span style={{ color: '#86909C' }}>退场: <span className="font-medium" style={{ color: '#FF7D00' }}>{leftCount}</span></span>
+                          <span style={{ color: 'var(--color-text-3)' }}>在场: <span className="font-medium" style={{ color: '#00B42A' }}>{inServiceCount}</span></span>
+                          <span style={{ color: 'var(--color-text-3)' }}>退场: <span className="font-medium" style={{ color: '#FF7D00' }}>{leftCount}</span></span>
                         </div>
                       </div>
                       {/* 项目内明细表格 */}
@@ -1181,25 +1181,25 @@ export default function WorkerRosterPage() {
                         <>
                         <div className="hidden overflow-x-auto max-h-[500px] overflow-y-auto md:block">
                           <Table className="zebra-table">
-                            <TableHeader className="sticky top-0 z-10" style={{ background: '#FAFBFD' }}>
-                              <TableRow style={{ background: '#FAFBFD', borderBottom: '1px solid #E5E6EB' }}>
+                            <TableHeader className="sticky top-0 z-10" style={{ background: 'var(--color-muted)' }}>
+                              <TableRow style={{ background: 'var(--color-muted)', borderBottom: '1px solid var(--border)' }}>
                                 <TableHead className="w-12"></TableHead>
-                                <TableHead className="w-12" style={{ color: '#86909C' }}>序号</TableHead>
-                                <TableHead style={{ color: '#1D2129' }}>姓名</TableHead>
-                                <TableHead style={{ color: '#1D2129' }}>工种</TableHead>
-                                <TableHead style={{ color: '#1D2129' }}>身份证号</TableHead>
-                                <TableHead style={{ color: '#1D2129' }}>联系方式</TableHead>
-                                <TableHead style={{ color: '#1D2129' }}>入职日期</TableHead>
-                                <TableHead className="w-20" style={{ color: '#1D2129' }}>状态</TableHead>
-                                <TableHead className="text-right" style={{ color: '#1D2129' }}>操作</TableHead>
+                                <TableHead className="w-12" style={{ color: 'var(--color-text-3)' }}>序号</TableHead>
+                                <TableHead style={{ color: 'var(--foreground)' }}>姓名</TableHead>
+                                <TableHead style={{ color: 'var(--foreground)' }}>工种</TableHead>
+                                <TableHead style={{ color: 'var(--foreground)' }}>身份证号</TableHead>
+                                <TableHead style={{ color: 'var(--foreground)' }}>联系方式</TableHead>
+                                <TableHead style={{ color: 'var(--foreground)' }}>入职日期</TableHead>
+                                <TableHead className="w-20" style={{ color: 'var(--foreground)' }}>状态</TableHead>
+                                <TableHead className="text-right" style={{ color: 'var(--foreground)' }}>操作</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {group.workers.map((worker, idx) => (
-                                <TableRow key={worker.id} style={{ background: selectedIds.has(worker.id) ? '#E8F3FF' : idx % 2 === 1 ? '#FAFBFD' : 'transparent', borderBottom: '1px solid #E5E6EB' }}>
+                                <TableRow key={worker.id} style={{ background: selectedIds.has(worker.id) ? '#E8F3FF' : idx % 2 === 1 ? 'var(--color-muted)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
                                   <TableCell><Checkbox checked={selectedIds.has(worker.id)} onCheckedChange={() => handleSelectOne(worker.id)} /></TableCell>
-                                  <TableCell style={{ color: '#C9CDD4' }}>{globalStartIndex + idx + 1}</TableCell>
-                                  <TableCell className="font-medium" style={{ color: '#1D2129' }}>
+                                  <TableCell style={{ color: 'var(--color-text-3)' }}>{globalStartIndex + idx + 1}</TableCell>
+                                  <TableCell className="font-medium" style={{ color: 'var(--foreground)' }}>
                                     <div className="flex items-center gap-1.5">
                                       <LinkableCell href={`/workers/salaries?worker_id=${worker.id}&worker_name=${encodeURIComponent(worker.name)}`} className="font-medium text-foreground">
                                         {worker.name}
@@ -1207,10 +1207,10 @@ export default function WorkerRosterPage() {
                                       {worker.is_blacklist && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600">黑</span>}
                                     </div>
                                   </TableCell>
-                                  <TableCell style={{ color: '#4E5969' }}>{worker.work_type || '-'}</TableCell>
-                                  <TableCell style={{ color: '#4E5969' }}>{worker.id_card || '-'}</TableCell>
-                                  <TableCell style={{ color: '#4E5969' }}>{worker.phone || '-'}</TableCell>
-                                  <TableCell style={{ color: '#4E5969' }}>{worker.entry_date ? worker.entry_date.split('T')[0] : '-'}</TableCell>
+                                  <TableCell style={{ color: 'var(--color-text-2)' }}>{worker.work_type || '-'}</TableCell>
+                                  <TableCell style={{ color: 'var(--color-text-2)' }}>{worker.id_card || '-'}</TableCell>
+                                  <TableCell style={{ color: 'var(--color-text-2)' }}>{worker.phone || '-'}</TableCell>
+                                  <TableCell style={{ color: 'var(--color-text-2)' }}>{worker.entry_date ? worker.entry_date.split('T')[0] : '-'}</TableCell>
                                   <TableCell>
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                       worker.is_blacklist ? 'bg-red-100 text-red-600' :
@@ -1223,7 +1223,7 @@ export default function WorkerRosterPage() {
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1.5">
-                                      <Button size="sm" variant="ghost" onClick={() => handleEdit(worker)} className="h-7 px-2" style={{ color: '#165DFF' }}><Pencil className="w-4 h-4" /></Button>
+                                      <Button size="sm" variant="ghost" onClick={() => handleEdit(worker)} className="h-7 px-2" style={{ color: 'var(--color-primary)' }}><Pencil className="w-4 h-4" /></Button>
                                       <Button 
                                         size="sm" 
                                         variant="ghost" 
@@ -1249,7 +1249,7 @@ export default function WorkerRosterPage() {
                               key={worker.id}
                               className="rounded-lg border bg-white p-3"
                               style={{
-                                borderColor: selectedIds.has(worker.id) ? '#165DFF' : '#E5E6EB',
+                                borderColor: selectedIds.has(worker.id) ? 'var(--color-primary)' : 'var(--border)',
                                 background: selectedIds.has(worker.id) ? '#F5F8FF' : '#fff',
                               }}
                             >
@@ -1263,7 +1263,7 @@ export default function WorkerRosterPage() {
                                       </LinkableCell>
                                       {worker.is_blacklist && <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-600">黑</span>}
                                     </div>
-                                    <div className="mt-1 text-xs" style={{ color: '#86909C' }}>{worker.work_type || '-'} / {worker.phone || '-'}</div>
+                                    <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>{worker.work_type || '-'} / {worker.phone || '-'}</div>
                                   </div>
                                 </div>
                                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -1277,16 +1277,16 @@ export default function WorkerRosterPage() {
                               </div>
                               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                                 <div className="rounded-md bg-gray-50 p-2">
-                                  <div style={{ color: '#86909C' }}>身份证</div>
-                                  <div className="mt-1 truncate" style={{ color: '#1D2129' }}>{worker.id_card || '-'}</div>
+                                  <div style={{ color: 'var(--color-text-3)' }}>身份证</div>
+                                  <div className="mt-1 truncate" style={{ color: 'var(--foreground)' }}>{worker.id_card || '-'}</div>
                                 </div>
                                 <div className="rounded-md bg-gray-50 p-2">
-                                  <div style={{ color: '#86909C' }}>入场日期</div>
-                                  <div className="mt-1" style={{ color: '#1D2129' }}>{worker.entry_date ? worker.entry_date.split('T')[0] : '-'}</div>
+                                  <div style={{ color: 'var(--color-text-3)' }}>入场日期</div>
+                                  <div className="mt-1" style={{ color: 'var(--foreground)' }}>{worker.entry_date ? worker.entry_date.split('T')[0] : '-'}</div>
                                 </div>
                               </div>
                               <div className="mt-3 grid grid-cols-4 gap-2">
-                                <Button size="sm" variant="outline" onClick={() => handleEdit(worker)} className="h-8 px-0" style={{ color: '#165DFF' }}><Pencil className="w-4 h-4" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => handleEdit(worker)} className="h-8 px-0" style={{ color: 'var(--color-primary)' }}><Pencil className="w-4 h-4" /></Button>
                                 <Button size="sm" variant="outline" onClick={() => handleToggleStatus(worker)} className="h-8 px-0" style={{ color: worker.status === 'left' ? '#00B42A' : '#FF7D00' }}>
                                   {worker.status === 'left' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
                                 </Button>
@@ -1305,7 +1305,7 @@ export default function WorkerRosterPage() {
             ) : (
               <div className="empty-state">
                 <div className="empty-state-icon">
-                  <Users className="w-8 h-8" style={{ color: '#C9CDD4' }} />
+                  <Users className="w-8 h-8" style={{ color: 'var(--color-text-3)' }} />
                 </div>
                 <p className="empty-state-title">暂无工人数据</p>
                 <p className="empty-state-description">点击"新增工人"按钮添加</p>
@@ -1320,7 +1320,7 @@ export default function WorkerRosterPage() {
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto">
           <DialogHeader><DialogTitle className="dialog-header">批量修改（已选 {selectedIds.size} 项）</DialogTitle></DialogHeader>
           <form onSubmit={handleBatchEdit} className="space-y-4">
-            <div><Label className="text-sm" style={{ color: '#1D2129' }}>选择要修改的字段</Label>
+            <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>选择要修改的字段</Label>
               <Select value={batchEditField} onValueChange={setBatchEditField}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择字段" /></SelectTrigger>
                 <SelectContent>
@@ -1329,14 +1329,14 @@ export default function WorkerRosterPage() {
                 </SelectContent>
               </Select>
             </div>
-            {batchEditField === 'work_type' && <div><Label className="text-sm" style={{ color: '#1D2129' }}>工种</Label><Input value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>}
-            {batchEditField === 'project_id' && <div><Label className="text-sm" style={{ color: '#1D2129' }}>所属项目</Label>
+            {batchEditField === 'work_type' && <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>工种</Label><Input value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>}
+            {batchEditField === 'project_id' && <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>所属项目</Label>
               <Select value={batchEditValue} onValueChange={setBatchEditValue}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择项目" /></SelectTrigger>
                 <SelectContent>{projects.map((p) => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}</SelectContent>
               </Select>
             </div>}
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t sm:flex sm:justify-end sm:gap-3" style={{ borderColor: '#E5E6EB' }}>
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t sm:flex sm:justify-end sm:gap-3" style={{ borderColor: 'var(--border)' }}>
               <Button type="button" variant="outline" onClick={() => setBatchEditDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" disabled={!batchEditField} className="btn-primary">确认修改</Button>
             </div>
@@ -1368,19 +1368,19 @@ export default function WorkerRosterPage() {
           <DialogHeader>
             <DialogTitle>工人调动</DialogTitle>
             <DialogDescription>
-              将 <span className="font-semibold" style={{ color: '#165DFF' }}>{transferWorker?.name}</span> 调动到其他项目，原项目的工资记录不会丢失
+              将 <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>{transferWorker?.name}</span> 调动到其他项目，原项目的工资记录不会丢失
             </DialogDescription>
           </DialogHeader>
           
           {/* 现有项目分配 */}
           {transferAssignments.length > 0 && (
             <div className="mb-4">
-              <h4 className="text-sm font-medium mb-2" style={{ color: '#86909C' }}>当前项目分配</h4>
+              <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-3)' }}>当前项目分配</h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {transferAssignments.map((a: { id: number; project_id: number; project_name: string; status: string; start_date: string | null }) => (
-                  <div key={a.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#F7F8FA' }}>
+                  <div key={a.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'var(--color-muted)' }}>
                     <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4" style={{ color: '#165DFF' }} />
+                      <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                       <span className="text-sm">{a.project_name}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded ${a.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
                         {a.status === 'active' ? '在项目中' : '已退场'}
@@ -1399,7 +1399,7 @@ export default function WorkerRosterPage() {
 
           {/* 调动到新项目 */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium" style={{ color: '#86909C' }}>调动到新项目</h4>
+            <h4 className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>调动到新项目</h4>
             <select 
               value={transferProjectId} 
               onChange={e => setTransferProjectId(e.target.value)}
@@ -1416,7 +1416,7 @@ export default function WorkerRosterPage() {
 
           <DialogFooter className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>取消</Button>
-            <Button onClick={handleTransfer} disabled={!transferProjectId} style={{ background: '#165DFF' }}>确认调动</Button>
+            <Button onClick={handleTransfer} disabled={!transferProjectId} style={{ background: 'var(--color-primary)' }}>确认调动</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

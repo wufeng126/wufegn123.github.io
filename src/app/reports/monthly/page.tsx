@@ -399,7 +399,7 @@ export default function MonthlyReportPage() {
       axisLabel: { width: 100, overflow: 'truncate' as const } },
     series: [{ type: 'bar' as const, data: [...projectList].sort((a, b) => a.profit - b.profit).slice(-10).map(p => ({
       value: p.profit,
-      itemStyle: { color: p.profit >= 0 ? '#22c55e' : '#ef4444' },
+      itemStyle: { color: p.profit >= 0 ? '#00B42A' : '#F53F3F' },
     })) }],
   };
 
@@ -413,7 +413,7 @@ export default function MonthlyReportPage() {
       axisLabel: { width: 100, overflow: 'truncate' as const } },
     series: [{ type: 'bar' as const, data: [...projectList].sort((a, b) => a.paymentRate - b.paymentRate).slice(-10).map(p => ({
       value: p.paymentRate,
-      itemStyle: { color: p.paymentRate >= 80 ? '#22c55e' : p.paymentRate >= 50 ? '#f59e0b' : '#ef4444' },
+      itemStyle: { color: p.paymentRate >= 80 ? '#00B42A' : p.paymentRate >= 50 ? '#FF7D00' : '#F53F3F' },
     })) }],
   };
 
@@ -429,9 +429,9 @@ export default function MonthlyReportPage() {
       { name: '确认成本', type: 'line', data: trends.map(t => t.cost), smooth: true, lineStyle: { type: 'dashed' } },
       { name: '实际支付', type: 'line', data: trends.map(t => t.actualPayment ?? 0), smooth: true, lineStyle: { type: 'dashed' } },
       { name: '经营利润', type: 'line', data: trends.map(t => t.operatingProfit ?? 0), smooth: true, lineStyle: { width: 2 },
-        itemStyle: { color: '#10b981' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(16,185,129,0.15)' }, { offset: 1, color: 'rgba(16,185,129,0)' }] } } },
+        itemStyle: { color: '#00B42A' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(16,185,129,0.15)' }, { offset: 1, color: 'rgba(16,185,129,0)' }] } } },
       { name: '现金净流', type: 'line', data: trends.map(t => t.cashNetFlow ?? 0), smooth: true, lineStyle: { width: 2 },
-        itemStyle: { color: '#f59e0b' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(245,158,11,0.15)' }, { offset: 1, color: 'rgba(245,158,11,0)' }] } } },
+        itemStyle: { color: '#FF7D00' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(245,158,11,0.15)' }, { offset: 1, color: 'rgba(245,158,11,0)' }] } } },
     ],
   };
 
@@ -452,8 +452,8 @@ export default function MonthlyReportPage() {
       data: [...projectList].sort((a, b) => ((a.salaryTotal - a.totalPayment) + a.supplierUnpaid) - ((b.salaryTotal - b.totalPayment) + b.supplierUnpaid)).slice(-8).map(p => p.name.length > 8 ? p.name.slice(0, 8) + '…' : p.name),
       axisLabel: { width: 100, overflow: 'truncate' as const } },
     series: [
-      { name: '人工未付', type: 'bar', stack: 'total', data: [...projectList].sort((a, b) => ((a.salaryTotal - a.totalPayment) + a.supplierUnpaid) - ((b.salaryTotal - b.totalPayment) + b.supplierUnpaid)).slice(-8).map(p => Math.max(0, p.salaryTotal - p.totalPayment)), itemStyle: { color: '#f59e0b' } },
-      { name: '供应商未付', type: 'bar', stack: 'total', data: [...projectList].sort((a, b) => ((a.salaryTotal - a.totalPayment) + a.supplierUnpaid) - ((b.salaryTotal - b.totalPayment) + b.supplierUnpaid)).slice(-8).map(p => p.supplierUnpaid), itemStyle: { color: '#ef4444' } },
+      { name: '人工未付', type: 'bar', stack: 'total', data: [...projectList].sort((a, b) => ((a.salaryTotal - a.totalPayment) + a.supplierUnpaid) - ((b.salaryTotal - b.totalPayment) + b.supplierUnpaid)).slice(-8).map(p => Math.max(0, p.salaryTotal - p.totalPayment)), itemStyle: { color: '#FF7D00' } },
+      { name: '供应商未付', type: 'bar', stack: 'total', data: [...projectList].sort((a, b) => ((a.salaryTotal - a.totalPayment) + a.supplierUnpaid) - ((b.salaryTotal - b.totalPayment) + b.supplierUnpaid)).slice(-8).map(p => p.supplierUnpaid), itemStyle: { color: '#F53F3F' } },
     ],
   };
 
@@ -462,8 +462,8 @@ export default function MonthlyReportPage() {
     series: [{ type: 'pie', radius: ['40%', '70%'], center: ['50%', '50%'],
       label: { formatter: '{b}\n{d}%' },
       data: [
-        { name: '人工未付', value: pp.laborUnpaid, itemStyle: { color: '#f59e0b' } },
-        { name: '供应商未付', value: pp.supplierUnpaid, itemStyle: { color: '#ef4444' } },
+        { name: '人工未付', value: pp.laborUnpaid, itemStyle: { color: '#FF7D00' } },
+        { name: '供应商未付', value: pp.supplierUnpaid, itemStyle: { color: '#F53F3F' } },
       ].filter(d => d.value > 0),
     }],
   };
@@ -478,7 +478,7 @@ export default function MonthlyReportPage() {
       data: [...supplierSettlements].sort((a, b) => a.unpaid - b.unpaid).slice(-10).map(s => s.supplierName.length > 8 ? s.supplierName.slice(0, 8) + '…' : s.supplierName),
       axisLabel: { width: 100, overflow: 'truncate' as const } },
     series: [{ type: 'bar', data: [...supplierSettlements].sort((a, b) => a.unpaid - b.unpaid).slice(-10).map(s => ({
-      value: s.unpaid, itemStyle: { color: s.riskLevel === 'danger' ? '#ef4444' : '#f59e0b' },
+      value: s.unpaid, itemStyle: { color: s.riskLevel === 'danger' ? '#F53F3F' : '#FF7D00' },
     })) }],
   };
 
@@ -490,7 +490,7 @@ export default function MonthlyReportPage() {
     yAxis: { type: 'value' as const, axisLabel: { formatter: (v: number) => fmtAmt(v) } },
     series: [
       { name: '供应商结算', type: 'bar', data: trends.map(t => t.supplierSettlement ?? 0), itemStyle: { color: '#6366f1' } },
-      { name: '供应商付款', type: 'bar', data: trends.map(t => t.supplierPayment ?? 0), itemStyle: { color: '#22c55e' } },
+      { name: '供应商付款', type: 'bar', data: trends.map(t => t.supplierPayment ?? 0), itemStyle: { color: '#00B42A' } },
     ],
   };
 
@@ -1298,19 +1298,19 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
   };
 
   const riskLevelColor = (level: string) => {
-    if (level === 'danger') return '#dc2626';
-    if (level === 'warning') return '#d97706';
-    return '#16a34a';
+    if (level === 'danger') return '#F53F3F';
+    if (level === 'warning') return '#FF7D00';
+    return '#00B42A';
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-2xl w-full max-w-[900px] max-h-[92vh] overflow-y-auto"
+        className="bg-card rounded-lg shadow-2xl w-full max-w-[900px] max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Preview toolbar */}
-        <div className="sticky top-0 z-10 bg-white border-b px-6 py-3 flex items-center justify-between">
+        <div className="sticky top-0 z-10 bg-card border-b px-6 py-3 flex items-center justify-between">
           <h3 className="text-base font-semibold text-foreground">月报预览</h3>
           <div className="flex items-center gap-2">
             <button
@@ -1324,7 +1324,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
         </div>
 
         {/* Report content — simulates printed PDF */}
-        <div className="px-12 py-8" style={{ fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif', color: '#1a1a1a' }}>
+        <div className="px-12 py-8" style={{ fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif', color: 'var(--foreground)' }}>
           {/* ── Cover / Title ── */}
           <div className="text-center mb-10">
             <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
@@ -1345,13 +1345,13 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
               {[
-                { label: '本月产值', value: fmtWan(ov.monthIncome), color: '#1a1a1a' },
-                { label: '本月回款', value: fmtWan(ov.monthReceived), color: '#16a34a' },
-                { label: '本月成本', value: fmtWan(ov.monthCost), color: '#dc2626' },
-                { label: '经营利润', value: fmtWan(ov.operatingProfit ?? 0), color: (ov.operatingProfit ?? 0) >= 0 ? '#16a34a' : '#dc2626' },
-                { label: '现金净流', value: fmtWan(ov.cashNetFlow ?? 0), color: (ov.cashNetFlow ?? 0) >= 0 ? '#2563eb' : '#dc2626' },
+                { label: '本月产值', value: fmtWan(ov.monthIncome), color: 'var(--foreground)' },
+                { label: '本月回款', value: fmtWan(ov.monthReceived), color: '#00B42A' },
+                { label: '本月成本', value: fmtWan(ov.monthCost), color: '#F53F3F' },
+                { label: '经营利润', value: fmtWan(ov.operatingProfit ?? 0), color: (ov.operatingProfit ?? 0) >= 0 ? '#00B42A' : '#F53F3F' },
+                { label: '现金净流', value: fmtWan(ov.cashNetFlow ?? 0), color: (ov.cashNetFlow ?? 0) >= 0 ? 'var(--color-primary)' : '#F53F3F' },
               ].map((item, i) => (
-                <div key={i} style={{ background: '#f8f9fa', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
+                <div key={i} style={{ background: 'var(--color-muted)', borderRadius: 8, padding: '12px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{item.label}</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: item.color }}>{item.value}</div>
                 </div>
@@ -1383,11 +1383,11 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               <h2 style={{ fontSize: 18, fontWeight: 600, borderBottom: '2px solid #1a1a1a', paddingBottom: 6, marginBottom: 16 }}>
                 二、经营结论
               </h2>
-              <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 16, lineHeight: 1.8, fontSize: 14 }}>
+              <div style={{ background: 'var(--color-muted)', borderRadius: 8, padding: 16, lineHeight: 1.8, fontSize: 14 }}>
                 {conclusion.split('\n').filter(Boolean).map((line, i) => (
                   <p key={i} style={{ margin: '4px 0' }}>
                     {line.startsWith('⚠') || line.startsWith('❗') ? (
-                      <span style={{ color: '#dc2626', fontWeight: 600 }}>{line}</span>
+                      <span style={{ color: '#F53F3F', fontWeight: 600 }}>{line}</span>
                     ) : (
                       line
                     )}
@@ -1405,12 +1405,12 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               </h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                 {[
-                  { label: '应付合计', value: fmtWan(pp.totalPayable), color: '#1a1a1a' },
-                  { label: '人工未付', value: fmtWan(pp.laborUnpaid), color: (pp.laborUnpaid ?? 0) > 0 ? '#dc2626' : '#16a34a' },
-                  { label: '供应商未付', value: fmtWan(pp.supplierUnpaid), color: (pp.supplierUnpaid ?? 0) > 0 ? '#dc2626' : '#16a34a' },
-                  { label: '预计资金缺口', value: fmtWan(pp.fundGap), color: (pp.fundGap ?? 0) > 0 ? '#dc2626' : '#16a34a' },
+                  { label: '应付合计', value: fmtWan(pp.totalPayable), color: 'var(--foreground)' },
+                  { label: '人工未付', value: fmtWan(pp.laborUnpaid), color: (pp.laborUnpaid ?? 0) > 0 ? '#F53F3F' : '#00B42A' },
+                  { label: '供应商未付', value: fmtWan(pp.supplierUnpaid), color: (pp.supplierUnpaid ?? 0) > 0 ? '#F53F3F' : '#00B42A' },
+                  { label: '预计资金缺口', value: fmtWan(pp.fundGap), color: (pp.fundGap ?? 0) > 0 ? '#F53F3F' : '#00B42A' },
                 ].map((item, i) => (
-                  <div key={i} style={{ background: '#f8f9fa', borderRadius: 6, padding: '10px 8px', textAlign: 'center' }}>
+                  <div key={i} style={{ background: 'var(--color-muted)', borderRadius: 6, padding: '10px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: '#888' }}>{item.label}</div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: item.color }}>{item.value}</div>
                   </div>
@@ -1419,13 +1419,13 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               {/* 风险提示 */}
               <div style={{ marginTop: 10 }}>
                 {(pp.laborUnpaid ?? 0) > 0 && (
-                  <p style={{ fontSize: 12, color: '#dc2626', margin: '2px 0' }}>⚠ 存在工资支付风险：人工未付 {fmtWan(pp.laborUnpaid)}</p>
+                  <p style={{ fontSize: 12, color: '#F53F3F', margin: '2px 0' }}>⚠ 存在工资支付风险：人工未付 {fmtWan(pp.laborUnpaid)}</p>
                 )}
                 {(pp.supplierUnpaid ?? 0) > 0 && (
-                  <p style={{ fontSize: 12, color: '#d97706', margin: '2px 0' }}>⚠ 存在供应商付款压力：供应商未付 {fmtWan(pp.supplierUnpaid)}</p>
+                  <p style={{ fontSize: 12, color: '#FF7D00', margin: '2px 0' }}>⚠ 存在供应商付款压力：供应商未付 {fmtWan(pp.supplierUnpaid)}</p>
                 )}
                 {(pp.fundGap ?? 0) > 0 && (
-                  <p style={{ fontSize: 12, color: '#dc2626', fontWeight: 600, margin: '2px 0' }}>⚠ 预计资金缺口 {fmtWan(pp.fundGap)}，建议优先保障人工工资</p>
+                  <p style={{ fontSize: 12, color: '#F53F3F', fontWeight: 600, margin: '2px 0' }}>⚠ 预计资金缺口 {fmtWan(pp.fundGap)}，建议优先保障人工工资</p>
                 )}
               </div>
             </section>
@@ -1439,7 +1439,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               </h2>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f1f3f5' }}>
+                  <tr style={{ background: 'var(--color-muted)' }}>
                     {['项目', '在场人数', '工资应付', '工资已付', '工资未付', '未付人数', '风险'].map(h => (
                       <th key={h} style={{ padding: '8px 6px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600 }}>{h}</th>
                     ))}
@@ -1452,7 +1452,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
                       <td style={{ padding: '6px' }}>{item.inServiceCount ?? '-'}</td>
                       <td style={{ padding: '6px' }}>{fmtWan(item.salaryPayable)}</td>
                       <td style={{ padding: '6px' }}>{fmtWan(item.salaryPaid)}</td>
-                      <td style={{ padding: '6px', color: (item.salaryUnpaid ?? 0) > 0 ? '#dc2626' : 'inherit', fontWeight: (item.salaryUnpaid ?? 0) > 0 ? 600 : 400 }}>{fmtWan(item.salaryUnpaid)}</td>
+                      <td style={{ padding: '6px', color: (item.salaryUnpaid ?? 0) > 0 ? '#F53F3F' : 'inherit', fontWeight: (item.salaryUnpaid ?? 0) > 0 ? 600 : 400 }}>{fmtWan(item.salaryUnpaid)}</td>
                       <td style={{ padding: '6px' }}>{item.unpaidWorkers}</td>
                       <td style={{ padding: '6px', color: riskLevelColor(item.riskLevel), fontWeight: 600 }}>{item.riskLevel === 'danger' ? '高' : item.riskLevel === 'warning' ? '中' : '低'}</td>
                     </tr>
@@ -1470,13 +1470,13 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
             {/* 汇总卡片 */}
             <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
               {[
-                { label: '本月结算', value: supplierStats.reduce((s, i) => s + (i.monthSettlement ?? 0), 0), color: '#2563eb' },
-                { label: '本月付款', value: supplierStats.reduce((s, i) => s + (i.monthPaid ?? 0), 0), color: '#16a34a' },
-                { label: '累计结算', value: supplierStats.reduce((s, i) => s + (i.totalSettlement ?? 0), 0), color: '#2563eb' },
-                { label: '累计付款', value: supplierStats.reduce((s, i) => s + (i.totalPaid ?? 0), 0), color: '#16a34a' },
-                { label: '未付总额', value: supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0), color: supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0) > 0 ? '#dc2626' : '#16a34a' },
+                { label: '本月结算', value: supplierStats.reduce((s, i) => s + (i.monthSettlement ?? 0), 0), color: 'var(--color-primary)' },
+                { label: '本月付款', value: supplierStats.reduce((s, i) => s + (i.monthPaid ?? 0), 0), color: '#00B42A' },
+                { label: '累计结算', value: supplierStats.reduce((s, i) => s + (i.totalSettlement ?? 0), 0), color: 'var(--color-primary)' },
+                { label: '累计付款', value: supplierStats.reduce((s, i) => s + (i.totalPaid ?? 0), 0), color: '#00B42A' },
+                { label: '未付总额', value: supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0), color: supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0) > 0 ? '#F53F3F' : '#00B42A' },
               ].map(card => (
-                <div key={card.label} style={{ flex: '1 1 120px', background: '#f8f9fa', borderRadius: 8, padding: '10px 14px', textAlign: 'center', borderLeft: `3px solid ${card.color}` }}>
+                <div key={card.label} style={{ flex: '1 1 120px', background: 'var(--color-muted)', borderRadius: 8, padding: '10px 14px', textAlign: 'center', borderLeft: `3px solid ${card.color}` }}>
                   <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>{card.label}</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: card.color }}>{fmtWan(card.value)}</div>
                 </div>
@@ -1485,7 +1485,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
             {/* 明细表格 */}
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: '#f1f3f5' }}>
+                <tr style={{ background: 'var(--color-muted)' }}>
                   {['供应商名称', '所属项目', '本月结算', '本月付款', '累计结算', '累计付款', '应付总额', '未付金额', '付款率'].map(h => (
                     <th key={h} style={{ padding: '8px 6px', textAlign: h.includes('结算') || h.includes('付款') || h.includes('应付') || h.includes('未付') ? 'right' : 'left', borderBottom: '1px solid #ddd', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
@@ -1493,27 +1493,27 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               </thead>
               <tbody>
                 {supplierStats.map((item, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : 'var(--color-muted)' }}>
                     <td style={{ padding: '6px', fontWeight: 500, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.supplierName}</td>
                     <td style={{ padding: '6px', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#555' }}>{item.projectName}</td>
                     <td style={{ padding: '6px', textAlign: 'right', fontWeight: (item.monthSettlement ?? 0) > 0 ? 600 : 400 }}>{fmtWan(item.monthSettlement)}</td>
-                    <td style={{ padding: '6px', textAlign: 'right', fontWeight: (item.monthPaid ?? 0) > 0 ? 600 : 400, color: (item.monthPaid ?? 0) > 0 ? '#16a34a' : 'inherit' }}>{fmtWan(item.monthPaid)}</td>
+                    <td style={{ padding: '6px', textAlign: 'right', fontWeight: (item.monthPaid ?? 0) > 0 ? 600 : 400, color: (item.monthPaid ?? 0) > 0 ? '#00B42A' : 'inherit' }}>{fmtWan(item.monthPaid)}</td>
                     <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.totalSettlement)}</td>
-                    <td style={{ padding: '6px', textAlign: 'right', color: '#16a34a' }}>{fmtWan(item.totalPaid)}</td>
+                    <td style={{ padding: '6px', textAlign: 'right', color: '#00B42A' }}>{fmtWan(item.totalPaid)}</td>
                     <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.totalPayable)}</td>
-                    <td style={{ padding: '6px', textAlign: 'right', color: (item.totalUnpaid ?? 0) > 0 ? '#dc2626' : 'inherit', fontWeight: (item.totalUnpaid ?? 0) > 0 ? 600 : 400 }}>{fmtWan(item.totalUnpaid)}</td>
-                    <td style={{ padding: '6px', textAlign: 'right', fontWeight: 600, color: (item.paymentRate ?? 100) < 60 ? '#dc2626' : (item.paymentRate ?? 100) < 80 ? '#f59e0b' : '#16a34a' }}>{item.paymentRate != null ? `${item.paymentRate.toFixed(1)}%` : '-'}</td>
+                    <td style={{ padding: '6px', textAlign: 'right', color: (item.totalUnpaid ?? 0) > 0 ? '#F53F3F' : 'inherit', fontWeight: (item.totalUnpaid ?? 0) > 0 ? 600 : 400 }}>{fmtWan(item.totalUnpaid)}</td>
+                    <td style={{ padding: '6px', textAlign: 'right', fontWeight: 600, color: (item.paymentRate ?? 100) < 60 ? '#F53F3F' : (item.paymentRate ?? 100) < 80 ? '#FF7D00' : '#00B42A' }}>{item.paymentRate != null ? `${item.paymentRate.toFixed(1)}%` : '-'}</td>
                   </tr>
                 ))}
                 {/* 合计行 */}
-                <tr style={{ borderTop: '2px solid #333', background: '#f1f3f5', fontWeight: 700 }}>
+                <tr style={{ borderTop: '2px solid #333', background: 'var(--color-muted)', fontWeight: 700 }}>
                   <td style={{ padding: '8px 6px' }} colSpan={2}>合计</td>
                   <td style={{ padding: '8px 6px', textAlign: 'right' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.monthSettlement ?? 0), 0))}</td>
-                  <td style={{ padding: '8px 6px', textAlign: 'right', color: '#16a34a' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.monthPaid ?? 0), 0))}</td>
+                  <td style={{ padding: '8px 6px', textAlign: 'right', color: '#00B42A' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.monthPaid ?? 0), 0))}</td>
                   <td style={{ padding: '8px 6px', textAlign: 'right' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.totalSettlement ?? 0), 0))}</td>
-                  <td style={{ padding: '8px 6px', textAlign: 'right', color: '#16a34a' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.totalPaid ?? 0), 0))}</td>
+                  <td style={{ padding: '8px 6px', textAlign: 'right', color: '#00B42A' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.totalPaid ?? 0), 0))}</td>
                   <td style={{ padding: '8px 6px', textAlign: 'right' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.totalPayable ?? 0), 0))}</td>
-                  <td style={{ padding: '8px 6px', textAlign: 'right', color: supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0) > 0 ? '#dc2626' : 'inherit' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0))}</td>
+                  <td style={{ padding: '8px 6px', textAlign: 'right', color: supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0) > 0 ? '#F53F3F' : 'inherit' }}>{fmtWan(supplierStats.reduce((s, i) => s + (i.totalUnpaid ?? 0), 0))}</td>
                   <td style={{ padding: '8px 6px', textAlign: 'right' }}>
                     {(() => {
                       const totalPayable = supplierStats.reduce((s, i) => s + (i.totalPayable ?? 0), 0);
@@ -1527,7 +1527,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
             {/* 供应商未付预警 */}
             {supplierStats.filter(s => (s.totalUnpaid ?? 0) > 0).length > 0 && (
               <div style={{ marginTop: 12, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12 }}>
-                <div style={{ fontWeight: 600, color: '#dc2626', marginBottom: 6 }}>未付预警供应商</div>
+                <div style={{ fontWeight: 600, color: '#F53F3F', marginBottom: 6 }}>未付预警供应商</div>
                 {supplierStats.filter(s => (s.totalUnpaid ?? 0) > 0).sort((a, b) => (b.totalUnpaid ?? 0) - (a.totalUnpaid ?? 0)).map((s, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#7f1d1d' }}>
                     <span>{s.supplierName}（{s.projectName}）</span>
@@ -1547,12 +1547,12 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               {/* 双口径对比卡片 */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
                 {[
-                  { label: '经营利润', value: fmtWan(ov.operatingProfit ?? 0), color: (ov.operatingProfit ?? 0) >= 0 ? '#16a34a' : '#dc2626', sub: `利润率 ${(ov.operatingProfitRate ?? 0).toFixed(1)}%` },
-                  { label: '现金净流', value: fmtWan(ov.cashNetFlow ?? 0), color: (ov.cashNetFlow ?? 0) >= 0 ? '#2563eb' : '#dc2626', sub: `净流率 ${(ov.cashNetFlowRate ?? 0).toFixed(1)}%` },
-                  { label: '本月实际支付', value: fmtWan(ov.monthActualPayment ?? 0), color: '#1a1a1a', sub: '' },
+                  { label: '经营利润', value: fmtWan(ov.operatingProfit ?? 0), color: (ov.operatingProfit ?? 0) >= 0 ? '#00B42A' : '#F53F3F', sub: `利润率 ${(ov.operatingProfitRate ?? 0).toFixed(1)}%` },
+                  { label: '现金净流', value: fmtWan(ov.cashNetFlow ?? 0), color: (ov.cashNetFlow ?? 0) >= 0 ? 'var(--color-primary)' : '#F53F3F', sub: `净流率 ${(ov.cashNetFlowRate ?? 0).toFixed(1)}%` },
+                  { label: '本月实际支付', value: fmtWan(ov.monthActualPayment ?? 0), color: 'var(--foreground)', sub: '' },
                   { label: '累计签证', value: fmtWan(ov.cumulativeVisa ?? 0), color: '#7c3aed', sub: '' },
                 ].map((item, i) => (
-                  <div key={i} style={{ background: '#f8f9fa', borderRadius: 6, padding: '10px 8px', textAlign: 'center', borderLeft: `3px solid ${item.color}` }}>
+                  <div key={i} style={{ background: 'var(--color-muted)', borderRadius: 6, padding: '10px 8px', textAlign: 'center', borderLeft: `3px solid ${item.color}` }}>
                     <div style={{ fontSize: 10, color: '#888' }}>{item.label}</div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: item.color }}>{item.value}</div>
                     {item.sub && <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{item.sub}</div>}
@@ -1562,7 +1562,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               {/* 回款滞后明细 */}
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f1f3f5' }}>
+                  <tr style={{ background: 'var(--color-muted)' }}>
                     {['项目名称', '累计产值', '累计应回款', '累计已回款', '应收未回', '账龄', '预计回款', '风险等级'].map(h => (
                       <th key={h} style={{ padding: '8px 6px', textAlign: h.includes('累计') || h.includes('应收') ? 'right' : 'left', borderBottom: '1px solid #ddd', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
@@ -1570,23 +1570,23 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
                 </thead>
                 <tbody>
                   {data.collectionLagAnalysis.map((item, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                    <tr key={i} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#fff' : 'var(--color-muted)' }}>
                       <td style={{ padding: '6px', fontWeight: 500 }}>{item.projectName}</td>
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.cumulativeOutput)}</td>
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.cumulativeReceivable)}</td>
-                      <td style={{ padding: '6px', textAlign: 'right', color: '#16a34a' }}>{fmtWan(item.cumulativeReceived)}</td>
-                      <td style={{ padding: '6px', textAlign: 'right', color: item.unreceived > 0 ? '#dc2626' : '#16a34a', fontWeight: item.unreceived > 0 ? 600 : 400 }}>
+                      <td style={{ padding: '6px', textAlign: 'right', color: '#00B42A' }}>{fmtWan(item.cumulativeReceived)}</td>
+                      <td style={{ padding: '6px', textAlign: 'right', color: item.unreceived > 0 ? '#F53F3F' : '#00B42A', fontWeight: item.unreceived > 0 ? 600 : 400 }}>
                         {item.unreceived > 0 ? fmtWan(item.unreceived) : (item.isOverCollected ? `超收 ${fmtWan(item.overCollectedAmount ?? 0)}` : '已结清')}
                       </td>
                       <td style={{ padding: '6px', textAlign: 'center' }}>
                         <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11,
                           background: item.agingDays > 90 ? '#fef2f2' : item.agingDays > 60 ? '#fff7ed' : item.agingDays > 30 ? '#fefce8' : '#f0fdf4',
-                          color: item.agingDays > 90 ? '#dc2626' : item.agingDays > 60 ? '#ea580c' : item.agingDays > 30 ? '#ca8a04' : '#16a34a' }}>
+                          color: item.agingDays > 90 ? '#F53F3F' : item.agingDays > 60 ? '#ea580c' : item.agingDays > 30 ? '#ca8a04' : '#00B42A' }}>
                           {item.agingCategory}
                         </span>
                       </td>
                       <td style={{ padding: '6px', color: '#888' }}>{item.estimatedPaymentDate || '-'}</td>
-                      <td style={{ padding: '6px', textAlign: 'center', color: item.riskLevel === 'high' || item.riskLevel === 'critical' ? '#dc2626' : item.riskLevel === 'medium' ? '#d97706' : '#16a34a', fontWeight: 600 }}>
+                      <td style={{ padding: '6px', textAlign: 'center', color: item.riskLevel === 'high' || item.riskLevel === 'critical' ? '#F53F3F' : item.riskLevel === 'medium' ? '#FF7D00' : '#00B42A', fontWeight: 600 }}>
                         {item.riskLevel === 'critical' ? '极高' : item.riskLevel === 'high' ? '高' : item.riskLevel === 'medium' ? '中' : '低'}
                       </td>
                     </tr>
@@ -1610,7 +1610,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               </h2>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f1f3f5' }}>
+                  <tr style={{ background: 'var(--color-muted)' }}>
                     {['项目', '风险类型', '等级', '影响金额', '原因', '建议动作'].map(h => (
                       <th key={h} style={{ padding: '8px 6px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600 }}>{h}</th>
                     ))}
@@ -1642,7 +1642,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               </h2>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f1f3f5' }}>
+                  <tr style={{ background: 'var(--color-muted)' }}>
                     <th style={{ padding: '8px 6px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>月份</th>
                     <th style={{ padding: '8px 6px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>产值</th>
                     <th style={{ padding: '8px 6px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>回款</th>
@@ -1660,8 +1660,8 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(t.received)}</td>
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(t.cost)}</td>
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(t.actualPayment ?? 0)}</td>
-                      <td style={{ padding: '6px', textAlign: 'right', color: (t.operatingProfit ?? 0) >= 0 ? '#16a34a' : '#dc2626' }}>{fmtWan(t.operatingProfit ?? 0)}</td>
-                      <td style={{ padding: '6px', textAlign: 'right', color: (t.cashNetFlow ?? 0) >= 0 ? '#2563eb' : '#dc2626' }}>{fmtWan(t.cashNetFlow ?? 0)}</td>
+                      <td style={{ padding: '6px', textAlign: 'right', color: (t.operatingProfit ?? 0) >= 0 ? '#00B42A' : '#F53F3F' }}>{fmtWan(t.operatingProfit ?? 0)}</td>
+                      <td style={{ padding: '6px', textAlign: 'right', color: (t.cashNetFlow ?? 0) >= 0 ? 'var(--color-primary)' : '#F53F3F' }}>{fmtWan(t.cashNetFlow ?? 0)}</td>
                     </tr>
                   ))}
                 </tbody>

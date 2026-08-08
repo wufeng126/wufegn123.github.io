@@ -99,7 +99,7 @@ function getClientErrorMessage(error: unknown, fallback: string) {
 
 export default function MiscMaterialsPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-center" style={{ color: '#86909C' }}>加载中...</div></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-center" style={{ color: 'var(--color-text-3)' }}>加载中...</div></div>}>
       <MiscMaterialsContent />
     </Suspense>
   );
@@ -687,12 +687,12 @@ function MiscMaterialsContent() {
   };
 
   return (
-    <div className="space-y-5 p-3 sm:p-4 md:p-6" style={{ backgroundColor: '#F2F3F5', minHeight: 'calc(100vh - 64px)' }}>
+    <div className="space-y-5 p-3 sm:p-4 md:p-6" style={{ backgroundColor: 'var(--color-muted)', minHeight: 'calc(100vh - 64px)' }}>
       {/* 页面标题 */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#1D2129' }}>零星材料统计</h1>
-          <p className="text-sm mt-1" style={{ color: '#86909C' }}>管理项目零星材料采购记录，自动计入项目成本</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>零星材料统计</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>管理项目零星材料采购记录，自动计入项目成本</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <Button
@@ -733,7 +733,7 @@ function MiscMaterialsContent() {
               setAddDialogOpen(true);
             }}
             className="gap-2"
-            style={{ backgroundColor: '#165DFF' }}
+            style={{ backgroundColor: 'var(--color-primary)' }}
           >
             <Plus className="h-4 w-4" />
             新增材料
@@ -747,11 +747,11 @@ function MiscMaterialsContent() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg" style={{ backgroundColor: '#E8F3FF' }}>
-                <Package className="h-5 w-5" style={{ color: '#165DFF' }} />
+                <Package className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>总记录数</p>
-                <p className="text-xl font-bold" style={{ color: '#1D2129' }}>{stats.totalCount}</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>总记录数</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>{stats.totalCount}</p>
               </div>
             </div>
           </CardContent>
@@ -764,8 +764,8 @@ function MiscMaterialsContent() {
                 <FileSpreadsheet className="h-5 w-5" style={{ color: '#FF7D00' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>总金额</p>
-                <p className="text-xl font-bold" style={{ color: '#1D2129' }}>¥{formatAmount(stats.totalAmount)}</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>总金额</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.totalAmount)}</p>
               </div>
             </div>
           </CardContent>
@@ -778,8 +778,8 @@ function MiscMaterialsContent() {
                 <Building2 className="h-5 w-5" style={{ color: '#00B42A' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>涉及项目</p>
-                <p className="text-xl font-bold" style={{ color: '#1D2129' }}>{Object.keys(stats.projectStats).length}</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>涉及项目</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>{Object.keys(stats.projectStats).length}</p>
               </div>
             </div>
           </CardContent>
@@ -788,12 +788,12 @@ function MiscMaterialsContent() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg" style={{ backgroundColor: '#F2F3F5' }}>
-                <Calendar className="h-5 w-5" style={{ color: '#86909C' }} />
+              <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-muted)' }}>
+                <Calendar className="h-5 w-5" style={{ color: 'var(--color-text-3)' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: '#86909C' }}>平均单价</p>
-                <p className="text-xl font-bold" style={{ color: '#1D2129' }}>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>平均单价</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>
                   ¥{stats.totalCount > 0 ? formatAmount(stats.totalAmount / stats.totalCount) : '0.00'}
                 </p>
               </div>
@@ -807,7 +807,7 @@ function MiscMaterialsContent() {
         <CardContent className="p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:items-end">
             <div className="space-y-1.5">
-              <Label style={{ color: '#86909C' }}>项目</Label>
+              <Label style={{ color: 'var(--color-text-3)' }}>项目</Label>
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="全部项目" />
@@ -824,7 +824,7 @@ function MiscMaterialsContent() {
             </div>
             
             <div className="space-y-1.5">
-              <Label style={{ color: '#86909C' }}>材料名称</Label>
+              <Label style={{ color: 'var(--color-text-3)' }}>材料名称</Label>
               <Input
                 className="w-full"
                 placeholder="搜索材料名称"
@@ -834,7 +834,7 @@ function MiscMaterialsContent() {
             </div>
             
             <div className="space-y-1.5">
-              <Label style={{ color: '#86909C' }}>开始日期</Label>
+              <Label style={{ color: 'var(--color-text-3)' }}>开始日期</Label>
               <Input
                 type="date"
                 className="w-full"
@@ -844,7 +844,7 @@ function MiscMaterialsContent() {
             </div>
             
             <div className="space-y-1.5">
-              <Label style={{ color: '#86909C' }}>结束日期</Label>
+              <Label style={{ color: 'var(--color-text-3)' }}>结束日期</Label>
               <Input
                 type="date"
                 className="w-full"
@@ -859,7 +859,7 @@ function MiscMaterialsContent() {
                 fetchStats();
               }}
               className="w-full gap-2"
-              style={{ backgroundColor: '#165DFF' }}
+              style={{ backgroundColor: 'var(--color-primary)' }}
             >
               <Search className="h-4 w-4" />
               查询
@@ -886,7 +886,7 @@ function MiscMaterialsContent() {
       {Object.keys(stats.projectStats).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base" style={{ color: '#1D2129' }}>项目金额统计</CardTitle>
+            <CardTitle className="text-base" style={{ color: 'var(--foreground)' }}>项目金额统计</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -897,12 +897,12 @@ function MiscMaterialsContent() {
                   <div
                     key={projectName}
                     className="p-3 rounded-lg border"
-                    style={{ backgroundColor: '#FAFAFA', borderColor: '#E5E6EB' }}
+                    style={{ backgroundColor: 'var(--color-muted)', borderColor: 'var(--border)' }}
                   >
-                    <p className="text-xs truncate" style={{ color: '#86909C' }} title={projectName}>
+                    <p className="text-xs truncate" style={{ color: 'var(--color-text-3)' }} title={projectName}>
                       {projectName}
                     </p>
-                    <p className="text-sm font-semibold mt-1" style={{ color: '#1D2129' }}>
+                    <p className="text-sm font-semibold mt-1" style={{ color: 'var(--foreground)' }}>
                       ¥{formatAmount(amount)}
                     </p>
                   </div>
@@ -915,9 +915,9 @@ function MiscMaterialsContent() {
       {/* 材料列表 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base" style={{ color: '#1D2129' }}>
+          <CardTitle className="text-base" style={{ color: 'var(--foreground)' }}>
             材料明细
-            <span className="ml-2 text-sm font-normal" style={{ color: '#86909C' }}>
+            <span className="ml-2 text-sm font-normal" style={{ color: 'var(--color-text-3)' }}>
               共 {pagination.total} 条
             </span>
           </CardTitle>
@@ -925,11 +925,11 @@ function MiscMaterialsContent() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center h-40">
-              <div className="text-center" style={{ color: '#86909C' }}>加载中...</div>
+              <div className="text-center" style={{ color: 'var(--color-text-3)' }}>加载中...</div>
             </div>
           ) : materials.length === 0 ? (
             <div className="flex items-center justify-center h-40">
-              <div className="text-center" style={{ color: '#86909C' }}>
+              <div className="text-center" style={{ color: 'var(--color-text-3)' }}>
                 <Package className="h-12 w-12 mx-auto mb-2 opacity-30" />
                 <p>暂无材料记录</p>
               </div>
@@ -938,30 +938,30 @@ function MiscMaterialsContent() {
             <>
               <div className="space-y-3 md:hidden">
                 {materials.map(material => (
-                  <div key={material.id} className="rounded-xl border bg-white p-3" style={{ borderColor: '#E5E6EB' }}>
+                  <div key={material.id} className="rounded-xl border bg-card p-3" style={{ borderColor: 'var(--border)' }}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold" style={{ color: '#1D2129' }}>{material.material_name}</p>
-                        <p className="mt-1 truncate text-xs" style={{ color: '#86909C' }}>{material.projects?.name || '-'}</p>
+                        <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{material.material_name}</p>
+                        <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-text-3)' }}>{material.projects?.name || '-'}</p>
                       </div>
                       <span className="shrink-0 text-sm font-semibold" style={{ color: '#FF7D00' }}>¥{formatAmount(material.total_price)}</span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-lg bg-[#F7F8FA] px-2 py-1.5">
-                        <span style={{ color: '#86909C' }}>数量</span>
-                        <span className="ml-2 font-medium" style={{ color: '#1D2129' }}>{material.quantity}{material.unit || ''}</span>
+                      <div className="rounded-lg bg-[var(--color-muted)] px-2 py-1.5">
+                        <span style={{ color: 'var(--color-text-3)' }}>数量</span>
+                        <span className="ml-2 font-medium" style={{ color: 'var(--foreground)' }}>{material.quantity}{material.unit || ''}</span>
                       </div>
-                      <div className="rounded-lg bg-[#F7F8FA] px-2 py-1.5">
-                        <span style={{ color: '#86909C' }}>单价</span>
-                        <span className="ml-2 font-medium" style={{ color: '#1D2129' }}>¥{formatAmount(material.unit_price)}</span>
+                      <div className="rounded-lg bg-[var(--color-muted)] px-2 py-1.5">
+                        <span style={{ color: 'var(--color-text-3)' }}>单价</span>
+                        <span className="ml-2 font-medium" style={{ color: 'var(--foreground)' }}>¥{formatAmount(material.unit_price)}</span>
                       </div>
-                      <div className="rounded-lg bg-[#F7F8FA] px-2 py-1.5">
-                        <span style={{ color: '#86909C' }}>日期</span>
-                        <span className="ml-2 font-medium" style={{ color: '#1D2129' }}>{material.purchase_date}</span>
+                      <div className="rounded-lg bg-[var(--color-muted)] px-2 py-1.5">
+                        <span style={{ color: 'var(--color-text-3)' }}>日期</span>
+                        <span className="ml-2 font-medium" style={{ color: 'var(--foreground)' }}>{material.purchase_date}</span>
                       </div>
-                      <div className="rounded-lg bg-[#F7F8FA] px-2 py-1.5">
-                        <span style={{ color: '#86909C' }}>供应商</span>
-                        <span className="ml-2 font-medium" style={{ color: '#1D2129' }}>{material.supplier || '-'}</span>
+                      <div className="rounded-lg bg-[var(--color-muted)] px-2 py-1.5">
+                        <span style={{ color: 'var(--color-text-3)' }}>供应商</span>
+                        <span className="ml-2 font-medium" style={{ color: 'var(--foreground)' }}>{material.supplier || '-'}</span>
                       </div>
                     </div>
                     <div className="mt-3 flex justify-end gap-2">
@@ -971,7 +971,7 @@ function MiscMaterialsContent() {
                         onClick={() => openEditDialog(material)}
                         className="h-8 px-3"
                       >
-                        <Pencil className="h-4 w-4" style={{ color: '#165DFF' }} />
+                        <Pencil className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                       </Button>
                       <Button
                         variant="ghost"
@@ -991,43 +991,43 @@ function MiscMaterialsContent() {
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b" style={{ borderColor: '#E5E6EB' }}>
-                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>项目名称</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>材料名称</th>
-                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>单位</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>数量</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>单价</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>金额</th>
-                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>采购日期</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>供应商</th>
-                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: '#86909C' }}>操作</th>
+                    <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>项目名称</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>材料名称</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>单位</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>数量</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>单价</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>金额</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>采购日期</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>供应商</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {materials.map((material) => (
-                      <tr key={material.id} className="border-b hover:bg-gray-50" style={{ borderColor: '#E5E6EB' }}>
+                      <tr key={material.id} className="border-b hover:bg-gray-50" style={{ borderColor: 'var(--border)' }}>
                         <td className="py-3 px-4">
-                          <span className="text-sm" style={{ color: '#1D2129' }}>
+                          <span className="text-sm" style={{ color: 'var(--foreground)' }}>
                             {material.projects?.name || '-'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="text-sm font-medium" style={{ color: '#1D2129' }}>
+                          <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                             {material.material_name}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-sm" style={{ color: '#86909C' }}>
+                          <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                             {material.unit || '-'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <span className="text-sm" style={{ color: '#1D2129' }}>
+                          <span className="text-sm" style={{ color: 'var(--foreground)' }}>
                             {parseFloat(material.quantity).toLocaleString('zh-CN')}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <span className="text-sm" style={{ color: '#1D2129' }}>
+                          <span className="text-sm" style={{ color: 'var(--foreground)' }}>
                             ¥{formatAmount(material.unit_price)}
                           </span>
                         </td>
@@ -1037,12 +1037,12 @@ function MiscMaterialsContent() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-sm" style={{ color: '#86909C' }}>
+                          <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                             {formatDate(material.purchase_date)}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="text-sm" style={{ color: '#86909C' }}>
+                          <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                             {material.supplier || '-'}
                           </span>
                         </td>
@@ -1054,7 +1054,7 @@ function MiscMaterialsContent() {
                               onClick={() => openEditDialog(material)}
                               className="h-8 px-2"
                             >
-                              <Pencil className="h-4 w-4" style={{ color: '#165DFF' }} />
+                              <Pencil className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1077,8 +1077,8 @@ function MiscMaterialsContent() {
               
               {/* 分页 */}
               {pagination.totalPages > 1 && (
-                <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
-                  <div className="text-sm" style={{ color: '#86909C' }}>
+                <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)' }}>
+                  <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                     第 {(pagination.page - 1) * pagination.pageSize + 1} - {Math.min(pagination.page * pagination.pageSize, pagination.total)} 条，共 {pagination.total} 条
                   </div>
                   <div className="flex items-center gap-2">
@@ -1090,7 +1090,7 @@ function MiscMaterialsContent() {
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm px-3" style={{ color: '#86909C' }}>
+                    <span className="text-sm px-3" style={{ color: 'var(--color-text-3)' }}>
                       {pagination.page} / {pagination.totalPages}
                     </span>
                     <Button
@@ -1114,7 +1114,7 @@ function MiscMaterialsContent() {
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5" style={{ color: '#165DFF' }} />
+              <Sparkles className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               零星材料智能录入
             </DialogTitle>
           </DialogHeader>
@@ -1133,14 +1133,14 @@ function MiscMaterialsContent() {
 
             {assistMode === 'image' && (
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>拍照或上传材料票据</Label>
+                <Label style={{ color: 'var(--foreground)' }}>拍照或上传材料票据</Label>
                 <Input
                   type="file"
                   accept="image/*"
                   capture="environment"
                   onChange={(e) => setAssistFile(e.target.files?.[0] || null)}
                 />
-                <p className="text-xs" style={{ color: '#86909C' }}>
+                <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
                   照片只用于文字识别，识别完成后不保存原始图片；保存前请人工核对项目、数量和单价。
                 </p>
               </div>
@@ -1160,14 +1160,14 @@ function MiscMaterialsContent() {
                     className="max-w-xs"
                   />
                 </div>
-                <p className="text-xs" style={{ color: '#86909C' }}>
+                <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
                   可直接说“某项目买水泥10袋，单价25元，供应商某某”。也可上传音频文件，音频只用于识别不保存。
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label style={{ color: '#1D2129' }}>
+              <Label style={{ color: 'var(--foreground)' }}>
                 {assistMode === 'text' ? '材料描述' : '识别文字/补充说明'}
               </Label>
               <Textarea
@@ -1179,16 +1179,16 @@ function MiscMaterialsContent() {
             </div>
 
             {(assistWarnings.length > 0 || assistRawText) && (
-              <div className="rounded-lg border p-3" style={{ borderColor: '#E5E6EB', backgroundColor: '#FAFBFF' }}>
+              <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', backgroundColor: '#FAFBFF' }}>
                 {assistWarnings.length > 0 && (
                   <div className="space-y-1">
                     {assistWarnings.map((item, index) => (
-                      <p key={index} className="text-xs" style={{ color: '#D46B08' }}>{item}</p>
+                      <p key={index} className="text-xs" style={{ color: '#FF7D00' }}>{item}</p>
                     ))}
                   </div>
                 )}
                 {assistRawText && (
-                  <div className="mt-3 max-h-28 overflow-auto whitespace-pre-wrap text-xs" style={{ color: '#4E5969' }}>
+                  <div className="mt-3 max-h-28 overflow-auto whitespace-pre-wrap text-xs" style={{ color: 'var(--color-text-2)' }}>
                     {assistRawText}
                   </div>
                 )}
@@ -1197,7 +1197,7 @@ function MiscMaterialsContent() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAssistDialogOpen(false)}>取消</Button>
-            <Button onClick={handleRecognizeMaterial} disabled={recognizing} className="gap-2" style={{ backgroundColor: '#165DFF' }}>
+            <Button onClick={handleRecognizeMaterial} disabled={recognizing} className="gap-2" style={{ backgroundColor: 'var(--color-primary)' }}>
               {recognizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {recognizing ? '正在提炼...' : 'AI提炼为草稿'}
             </Button>
@@ -1214,7 +1214,7 @@ function MiscMaterialsContent() {
           <div className="grid gap-4 py-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>项目 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>项目 *</Label>
                 <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择项目" />
@@ -1229,7 +1229,7 @@ function MiscMaterialsContent() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>材料名称 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
                 <Input
                   placeholder="请输入材料名称"
                   value={form.material_name}
@@ -1239,7 +1239,7 @@ function MiscMaterialsContent() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>单位</Label>
+                <Label style={{ color: 'var(--foreground)' }}>单位</Label>
                 <Input
                   placeholder="如：个、米"
                   value={form.unit}
@@ -1247,7 +1247,7 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>数量 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>数量 *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -1257,7 +1257,7 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>单价 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>单价 *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -1269,7 +1269,7 @@ function MiscMaterialsContent() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>采购日期 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>采购日期 *</Label>
                 <Input
                   type="date"
                   value={form.purchase_date}
@@ -1277,7 +1277,7 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>供应商</Label>
+                <Label style={{ color: 'var(--foreground)' }}>供应商</Label>
                 <Input
                   placeholder="供应商名称"
                   value={form.supplier}
@@ -1286,7 +1286,7 @@ function MiscMaterialsContent() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label style={{ color: '#1D2129' }}>备注</Label>
+              <Label style={{ color: 'var(--foreground)' }}>备注</Label>
               <Textarea
                 placeholder="备注信息"
                 value={form.remark}
@@ -1295,8 +1295,8 @@ function MiscMaterialsContent() {
               />
             </div>
             {form.quantity && form.unit_price && (
-              <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: '#E5E6EB' }}>
-                <span className="text-sm" style={{ color: '#86909C' }}>金额合计：</span>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>金额合计：</span>
                 <span className="text-lg font-bold" style={{ color: '#FF7D00' }}>
                   ¥{formatAmount((parseFloat(form.quantity) || 0) * (parseFloat(form.unit_price) || 0))}
                 </span>
@@ -1305,7 +1305,7 @@ function MiscMaterialsContent() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
-            <Button onClick={handleAdd} disabled={saving} style={{ backgroundColor: '#165DFF' }}>
+            <Button onClick={handleAdd} disabled={saving} style={{ backgroundColor: 'var(--color-primary)' }}>
               {saving ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>
@@ -1321,7 +1321,7 @@ function MiscMaterialsContent() {
           <div className="grid gap-4 py-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>项目 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>项目 *</Label>
                 <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择项目" />
@@ -1336,7 +1336,7 @@ function MiscMaterialsContent() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>材料名称 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
                 <Input
                   placeholder="请输入材料名称"
                   value={form.material_name}
@@ -1346,7 +1346,7 @@ function MiscMaterialsContent() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>单位</Label>
+                <Label style={{ color: 'var(--foreground)' }}>单位</Label>
                 <Input
                   placeholder="如：个、米"
                   value={form.unit}
@@ -1354,7 +1354,7 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>数量 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>数量 *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -1364,7 +1364,7 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>单价 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>单价 *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -1376,7 +1376,7 @@ function MiscMaterialsContent() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>采购日期 *</Label>
+                <Label style={{ color: 'var(--foreground)' }}>采购日期 *</Label>
                 <Input
                   type="date"
                   value={form.purchase_date}
@@ -1384,7 +1384,7 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: '#1D2129' }}>供应商</Label>
+                <Label style={{ color: 'var(--foreground)' }}>供应商</Label>
                 <Input
                   placeholder="供应商名称"
                   value={form.supplier}
@@ -1393,7 +1393,7 @@ function MiscMaterialsContent() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label style={{ color: '#1D2129' }}>备注</Label>
+              <Label style={{ color: 'var(--foreground)' }}>备注</Label>
               <Textarea
                 placeholder="备注信息"
                 value={form.remark}
@@ -1402,8 +1402,8 @@ function MiscMaterialsContent() {
               />
             </div>
             {form.quantity && form.unit_price && (
-              <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: '#E5E6EB' }}>
-                <span className="text-sm" style={{ color: '#86909C' }}>金额合计：</span>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>金额合计：</span>
                 <span className="text-lg font-bold" style={{ color: '#FF7D00' }}>
                   ¥{formatAmount((parseFloat(form.quantity) || 0) * (parseFloat(form.unit_price) || 0))}
                 </span>
@@ -1412,7 +1412,7 @@ function MiscMaterialsContent() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
-            <Button onClick={handleEdit} disabled={saving} style={{ backgroundColor: '#165DFF' }}>
+            <Button onClick={handleEdit} disabled={saving} style={{ backgroundColor: 'var(--color-primary)' }}>
               {saving ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>
@@ -1445,7 +1445,7 @@ function MiscMaterialsContent() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label style={{ color: '#1D2129' }}>选择Excel文件</Label>
+              <Label style={{ color: 'var(--foreground)' }}>选择Excel文件</Label>
               <Input
                 type="file"
                 accept=".xlsx,.xls,.csv"
@@ -1454,7 +1454,7 @@ function MiscMaterialsContent() {
                   setImportResult(null);
                 }}
               />
-              <p className="text-xs" style={{ color: '#86909C' }}>
+              <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
                 支持 .xlsx、.xls、.csv 格式，文件大小不超过 5MB
               </p>
             </div>
@@ -1464,9 +1464,9 @@ function MiscMaterialsContent() {
               下载导入模板
             </Button>
             
-            <div className="p-3 rounded-lg" style={{ backgroundColor: '#F7F8FA' }}>
-              <p className="text-sm font-medium mb-2" style={{ color: '#1D2129' }}>Excel格式要求：</p>
-              <ul className="text-xs space-y-1" style={{ color: '#86909C' }}>
+            <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--color-muted)' }}>
+              <p className="text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>Excel格式要求：</p>
+              <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-3)' }}>
                 <li>• 第一行为表头，数据从第二行开始</li>
                 <li>• 必填列：项目名称、材料名称、数量、单价</li>
                 <li>• 可选列：规格型号、单位、金额、采购日期、采购人、备注</li>
@@ -1495,7 +1495,7 @@ function MiscMaterialsContent() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setImportDialogOpen(false)}>关闭</Button>
-            <Button onClick={handleImport} disabled={importing || !importFile} style={{ backgroundColor: '#165DFF' }}>
+            <Button onClick={handleImport} disabled={importing || !importFile} style={{ backgroundColor: 'var(--color-primary)' }}>
               {importing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

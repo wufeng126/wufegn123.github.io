@@ -41,12 +41,12 @@ import {
 
 const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工', '办公用品', '其他杂费'];
 const TYPE_COLORS: Record<string, string> = {
-  '招待费': '#165DFF',
+  '招待费': 'var(--color-primary)',
   '差旅费': '#00B42A',
   '房租水电': '#FF7D00',
   '现金帮工': '#722ED1',
-  '办公用品': '#0FC6C2',
-  '其他杂费': '#86909C',
+  '办公用品': 'var(--color-cyan)',
+  '其他杂费': 'var(--color-text-3)',
 };
 
 // 类型定义
@@ -88,7 +88,7 @@ interface FullStats {
 
 export default function ComprehensiveExpensePage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-center" style={{ color: '#86909C' }}>加载中...</div></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-center" style={{ color: 'var(--color-text-3)' }}>加载中...</div></div>}>
       <ComprehensiveExpenseContent />
     </Suspense>
   );
@@ -361,7 +361,7 @@ function ComprehensiveExpenseContent() {
 
   // 费用类型颜色
   const getTypeColor = (type: string) => {
-    return TYPE_COLORS[type] || '#86909C';
+    return TYPE_COLORS[type] || 'var(--color-text-3)';
   };
 
   // 饼图数据
@@ -381,16 +381,16 @@ function ComprehensiveExpenseContent() {
   })) || [];
 
   return (
-    <div className="p-4 md:p-6 space-y-5" style={{ background: '#F7F8FA', minHeight: '100vh' }}>
+    <div className="p-4 md:p-6 space-y-5" style={{ background: 'var(--color-muted)', minHeight: '100vh' }}>
       {/* 页面标题 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-bold" style={{ color: '#1D2129' }}>🤝 综合费用管理</h1>
+        <h1 className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>🤝 综合费用管理</h1>
         <div className="mobile-action-grid sm:flex sm:w-auto sm:gap-2">
-          <Button size="sm" onClick={handleAdd} style={{ background: '#165DFF' }} className="hover:opacity-90">
+          <Button size="sm" onClick={handleAdd} style={{ background: 'var(--color-primary)' }} className="hover:opacity-90">
             <Plus className="w-4 h-4 mr-1" />
             新增费用
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} style={{ borderColor: '#E5E6EB', color: '#4E5969' }}>
+          <Button variant="outline" size="sm" onClick={handleExport} style={{ borderColor: 'var(--border)', color: 'var(--color-text-2)' }}>
             <Download className="w-4 h-4 mr-1" />
             导出 Excel
           </Button>
@@ -399,42 +399,42 @@ function ComprehensiveExpenseContent() {
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+        <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2 mb-1">
-              <FileText className="w-4 h-4" style={{ color: '#165DFF' }} />
-              <p className="text-sm" style={{ color: '#86909C' }}>费用总数</p>
+              <FileText className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>费用总数</p>
             </div>
-            <p className="text-2xl font-bold" style={{ color: '#165DFF' }}>{stats.totalCount}</p>
+            <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>{stats.totalCount}</p>
           </CardContent>
         </Card>
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+        <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4" style={{ color: '#FF7D00' }} />
-              <p className="text-sm" style={{ color: '#86909C' }}>费用总额</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>费用总额</p>
             </div>
             <p className="text-2xl font-bold" style={{ color: '#FF7D00' }}>
               ¥{(stats.totalAmount / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}万
             </p>
           </CardContent>
         </Card>
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+        <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="w-4 h-4" style={{ color: '#165DFF' }} />
-              <p className="text-sm" style={{ color: '#86909C' }}>招待费</p>
+              <BarChart3 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>招待费</p>
             </div>
-            <p className="text-xl font-bold" style={{ color: '#165DFF' }}>
+            <p className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>
               ¥{((stats.typeStats['招待费'] || 0) / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}万
             </p>
           </CardContent>
         </Card>
-        <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+        <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2 mb-1">
               <BarChart3 className="w-4 h-4" style={{ color: '#00B42A' }} />
-              <p className="text-sm" style={{ color: '#86909C' }}>差旅费</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>差旅费</p>
             </div>
             <p className="text-xl font-bold" style={{ color: '#00B42A' }}>
               ¥{((stats.typeStats['差旅费'] || 0) / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}万
@@ -445,7 +445,7 @@ function ComprehensiveExpenseContent() {
 
       {/* Tab切换 */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-white border" style={{ borderColor: '#E5E6EB' }}>
+        <TabsList className="bg-card border" style={{ borderColor: 'var(--border)' }}>
           <TabsTrigger value="list" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600">费用列表</TabsTrigger>
           <TabsTrigger value="stats" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600">统计分析</TabsTrigger>
         </TabsList>
@@ -453,11 +453,11 @@ function ComprehensiveExpenseContent() {
         {/* 费用列表 Tab */}
         <TabsContent value="list" className="space-y-5 mt-4">
           {/* 筛选区域 */}
-          <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+          <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
             <CardContent className="py-4">
               <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
                 <div className="relative min-w-0 flex-1 sm:min-w-[200px] sm:max-w-[300px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#86909C' }} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
                   <Input
                     placeholder="搜索经办人/备注..."
                     value={keyword}
@@ -494,7 +494,7 @@ function ComprehensiveExpenseContent() {
                   className="h-8 w-full sm:w-32"
                   placeholder="开始日期"
                 />
-                <span className="hidden sm:inline" style={{ color: '#86909C' }}>至</span>
+                <span className="hidden sm:inline" style={{ color: 'var(--color-text-3)' }}>至</span>
                 <Input
                   type="date"
                   value={endDate}
@@ -502,7 +502,7 @@ function ComprehensiveExpenseContent() {
                   className="h-8 w-full sm:w-32"
                   placeholder="结束日期"
                 />
-                <Button variant="outline" size="sm" onClick={() => fetchExpenses(1)} className="w-full sm:w-auto" style={{ borderColor: '#E5E6EB' }}>
+                <Button variant="outline" size="sm" onClick={() => fetchExpenses(1)} className="w-full sm:w-auto" style={{ borderColor: 'var(--border)' }}>
                   <RefreshCw className="w-4 h-4 mr-1" />
                   刷新
                 </Button>
@@ -511,46 +511,46 @@ function ComprehensiveExpenseContent() {
           </Card>
 
           {/* 列表区域 */}
-          <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+          <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
             <CardContent className="p-0">
               {loading ? (
-                <div className="flex items-center justify-center h-40" style={{ color: '#86909C' }}>加载中...</div>
+                <div className="flex items-center justify-center h-40" style={{ color: 'var(--color-text-3)' }}>加载中...</div>
               ) : expenses.length > 0 ? (
                 <>
                   {/* 桌面端表格 */}
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr style={{ background: '#F7F8FA' }}>
-                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>项目名称</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>费用类型</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>金额</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>发生日期</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>经办人</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>备注</th>
-                          <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: '#86909C' }}>操作</th>
+                        <tr style={{ background: 'var(--color-muted)' }}>
+                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>项目名称</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>费用类型</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>金额</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>发生日期</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>经办人</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>备注</th>
+                          <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>操作</th>
                         </tr>
                       </thead>
                       <tbody>
                         {expenses.map((expense, idx) => (
-                          <tr key={expense.id} className={idx < expenses.length - 1 ? 'border-b' : ''} style={{ borderColor: '#E5E6EB' }}>
-                            <td className="px-4 py-3 text-sm" style={{ color: '#1D2129' }}>
-                              {expense.projects?.name || <span style={{ color: '#86909C' }}>全局费用</span>}
+                          <tr key={expense.id} className={idx < expenses.length - 1 ? 'border-b' : ''} style={{ borderColor: 'var(--border)' }}>
+                            <td className="px-4 py-3 text-sm" style={{ color: 'var(--foreground)' }}>
+                              {expense.projects?.name || <span style={{ color: 'var(--color-text-3)' }}>全局费用</span>}
                             </td>
                             <td className="px-4 py-3">
                               <Badge style={{ background: `${getTypeColor(expense.expense_type)}15`, color: getTypeColor(expense.expense_type) }}>
                                 {expense.expense_type}
                               </Badge>
                             </td>
-                            <td className="px-4 py-3 text-sm text-right font-medium" style={{ color: '#1D2129' }}>
+                            <td className="px-4 py-3 text-sm text-right font-medium" style={{ color: 'var(--foreground)' }}>
                               ¥{parseFloat(expense.amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="px-4 py-3 text-sm" style={{ color: '#4E5969' }}>{expense.expense_date}</td>
-                            <td className="px-4 py-3 text-sm" style={{ color: '#4E5969' }}>{expense.handler || '-'}</td>
-                            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: '#86909C' }}>{expense.remark || '-'}</td>
+                            <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-2)' }}>{expense.expense_date}</td>
+                            <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-2)' }}>{expense.handler || '-'}</td>
+                            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: 'var(--color-text-3)' }}>{expense.remark || '-'}</td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex items-center justify-center gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: '#165DFF' }}>
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: 'var(--color-primary)' }}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
                                 <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }}>
@@ -565,25 +565,25 @@ function ComprehensiveExpenseContent() {
                   </div>
 
                   {/* 移动端列表 */}
-                  <div className="md:hidden divide-y" style={{ borderColor: '#E5E6EB' }}>
+                  <div className="md:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
                     {expenses.map((expense) => (
                       <div key={expense.id} className="p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <Badge style={{ background: `${getTypeColor(expense.expense_type)}15`, color: getTypeColor(expense.expense_type) }}>
                             {expense.expense_type}
                           </Badge>
-                          <span className="text-lg font-bold" style={{ color: '#1D2129' }}>
+                          <span className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
                             ¥{parseFloat(expense.amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span style={{ color: '#4E5969' }}>{expense.projects?.name || '全局费用'}</span>
-                          <span style={{ color: '#86909C' }}>{expense.expense_date}</span>
+                          <span style={{ color: 'var(--color-text-2)' }}>{expense.projects?.name || '全局费用'}</span>
+                          <span style={{ color: 'var(--color-text-3)' }}>{expense.expense_date}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm" style={{ color: '#86909C' }}>{expense.handler || '-'}</span>
+                          <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>{expense.handler || '-'}</span>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: '#165DFF' }}>
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: 'var(--color-primary)' }}>
                               <Pencil className="w-4 h-4" />
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }}>
@@ -597,8 +597,8 @@ function ComprehensiveExpenseContent() {
 
                   {/* 分页 */}
                   {pagination.totalPages > 1 && (
-                    <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: '#E5E6EB' }}>
-                      <span className="text-sm" style={{ color: '#86909C' }}>
+                    <div className="grid gap-3 px-4 py-3 border-t sm:flex sm:items-center sm:justify-between" style={{ borderColor: 'var(--border)' }}>
+                      <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>
                         共 {pagination.total} 条，第 {pagination.page}/{pagination.totalPages} 页
                       </span>
                       <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
@@ -623,10 +623,10 @@ function ComprehensiveExpenseContent() {
                   )}
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12" style={{ color: '#86909C' }}>
-                  <FileText className="w-12 h-12 mb-3" style={{ color: '#C9CDD4' }} />
+                <div className="flex flex-col items-center justify-center py-12" style={{ color: 'var(--color-text-3)' }}>
+                  <FileText className="w-12 h-12 mb-3" style={{ color: 'var(--color-text-3)' }} />
                   <p>暂无综合费用</p>
-                  <Button size="sm" className="mt-3" onClick={handleAdd} style={{ background: '#165DFF' }}>
+                  <Button size="sm" className="mt-3" onClick={handleAdd} style={{ background: 'var(--color-primary)' }}>
                     <Plus className="w-4 h-4 mr-1" />
                     新增费用
                   </Button>
@@ -642,42 +642,42 @@ function ComprehensiveExpenseContent() {
             <>
               {/* 汇总卡片 */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+                <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   <CardContent className="pt-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <FileText className="w-4 h-4" style={{ color: '#165DFF' }} />
-                      <p className="text-sm" style={{ color: '#86909C' }}>费用总数</p>
+                      <FileText className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                      <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>费用总数</p>
                     </div>
-                    <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{fullStats.summary.totalCount}</p>
+                    <p className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>{fullStats.summary.totalCount}</p>
                   </CardContent>
                 </Card>
-                <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+                <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   <CardContent className="pt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <TrendingUp className="w-4 h-4" style={{ color: '#FF7D00' }} />
-                      <p className="text-sm" style={{ color: '#86909C' }}>费用总额</p>
+                      <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>费用总额</p>
                     </div>
                     <p className="text-2xl font-bold" style={{ color: '#FF7D00' }}>
                       ¥{(fullStats.summary.totalAmount / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}万
                     </p>
                   </CardContent>
                 </Card>
-                <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+                <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   <CardContent className="pt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar className="w-4 h-4" style={{ color: '#00B42A' }} />
-                      <p className="text-sm" style={{ color: '#86909C' }}>平均每笔</p>
+                      <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>平均每笔</p>
                     </div>
                     <p className="text-2xl font-bold" style={{ color: '#00B42A' }}>
                       ¥{(fullStats.summary.avgAmount / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}万
                     </p>
                   </CardContent>
                 </Card>
-                <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
+                <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   <CardContent className="pt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="w-4 h-4" style={{ color: '#722ED1' }} />
-                      <p className="text-sm" style={{ color: '#86909C' }}>涉及项目</p>
+                      <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>涉及项目</p>
                     </div>
                     <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{fullStats.projectDetails.length}</p>
                   </CardContent>
@@ -687,9 +687,9 @@ function ComprehensiveExpenseContent() {
               {/* 费用类型分布 & 月度趋势 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 {/* 费用类型分布 */}
-                <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
-                  <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-                    <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>费用类型分布</CardTitle>
+                <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                  <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <CardTitle className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>费用类型分布</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4">
                     {pieData.length > 0 ? (
@@ -724,13 +724,13 @@ function ComprehensiveExpenseContent() {
                               <div key={type} className="flex items-center justify-between p-2 rounded-lg" style={{ background: `${TYPE_COLORS[type]}15` }}>
                                 <div className="flex items-center gap-2">
                                   <div className="w-3 h-3 rounded-full" style={{ background: TYPE_COLORS[type] }} />
-                                  <span className="text-sm" style={{ color: '#1D2129' }}>{type}</span>
+                                  <span className="text-sm" style={{ color: 'var(--foreground)' }}>{type}</span>
                                 </div>
                                 <div className="text-right">
                                   <span className="text-sm font-bold" style={{ color: TYPE_COLORS[type] }}>
                                     ¥{(data.amount / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}万
                                   </span>
-                                  <span className="text-xs ml-1" style={{ color: '#86909C' }}>({data.percentage.toFixed(1)}%)</span>
+                                  <span className="text-xs ml-1" style={{ color: 'var(--color-text-3)' }}>({data.percentage.toFixed(1)}%)</span>
                                 </div>
                               </div>
                             );
@@ -738,15 +738,15 @@ function ComprehensiveExpenseContent() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center h-40" style={{ color: '#86909C' }}>暂无数据</div>
+                      <div className="flex items-center justify-center h-40" style={{ color: 'var(--color-text-3)' }}>暂无数据</div>
                     )}
                   </CardContent>
                 </Card>
 
                 {/* 月度趋势 */}
-                <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
-                  <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-                    <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>月度费用趋势</CardTitle>
+                <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                  <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <CardTitle className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>月度费用趋势</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4">
                     {monthlyChartData.some(d => d.amount > 0) ? (
@@ -754,8 +754,8 @@ function ComprehensiveExpenseContent() {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={monthlyChartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E6EB" />
-                            <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#86909C' }} />
-                            <YAxis tick={{ fontSize: 12, fill: '#86909C' }} />
+                            <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--color-text-3)' }} />
+                            <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-3)' }} />
                             <RechartsTooltip
                               formatter={(value: number) => [`¥${value.toLocaleString('zh-CN')}万元`, '']}
                             />
@@ -764,16 +764,16 @@ function ComprehensiveExpenseContent() {
                         </ResponsiveContainer>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center h-40" style={{ color: '#86909C' }}>暂无数据</div>
+                      <div className="flex items-center justify-center h-40" style={{ color: 'var(--color-text-3)' }}>暂无数据</div>
                     )}
                   </CardContent>
                 </Card>
               </div>
 
               {/* 项目费用排行 */}
-              <Card style={{ background: '#FFFFFF', border: '1px solid #E5E6EB', borderRadius: '8px' }}>
-                <CardHeader className="py-3 border-b" style={{ borderColor: '#E5E6EB' }}>
-                  <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>项目费用排行</CardTitle>
+              <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <CardHeader className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                  <CardTitle className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>项目费用排行</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
                   {fullStats.projectDetails.length > 0 ? (
@@ -781,30 +781,30 @@ function ComprehensiveExpenseContent() {
                       {fullStats.projectDetails.slice(0, 10).map((project, idx) => (
                         <div key={project.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
                           <span className="w-6 h-6 flex items-center justify-center text-xs font-bold rounded-full" 
-                            style={{ background: idx < 3 ? '#165DFF' : '#E5E6EB', color: idx < 3 ? '#FFFFFF' : '#86909C' }}>
+                            style={{ background: idx < 3 ? 'var(--color-primary)' : 'var(--border)', color: idx < 3 ? '#FFFFFF' : 'var(--color-text-3)' }}>
                             {idx + 1}
                           </span>
                           <div className="flex-1">
-                            <p className="text-sm font-medium" style={{ color: '#1D2129' }}>{project.name}</p>
-                            <p className="text-xs" style={{ color: '#86909C' }}>{project.count} 笔费用</p>
+                            <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{project.name}</p>
+                            <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>{project.count} 笔费用</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-bold" style={{ color: '#FF7D00' }}>
                               ¥{(project.amount / 10000).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}万
                             </p>
-                            <p className="text-xs" style={{ color: '#86909C' }}>{project.percentage.toFixed(1)}%</p>
+                            <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>{project.percentage.toFixed(1)}%</p>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-20" style={{ color: '#86909C' }}>暂无数据</div>
+                    <div className="flex items-center justify-center h-20" style={{ color: 'var(--color-text-3)' }}>暂无数据</div>
                   )}
                 </CardContent>
               </Card>
             </>
           ) : (
-            <div className="flex items-center justify-center h-64" style={{ color: '#86909C' }}>加载中...</div>
+            <div className="flex items-center justify-center h-64" style={{ color: 'var(--color-text-3)' }}>加载中...</div>
           )}
         </TabsContent>
       </Tabs>
@@ -880,7 +880,7 @@ function ComprehensiveExpenseContent() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveAdd} disabled={saving} style={{ background: '#165DFF' }}>
+            <Button onClick={handleSaveAdd} disabled={saving} style={{ background: 'var(--color-primary)' }}>
               {saving ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>
@@ -958,7 +958,7 @@ function ComprehensiveExpenseContent() {
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveEdit} disabled={saving} style={{ background: '#165DFF' }}>
+            <Button onClick={handleSaveEdit} disabled={saving} style={{ background: 'var(--color-primary)' }}>
               {saving ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>
