@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getReadableDate } from '@/lib/construction-log-deadline';
 import { createLLMClient, getAIConfig } from '@/lib/ai-service';
 import { getUserDisplayName } from '@/lib/user-display-name';
-import { detectConstructionLogRisk, loadConstructionRiskEvents } from '@/lib/construction-log-risk';
+import { detectConstructionLogRisk, loadConstructionRiskEvents, type RiskEventRow } from '@/lib/construction-log-risk';
 
 type UserRow = {
   id: number;
@@ -482,16 +482,31 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
   // 保证趋势统计从第一天起就可用。
   if (riskEvents.length === 0) {
     riskEvents = (trendLogs as LogRow[])
-      .map(log => {
+      .map((log): RiskEventRow => {
         const risk = detectConstructionLogRisk({ content: log.content, issues: log.issues });
         return {
+          id: 0,
           project_id: Number(log.project_id),
+          log_id: Number(log.id),
+          risk_type: risk.primaryType || 'quality',
+          risk_types: risk.types,
           level: risk.level || 'low',
-          status: risk.hasRisk ? 'pending' : '',
+          status: risk.hasRisk ? 'pending' : 'resolved',
           occurred_date: log.log_date,
+          content: log.content || null,
+          issues: log.issues ? JSON.stringify(log.issues) : null,
+          summary: risk.summary || null,
+          recommendation: risk.recommendation || null,
+          matched_keywords: risk.matchedKeywords,
+          confirmed_by: null,
+          confirmed_at: null,
+          resolved_by: null,
+          resolved_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         };
       })
-      .filter(event => event.status !== '');
+      .filter(event => event.status !== 'resolved');
   }
 
   return {
