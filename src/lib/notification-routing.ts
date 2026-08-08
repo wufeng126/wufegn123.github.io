@@ -146,7 +146,7 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     categoryLabel: '抄送',
     actionLabel: '查看日报',
     detail: '日报汇总属于公司级信息，只走群机器人广播，不进入个人待办，避免每个人收到重复个人催办。',
-    href: '/construction-logs?tab=daily-reports',
+    href: '/construction-daily-reports',
     cron: '/api/construction-daily-reports/generate',
   },
   {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, ReactNode, useRef, useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { hasRoutePermission, PUBLIC_PAGES, isSuperAdminUser } from '@/lib/route-permissions';
 import { getStoredToken, isDingTalkClient, getRedirectCount, incrementRedirectCount, resetRedirectCount } from '@/lib/auth-client';
 
@@ -38,7 +38,14 @@ function checkCachedPermission(pathname: string): { allowed: boolean; user: User
 export function RouteGuard({ children }: RouteGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isCheckingRef = useRef(false);
+
+  // 完整跳转目标（保留 query，确保钉钉通知等携带的 tab/date/id 参数登录后不丢失）
+  const fullPath = useMemo(() => {
+    const search = searchParams.toString();
+    return search ? `${pathname}?${search}` : pathname;
+  }, [pathname, searchParams]);
 
   // 同步初始化：如果缓存有效，直接放行，无需等待任何异步操作
   const isPublicPage = PUBLIC_PAGES.includes(pathname) || pathname === '/login' || pathname.startsWith('/ui-preview/');
@@ -106,7 +113,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
           return;
         }
 
-        router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+        router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
         return;
       }
 
@@ -114,7 +121,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
       if (!data.success || !data.data) {
         cachedUser = null;
         cacheExpiry = 0;
-        router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+        router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
         return;
       }
 

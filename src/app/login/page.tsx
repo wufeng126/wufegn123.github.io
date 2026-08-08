@@ -5,6 +5,25 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { BrandLogo } from '@/components/ui/brand-icon';
 import { saveToken, isDingTalkClient, resetRedirectCount } from '@/lib/auth-client';
 
+/**
+ * 解析登录跳转目标：仅允许站内路径，防止 open redirect。
+ * 支持带 query 的完整路径（如 /construction-logs?tab=daily-reports&date=2026-08-08）。
+ */
+function getLoginRedirectTarget(): string {
+  if (typeof window === 'undefined') return '/';
+  const redirect = new URLSearchParams(window.location.search).get('redirect') || '';
+  if (!redirect) return '/';
+  if (!redirect.startsWith('/')) return '/';
+  if (redirect.startsWith('//')) return '/'; // 协议相对 URL 视为外部
+  try {
+    const parsed = new URL(redirect, window.location.origin);
+    if (parsed.origin !== window.location.origin) return '/';
+  } catch {
+    return '/';
+  }
+  return redirect;
+}
+
 export default function LoginPage() {
   const [username, setUsername] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -64,11 +83,13 @@ export default function LoginPage() {
         // 重置跳转计数
         resetRedirectCount();
 
+        // 跳转到登录前页面（保留 query 参数），无 redirect 时回首页
+        const redirectTarget = getLoginRedirectTarget();
         // 钉钉客户端环境：通过 Authorization header + localStorage 携带 token
         if (isDingTalkClient() && token) {
-          window.location.href = '/';
+          window.location.href = redirectTarget;
         } else {
-          window.location.href = '/';
+          window.location.href = redirectTarget;
         }
       } else {
         // 登录失败只提示账号或密码错误，不暴露任何系统内部信息

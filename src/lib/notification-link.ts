@@ -130,8 +130,8 @@ export function buildNotificationActionHref(source: NotificationLinkSource) {
   }
 
   if (type === 'construction_daily_report') {
-    return appendQuery(routeRule?.href || '/construction-logs', {
-      tab: 'daily-reports',
+    // 直接指向独立日报汇总页（更可靠，不依赖 Tab 容器匹配）
+    return appendQuery('/construction-daily-reports', {
       date: pickText(metadata, ['reportDate', 'report_date', 'logDate', 'log_date']),
     });
   }

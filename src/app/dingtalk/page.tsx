@@ -86,6 +86,21 @@ export default function DingTalkPage() {
   const [debugPanel, setDebugPanel] = useState<string[]>([]);
   const showDebugPanel = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DINGTALK_DEBUG === 'true';
 
+  // 免登成功后跳回目标（保留 query，如钉钉通知的 tab/date 参数）
+  const redirectTarget = typeof window !== 'undefined'
+    ? (() => {
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '';
+      if (!redirect.startsWith('/') || redirect.startsWith('//')) return '/';
+      try {
+        const parsed = new URL(redirect, window.location.origin);
+        if (parsed.origin !== window.location.origin) return '/';
+      } catch {
+        return '/';
+      }
+      return redirect;
+    })()
+    : '/';
+
   const addDebugLog = useCallback((msg: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const logEntry = `[${timestamp}] ${msg}`;
@@ -235,8 +250,8 @@ export default function DingTalkPage() {
 
       // 短暂延迟让用户看到成功状态
       setTimeout(() => {
-        addDebugLog('跳转到首页...');
-        window.location.href = '/';
+        addDebugLog(`跳转到 ${redirectTarget}...`);
+        window.location.href = redirectTarget;
       }, 800);
 
     } catch (err: unknown) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -314,6 +314,14 @@ function isReportDate(value: string) {
 }
 
 export default function ConstructionDailyReportsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConstructionDailyReportsPageContent />
+    </Suspense>
+  );
+}
+
+function ConstructionDailyReportsPageContent() {
   const searchParams = useSearchParams();
   const queryDate = searchParams.get('date') || searchParams.get('report_date') || '';
   const [date, setDate] = useState(() => (isReportDate(queryDate) ? queryDate : getDefaultDailyReportDate()));
