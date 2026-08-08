@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import SidebarLayout from '@/components/sidebar-layout';
 import { Toaster } from '@/components/ui/toaster';
 import { PermissionProvider } from '@/contexts/permission-context';
@@ -33,9 +34,11 @@ export default function RootLayout({
       <body>
         <FetchInterceptor />
         <PermissionProvider>
-          <SidebarLayout>
-            <RouteGuard>{children}</RouteGuard>
-          </SidebarLayout>
+          <Suspense fallback={<div className="flex items-center justify-center h-screen">加载中...</div>}>
+            <SidebarLayout>
+              <RouteGuard>{children}</RouteGuard>
+            </SidebarLayout>
+          </Suspense>
           <Toaster />
         </PermissionProvider>
       </body>
