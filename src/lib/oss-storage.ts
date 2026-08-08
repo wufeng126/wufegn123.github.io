@@ -117,8 +117,9 @@ export async function generatePresignedUrl(options: {
 }): Promise<string> {
   const client = getClient();
   const bucket = getBucket(options);
+  // 使用 as any 绕过 @smithy/types 版本不兼容的类型检查（运行时兼容）
   return getSignedUrl(
-    client,
+    client as any,
     new GetObjectCommand({ Bucket: bucket, Key: options.key }),
     { expiresIn: options.expireTime || 3600 },
   );
