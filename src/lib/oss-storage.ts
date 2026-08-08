@@ -120,7 +120,7 @@ export async function generatePresignedUrl(options: {
   // 使用 as any 绕过 @smithy/types 版本不兼容的类型检查（运行时兼容）
   return getSignedUrl(
     client as any,
-    new GetObjectCommand({ Bucket: bucket, Key: options.key }),
+    new GetObjectCommand({ Bucket: bucket, Key: options.key }) as any,
     { expiresIn: options.expireTime || 3600 },
   );
 }
