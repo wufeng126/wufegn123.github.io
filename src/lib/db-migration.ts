@@ -1326,6 +1326,13 @@ WHERE source_type = 'construction_log'
    OR (COALESCE(source_type, '') <> 'manual' AND source_ref LIKE 'cl:%');
 
 NOTIFY pgrst, 'reload schema';
+
+-- 2026-08-08: 修复 team_groups 表 group_name 字段 NOT NULL 约束问题
+-- 将 group_name 改为允许 NULL，并设置默认值为空字符串
+ALTER TABLE team_groups ALTER COLUMN group_name DROP NOT NULL;
+ALTER TABLE team_groups ALTER COLUMN group_name SET DEFAULT '';
+-- 将现有的 NULL 值更新为空字符串
+UPDATE team_groups SET group_name = '' WHERE group_name IS NULL;
 `;
 
 function getSupabaseProjectRef() {
