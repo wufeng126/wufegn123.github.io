@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, index, foreignKey, pgPolicy, integer, varchar, numeric, text, date, unique, jsonb, boolean } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, index, foreignKey, pgPolicy, integer, varchar, numeric, text, date, unique, uniqueIndex, jsonb, boolean } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -170,6 +170,7 @@ export const workers = pgTable("workers", {
 	index("workers_phone_idx").using("btree", table.phone.asc().nullsLast().op("text_ops")),
 	index("workers_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 	index("workers_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	uniqueIndex("workers_project_id_card_unique_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops"), table.idCard.asc().nullsLast().op("text_ops")).where(sql`id_card is not null`),
 	foreignKey({
 			columns: [table.projectId],
 			foreignColumns: [projects.id],

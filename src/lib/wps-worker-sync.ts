@@ -447,28 +447,82 @@ async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInpu
   return null;
 }
 
-async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput) {
+/**
+ * 查找已存在的工人记录。
+ *
+ * 匹配策略（按优先级）：
+ * 1. 项目内 + 身份证号       —— 同项目同名同证，直接命中（更新，不重复创建）
+ * 2. 项目内 + 姓名 + 电话     —— 同项目同人
+ * 3. 项目内 + 纯姓名          —— 系统花名册只有姓名时，命中后由 buildWorkerUpdateData 自动补齐身份证/电话
+ * 4. 跨项目 + 身份证号       —— 调岗场景（同一人换项目）
+ * 5. 跨项目 + 姓名 + 电话     —— 调岗场景
+ *
+ * 注意：不做"跨项目纯姓名匹配"，避免同名不同人被错误合并。
+ */
+async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput, projectId?: number | null) {
   const idCard = sanitizeIdCard(input.idCard);
-  if (isValidChineseIdCard(idCard)) {
-    const { data } = await client
-      .from('workers')
-      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status')
-      .eq('id_card', idCard)
-      .maybeSingle();
-    if (data) return data;
-  }
-
   const name = input.name?.trim();
   const phone = input.phone?.trim();
-  if (name && phone) {
+  const selectFields = 'id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status';
+
+  // 1. 项目内 + 身份证号
+  if (idCard && projectId) {
     const { data } = await client
       .from('workers')
-      .select('id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status')
+      .select(selectFields)
+      .eq('project_id', projectId)
+      .eq('id_card', idCard)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ExistingWorkerRow;
+  }
+
+  // 2. 项目内 + 姓名 + 电话
+  if (name && phone && projectId) {
+    const { data } = await client
+      .from('workers')
+      .select(selectFields)
+      .eq('project_id', projectId)
       .eq('name', name)
       .eq('phone', phone)
       .limit(1)
       .maybeSingle();
-    if (data) return data;
+    if (data) return data as ExistingWorkerRow;
+  }
+
+  // 3. 项目内 + 纯姓名（系统花名册只有姓名时，命中后补齐身份证/电话）
+  if (name && projectId) {
+    const { data } = await client
+      .from('workers')
+      .select(selectFields)
+      .eq('project_id', projectId)
+      .eq('name', name)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ExistingWorkerRow;
+  }
+
+  // 4. 跨项目 + 身份证号（调岗）
+  if (isValidChineseIdCard(idCard)) {
+    const { data } = await client
+      .from('workers')
+      .select(selectFields)
+      .eq('id_card', idCard)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ExistingWorkerRow;
+  }
+
+  // 5. 跨项目 + 姓名 + 电话（调岗）
+  if (name && phone) {
+    const { data } = await client
+      .from('workers')
+      .select(selectFields)
+      .eq('name', name)
+      .eq('phone', phone)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ExistingWorkerRow;
   }
 
   return null;
@@ -546,7 +600,7 @@ export async function syncWpsWorkerRecord(
       return result;
     }
 
-    const existing = await findExistingWorker(client, input);
+    const existing = await findExistingWorker(client, input, project.id);
     const entryDate = normalizeDate(input.entryDate);
 
     if (!existing) {
