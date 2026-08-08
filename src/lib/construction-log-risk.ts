@@ -227,6 +227,129 @@ export function detectConstructionLogRisk(input: { content?: string | null; issu
   };
 }
 
+// ============ 风险双层检测：LLM 语义精判 ============
+
+export interface AiRiskRefinement {
+  hasRisk: boolean;
+  types: ConstructionRiskType[];
+  level: ConstructionRiskLevel | null;
+  confidence: number;
+  summary?: string;
+  recommendation?: string;
+  reason?: string;
+}
+
+function extractRiskJson(text: string): AiRiskRefinement | null {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const source = fenced?.[1] || trimmed;
+  const start = source.indexOf('{');
+  const end = source.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(source.slice(start, end + 1));
+    const validTypes = ['change', 'visa', 'delay', 'quality', 'safety', 'cost'] as ConstructionRiskType[];
+    const types = Array.isArray(parsed.types)
+      ? parsed.types.filter((t: unknown) => validTypes.includes(t as ConstructionRiskType)) as ConstructionRiskType[]
+      : [];
+    const levelValue = ['low', 'medium', 'high'].includes(parsed.level) ? parsed.level as ConstructionRiskLevel : null;
+    return {
+      hasRisk: Boolean(parsed.has_risk ?? parsed.hasRisk),
+      types,
+      level: levelValue,
+      confidence: Number.isFinite(Number(parsed.confidence)) ? Math.min(Math.max(Number(parsed.confidence), 0), 1) : 0.5,
+      summary: typeof parsed.summary === 'string' ? parsed.summary : undefined,
+      recommendation: typeof parsed.recommendation === 'string' ? parsed.recommendation : undefined,
+      reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildRiskAiPrompt(input: { content?: string | null; issues?: string | null }) {
+  const text = `${input.content || ''} ${input.issues || ''}`.trim();
+  return `你是建筑劳务施工现场风险识别助手。请判断以下施工日志内容是否存在真实的施工风险，并区分"确有其事"与"正常描述/否定表述"（例如"无质量问题""未发生安全事故"不算风险）。
+
+日志内容：
+${text}
+
+只返回严格 JSON，不要输出解释：
+{
+  "has_risk": true,
+  "types": ["change" | "visa" | "delay" | "quality" | "safety" | "cost"],
+  "level": "low" | "medium" | "high",
+  "confidence": 0.0-1.0,
+  "summary": "一句话风险摘要",
+  "recommendation": "一句跟进建议",
+  "reason": "判断依据（一句话）"
+}
+
+如果无真实风险，返回 {"has_risk": false}。`;
+}
+
+/**
+ * LLM 语义精判：在关键词规则之上用大模型判断真实风险，用于降低误报、提升精度。
+ * 调用失败或 AI 未启用时返回 null，由调用方回退到规则结果（保底）。
+ */
+export async function refineRiskWithAI(input: { content?: string | null; issues?: string | null }): Promise<AiRiskRefinement | null> {
+  try {
+    const { getAIConfig, createLLMClient } = await import('@/lib/ai-service');
+    const config = await getAIConfig();
+    if (!config?.enabled) return null;
+
+    const client = createLLMClient();
+    const stream = await client.stream([
+      { role: 'system', content: '你只输出严格 JSON，用中文识别建筑施工现场风险。' },
+      { role: 'user', content: buildRiskAiPrompt(input) },
+    ], {
+      model: config.model_id,
+      temperature: 0.1,
+    });
+
+    let text = '';
+    for await (const chunk of stream) {
+      const part = chunk as { content?: unknown; text?: unknown };
+      if (typeof part === 'string') text += part;
+      else if (typeof part?.content === 'string') text += part.content;
+      else if (typeof part?.text === 'string') text += part.text;
+      else if (part?.content && Array.isArray(part.content)) {
+        text += (part.content as unknown[]).map((item: unknown) => {
+          const record = item as { text?: unknown; content?: unknown };
+          return String(record?.text || record?.content || '');
+        }).join('');
+      }
+    }
+
+    return extractRiskJson(text);
+  } catch (error) {
+    console.warn('[ConstructionLogRisk] AI refinement failed, fallback to rule result:', error);
+    return null;
+  }
+}
+
+/** 合并规则结果与 AI 精判：AI 高置信度时采用 AI 结果，否则保留规则结果（保底） */
+export function mergeRiskWithAiRule(
+  rule: ConstructionLogRisk,
+  ai: AiRiskRefinement | null,
+): ConstructionLogRisk {
+  if (!ai || !ai.hasRisk) return rule;
+  if (ai.confidence < 0.6) return rule;
+
+  const labels = ai.types.map(getRiskTypeLabel);
+  const level = ai.level || rule.level;
+  return {
+    hasRisk: true,
+    primaryType: ai.types[0] || rule.primaryType,
+    types: ai.types.length > 0 ? ai.types : rule.types,
+    level,
+    tags: ['施工日志风险', ...labels].filter(Boolean),
+    matchedKeywords: rule.matchedKeywords,
+    summary: ai.summary || rule.summary,
+    recommendation: ai.recommendation || rule.recommendation,
+  };
+}
+
 export function enrichConstructionLog<T extends { content?: string | null; issues?: string | null }>(log: T) {
   const risk = detectConstructionLogRisk(log);
   return {

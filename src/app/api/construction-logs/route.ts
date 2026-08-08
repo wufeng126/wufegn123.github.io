@@ -11,6 +11,8 @@ import {
   enrichConstructionLog,
   getRiskLevelLabel,
   getRiskTypeLabel,
+  mergeRiskWithAiRule,
+  refineRiskWithAI,
 } from '@/lib/construction-log-risk';
 import { formatRecipientNames, getProjectBudgetRecipients } from '@/lib/project-notification-recipients';
 import { getUserDisplayName } from '@/lib/user-display-name';
@@ -543,8 +545,17 @@ async function createRiskSideEffects(
   logDate: string,
   _userId?: number,
 ) {
-  const risk = detectConstructionLogRisk({ content: draft.content, issues: draft.issues || '' });
-  if (!data || !risk.hasRisk) return;
+  const ruleRisk = detectConstructionLogRisk({ content: draft.content, issues: draft.issues || '' });
+  if (!data || !ruleRisk.hasRisk) return;
+
+  // 风险双层检测：规则保底 + LLM 语义精判（高置信度时修正等级与摘要，降低误报）
+  let risk = ruleRisk;
+  try {
+    const aiRefinement = await refineRiskWithAI({ content: draft.content, issues: draft.issues || '' });
+    risk = mergeRiskWithAiRule(ruleRisk, aiRefinement);
+  } catch (aiError) {
+    console.warn('[construction-logs] AI risk refinement skipped:', aiError);
+  }
 
   const { data: proj } = await supabase
     .from('projects')

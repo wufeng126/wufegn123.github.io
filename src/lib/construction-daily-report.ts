@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getReadableDate } from '@/lib/construction-log-deadline';
 import { createLLMClient, getAIConfig } from '@/lib/ai-service';
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { detectConstructionLogRisk } from '@/lib/construction-log-risk';
 
 type UserRow = {
   id: number;
@@ -57,6 +58,9 @@ export type DailyReportProjectDetail = {
   issue_count: number;
   contents: string[];
   issues: string[];
+  risk_count: number;
+  risk_high_count: number;
+  risk_summary_text?: string;
   ai_sections?: DailyReportSections;
 };
 
@@ -74,6 +78,8 @@ export type ConstructionDailyReportSummary = {
     log_count: number;
     issue_count: number;
     headcount_total: number;
+    risk_count: number;
+    risk_high_count: number;
     narrative?: string;
     key_points?: string[];
     risk_summary?: string;
@@ -152,15 +158,16 @@ function buildFallbackProjectSections(project: DailyReportProjectDetail): DailyR
   const lateText = project.late_users.length > 0
     ? `逾期提交人员：${project.late_users.map(user => user.name).join('、')}。`
     : '';
+  const riskText = project.risk_count > 0
+    ? `检测到风险 ${project.risk_count} 条（高风险 ${project.risk_high_count} 条）：${project.risk_summary_text || ''}`
+    : '未检测到风险。';
 
   return {
     construction_content: emptySectionText(content),
     labor_teams: `当日提交 ${project.submitted_users.length}/${project.expected_users.length} 人，现场出勤合计 ${project.headcount_total} 人。${lateText}${missingText}`.trim(),
     materials_machinery: '日志中未单独记录材料、机械使用情况。',
     quality_safety: issues ? `记录问题/异常：${issues}` : '未记录质量、安全异常。',
-    progress_risks: project.issue_count > 0 || project.missing_users.length > 0
-      ? `需关注 ${project.issue_count} 条问题异常${project.missing_users.length > 0 ? `，以及 ${project.missing_users.length} 个未提交人员项` : ''}。`
-      : '未识别到明显进度风险。',
+    progress_risks: `${riskText}${project.missing_users.length > 0 ? ` 另有 ${project.missing_users.length} 个未提交人员项。` : ''}`,
     tomorrow_plan: '日志中未单独记录明日计划。',
   };
 }
@@ -181,14 +188,14 @@ function buildFallbackCompanyNarrative(summary: ConstructionDailyReportSummary) 
   const keyPoints = [
     `当日 ${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有施工日志。`,
     `应交 ${summary.company.expected_user_count} 人，已交 ${summary.company.submitted_user_count} 人，未交 ${summary.company.missing_assignment_count} 个项目人员项。`,
-    `日志共 ${summary.company.log_count} 条，出勤合计 ${summary.company.headcount_total} 人，问题异常 ${summary.company.issue_count} 条。`,
+    `日志共 ${summary.company.log_count} 条，出勤合计 ${summary.company.headcount_total} 人，问题异常 ${summary.company.issue_count} 条，风险 ${summary.company.risk_count} 条（高风险 ${summary.company.risk_high_count} 条）。`,
   ];
 
   return {
-    narrative: `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。${summary.company.issue_count > 0 ? `共记录 ${summary.company.issue_count} 条问题异常，需相关项目负责人跟进。` : '未记录明显问题异常。'}`,
+    narrative: `当日公司项目日报覆盖 ${summary.company.submitted_projects} 个有日志项目，现场出勤合计 ${summary.company.headcount_total} 人。${summary.company.issue_count > 0 ? `共记录 ${summary.company.issue_count} 条问题异常，需相关项目负责人跟进。` : '未记录明显问题异常。'}${summary.company.risk_count > 0 ? `风险检测 ${summary.company.risk_count} 条（高风险 ${summary.company.risk_high_count} 条），需重点关注。` : ''}`,
     key_points: keyPoints,
-    risk_summary: summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0
-      ? `存在 ${summary.company.issue_count} 条问题异常、${summary.company.missing_assignment_count} 个未提交项目人员项。`
+    risk_summary: summary.company.risk_count > 0 || summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0
+      ? `存在 ${summary.company.risk_count} 条风险（高风险 ${summary.company.risk_high_count} 条）、${summary.company.issue_count} 条问题异常、${summary.company.missing_assignment_count} 个未提交项目人员项。`
       : '未识别到明显日报风险。',
   };
 }
@@ -245,6 +252,9 @@ function buildAiPrompt(summary: ConstructionDailyReportSummary) {
     missing_users: project.missing_users.map(user => user.name),
     contents: project.contents.slice(0, 8),
     issues: project.issues.slice(0, 8),
+    risk_count: project.risk_count,
+    risk_high_count: project.risk_high_count,
+    risk_summary_text: project.risk_summary_text,
   }));
 
   return `你是建筑劳务公司项目日报助手。请把施工日志萃取成正式项目日报，不要逐条罗列原始日志。
@@ -254,6 +264,7 @@ function buildAiPrompt(summary: ConstructionDailyReportSummary) {
 2. 如果日志未记录某项，写“日志中未单独记录”，不要编造。
 3. 语言要像公司内部日报，简洁、客观、可直接给全员查看。
 4. 只返回 JSON，不要输出解释。
+5. "进度风险"段落必须结合风险检测结果（risk_count / risk_high_count / risk_summary_text）如实呈现，高风险项目要突出提示。
 
 JSON 格式：
 {
@@ -441,6 +452,16 @@ export async function buildConstructionDailyReportSummary(
     const missingUsers = expectedUsers.filter(user => !submittedUserIds.has(user.id));
     const issueTexts = projectLogs.map(log => shortText(log.issues, 100)).filter(Boolean);
 
+    // 风险闭环数据：对每项目当日日志做风险检测，汇总风险数量与高风险数量（P0-1 日报消费风险状态）
+    const projectRisks = projectLogs
+      .map(log => ({ log, risk: detectConstructionLogRisk({ content: log.content, issues: log.issues }) }))
+      .filter(item => item.risk.hasRisk);
+    const riskCount = projectRisks.length;
+    const riskHighCount = projectRisks.filter(item => item.risk.level === 'high').length;
+    const riskSummaryText = projectRisks.length > 0
+      ? projectRisks.slice(0, 5).map(item => `${item.log.log_date} ${item.risk.summary}`).join('；')
+      : '';
+
     return {
       project_id: projectId,
       project_name: projectNameMap.get(projectId) || `项目${projectId}`,
@@ -453,6 +474,9 @@ export async function buildConstructionDailyReportSummary(
       issue_count: issueTexts.length,
       contents: projectLogs.map(log => shortText(log.content, 120)).filter(Boolean),
       issues: issueTexts,
+      risk_count: riskCount,
+      risk_high_count: riskHighCount,
+      risk_summary_text: riskSummaryText,
     };
   });
 
@@ -460,10 +484,13 @@ export async function buildConstructionDailyReportSummary(
   const submittedUserIds = uniqById(projectDetails.flatMap(project => project.submitted_users)).map(user => user.id);
   const lateUserIds = uniqById(projectDetails.flatMap(project => project.late_users)).map(user => user.id);
 
+  const totalRiskCount = projectDetails.reduce((sum, project) => sum + project.risk_count, 0);
+  const totalRiskHighCount = projectDetails.reduce((sum, project) => sum + project.risk_high_count, 0);
+
   return {
     report_date: reportDate,
     report_type: 'daily_report',
-    report_version: 2,
+    report_version: 3,
     company: {
       total_projects: projectDetails.length,
       submitted_projects: projectDetails.filter(project => project.log_count > 0).length,
@@ -474,6 +501,8 @@ export async function buildConstructionDailyReportSummary(
       log_count: logs.length,
       issue_count: projectDetails.reduce((sum, project) => sum + project.issue_count, 0),
       headcount_total: projectDetails.reduce((sum, project) => sum + project.headcount_total, 0),
+      risk_count: totalRiskCount,
+      risk_high_count: totalRiskHighCount,
     },
     projects: projectDetails,
   };
@@ -546,7 +575,7 @@ export async function generateConstructionDailyReport(
     if (existingError) throw new Error(existingError.message);
     if (existing) {
       const existingReport = existing as ConstructionDailyReportRow;
-      const needsRegeneration = existingReport.summary?.report_version !== 2;
+      const needsRegeneration = existingReport.summary?.report_version !== 3;
       if (!needsRegeneration) {
         if (push && !existing.pushed_at) {
           return pushReportNotification(supabase, existingReport, existingReport.summary);
