@@ -37,8 +37,22 @@ function isMissingRecipientColumn(error: unknown) {
   return message.includes('recipient_user_id') || message.includes('recipient_role');
 }
 
+/**
+ * is_read 是 varchar 字符串列（'false'/'true'），历史数据可能为 NULL/boolean/0 等异形值。
+ * 生成"未读"的过滤条件（PostgREST or 语法）：覆盖 'false'、false、0、'0'、NULL。
+ * PostgREST 会按列类型自动转换参数，无需引号包裹值。
+ */
+function buildUnreadFilter() {
+  return 'is_read.eq.false,is_read.eq.0,is_read.is.null';
+}
+
+/** 生成"已读"的过滤条件：覆盖 'true'、true、1、'1' */
+function buildReadFilter() {
+  return 'is_read.eq.true,is_read.eq.1';
+}
+
 function isUnread(value: unknown) {
-  return value === false || value === 'false' || value === 0 || value === null;
+  return value === false || value === 'false' || value === '0' || value === 0 || value === null;
 }
 
 function buildRecipientScopeFilter(userId: number, assignedProjectIds?: number[] | null) {
@@ -85,7 +99,9 @@ export async function GET(request: NextRequest) {
         query = query.in('type', notificationTypesByCategory[category]);
       }
       if (severity.length > 0) query = query.in('severity', severity);
-      if (isRead !== null && isRead !== 'all') query = query.eq('is_read', isRead === 'true');
+      // is_read 为 varchar 列且存在 NULL/异形值，用 or 条件覆盖各种未读/已读形态
+      if (isRead === 'true') query = query.or(buildReadFilter());
+      else if (isRead === 'false') query = query.or(buildUnreadFilter());
       if (useRecipientScope) {
         query = query.or(buildRecipientScopeFilter(auth.user.id, notificationProjectScope));
       }
@@ -253,16 +269,25 @@ async function updateReadStatus(
   id?: number,
   assignedProjectIds?: number[] | null
 ) {
+  // is_read 列是 varchar 字符串，写入统一用字符串 'true'/'false'，避免与既有字符串值不一致
+  const writeValue = readValue ? 'true' : 'false';
   const run = async (useRecipientScope: boolean) => {
     let query = client
       .from('notifications')
       .update({
-        is_read: readValue,
+        is_read: writeValue,
         read_at: readValue ? new Date().toISOString() : null,
       });
 
-    if (id) query = query.eq('id', id);
-    else query = query.eq('is_read', !readValue);
+    if (id) {
+      query = query.eq('id', id);
+    } else if (readValue) {
+      // 标记全部已读：匹配所有"非已读"记录（含 NULL/异形值），避免 NULL 记录永远更新不到
+      query = query.or(buildUnreadFilter());
+    } else {
+      // 标记全部未读：匹配所有已读记录
+      query = query.or(buildReadFilter());
+    }
     if (useRecipientScope) {
       query = query.or(buildRecipientScopeFilter(user.id, assignedProjectIds));
     }

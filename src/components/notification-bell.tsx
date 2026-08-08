@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Bell, AlertTriangle, FileText, CreditCard, type LucideIcon } from 'lucide-react';
 import { buildNotificationActionHref } from '@/lib/notification-link';
-import { emitNotificationsUpdated, markNotificationRead, NOTIFICATIONS_UPDATED_EVENT, withNotificationId } from '@/lib/notification-client';
+import { emitNotificationsUpdated, isNotificationUnread, markNotificationRead, NOTIFICATIONS_UPDATED_EVENT, withNotificationId } from '@/lib/notification-client';
 
 interface NotifItem {
   id: number; title: string; content: string; type: string;
@@ -86,7 +86,15 @@ export default function NotificationBell() {
             <span className="text-sm font-semibold text-[#1D2129]">消息通知</span>
             <div className="flex items-center gap-2">
               {count > 0 && (
-                <button onClick={async () => { await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, isRead: true }) }); emitNotificationsUpdated(); fetchUnread(); }}
+                <button onClick={async () => {
+                  try {
+                    const res = await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, isRead: true }) });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.success === false) return;
+                  } catch { return; }
+                  emitNotificationsUpdated();
+                  fetchUnread();
+                }}
                   className="text-xs text-[#165DFF] hover:underline">全部已读</button>
               )}
               <Link href="/notifications" onClick={() => setOpen(false)} className="text-xs text-[#8A8F98] hover:text-[#165DFF]">查看全部</Link>

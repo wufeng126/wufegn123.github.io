@@ -41,9 +41,10 @@ export async function POST(request: NextRequest) {
     if (!risk.hasRisk) return apiBadRequest('该日志未识别到风险，无需确认');
 
     const now = new Date().toISOString();
+    // is_read 是 varchar 字符串列，写入统一用字符串 'true'
     const query = supabase
       .from('notifications')
-      .update({ is_read: true, read_at: now })
+      .update({ is_read: 'true', read_at: now })
       .eq('type', 'construction_log_alert')
       .eq('related_type', 'construction_log')
       .eq('related_id', logId)
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (result.error && isMissingColumn(result.error, 'read_at')) {
       result = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: 'true' })
         .eq('type', 'construction_log_alert')
         .eq('related_type', 'construction_log')
         .eq('related_id', logId)
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (result.error && isMissingColumn(result.error, 'recipient_user_id')) {
       result = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({ is_read: 'true' })
         .eq('type', 'construction_log_alert')
         .eq('related_type', 'construction_log')
         .eq('related_id', logId)

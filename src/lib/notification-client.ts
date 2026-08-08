@@ -1,5 +1,19 @@
 export const NOTIFICATIONS_UPDATED_EVENT = 'notifications:updated';
 
+/**
+ * 判断通知是否未读。
+ * is_read 列在数据库中是 varchar 字符串（'false'/'true'），但也可能历史遗留 NULL、boolean、0/1 等异形值，
+ * 统一在这里兼容处理，避免前端 `!is_read` 把字符串 'false'（truthy）误判为已读。
+ */
+export function isNotificationUnread(value: unknown): boolean {
+  return value === false || value === 'false' || value === '0' || value === 0 || value === null || value === undefined;
+}
+
+/** 判断通知是否已读（与 isNotificationUnread 互补） */
+export function isNotificationRead(value: unknown): boolean {
+  return !isNotificationUnread(value);
+}
+
 function toNotificationId(value: unknown) {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) return null;

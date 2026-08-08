@@ -630,11 +630,11 @@ export async function GET(request: NextRequest) {
       .update({ setting_value: now, updated_at: now })
       .eq('setting_key', 'last_check_time');
 
-    // 获取当前未读消息统计
+    // 获取当前未读消息统计（is_read 为 varchar 列且可能存在 NULL/异形值，用 or 条件覆盖未读形态）
     const { count: unreadCount } = await client
       .from('notifications')
       .select('id', { count: 'exact', head: true })
-      .eq('is_read', false);
+      .or('is_read.eq.false,is_read.eq.0,is_read.is.null');
 
     return NextResponse.json({
       success: true,

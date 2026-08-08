@@ -185,13 +185,14 @@ function appendComment(content: string, title: string, comment: string, username
 }
 
 async function markWorkflowNotificationsHandled(client: SupabaseClient, knowledgeId: number) {
+  // is_read 是 varchar 字符串列（'false'/'true'），且可能存在 NULL 异形值，用 or 条件覆盖"未读"形态
   const result = await client
     .from('notifications')
-    .update({ is_read: true, read_at: new Date().toISOString() })
+    .update({ is_read: 'true', read_at: new Date().toISOString() })
     .eq('type', 'monthly_analysis_workflow')
     .eq('related_id', knowledgeId)
     .eq('related_type', 'ai_knowledge_docs')
-    .eq('is_read', false);
+    .or('is_read.eq.false,is_read.eq.0,is_read.is.null');
 
   if (result.error) {
     const message = String(result.error.message || '');

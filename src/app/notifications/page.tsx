@@ -41,7 +41,7 @@ import {
   type NotificationCategory,
 } from '@/lib/notification-routing';
 import { buildNotificationActionHref } from '@/lib/notification-link';
-import { emitNotificationsUpdated, markNotificationRead, withNotificationId } from '@/lib/notification-client';
+import { emitNotificationsUpdated, isNotificationUnread, markNotificationRead, withNotificationId } from '@/lib/notification-client';
 
 // 类型定义
 interface Notification {
@@ -519,16 +519,24 @@ export default function NotificationsPage() {
   // 全部标记已读
   const markAllRead = async () => {
     try {
-      await fetch('/api/notifications', {
+      const res = await fetch('/api/notifications', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllRead: true }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || '无法标记已读');
+      }
       emitNotificationsUpdated();
       fetchData();
       toast({ title: '成功', description: '已全部标记为已读', variant: 'success' });
     } catch (error) {
-      toast({ title: '操作失败', description: '无法标记已读', variant: 'error' });
+      toast({
+        title: '操作失败',
+        description: error instanceof Error ? error.message : '无法标记已读',
+        variant: 'error',
+      });
     }
   };
 
@@ -1239,15 +1247,16 @@ export default function NotificationsPage() {
               {notifications.map((notification) => {
                 const severityStyle = getSeverityStyle(notification.severity);
                 const categoryMeta = getNotificationCategoryMeta(notification.type);
+                const isUnreadItem = isNotificationUnread(notification.is_read);
                 return (
                   <div
                     key={notification.id}
                     className={`relative flex items-start gap-4 p-4 transition-colors ${
-                      !notification.is_read ? 'bg-accent/40' : 'hover:bg-muted/40'
+                      isUnreadItem ? 'bg-accent/40' : 'hover:bg-muted/40'
                     }`}
                   >
                     {/* 未读左侧类型色条 */}
-                    {!notification.is_read && (
+                    {isUnreadItem && (
                       <span
                         className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-sm"
                         style={{ background: categoryMeta.tone }}
@@ -1278,7 +1287,7 @@ export default function NotificationsPage() {
                             >
                               {getSeverityLabel(notification.severity)}
                             </span>
-                            {!notification.is_read && (
+                            {isUnreadItem && (
                               <Badge variant="secondary" className="text-xs">新</Badge>
                             )}
                             {notification.priority === 2 && (
@@ -1313,14 +1322,14 @@ export default function NotificationsPage() {
                         <Link
                           href={getLink(notification)}
                           onClick={() => {
-                            if (!notification.is_read) void markAsRead(notification.id);
+                            if (isUnreadItem) void markAsRead(notification.id);
                           }}
                           className="text-xs flex items-center gap-1 hover:underline"
                           style={{ color: 'var(--color-primary)' }}
                         >
                           查看详情 <ChevronRight className="w-3 h-3" />
                         </Link>
-                        {!notification.is_read && (
+                        {isUnreadItem && (
                           <button
                             onClick={() => markAsRead(notification.id)}
                             className="text-xs px-2 py-0.5 rounded hover:bg-gray-100"
