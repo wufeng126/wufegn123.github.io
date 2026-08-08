@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { hashPassword } from '@/lib/auth-db';
+import { generateInitialPassword, hashPassword } from '@/lib/auth-db';
 import { logSecurityEvent } from '@/lib/security-log';
 
 /**
@@ -102,11 +102,11 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. 首次部署：创建默认超级管理员（仅此一次）
+  // 3. 首次部署：创建默认超级管理员（随机强密码，仅本次返回，仅此一次）
   try {
     const client = getSupabaseClient();
-    const defaultPassword = 'admin123';
-    const defaultPasswordHash = hashPassword(defaultPassword);
+    const initialPassword = generateInitialPassword();
+    const defaultPasswordHash = hashPassword(initialPassword);
 
     const { data: newAdmin, error: createError } = await client
       .from('users')
@@ -141,10 +141,15 @@ export async function POST(request: Request) {
       metadata: { username: 'admin', role: 'super_admin' },
     });
 
-    // 不返回密码信息
+    // 一次性返回初始密码，部署者必须立即保存并首次登录后修改
     return NextResponse.json({
       success: true,
-      data: { initialized: true, message: '已创建默认超级管理员，请尽快修改默认密码' },
+      data: {
+        initialized: true,
+        username: 'admin',
+        initialPassword,
+        message: '已创建默认超级管理员。初始密码仅在本次响应中返回，请立即登录并修改密码',
+      },
       error: null,
       code: 'OK',
     });

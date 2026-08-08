@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, index, foreignKey, pgPolicy, integer, varchar, numeric, text, date, unique, uniqueIndex, jsonb, boolean } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, index, foreignKey, integer, varchar, numeric, text, date, unique, uniqueIndex, jsonb, boolean } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -23,10 +23,6 @@ export const workItems = pgTable("work_items", {
 			foreignColumns: [projects.id],
 			name: "work_items_project_id_projects_id_fk"
 		}).onDelete("cascade"),
-	pgPolicy("work_items_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("work_items_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("work_items_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("work_items_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const workItemProgress = pgTable("work_item_progress", {
@@ -44,10 +40,6 @@ export const workItemProgress = pgTable("work_item_progress", {
 			foreignColumns: [workItems.id],
 			name: "work_item_progress_work_item_id_work_items_id_fk"
 		}).onDelete("cascade"),
-	pgPolicy("work_item_progress_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("work_item_progress_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("work_item_progress_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("work_item_progress_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const clientPayments = pgTable("client_payments", {
@@ -69,10 +61,6 @@ export const clientPayments = pgTable("client_payments", {
 			foreignColumns: [projects.id],
 			name: "client_payments_project_id_projects_id_fk"
 		}).onDelete("cascade"),
-	pgPolicy("client_payments_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("client_payments_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("client_payments_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("client_payments_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const clientReports = pgTable("client_reports", {
@@ -103,10 +91,6 @@ export const clientReports = pgTable("client_reports", {
 			foreignColumns: [projects.id],
 			name: "client_reports_project_id_projects_id_fk"
 		}).onDelete("cascade"),
-	pgPolicy("client_reports_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("client_reports_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("client_reports_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("client_reports_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const workerSalaries = pgTable("worker_salaries", {
@@ -141,10 +125,6 @@ export const workerSalaries = pgTable("worker_salaries", {
 			foreignColumns: [projects.id],
 			name: "worker_salaries_project_id_projects_id_fk"
 		}).onDelete("cascade"),
-	pgPolicy("worker_salaries_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("worker_salaries_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("worker_salaries_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("worker_salaries_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const workers = pgTable("workers", {
@@ -176,10 +156,6 @@ export const workers = pgTable("workers", {
 			foreignColumns: [projects.id],
 			name: "workers_project_id_fkey"
 		}).onDelete("set null"),
-	pgPolicy("workers_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("workers_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("workers_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("workers_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const projects = pgTable("projects", {
@@ -211,10 +187,6 @@ export const projects = pgTable("projects", {
 	index("projects_year_idx").using("btree", table.year.asc().nullsLast().op("int4_ops")),
 	index("projects_project_type_idx").using("btree", table.projectType.asc().nullsLast().op("text_ops")),
 	index("projects_is_archived_idx").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
-	pgPolicy("projects_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("projects_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("projects_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("projects_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 export const workerAssignments = pgTable("worker_assignments", {
@@ -324,10 +296,6 @@ export const workItemSubitems = pgTable("work_item_subitems", {
 			foreignColumns: [projects.id],
 			name: "work_item_subitems_project_id_fkey"
 		}),
-	pgPolicy("work_item_subitems_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("work_item_subitems_允许公开更新", { as: "permissive", for: "update", to: ["public"], using: sql`true`, withCheck: sql`true` }),
-	pgPolicy("work_item_subitems_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true` }),
-	pgPolicy("work_item_subitems_允许公开读取", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 // 月度对上报量表（独立于对下结算量）
@@ -346,10 +314,6 @@ export const subitemMonthlyReports = pgTable("subitem_monthly_reports", {
 			foreignColumns: [workItemSubitems.id],
 			name: "subitem_monthly_reports_subitem_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("subitem_monthly_reports_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("subitem_monthly_reports_允许公开更新", { as: "permissive", for: "update", to: ["public"], using: sql`true`, withCheck: sql`true` }),
-	pgPolicy("subitem_monthly_reports_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true` }),
-	pgPolicy("subitem_monthly_reports_允许公开读取", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 // 月度对下结算量表
@@ -368,10 +332,6 @@ export const subitemMonthlyProgress = pgTable("subitem_monthly_progress", {
 			foreignColumns: [workItemSubitems.id],
 			name: "subitem_monthly_progress_subitem_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("subitem_monthly_progress_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("subitem_monthly_progress_允许公开更新", { as: "permissive", for: "update", to: ["public"], using: sql`true`, withCheck: sql`true` }),
-	pgPolicy("subitem_monthly_progress_允许公开写入", { as: "permissive", for: "insert", to: ["public"], withCheck: sql`true` }),
-	pgPolicy("subitem_monthly_progress_允许公开读取", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 export const suppliers = pgTable("suppliers", {
@@ -477,10 +437,6 @@ export const certificates = pgTable("certificates", {
 }, (table) => [
 	index("certificates_owner_type_idx").using("btree", table.ownerType.asc().nullsLast().op("text_ops")),
 	index("certificates_expiry_date_idx").using("btree", table.expiryDate.asc().nullsLast().op("date_ops")),
-	pgPolicy("certificates_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("certificates_允许公开更新", { as: "permissive", for: "update", to: ["public"] }),
-	pgPolicy("certificates_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("certificates_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 // 工人导入历史表
@@ -499,9 +455,6 @@ export const workerImportHistory = pgTable("worker_import_history", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("worker_import_history_import_time_idx").using("btree", table.importTime.desc().nullsLast().op("timestamptz_ops")),
-	pgPolicy("worker_import_history_允许公开删除", { as: "permissive", for: "delete", to: ["public"], using: sql`true` }),
-	pgPolicy("worker_import_history_允许公开写入", { as: "permissive", for: "insert", to: ["public"] }),
-	pgPolicy("worker_import_history_允许公开读取", { as: "permissive", for: "select", to: ["public"] }),
 ]);
 
 // WPS 花名册同步日志

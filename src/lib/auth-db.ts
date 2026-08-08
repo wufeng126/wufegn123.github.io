@@ -346,7 +346,14 @@ export async function deleteAdmin(adminId: number, currentUserId: number): Promi
 }
 
 // 初始化默认超级管理员（仅首次部署使用，已有用户时直接返回）
-export async function initDefaultAdmin(): Promise<{ initialized: boolean; message: string; error?: string }> {
+// 安全策略：不再使用硬编码默认密码，改为生成 12 位随机强密码并一次性返回，
+// 调用方必须在响应中展示给部署者，且应提示首次登录后立即修改。
+export async function initDefaultAdmin(): Promise<{
+  initialized: boolean;
+  message: string;
+  error?: string;
+  initialPassword?: string;
+}> {
   try {
     const client = getSupabaseClient();
 
@@ -364,9 +371,9 @@ export async function initDefaultAdmin(): Promise<{ initialized: boolean; messag
       };
     }
 
-    // 首次部署：创建默认超级管理员
-    const defaultPassword = 'admin123';
-    const defaultPasswordHash = hashPassword(defaultPassword);
+    // 首次部署：创建默认超级管理员（随机强密码，一次性返回）
+    const initialPassword = generateInitialPassword();
+    const defaultPasswordHash = hashPassword(initialPassword);
 
     const { error: createError } = await client
       .from('users')
@@ -386,7 +393,8 @@ export async function initDefaultAdmin(): Promise<{ initialized: boolean; messag
 
     return {
       initialized: true,
-      message: '已创建默认超级管理员，请尽快修改默认密码',
+      message: '已创建默认超级管理员，初始密码仅在本次返回，请立即修改',
+      initialPassword,
     };
   } catch (error) {
     return {
@@ -395,4 +403,35 @@ export async function initDefaultAdmin(): Promise<{ initialized: boolean; messag
       error: '初始化失败: ' + (error instanceof Error ? error.message : '未知错误'),
     };
   }
+}
+
+/** 生成 12 位随机初始密码（含大小写字母、数字、符号，规避弱密码） */
+export function generateInitialPassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%^&*';
+  const all = upper + lower + digits + symbols;
+  const randomInt = (max: number) => Math.floor(cryptoRandomValue() * max);
+  const chars = [
+    upper[randomInt(upper.length)],
+    lower[randomInt(lower.length)],
+    digits[randomInt(digits.length)],
+    symbols[randomInt(symbols.length)],
+  ];
+  for (let i = 4; i < 12; i += 1) {
+    chars.push(all[randomInt(all.length)]);
+  }
+  // Fisher-Yates 洗牌，避免前缀可预测
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
+/** 加密安全随机数（0 ≤ value < 1） */
+function cryptoRandomValue(): number {
+  const buf = randomBytes(4);
+  return buf.readUInt32BE(0) / 0x100000000;
 }

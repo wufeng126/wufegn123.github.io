@@ -6,7 +6,7 @@ let credentialsMissingLogged = false;
 
 interface SupabaseCredentials {
   url: string;
-  anonKey: string;
+  serviceRoleKey: string;
 }
 
 function loadEnv(): void {
@@ -78,19 +78,22 @@ function getSupabaseCredentials(): SupabaseCredentials {
   loadEnv();
 
   const url = process.env.COZE_SUPABASE_URL;
-  const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
+  // 安全收紧：应用统一使用 service_role key 直连（绕过 RLS，避免 anon key 泄露时数据裸奔）。
+  // RLS 策略已同步收紧为"无 public 策略"（见 migrations/drop_rls_public_policies.sql），
+  // 使用 anon key 的直连将无法访问任何数据。
+  const serviceRoleKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !anonKey) {
+  if (!url || !serviceRoleKey) {
     if (!credentialsMissingLogged) {
       console.log('[supabase] COZE_SUPABASE_URL:', url ? `${url.substring(0, 50)}...` : 'NOT SET');
-      console.log('[supabase] COZE_SUPABASE_ANON_KEY:', anonKey ? `${anonKey.substring(0, 20)}...` : 'NOT SET');
+      console.log('[supabase] COZE_SUPABASE_SERVICE_ROLE_KEY:', serviceRoleKey ? `${serviceRoleKey.substring(0, 20)}...` : 'NOT SET');
       console.log('[supabase] Using placeholder credentials — API calls will fail until env vars are configured');
       credentialsMissingLogged = true;
     }
-    return { url: PLACEHOLDER_URL, anonKey: PLACEHOLDER_KEY };
+    return { url: PLACEHOLDER_URL, serviceRoleKey: PLACEHOLDER_KEY };
   }
 
-  return { url, anonKey };
+  return { url, serviceRoleKey };
 }
 
 // Singleton cache for the default (no-token) client
@@ -99,12 +102,12 @@ let _defaultClientUrl: string | null = null;
 let _defaultClientKey: string | null = null;
 
 function getSupabaseClient(token?: string): SupabaseClient {
-  const { url, anonKey } = getSupabaseCredentials();
+  const { url, serviceRoleKey } = getSupabaseCredentials();
 
   // For default client (no token), reuse singleton (but invalidate if credentials change)
   if (!token) {
-    if (!_defaultClient || _defaultClientUrl !== url || _defaultClientKey !== anonKey) {
-      _defaultClient = createClient(url, anonKey, {
+    if (!_defaultClient || _defaultClientUrl !== url || _defaultClientKey !== serviceRoleKey) {
+      _defaultClient = createClient(url, serviceRoleKey, {
         db: {
           timeout: 60000,
         },
@@ -114,12 +117,12 @@ function getSupabaseClient(token?: string): SupabaseClient {
         },
       });
       _defaultClientUrl = url;
-      _defaultClientKey = anonKey;
+      _defaultClientKey = serviceRoleKey;
     }
     return _defaultClient;
   }
 
-  return createClient(url, anonKey, {
+  return createClient(url, serviceRoleKey, {
     global: {
       headers: { Authorization: `Bearer ${token}` },
     },

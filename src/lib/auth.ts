@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isSuperAdminUser } from './route-permissions';
 import { getUserDisplayName } from './user-display-name';
 
-// 旧版本公开默认密钥，生产环境禁止继续使用。
-const LEGACY_DEFAULT_SECRET = 'construction-labor-management-secret-key-2024';
+// JWT 密钥完全来自环境变量。生产环境必须配置 JWT_SECRET（≥32 位随机字符串），
+// 开发环境未配置时使用进程内随机密钥（重启后会话失效）。
 const MIN_JWT_SECRET_LENGTH = 32;
 let cachedSecretKey: Uint8Array | null = null;
 
@@ -63,11 +63,10 @@ export function getJwtSecretStatus() {
   const secret = process.env.JWT_SECRET;
 
   return {
-    configured: Boolean(secret && secret.length >= MIN_JWT_SECRET_LENGTH && secret !== LEGACY_DEFAULT_SECRET),
+    configured: Boolean(secret && secret.length >= MIN_JWT_SECRET_LENGTH),
     hasValue: Boolean(secret),
     length: secret?.length ?? 0,
     minLength: MIN_JWT_SECRET_LENGTH,
-    usesLegacyDefault: secret === LEGACY_DEFAULT_SECRET,
   };
 }
 
