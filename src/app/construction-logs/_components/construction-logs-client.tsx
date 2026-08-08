@@ -498,6 +498,35 @@ export default function ConstructionLogsClient() {
     return () => window.clearTimeout(timeoutId);
   }, [loadRisks]);
 
+  // 通知直达收拢：从通知/待办进入风险池时，自动标记对应通知已读并滚动定位到目标风险项
+  useEffect(() => {
+    if (tab !== 'risks' || risks.length === 0) return;
+
+    const notificationId = searchParams.get('notification_id');
+    if (notificationId) {
+      import('@/lib/notification-client').then(({ markNotificationRead, emitNotificationsUpdated }) => {
+        void markNotificationRead(notificationId).then((marked) => {
+          if (marked) emitNotificationsUpdated();
+        });
+      });
+    }
+
+    const targetRiskId = searchParams.get('risk_id') || searchParams.get('log_id');
+    if (!targetRiskId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(`risk-item-${targetRiskId}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('ring-2', 'ring-blue-300', 'ring-offset-2');
+      window.setTimeout(() => {
+        target.classList.remove('ring-2', 'ring-blue-300', 'ring-offset-2');
+      }, 4500);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [risks.length, searchParams, tab]);
+
   useEffect(() => {
     if (tab !== 'submitters' || !submitterProjectId) return;
     const timeoutId = window.setTimeout(() => {
@@ -760,7 +789,7 @@ export default function ConstructionLogsClient() {
             ) : filteredRisks.map(risk => {
               const isPending = risk.workflow_status === 'pending';
               return (
-              <div key={risk.log_id} className={`rounded-xl border border-l-4 bg-white p-4 shadow-sm transition ${isPending ? 'border-amber-200 border-l-amber-400 hover:border-amber-300 hover:bg-amber-50/20' : 'border-slate-200 border-l-slate-300 hover:border-blue-200 hover:border-l-blue-300'}`}>
+              <div id={`risk-item-${risk.log_id}`} key={risk.log_id} className={`rounded-xl border border-l-4 bg-white p-4 shadow-sm transition ${isPending ? 'border-amber-200 border-l-amber-400 hover:border-amber-300 hover:bg-amber-50/20' : 'border-slate-200 border-l-slate-300 hover:border-blue-200 hover:border-l-blue-300'}`}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">

@@ -116,10 +116,17 @@ export function buildNotificationActionHref(source: NotificationLinkSource) {
       : type === 'construction_log_alert'
         ? 'risk'
         : pickText(metadata, ['section']);
-    return appendQuery(`/construction-logs/${constructionLogId}`, {
+
+    // 风险确认直达：带 risk_id（=日志id）供风险池列表滚动定位；评论提醒带 comment_id 供详情页高亮
+    const params: Record<string, string | number | null | undefined> = {
       section,
       comment_id: commentId,
-    });
+    };
+    if (type === 'construction_log_alert') {
+      params.risk_id = constructionLogId;
+      params.log_id = constructionLogId;
+    }
+    return appendQuery(`/construction-logs/${constructionLogId}`, params);
   }
 
   if (type === 'construction_daily_report') {

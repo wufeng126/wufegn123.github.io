@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { TabContainer, type TabItem } from '@/components/tab-container';
 
@@ -18,7 +19,9 @@ const tabs: TabItem[] = [
 export default function ConstructionManagementPage() {
   return (
     <div className="min-h-full bg-muted/50">
-      <TabContainer tabs={tabs} defaultTab="logs" showTabs={false} />
+      <Suspense fallback={null}>
+        <TabContainer tabs={tabs} defaultTab="logs" showTabs={false} />
+      </Suspense>
     </div>
   );
 }

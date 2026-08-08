@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
@@ -236,6 +236,14 @@ function NavigationLink({
 }
 
 export default function ConstructionLogDetailPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center text-sm text-slate-500">加载中...</div>}>
+      <ConstructionLogDetailPageContent />
+    </Suspense>
+  );
+}
+
+function ConstructionLogDetailPageContent() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const [detail, setDetail] = useState<ConstructionLogDetail | null>(null);
@@ -309,6 +317,16 @@ export default function ConstructionLogDetailPage() {
 
   useEffect(() => {
     if (loading || commentsLoading || !detail) return;
+
+    // 通知直达收拢：进入详情页后自动将对应通知标记已读（评论提醒 / 风险确认 / 日志通知统一收口）
+    const notificationId = searchParams.get('notification_id');
+    if (notificationId) {
+      import('@/lib/notification-client').then(({ markNotificationRead, emitNotificationsUpdated }) => {
+        void markNotificationRead(notificationId).then((marked) => {
+          if (marked) emitNotificationsUpdated();
+        });
+      });
+    }
 
     const section = searchParams.get('section') || (searchParams.get('comment_id') || searchParams.get('commentId') ? 'comments' : '');
     const commentId = searchParams.get('comment_id') || searchParams.get('commentId') || '';
@@ -472,16 +490,25 @@ export default function ConstructionLogDetailPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#EEF3F8] px-3 py-4 sm:p-4 md:p-6">
+    <div className="min-h-full bg-[#F0F2F5] px-3 py-3 sm:p-4 md:p-6">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <Link
-            href="/construction-logs?tab=logs"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm hover:border-blue-200 hover:text-blue-700"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            返回施工日志
-          </Link>
+        {/* 移动端固定返回栏：sticky 顶部，触控目标 ≥44px，与全局导航一致 */}
+        <div className="sticky top-0 z-20 -mx-3 mb-3 border-b border-slate-200/80 bg-[#F0F2F5]/95 px-3 py-2.5 backdrop-blur sm:static sm:mx-0 sm:mb-4 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              href="/construction-logs?tab=logs"
+              className="inline-flex h-11 min-w-[104px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm hover:border-blue-200 hover:text-blue-700 sm:h-10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              返回施工日志
+            </Link>
+            {detail?.status === 'pending' && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                <CalendarClock className="h-3.5 w-3.5" />
+                预约待提交
+              </span>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -531,12 +558,12 @@ export default function ConstructionLogDetailPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   {detail.can_edit_schedule && (
                     <button
                       type="button"
                       onClick={() => setEditing((current) => !current)}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                      className="inline-flex h-11 min-w-[88px] items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-blue-700 hover:bg-blue-50 sm:h-9"
                     >
                       {editing ? <XCircle className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
                       {editing ? '取消编辑' : '修改预约'}
@@ -547,7 +574,7 @@ export default function ConstructionLogDetailPage() {
                       type="button"
                       onClick={handleCancelSchedule}
                       disabled={saving}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+                      className="inline-flex h-11 min-w-[88px] items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 sm:h-9"
                     >
                       <XCircle className="h-3.5 w-3.5" />
                       取消预约
@@ -817,7 +844,7 @@ export default function ConstructionLogDetailPage() {
                       type="button"
                       disabled={acknowledgingRisk || detail.risk.workflow_status === 'confirmed' || !detail.risk.can_acknowledge}
                       onClick={handleAcknowledgeRisk}
-                      className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto ${
+                      className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:h-10 sm:w-auto ${
                         detail.risk.workflow_status === 'confirmed'
                           ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
                           : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
@@ -869,7 +896,7 @@ export default function ConstructionLogDetailPage() {
                   <button
                     type="submit"
                     disabled={commentSubmitting}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 sm:h-10 sm:w-auto"
                   >
                     <Send className="h-4 w-4" />
                     {commentSubmitting ? '提交中...' : '提交评论'}
