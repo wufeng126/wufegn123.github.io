@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import SidebarLayout from '@/components/sidebar-layout';
 import { Toaster } from '@/components/ui/toaster';
 import { PermissionProvider } from '@/contexts/permission-context';
@@ -15,6 +15,12 @@ export const metadata: Metadata = {
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({

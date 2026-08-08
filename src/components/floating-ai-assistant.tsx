@@ -554,7 +554,7 @@ export function FloatingAIAssistant() {
       <button
         onClick={() => { setIsOpen(true); setIsMinimized(false); }}
         style={isOpen && !isMinimized ? { display: 'none' } : {}}
-        className="fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center hover:scale-105 active:scale-95"
+        className="ai-floating-trigger fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center hover:scale-105 active:scale-95"
         aria-label="打开AI助手"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -570,7 +570,7 @@ export function FloatingAIAssistant() {
       {isMinimized && isOpen && (
         <button
           onClick={() => setIsMinimized(false)}
-          className="fixed bottom-6 right-6 z-[9999] px-4 py-2 rounded-full bg-primary text-primary-foreground shadow-lg text-sm hover:shadow-xl transition-all"
+          className="ai-floating-trigger fixed bottom-6 right-6 z-[9999] px-4 py-2 rounded-full bg-primary text-primary-foreground shadow-lg text-sm hover:shadow-xl transition-all"
         >
           AI助手
         </button>

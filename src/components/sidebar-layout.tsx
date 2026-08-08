@@ -226,6 +226,17 @@ export default function SidebarLayout({
   }, []);
 
   useEffect(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    const isDingTalk = ua.includes('dingtalk') || ua.includes('ddclient');
+    document.documentElement.dataset.dingtalk = isDingTalk ? 'true' : 'false';
+    document.body.classList.toggle('is-dingtalk', isDingTalk);
+    return () => {
+      document.documentElement.removeAttribute('data-dingtalk');
+      document.body.classList.remove('is-dingtalk');
+    };
+  }, []);
+
+  useEffect(() => {
     queueMicrotask(() => {
       setSidebarOpen(false);
     });
@@ -308,6 +319,11 @@ export default function SidebarLayout({
   const activeHrTab = pathname === '/hr-salary'
     ? searchParams.get('tab') || 'roster'
     : '';
+  const preferredMobileMenuHrefs = ['/workspace', '/construction-logs', '/project-center', '/hr-salary', '/business-analysis'];
+  const mobileBottomMenus = preferredMobileMenuHrefs
+    .map((href) => TOP_LEVEL_MENUS.find((menu) => menu.href === href))
+    .filter((menu): menu is (typeof TOP_LEVEL_MENUS)[number] => Boolean(menu && isMenuVisible(menu.href)))
+    .slice(0, 4);
 
   const isSecondaryActive = (href: string) => {
     if (href.startsWith('/construction-logs?tab=')) {
@@ -383,7 +399,7 @@ export default function SidebarLayout({
       };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--background)' }}>
+    <div className="app-shell" style={{ display: 'flex', height: '100vh', background: 'var(--background)' }}>
       {/* 移动端遮罩层 */}
       {isMobile && sidebarOpen && (
         <div
@@ -663,6 +679,7 @@ export default function SidebarLayout({
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, position: 'relative', zIndex: 1 }}>
         {/* 顶部导航栏 */}
         <header
+          className="app-mobile-header"
           style={{
             height: '56px',
             minHeight: '56px',
@@ -744,7 +761,7 @@ export default function SidebarLayout({
 
         {/* 内容区 */}
         <main
-          className="flex-1 overflow-auto"
+          className="app-main-scroll flex-1 overflow-auto"
           style={{ background: 'var(--background)' }}
         >
           <Suspense fallback={null}>
@@ -755,6 +772,38 @@ export default function SidebarLayout({
       </div>
 
       {/* 全局悬浮AI助手 */}
+      {isMobile && (
+        <nav className="mobile-bottom-nav safe-area-bottom" aria-label="移动端快捷导航">
+          <div className="mobile-bottom-nav__items">
+            {mobileBottomMenus.map((menu) => {
+              const isActive = activeMenu === menu.href;
+              return (
+                <Link
+                  key={menu.href}
+                  href={menu.href}
+                  className={cn('mobile-bottom-nav__item', isActive && 'mobile-bottom-nav__item--active')}
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    setHoverExpanded(false);
+                  }}
+                >
+                  <BrandIconContainer name={menu.icon} size={18} className="rounded-md p-1 shadow-none" />
+                  <span>{menu.name}</span>
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              className="mobile-bottom-nav__item"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" strokeWidth={1.8} />
+              <span>更多</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
       <FloatingAIAssistant />
     </div>
   );
