@@ -49,6 +49,20 @@ function isInactiveContract(status?: string | null) {
   return INACTIVE_CONTRACT_STATUSES.has(value) || isVoidedStatus(value);
 }
 
+/** 判断是否为"表不存在"类错误（老表/历史表缺失时静默跳过） */
+function isMissingTableError(error: unknown): boolean {
+  const err = error as { code?: string; message?: string } | null;
+  const message = String(err?.message || '').toLowerCase();
+  return (
+    err?.code === '42P01' ||
+    err?.code === 'PGRST205' ||
+    message.includes('does not exist') ||
+    message.includes('could not find') ||
+    message.includes('schema cache') ||
+    (message.includes('relation') && message.includes('not exist'))
+  );
+}
+
 function isPendingContract(contract: ContractRecord) {
   const status = String(contract.contract_status || '').trim();
   if (isInactiveContract(status)) return false;
@@ -140,6 +154,7 @@ export async function GET(request: NextRequest) {
       paymentRecords = (payments || []) as PaymentRecord[];
 
       // 老表结算/付款：挂 supplier_id 直连，不受合同关联缺失影响，补全台账
+      // 老表（settlements/payments）为历史遗留表，生产库可能未建 → 表不存在时静默跳过，不能抛错导致整个接口 500
       const [legacySettlementsRes, legacyPaymentsRes] = await Promise.all([
         supabase
           .from('settlements')
@@ -150,10 +165,16 @@ export async function GET(request: NextRequest) {
           .select('supplier_id, payment_amount')
           .in('supplier_id', supplierIds),
       ]);
-      if (legacySettlementsRes.error) throw legacySettlementsRes.error;
-      if (legacyPaymentsRes.error) throw legacyPaymentsRes.error;
-      legacySettlementRecords = (legacySettlementsRes.data || []) as typeof legacySettlementRecords;
-      legacyPaymentRecords = (legacyPaymentsRes.data || []) as typeof legacyPaymentRecords;
+      if (legacySettlementsRes.error && !isMissingTableError(legacySettlementsRes.error)) {
+        console.warn('[SupplierAccount] legacy settlements query failed:', legacySettlementsRes.error.message);
+      } else if (!legacySettlementsRes.error) {
+        legacySettlementRecords = (legacySettlementsRes.data || []) as typeof legacySettlementRecords;
+      }
+      if (legacyPaymentsRes.error && !isMissingTableError(legacyPaymentsRes.error)) {
+        console.warn('[SupplierAccount] legacy payments query failed:', legacyPaymentsRes.error.message);
+      } else if (!legacyPaymentsRes.error) {
+        legacyPaymentRecords = (legacyPaymentsRes.data || []) as typeof legacyPaymentRecords;
+      }
     }
 
     if (projectIds.length > 0) {
