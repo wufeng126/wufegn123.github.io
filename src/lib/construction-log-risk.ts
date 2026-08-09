@@ -62,12 +62,71 @@ const RISK_RULES: RiskRule[] = [
 const HIGH_KEYWORDS = ['事故', '停工', '索赔', '罚款', '验收未通过', '重大', '亏损', '无法施工'];
 const MEDIUM_KEYWORDS = ['签证', '变更', '返工', '延误', '窝工', '工程量增加', '材料涨价'];
 
-function uniq<T>(items: T[]): T[] {
-  return Array.from(new Set(items));
+// ============ 规则层降误报增强 ============
+// 以下三组机制用于过滤"不是真实风险"的命中：
+// 1. 否定/正面表述：关键词前出现"无/未/不/没有"等 → 非风险（如"无质量问题"）
+// 2. 消除/闭环动作：关键词前出现"杜绝/防止/整改完成/已排除"等 → 非风险（如"已消除安全隐患"）
+// 3. 中性管理语境：关键词后紧跟检查/会议/培训等日常动作 → 非风险（如"安全检查"）
+
+/** 否定前缀词（出现在关键词前 8 字内视为否定表述） */
+const NEGATION_MARKERS = ['没有', '不存在', '未见', '未发现', '无发现', '无异常', '未发生', '不发生', '无发生', '无', '未', '不', '非', '免'];
+
+/** 消除/闭环动作词（关键词前出现 → 风险已被预防，如"已消除安全隐患"） */
+const MITIGATION_MARKERS = ['杜绝', '防止', '避免', '消除', '排除', '已整改', '已处理', '已落实', '已排除', '已解决', '已闭环', '复查合格'];
+
+/** 后向闭环词（关键词后出现 → 风险已处理完毕，如"裂缝问题已整改完成"） */
+const CLOSURE_MARKERS = ['已整改完成', '完成整改', '整改完成', '已处理完毕', '处理完毕', '整改完毕', '已闭环', '已解决', '复查合格', '处理完成', '已修复', '修复完成'];
+
+/** 中性管理语境词（关键词后紧跟 → 日常管理动作而非风险事件） */
+const NEUTRAL_ACTIVITY_WORDS = ['检查', '会议', '例会', '周会', '培训', '演练', '分析', '计划', '安排', '部署', '强调', '交底', '学习', '宣贯', '总结', '教育', '自查', '复查', '提醒', '告知', '统计', '台账', '汇报', '记录', '评估', '会议纪要'];
+
+/** 风险语境词（弱关键词旁出现 → 判定为真实风险，如"出现质量问题"） */
+const RISK_CONTEXT_WORDS = ['发生', '出现', '发现', '存在', '导致', '造成', '引发', '隐患', '问题', '异常', '未达标', '不达标'];
+
+/** 强风险词：单独命中即视为风险（具体、指向已发生的事件） */
+const STRONG_RISK_KEYWORDS = new Set([
+  '事故', '坍塌', '垮塌', '坠落', '触电', '伤亡', '死亡', '受伤', '火灾', '爆炸',
+  '停工', '窝工', '索赔', '罚款', '返工', '亏损', '裂缝', '漏浆', '验收未通过', '不合格',
+  '无法施工', '材料未到', '超支', '涨价', '扣款', '待料', '断料', '停工令',
+]);
+
+/** 中性弱关键词：单独出现且无风险语境时不触发（避免"等待""成本""工期"等常见词误报） */
+const NEUTRAL_WEAK_KEYWORDS = new Set([
+  '等待', '机械', '台班', '单价', '签证', '变更', '新增工作', '甲方要求', '方案调整',
+  '质量', '安全', '工期', '成本', '费用', '进度', '洽商', '整改',
+]);
+
+function isNegatedHit(text: string, keyword: string, keywordIndex: number): boolean {
+  // 关键词前 8 字窗口内出现否定词 → 非风险（如"无安全隐患"）
+  const before = text.slice(Math.max(0, keywordIndex - 8), keywordIndex);
+  if (NEGATION_MARKERS.some(marker => before.includes(marker))) return true;
+  // 关键词前出现消除/预防动作 → 非风险（如"已消除安全隐患"）
+  if (MITIGATION_MARKERS.some(marker => before.includes(marker))) return true;
+  // 关键词附近（允许闭环词起始略早于关键词，覆盖"已整改完成"内嵌"整改"的场景）
+  // 出现闭环词 → 风险已处理完，不再入池（如"裂缝问题已整改完成"）
+  for (const marker of CLOSURE_MARKERS) {
+    const closureIndex = text.indexOf(marker, Math.max(0, keywordIndex - 3));
+    if (closureIndex >= 0 && Math.abs(closureIndex - keywordIndex) <= 15) return true;
+  }
+  return false;
 }
 
-function includesKeyword(text: string, keyword: string) {
-  return text.toLowerCase().includes(keyword.toLowerCase());
+function isNeutralContextHit(text: string, keyword: string, keywordIndex: number): boolean {
+  // 强风险词不受中性语境影响（"事故检查"仍是事故语境）
+  if (STRONG_RISK_KEYWORDS.has(keyword)) return false;
+  // 关键词后 6 字窗口内出现日常管理动作词 → 非风险（如"安全检查""质量例会"）
+  const after = text.slice(keywordIndex + keyword.length, keywordIndex + keyword.length + 6);
+  return NEUTRAL_ACTIVITY_WORDS.some(word => after.includes(word));
+}
+
+function hasRiskContextAround(text: string, keywordIndex: number): boolean {
+  // 关键词前后 12 字窗口内出现风险语境词（发生/出现/发现/隐患/问题/异常…）→ 判定为真实风险
+  const window = text.slice(Math.max(0, keywordIndex - 12), keywordIndex + 12 + 6);
+  return RISK_CONTEXT_WORDS.some(word => window.includes(word));
+}
+
+function uniq<T>(items: T[]): T[] {
+  return Array.from(new Set(items));
 }
 
 export function getRiskTypeLabel(type: ConstructionRiskType) {
@@ -179,50 +238,83 @@ export function buildRiskKnowledgeContent(input: {
 
 export function detectConstructionLogRisk(input: { content?: string | null; issues?: string | null }): ConstructionLogRisk {
   const text = `${input.content || ''} ${input.issues || ''}`.trim();
-  if (!text) {
-    return {
-      hasRisk: false,
-      primaryType: null,
-      types: [],
-      level: null,
-      tags: [],
-      matchedKeywords: [],
-      summary: '未识别到风险',
-      recommendation: '',
-    };
-  }
+  const emptyResult: ConstructionLogRisk = {
+    hasRisk: false,
+    primaryType: null,
+    types: [],
+    level: null,
+    tags: [],
+    matchedKeywords: [],
+    summary: '未识别到风险',
+    recommendation: '',
+  };
+  if (!text) return emptyResult;
 
-  const matchedRules = RISK_RULES.map(rule => ({
-    ...rule,
-    matched: rule.keywords.filter(keyword => includesKeyword(text, keyword)),
-  })).filter(rule => rule.matched.length > 0);
+  // 逐关键词匹配，并应用降误报过滤：
+  // - 否定/消除表述（"无安全隐患""已整改完成"）→ 排除
+  // - 中性管理语境（"安全检查""质量例会"）→ 排除（弱关键词）
+  const matchedByRule: Array<{ rule: RiskRule; keywords: string[] }> = RISK_RULES.map(rule => ({
+    rule,
+    keywords: rule.keywords.filter(keyword => {
+      const lowerText = text.toLowerCase();
+      const lowerKeyword = keyword.toLowerCase();
+      let index = lowerText.indexOf(lowerKeyword);
+      while (index >= 0) {
+        if (!isNegatedHit(lowerText, lowerKeyword, index) && !isNeutralContextHit(lowerText, lowerKeyword, index)) {
+          return true;
+        }
+        index = lowerText.indexOf(lowerKeyword, index + lowerKeyword.length);
+      }
+      return false;
+    }),
+  })).filter(item => item.keywords.length > 0);
 
-  const types = matchedRules.map(rule => rule.type);
-  const matchedKeywords = uniq(matchedRules.flatMap(rule => rule.matched));
-  const primary = matchedRules.sort((a, b) => b.matched.length - a.matched.length)[0];
+  const types = matchedByRule.map(item => item.rule.type);
+  const matchedKeywords = uniq(matchedByRule.flatMap(item => item.keywords));
+
+  // 弱关键词降级：中性弱词单独出现且无风险语境时，不判为风险（如"等待""成本""工期"）
+  const strongHits = matchedKeywords.filter(keyword => STRONG_RISK_KEYWORDS.has(keyword));
+  const weakHits = matchedKeywords.filter(keyword => !STRONG_RISK_KEYWORDS.has(keyword));
+  const hasRiskContext = weakHits.some(keyword => {
+    const lowerText = text.toLowerCase();
+    const lowerKeyword = keyword.toLowerCase();
+    const index = lowerText.indexOf(lowerKeyword);
+    return index >= 0 && hasRiskContextAround(lowerText, index);
+  });
+
+  // 触发判定：
+  // 1) 命中强风险词 → 有风险
+  // 2) 弱词 ≥2 个组合 → 有风险（多维度异常）
+  // 3) 弱词 1 个 + 风险语境（发生/出现/隐患/问题/异常）或 issues 有内容 → 有风险
+  // 4) 弱词单独出现（无语境）→ 不算风险（降低误报）
+  const isRealRisk = strongHits.length > 0
+    || weakHits.length >= 2
+    || (weakHits.length === 1 && (hasRiskContext || Boolean(input.issues?.trim())));
+
+  if (!isRealRisk) return emptyResult;
+
+  const primary = matchedByRule.sort((a, b) => b.keywords.length - a.keywords.length)[0];
 
   let level: ConstructionRiskLevel | null = null;
-  if (matchedKeywords.some(keyword => HIGH_KEYWORDS.includes(keyword)) || types.includes('safety')) {
+  if (strongHits.some(keyword => HIGH_KEYWORDS.includes(keyword)) || types.includes('safety')) {
     level = 'high';
-  } else if (matchedKeywords.some(keyword => MEDIUM_KEYWORDS.includes(keyword)) || types.length >= 2 || input.issues) {
+  } else if (strongHits.length > 0 || weakHits.length >= 2 || input.issues) {
     level = 'medium';
-  } else if (matchedKeywords.length > 0) {
+  } else {
     level = 'low';
   }
 
   const labels = types.map(getRiskTypeLabel);
-  const recommendation = primary?.recommendation || '';
+  const recommendation = primary?.rule.recommendation || '';
 
   return {
-    hasRisk: matchedKeywords.length > 0,
-    primaryType: primary?.type || null,
+    hasRisk: true,
+    primaryType: primary?.rule.type || null,
     types,
     level,
     tags: ['施工日志风险', ...labels, ...matchedKeywords].filter(Boolean),
     matchedKeywords,
-    summary: matchedKeywords.length > 0
-      ? `${labels.join('、')}风险：${matchedKeywords.slice(0, 6).join('、')}`
-      : '未识别到风险',
+    summary: `${labels.join('、')}风险：${matchedKeywords.slice(0, 6).join('、')}`,
     recommendation,
   };
 }
