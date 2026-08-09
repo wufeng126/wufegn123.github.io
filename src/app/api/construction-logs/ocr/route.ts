@@ -4,7 +4,7 @@ import { OSSStorage } from '@/lib/oss-storage';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { analyzeConstructionLogOcrQuality, parseConstructionLogText } from '@/lib/construction-log-ocr';
-import { createLLMClient, extractForwardHeaders, getAIConfig } from '@/lib/ai-service';
+import { createConfiguredLLMClient, extractForwardHeaders, getAIConfig } from '@/lib/ai-service';
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_IMAGE_COUNT = 6;
@@ -81,7 +81,8 @@ async function polishConstructionContent(rawText: string, fallbackContent: strin
     const config = await getAIConfig();
     if (!config?.enabled) return fallbackContent;
 
-    const client = createLLMClient(extractForwardHeaders(request.headers));
+    const client = await createConfiguredLLMClient(extractForwardHeaders(request.headers));
+    if (!client) return fallbackContent;
     const stream = await client.stream([
       {
         role: 'system',

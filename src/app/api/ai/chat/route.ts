@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
-  getAIConfig, createLLMClient, extractForwardHeaders, checkDailyLimit, incrementDailyUsage,
+  getAIConfig, createConfiguredLLMClient, extractForwardHeaders, checkDailyLimit, incrementDailyUsage,
   checkModulePermission, maskSensitiveInfo, isBusinessRelated, logAIAudit,
   saveChatMessage, fetchBusinessDataForContext,
   buildSystemPrompt, searchKnowledge, searchSystemKnowledge, getOfflineAnswer,
@@ -206,8 +206,14 @@ export async function POST(request: NextRequest) {
     // 截取上下文长度
     const contextMessages = filteredMessages.slice(-config.max_context_length * 2 - 1);
 
-    // 调用LLM - 流式输出
-    const client = createLLMClient(forwardHeaders);
+    // 调用LLM - 流式输出（注入 ai_configs 的 api_key，修复凭据未传递问题）
+    const client = await createConfiguredLLMClient(forwardHeaders);
+    if (!client) {
+      return NextResponse.json(
+        { success: false, error: 'AI 服务未配置 API Key，请联系管理员在「系统管理 → AI 配置」中填写' },
+        { status: 503 }
+      );
+    }
     const llmMessages = contextMessages.map((m) => ({ role: m.role, content: m.content }));
     const stream = await client.stream(llmMessages, {
       model: config.model_id,

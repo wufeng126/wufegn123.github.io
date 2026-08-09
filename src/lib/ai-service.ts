@@ -2,7 +2,7 @@
  * AI 服务核心模块
  * 统一管理 LLM 调用、知识库检索、权限校验、敏感信息脱敏
  */
-import { LLMClient, KnowledgeClient, Config, HeaderUtils, DataSourceType } from 'coze-coding-dev-sdk';
+import { LLMClient, KnowledgeClient, Config, HeaderUtils, DataSourceType, type CozeConfig } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // ============ 类型定义 ============
@@ -61,9 +61,34 @@ export function clearAIConfigCache() {
 
 // ============ LLM 客户端 ============
 
-export function createLLMClient(customHeaders?: Record<string, string>): LLMClient {
-  const config = new Config();
+/**
+ * 创建 LLM 客户端。
+ * ⚠️ 修复：原实现 new Config() 无参，ai_configs 表里的 api_key 从未传给 SDK，
+ * 导致即使配置了 API Key，LLM 调用也拿不到凭据（401/403）。
+ * 现在支持通过 options 传入 apiKey/baseUrl，并建议使用 createConfiguredLLMClient 自动注入配置。
+ */
+export function createLLMClient(
+  customHeaders?: Record<string, string>,
+  options?: CozeConfig,
+): LLMClient {
+  const config = new Config(options);
   return new LLMClient(config, customHeaders);
+}
+
+/**
+ * 创建"已注入 AI 配置"的 LLM 客户端（推荐使用）：
+ * 自动读取 ai_configs 表的 api_key/api_endpoint 传给 SDK。
+ * 未配置凭据时返回 null，由调用方走离线兜底或明确提示。
+ */
+export async function createConfiguredLLMClient(
+  customHeaders?: Record<string, string>,
+  overrides?: { apiKey?: string; baseUrl?: string },
+): Promise<LLMClient | null> {
+  const aiConfig = await getAIConfig();
+  const apiKey = overrides?.apiKey ?? aiConfig?.api_key ?? null;
+  if (!apiKey) return null;
+  const baseUrl = overrides?.baseUrl ?? aiConfig?.api_endpoint ?? null;
+  return createLLMClient(customHeaders, { apiKey, baseUrl: baseUrl || undefined });
 }
 
 // 从NextRequest提取转发头
@@ -75,15 +100,30 @@ export function extractForwardHeaders(headers: Headers): Record<string, string> 
 
 export const DATASET_NAME = 'labor_ai_kb';
 
-export function createKnowledgeClient(customHeaders?: Record<string, string>): KnowledgeClient {
-  const config = new Config();
+export function createKnowledgeClient(
+  customHeaders?: Record<string, string>,
+  options?: CozeConfig,
+): KnowledgeClient {
+  const config = new Config(options);
   return new KnowledgeClient(config, customHeaders);
+}
+
+/** 创建"已注入 AI 配置"的知识库客户端；未配置凭据返回 null */
+export async function createConfiguredKnowledgeClient(
+  customHeaders?: Record<string, string>,
+): Promise<KnowledgeClient | null> {
+  const aiConfig = await getAIConfig();
+  const apiKey = aiConfig?.api_key ?? null;
+  if (!apiKey) return null;
+  const baseUrl = aiConfig?.api_endpoint ?? null;
+  return createKnowledgeClient(customHeaders, { apiKey, baseUrl: baseUrl || undefined });
 }
 
 // 知识库语义搜索
 export async function searchKnowledge(query: string, topK: number = 5, customHeaders?: Record<string, string>): Promise<string> {
   try {
-    const client = createKnowledgeClient(customHeaders);
+    const client = await createConfiguredKnowledgeClient(customHeaders);
+    if (!client) return '';
     const results = await client.search(query, undefined, topK);
     if (!results || !results.chunks || results.chunks.length === 0) return '';
     return results.chunks.map((chunk: any, i: number) => `[文档${i + 1}] ${chunk.content || chunk.text || ''}`).join('\n\n');
@@ -133,7 +173,8 @@ export async function searchSystemKnowledge(query: string): Promise<string> {
 // 添加文档到知识库
 export async function addKnowledgeDoc(title: string, content: string, dataset?: string, customHeaders?: Record<string, string>): Promise<boolean> {
   try {
-    const client = createKnowledgeClient(customHeaders);
+    const client = await createConfiguredKnowledgeClient(customHeaders);
+    if (!client) return false;
     const doc = {
       source: DataSourceType.TEXT,
       raw_data: Buffer.from(content).toString('base64'),

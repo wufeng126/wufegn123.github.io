@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getReadableDate } from '@/lib/construction-log-deadline';
-import { createLLMClient, getAIConfig } from '@/lib/ai-service';
+import { createConfiguredLLMClient, getAIConfig } from '@/lib/ai-service';
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { detectConstructionLogRisk, loadConstructionRiskEvents, type RiskEventRow } from '@/lib/construction-log-risk';
 
@@ -354,7 +354,8 @@ async function buildAiDailyReport(summary: ConstructionDailyReportSummary): Prom
     const config = await getAIConfig();
     if (!config?.enabled || (!config.module_doc_generation && !config.module_report_analysis)) return null;
 
-    const client = createLLMClient();
+    const client = await createConfiguredLLMClient();
+    if (!client) return null;
     const stream = await client.stream([
       { role: 'system', content: '你只输出严格 JSON，用中文生成建筑项目日报。' },
       { role: 'user', content: buildAiPrompt(summary) },

@@ -386,11 +386,12 @@ ${text}
  */
 export async function refineRiskWithAI(input: { content?: string | null; issues?: string | null }): Promise<AiRiskRefinement | null> {
   try {
-    const { getAIConfig, createLLMClient } = await import('@/lib/ai-service');
+    const { getAIConfig, createConfiguredLLMClient } = await import('@/lib/ai-service');
     const config = await getAIConfig();
     if (!config?.enabled) return null;
 
-    const client = createLLMClient();
+    const client = await createConfiguredLLMClient();
+    if (!client) return null;
     const stream = await client.stream([
       { role: 'system', content: '你只输出严格 JSON，用中文识别建筑施工现场风险。' },
       { role: 'user', content: buildRiskAiPrompt(input) },
