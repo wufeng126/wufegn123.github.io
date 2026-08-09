@@ -48,8 +48,15 @@ export function verifyPassword(password: string, hash: string): boolean {
   return safeCompareHex(legacyUnsaltedHash, hash);
 }
 
+// 登录阻塞原因（账号存在但状态不允许登录）
+export type LoginBlockedReason = 'disabled' | 'pending';
+
 // 验证账号密码（从数据库）
-export async function verifyCredentials(username: string, password: string): Promise<UserPayload | null> {
+// 返回：UserPayload（成功）| { blocked: 'disabled'|'pending' }（账号存在但被禁用/待分配）| null（用户不存在或密码错误）
+export async function verifyCredentials(
+  username: string,
+  password: string
+): Promise<UserPayload | { blocked: LoginBlockedReason } | null> {
   try {
     // 去除前后空格并转小写（用户名不区分大小写）
     const normalizedUsername = username.trim().toLowerCase();
@@ -75,10 +82,14 @@ export async function verifyCredentials(username: string, password: string): Pro
     const user = data as { id: number; username: string; name?: string | null; dingtalk_name?: string | null; password_hash: string; role: string; is_disabled: boolean };
     console.log('[Auth] User found, role:', user.role);
     
-    // 检查用户是否被禁用或尚未分配权限
-    if (user.is_disabled || user.role === 'pending') {
+    // 账号存在但状态不允许登录：明确区分禁用/待分配，避免与"密码错误"混淆
+    if (user.is_disabled) {
       console.log('[Auth] User is disabled:', normalizedUsername);
-      return null;
+      return { blocked: 'disabled' };
+    }
+    if (user.role === 'pending') {
+      console.log('[Auth] User pending, waiting for permission assignment:', normalizedUsername);
+      return { blocked: 'pending' };
     }
 
     const passwordValid = verifyPassword(password.trim(), user.password_hash);
@@ -208,10 +219,16 @@ export async function fetchUserPermissions(userId: number, userRole: string): Pr
 }
 
 // 登录并生成 token
-export async function login(username: string, password: string): Promise<{ user: UserPayload; token: string } | null> {
+export async function login(
+  username: string,
+  password: string
+): Promise<{ user: UserPayload; token: string } | { blocked: LoginBlockedReason } | null> {
   const user = await verifyCredentials(username, password);
   if (!user) {
     return null;
+  }
+  if ('blocked' in user) {
+    return user;
   }
   
   // 获取用户权限码并嵌入token

@@ -79,6 +79,25 @@ export async function POST(request: Request) {
       );
     }
 
+    // 账号存在但被禁用/待分配：返回明确原因（不再伪装成"账号或密码错误"）
+    if ('blocked' in result) {
+      await logSecurityEvent({
+        event_type: 'login_failed',
+        username: username?.trim(),
+        ip_address: ip,
+        user_agent: userAgent,
+        result: 'blocked',
+        error_message: result.blocked === 'disabled' ? '账号已被禁用' : '账号待分配权限',
+      });
+      const error = result.blocked === 'disabled'
+        ? '该账号已被禁用，请联系管理员恢复'
+        : '该账号待分配权限，请联系管理员启用（系统管理 → 权限管理 → 用户分配台账）';
+      return NextResponse.json(
+        { success: false, data: null, error, code: result.blocked === 'disabled' ? 'ACCOUNT_DISABLED' : 'ACCOUNT_PENDING' },
+        { status: 403 }
+      );
+    }
+
     // 登录成功：清除限流计数
     clearLoginFailures(ip, String(username).trim().toLowerCase());
 
