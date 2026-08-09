@@ -316,10 +316,10 @@ export async function getProjectFinancialSummary(
     );
   }
 
-  // 4. 工人工资（应发工资总额）
+  // 4. 工人工资（应发总额用于成本；实发 net 用于未付口径，与工人工资模块一致）
   let salariesQuery = client
     .from('worker_salaries')
-    .select('gross_pay, year_month')
+    .select('gross_pay, net_pay, year_month')
     .eq('project_id', projectId);
 
   if (dateRange) {
@@ -331,6 +331,8 @@ export async function getProjectFinancialSummary(
 
   const { data: salaries } = await salariesQuery;
   const workerSalaryAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+  // 实发口径：未付工资 = 实发应发 - 已发（避免应发口径虚高，与工资模块统一）
+  const workerNetPayAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.net_pay), 0);
   const teamSettlementAmount = await getTeamSettlementCostAmount(client, { projectId, dateRange });
   const salaryAmount = workerSalaryAmount + teamSettlementAmount;
 
@@ -417,7 +419,7 @@ export async function getProjectFinancialSummary(
   const paymentRate = taxableIncome > 0 ? (clientPaidAmount / taxableIncome) * 100 : 0;
   const receivableAmount = Math.max(taxableIncome - clientPaidAmount, 0);
   const supplierPayableAmount = Math.max(supplierPayableBaseAmount - supplierPaidAmount, 0);
-  const workerPayableAmount = Math.max(workerSalaryAmount - workerPaidAmount, 0);
+  const workerPayableAmount = Math.max(workerNetPayAmount - workerPaidAmount, 0);
   const totalPayableAmount = supplierPayableAmount + workerPayableAmount;
   const cashOutAmount = supplierPaidAmount + workerPaidAmount;
   const netCashFlow = clientPaidAmount - cashOutAmount;

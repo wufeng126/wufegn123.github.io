@@ -1,5 +1,5 @@
 /**
- * 工人删除守卫：删除花名册人员前，检查其在出勤、工资核算、工资发放中是否已有数据。
+ * 工人删除守卫：删除花名册人员前，检查其在出勤、工资核算、工资发放、班组结算拆分中是否已有数据。
  * 有数据则阻止删除并提示，避免财务/考勤数据成为孤儿记录。
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -8,6 +8,7 @@ const DATA_TABLE_DEFS = [
   { table: 'construction_log_attendance', label: '出勤' },
   { table: 'worker_salaries', label: '工资核算' },
   { table: 'salary_payments', label: '工资发放' },
+  { table: 'team_settlement_splits', label: '班组结算拆分' },
 ] as const;
 
 function isMissingTableError(error: unknown): boolean {

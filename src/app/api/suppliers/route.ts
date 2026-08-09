@@ -277,7 +277,7 @@ export async function DELETE(request: NextRequest) {
 
     const client = getSupabaseClient();
     
-    // 检查是否有关联的结算或付款记录
+    // 检查是否有关联的结算或付款记录（历史老表）
     const { data: settlements } = await client
       .from('settlements')
       .select('id')
@@ -290,9 +290,20 @@ export async function DELETE(request: NextRequest) {
       .in('supplier_id', idArray)
       .limit(1);
 
-    if ((settlements && settlements.length > 0) || (payments && payments.length > 0)) {
+    // 检查新表关联：合同（合同下挂结算/付款，删除供应商会留下孤儿数据）
+    const { data: contracts } = await client
+      .from('supplier_contracts')
+      .select('id')
+      .in('supplier_id', idArray)
+      .limit(1);
+
+    if (
+      (settlements && settlements.length > 0) ||
+      (payments && payments.length > 0) ||
+      (contracts && contracts.length > 0)
+    ) {
       return NextResponse.json({ 
-        error: '该供应商有关联的结算或付款记录，无法删除' 
+        error: '该供应商有关联的合同、结算或付款记录，无法删除' 
       }, { status: 400 });
     }
     

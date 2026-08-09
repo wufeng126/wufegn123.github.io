@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
+import { requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 type UserPayload = RequestAuthUser;
 
@@ -51,7 +53,14 @@ export async function GET(request: NextRequest) {
     query = query.eq('status', status);
   }
   
-  const { data, error } = await query;
+      // 数据权限：非超管仅导出其可访问项目的数据（防止越权导出全量）
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects) {
+      query = query.in('project_id', accessibleProjects);
+    }
+    const { data, error } = await query;
   
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

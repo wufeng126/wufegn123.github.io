@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 type LibraryType = 'standard' | 'bidPrice' | 'costPrice' | 'alias';
 
@@ -48,6 +49,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const type = body.type as string | null;
     if (type === 'standardBatch') {
@@ -106,6 +110,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const type = body.type as string | null;
     const id = toNumber(body.id);

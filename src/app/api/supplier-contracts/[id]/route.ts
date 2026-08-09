@@ -202,6 +202,34 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
+    // 删除保护：存在已审核/非草稿结算单或已生效付款时禁止删除（防止账务数据静默丢失）
+    const { data: contractSettlements } = await supabase
+      .from('supplier_settlements')
+      .select('status')
+      .eq('contract_id', id);
+    const hasReviewedSettlement = (contractSettlements || []).some(
+      (s: any) => s.status !== 'draft' && !isVoidedStatus(s.status)
+    );
+    if (hasReviewedSettlement) {
+      return NextResponse.json(
+        { error: '该合同已有审核通过的结算单，无法删除。请先处理结算单（作废或转移）后再操作。' },
+        { status: 400 }
+      );
+    }
+    const { data: contractPayments } = await supabase
+      .from('supplier_payments')
+      .select('status')
+      .eq('contract_id', id);
+    const hasEffectivePayment = (contractPayments || []).some(
+      (p: any) => isEffectiveSupplierPaymentStatus(p.status)
+    );
+    if (hasEffectivePayment) {
+      return NextResponse.json(
+        { error: '该合同已有生效的付款记录，无法删除。请先处理付款记录后再操作。' },
+        { status: 400 }
+      );
+    }
+
     // 级联删除：先删除关联的付款记录
     const { error: paymentError } = await supabase
       .from('supplier_payments')

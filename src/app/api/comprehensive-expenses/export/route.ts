@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { exportToExcel } from '@/lib/excel-utils';
+import { requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // 字段映射
 const EXPORT_HEADERS: Record<string, string> = {
@@ -53,6 +55,13 @@ export async function GET(request: NextRequest) {
       query = query.lte('expense_date', endDate);
     }
 
+        // 数据权限：非超管仅导出其可访问项目的数据（防止越权导出全量）
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects) {
+      query = query.in('project_id', accessibleProjects);
+    }
     const { data, error } = await query;
 
     if (error) {
