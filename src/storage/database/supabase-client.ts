@@ -78,12 +78,15 @@ function getSupabaseCredentials(): SupabaseCredentials {
   loadEnv();
 
   const url = process.env.COZE_SUPABASE_URL;
-  // 安全收紧：应用统一使用 service_role key 直连（绕过 RLS，避免 anon key 泄露时数据裸奔）。
-  // RLS 策略已同步收紧为"无 public 策略"（见 migrations/drop_rls_public_policies.sql），
-  // 使用 anon key 的直连将无法访问任何数据。
+  // 优先使用 service_role key 直连（绕过 RLS，安全最优，避免 anon key 泄露时数据裸奔）。
+  // 兜底：若环境未配置 SERVICE_ROLE_KEY，回退使用 anon key，保证登录等核心功能可用。
+  // ⚠️ 注意：若已执行 migrations/drop_rls_public_policies.sql（删除 public RLS 策略），
+  //    anon key 将无法访问任何数据，此时必须在部署环境配置 COZE_SUPABASE_SERVICE_ROLE_KEY。
   const serviceRoleKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
+  const effectiveKey = serviceRoleKey || anonKey;
 
-  if (!url || !serviceRoleKey) {
+  if (!url || !effectiveKey) {
     if (!credentialsMissingLogged) {
       console.log('[supabase] COZE_SUPABASE_URL:', url ? `${url.substring(0, 50)}...` : 'NOT SET');
       console.log('[supabase] COZE_SUPABASE_SERVICE_ROLE_KEY:', serviceRoleKey ? `${serviceRoleKey.substring(0, 20)}...` : 'NOT SET');
@@ -93,7 +96,7 @@ function getSupabaseCredentials(): SupabaseCredentials {
     return { url: PLACEHOLDER_URL, serviceRoleKey: PLACEHOLDER_KEY };
   }
 
-  return { url, serviceRoleKey };
+  return { url, serviceRoleKey: effectiveKey };
 }
 
 // Singleton cache for the default (no-token) client
