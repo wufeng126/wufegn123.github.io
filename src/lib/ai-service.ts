@@ -79,6 +79,8 @@ export function createLLMClient(
  * 创建"已注入 AI 配置"的 LLM 客户端（推荐使用）：
  * 自动读取 ai_configs 表的 api_key/api_endpoint 传给 SDK。
  * 未配置凭据时返回 null，由调用方走离线兜底或明确提示。
+ * 注意：SDK 的 LLM 请求走 Config.modelBaseUrl（ChatOpenAI baseURL），知识库走 baseUrl，
+ * 因此两者都需设置为用户配置的 endpoint，否则 LLM 会请求到错误的默认端点。
  */
 export async function createConfiguredLLMClient(
   customHeaders?: Record<string, string>,
@@ -88,7 +90,11 @@ export async function createConfiguredLLMClient(
   const apiKey = overrides?.apiKey ?? aiConfig?.api_key ?? null;
   if (!apiKey) return null;
   const baseUrl = overrides?.baseUrl ?? aiConfig?.api_endpoint ?? null;
-  return createLLMClient(customHeaders, { apiKey, baseUrl: baseUrl || undefined });
+  return createLLMClient(customHeaders, {
+    apiKey,
+    baseUrl: baseUrl || undefined,
+    modelBaseUrl: baseUrl || undefined,
+  });
 }
 
 // 从NextRequest提取转发头

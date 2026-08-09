@@ -180,6 +180,17 @@ export default function AIConfigPage() {
 
   // 保存配置
   const saveConfig = async () => {
+    // 启用状态下，API 密钥与地址为必填（SDK 无默认端点/凭据，缺失将无法调用）
+    if (config.enabled) {
+      if (!config.api_key || config.api_key === '******') {
+        toast.error('启用 AI 前请先填写 API 密钥（Coze 平台 Token）');
+        return;
+      }
+      if (!config.api_endpoint?.trim()) {
+        toast.error('请填写 API 地址（国内版 https://api.coze.cn/v1，国际版 https://api.coze.com/v1）');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const res = await fetch('/api/ai/config', {
@@ -412,12 +423,14 @@ export default function AIConfigPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>API地址（可选，留空使用默认）</Label>
-                  <Input value={config.api_endpoint} onChange={e => setConfig({ ...config, api_endpoint: e.target.value })} placeholder="https://api.example.com/v1" />
+                  <Label>API 地址 <span className="text-red-500">*</span>（Coze OpenAI 兼容端点）</Label>
+                  <Input value={config.api_endpoint} onChange={e => setConfig({ ...config, api_endpoint: e.target.value })} placeholder="https://api.coze.cn/v1" />
+                  <p className="text-xs text-muted-foreground">国内版填 <code>https://api.coze.cn/v1</code>，国际版填 <code>https://api.coze.com/v1</code>（LLM 与知识库均使用该端点）</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>API密钥（可选，留空使用默认）</Label>
-                  <Input type="password" value={config.api_key} onChange={e => setConfig({ ...config, api_key: e.target.value })} placeholder="sk-..." />
+                  <Label>API 密钥 <span className="text-red-500">*</span>（Coze 平台 API Token）</Label>
+                  <Input type="password" value={config.api_key} onChange={e => setConfig({ ...config, api_key: e.target.value })} placeholder="pat_..." />
+                  <p className="text-xs text-muted-foreground">在 Coze 开放平台 → 个人访问令牌创建，形如 <code>pat_xxx</code></p>
                 </div>
                 <div className="space-y-2">
                   <Label>会话上下文长度（轮次）</Label>
