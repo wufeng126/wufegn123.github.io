@@ -430,7 +430,7 @@ export default function WorkerRosterPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除此工人吗？相关的工资记录也会被删除！')) return;
+    if (!confirm('确定要删除此工人吗？若该工人在出勤、工资核算或工资发放中已有数据，将无法删除。')) return;
     try {
       const res = await fetch(`/api/workers/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -440,6 +440,9 @@ export default function WorkerRosterPage() {
           newSet.delete(id);
           return newSet;
         });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error || '删除失败', variant: 'error' });
       }
     } catch (error) {
       toast({ title: '删除失败', variant: 'error' });

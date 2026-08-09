@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { checkWorkerDeleteGuard } from '@/lib/worker-delete-guard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,18 +16,23 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    
-    // 先删除相关的工资记录
-    const { error: salaryError } = await client
-      .from('worker_salaries')
-      .delete()
-      .in('worker_id', ids);
 
-    if (salaryError) {
-      throw new Error(`删除工资记录失败: ${salaryError.message}`);
+    // 删除守卫：选中工人中，有出勤/工资核算/工资发放数据的整批阻止，并提示哪些工人
+    const guard = await checkWorkerDeleteGuard(client, ids);
+    if (guard.hasData) {
+      const blockedIds = Array.from(guard.byWorker.keys());
+      return NextResponse.json(
+        {
+          error: `选中工人中有 ${blockedIds.length} 人在【${guard.blockedModules.join('、')}】中已有数据，无法删除（删除会导致考勤/工资记录丢失）。请排除这些工人后重试，或先将他们改为「离职」状态停用。`,
+          code: 'WORKER_HAS_DATA',
+          blockedWorkerIds: blockedIds,
+          blockedModules: guard.blockedModules,
+        },
+        { status: 400 }
+      );
     }
-    
-    // 再删除工人
+
+    // 仅删除没有任何关联数据的工人（不再连带删除工资核算记录）
     const { error } = await client
       .from('workers')
       .delete()

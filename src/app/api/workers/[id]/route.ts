@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
+import { checkWorkerDeleteGuard } from '@/lib/worker-delete-guard';
 
 export async function PUT(
   request: NextRequest,
@@ -103,6 +104,19 @@ export async function DELETE(
       .select('name, work_type, project_id')
       .eq('id', parseInt(id))
       .single();
+
+    // 删除守卫：工人在出勤/工资核算/工资发放中已有数据时阻止删除
+    const guard = await checkWorkerDeleteGuard(client, [parseInt(id)]);
+    if (guard.hasData) {
+      return NextResponse.json(
+        {
+          error: `该工人在【${guard.blockedModules.join('、')}】中已有数据，删除会导致考勤/工资记录丢失。建议先将该工人改为「离职」状态停用，或确认数据清理方案后再操作。`,
+          code: 'WORKER_HAS_DATA',
+          blockedModules: guard.blockedModules,
+        },
+        { status: 400 }
+      );
+    }
 
     const { error } = await client
       .from('workers')
