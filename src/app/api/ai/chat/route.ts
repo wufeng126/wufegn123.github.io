@@ -130,6 +130,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // 惰性自动同步：距上次同步超过阈值（默认24h）时自动刷新业务知识库，保证 AI 回答基于最新数据
+    try {
+      const { maybeAutoSyncBusinessData } = await import('@/lib/ai-knowledge-sync');
+      await maybeAutoSyncBusinessData(forwardHeaders);
+    } catch (e) {
+      console.warn('[Chat] auto sync skipped:', e);
+    }
+
     // 检查每日限额
     const { allowed } = await checkDailyLimit(userId, config.daily_limit);
     if (!allowed) {

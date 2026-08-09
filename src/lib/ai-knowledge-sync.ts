@@ -716,7 +716,8 @@ export async function syncAllBusinessData(
     success: result.errors.length === 0,
     synced: result.workers + result.suppliers + result.projects + result.certificates + 
             result.settlements + result.supplierSettlements + result.visas + 
-            result.clientPayments + result.supplierPayments,
+            result.clientPayments + result.supplierPayments +
+            result.workerProfiles + result.projectContracts + result.salaryPayments,
     errors: result.errors
   };
 }
@@ -772,5 +773,100 @@ export async function getSyncStatus(): Promise<{
       activeDocs: 0,
       syncedTypes: []
     };
+  }
+}
+
+// ============ 自动定时同步 ============
+
+const SYNC_STATUS_TITLE = '__sync_status__';
+const DEFAULT_AUTO_SYNC_INTERVAL_HOURS = 24;
+
+export type AutoSyncStatus = {
+  lastSyncAt: number;
+  syncing: boolean;
+};
+
+/** 读取自动同步状态（存于 ai_knowledge_docs 的 __sync_status__ 文档，复用现有表） */
+export async function getAutoSyncStatus(): Promise<AutoSyncStatus> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('ai_knowledge_docs')
+      .select('content')
+      .eq('title', SYNC_STATUS_TITLE)
+      .eq('source_type', 'sync_status')
+      .maybeSingle();
+    if (!data?.content) return { lastSyncAt: 0, syncing: false };
+    const parsed = JSON.parse(data.content);
+    return {
+      lastSyncAt: Number(parsed.last_sync_at) || 0,
+      syncing: Boolean(parsed.syncing),
+    };
+  } catch {
+    return { lastSyncAt: 0, syncing: false };
+  }
+}
+
+/** 更新自动同步状态 */
+async function setAutoSyncStatus(patch: { lastSyncAt?: number; syncing?: boolean }) {
+  try {
+    const supabase = getSupabaseClient();
+    const current = await getAutoSyncStatus();
+    const content = JSON.stringify({
+      last_sync_at: patch.lastSyncAt ?? current.lastSyncAt,
+      syncing: patch.syncing ?? current.syncing,
+    });
+    const { data: existing } = await supabase
+      .from('ai_knowledge_docs')
+      .select('id')
+      .eq('title', SYNC_STATUS_TITLE)
+      .eq('source_type', 'sync_status')
+      .maybeSingle();
+    if (existing?.id) {
+      await supabase.from('ai_knowledge_docs').update({ content }).eq('id', existing.id);
+    } else {
+      await supabase.from('ai_knowledge_docs').insert({
+        title: SYNC_STATUS_TITLE,
+        category: 'sync',
+        source_type: 'sync_status',
+        content,
+        status: 'active',
+      });
+    }
+  } catch (e) {
+    console.warn('[AutoSync] status update failed:', e);
+  }
+}
+
+/**
+ * 惰性自动同步：距上次同步超过阈值（默认 24h，可用 AI_SYNC_INTERVAL_HOURS 覆盖）时触发一次全量同步。
+ * 在 AI 对话等入口调用，保证知识库业务数据保持新鲜，无需手动/外部调度。
+ * 幂等：同步进行中（syncing=true）或数据未过期时不重复触发。
+ */
+export async function maybeAutoSyncBusinessData(
+  customHeaders?: Record<string, string>,
+): Promise<{ triggered: boolean; reason?: string }> {
+  try {
+    const intervalHours = Number(process.env.AI_SYNC_INTERVAL_HOURS || DEFAULT_AUTO_SYNC_INTERVAL_HOURS);
+    const status = await getAutoSyncStatus();
+    const now = Date.now();
+    const stale = now - status.lastSyncAt > intervalHours * 3600 * 1000;
+    if (status.syncing) return { triggered: false, reason: 'sync_in_progress' };
+    if (!stale) return { triggered: false, reason: 'fresh' };
+
+    // 抢锁：标记同步中，避免多实例并发重复同步
+    await setAutoSyncStatus({ syncing: true });
+    try {
+      const result = await syncBusinessData(customHeaders);
+      if (result.errors.length > 0) {
+        console.warn('[AutoSync] partial errors:', result.errors.join('; '));
+      }
+    } finally {
+      await setAutoSyncStatus({ lastSyncAt: Date.now(), syncing: false });
+    }
+    return { triggered: true };
+  } catch (e) {
+    console.warn('[AutoSync] auto sync failed:', e);
+    return { triggered: false, reason: 'error' };
   }
 }
