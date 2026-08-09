@@ -130,6 +130,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // 提取转发请求头（LLM和知识库调用都需要）
+    const forwardHeaders = extractForwardHeaders(request.headers);
+
     // 惰性自动同步：距上次同步超过阈值（默认24h）时自动刷新业务知识库，保证 AI 回答基于最新数据
     try {
       const { maybeAutoSyncBusinessData } = await import('@/lib/ai-knowledge-sync');
@@ -172,9 +175,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取知识库上下文
-    // 提取转发请求头（LLM和知识库调用都需要）
-    const forwardHeaders = extractForwardHeaders(request.headers);
-
     let knowledgeContext = '';
     try {
       knowledgeContext = await searchKnowledge(inputSummary, 3, forwardHeaders);
