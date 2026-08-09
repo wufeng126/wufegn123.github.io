@@ -125,13 +125,33 @@ export async function POST(request: NextRequest) {
     // 获取AI配置
     const config = await getAIConfig();
     if (!config || !config.enabled) {
-      return new Response(JSON.stringify({ success: false, error: 'AI助手未启用' }), {
+      // 定位不可用原因，给出明确修复指引（便于自助排障）
+      let reason = 'AI 助手未启用';
+      try {
+        const { getSupabaseClient } = await import('@/storage/database/supabase-client');
+        const { data: row } = await getSupabaseClient()
+          .from('ai_configs')
+          .select('id, enabled, api_key, api_endpoint')
+          .limit(1)
+          .maybeSingle();
+        if (!row) {
+          reason = 'AI 配置未初始化：请先在 Supabase 执行迁移 migrations/create_ai_tables.sql，再到「系统管理 → AI 配置」填写密钥并启用';
+        } else if (!row.enabled) {
+          reason = 'AI 服务已禁用，请在「系统管理 → AI 配置」中开启';
+        } else if (!row.api_key) {
+          reason = 'AI 服务未配置 API 密钥，请在「系统管理 → AI 配置」中填写（Coze Token 或 DeepSeek Key）';
+        } else if (!row.api_endpoint) {
+          reason = 'AI 服务未配置 API 地址，请在「系统管理 → AI 配置」中填写（DeepSeek: https://api.deepseek.com/v1）';
+        } else {
+          reason = 'AI 服务配置异常，请检查「系统管理 → AI 配置」';
+        }
+      } catch {
+        reason = 'AI 配置表不存在：请先在 Supabase 执行迁移 migrations/create_ai_tables.sql';
+      }
+      return new Response(JSON.stringify({ success: false, error: reason, code: 'AI_NOT_READY' }), {
         status: 403, headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    // 提取转发请求头（LLM和知识库调用都需要）
-    const forwardHeaders = extractForwardHeaders(request.headers);
 
     // 惰性自动同步：距上次同步超过阈值（默认24h）时自动刷新业务知识库，保证 AI 回答基于最新数据
     try {
@@ -175,6 +195,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取知识库上下文
+    // 提取转发请求头（LLM和知识库调用都需要）
+    const forwardHeaders = extractForwardHeaders(request.headers);
+
     let knowledgeContext = '';
     try {
       knowledgeContext = await searchKnowledge(inputSummary, 3, forwardHeaders);

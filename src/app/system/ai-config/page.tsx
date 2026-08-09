@@ -26,8 +26,11 @@ const MODELS = [
   { id: 'doubao-seed-2-0-lite-260215', name: 'Doubao Seed 2.0 Lite (推荐)', desc: '均衡型，兼顾性能与成本' },
   { id: 'doubao-seed-2-0-pro-260215', name: 'Doubao Seed 2.0 Pro', desc: '旗舰级，复杂推理' },
   { id: 'doubao-seed-2-0-mini-260215', name: 'Doubao Seed 2.0 Mini', desc: '低时延，高并发' },
-  { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3', desc: '平衡推理与输出长度' },
+  { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3（Coze 平台）', desc: 'Coze 托管，API 地址填 Coze 端点' },
+  { id: 'deepseek-chat', name: 'DeepSeek-V3（官方 API）', desc: 'DeepSeek 官方，API 地址填 https://api.deepseek.com/v1' },
+  { id: 'deepseek-reasoner', name: 'DeepSeek-R1（官方 API）', desc: '深度推理，API 地址填 https://api.deepseek.com/v1' },
   { id: 'qwen-3-5-plus-260215', name: 'Qwen 3.5 Plus', desc: '通义千问，视觉语言' },
+  { id: '__custom__', name: '自定义模型', desc: '手动输入模型 ID（任意 OpenAI 兼容模型）' },
 ];
 
 interface AIConfig {
@@ -180,14 +183,18 @@ export default function AIConfigPage() {
 
   // 保存配置
   const saveConfig = async () => {
-    // 启用状态下，API 密钥与地址为必填（SDK 无默认端点/凭据，缺失将无法调用）
+    // 启用状态下，API 密钥、地址与模型为必填（SDK 无默认端点/凭据，缺失将无法调用）
     if (config.enabled) {
       if (!config.api_key || config.api_key === '******') {
-        toast.error('启用 AI 前请先填写 API 密钥（Coze 平台 Token）');
+        toast.error('启用 AI 前请先填写 API 密钥（Coze 平台 Token 或 DeepSeek 官方 Key）');
         return;
       }
       if (!config.api_endpoint?.trim()) {
-        toast.error('请填写 API 地址（国内版 https://api.coze.cn/v1，国际版 https://api.coze.com/v1）');
+        toast.error('请填写 API 地址（DeepSeek 官方 https://api.deepseek.com/v1；Coze https://api.coze.cn/v1）');
+        return;
+      }
+      if (!config.model_id?.trim()) {
+        toast.error('请选择或输入模型 ID');
         return;
       }
     }
@@ -408,19 +415,35 @@ export default function AIConfigPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>选择模型</Label>
-                  <Select value={config.model_id} onValueChange={v => setConfig({ ...config, model_id: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {MODELS.map(m => (
-                        <SelectItem key={m.id} value={m.id}>
-                          <div>
-                            <div className="font-medium">{m.name}</div>
-                            <div className="text-xs text-muted-foreground">{m.desc}</div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {(() => {
+                    const isPreset = MODELS.some(m => m.id === config.model_id);
+                    const selectValue = isPreset ? config.model_id : '__custom__';
+                    return (
+                      <>
+                        <Select value={selectValue} onValueChange={v => setConfig({ ...config, model_id: v === '__custom__' ? config.model_id || '' : v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {MODELS.map(m => (
+                              <SelectItem key={m.id} value={m.id}>
+                                <div>
+                                  <div className="font-medium">{m.name}</div>
+                                  <div className="text-xs text-muted-foreground">{m.desc}</div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectValue === '__custom__' && (
+                          <Input
+                            className="mt-2"
+                            value={config.model_id}
+                            onChange={e => setConfig({ ...config, model_id: e.target.value })}
+                            placeholder="输入模型 ID，如 deepseek-chat / gpt-4o / 其他 OpenAI 兼容模型"
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label>API 地址 <span className="text-red-500">*</span>（Coze OpenAI 兼容端点）</Label>

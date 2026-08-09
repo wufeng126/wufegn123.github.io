@@ -8,7 +8,24 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const config = await getAIConfig();
   if (!config) {
-    return NextResponse.json({ success: true, data: { enabled: false, model_id: 'doubao-seed-2-0-lite-260215' } });
+    // 区分"表不存在"与"表存在但未配置"，给出明确诊断
+    let diagnostic = '未配置';
+    try {
+      const { data, error } = await getSupabaseClient()
+        .from('ai_configs')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+      if (error) diagnostic = '配置表不存在：请在 Supabase 执行迁移 migrations/create_ai_tables.sql';
+      else if (!data) diagnostic = '未初始化：请到本页面填写 API 密钥/地址/模型后保存';
+    } catch {
+      diagnostic = '配置表不存在：请在 Supabase 执行迁移 migrations/create_ai_tables.sql';
+    }
+    return NextResponse.json({
+      success: true,
+      data: { enabled: false, model_id: 'doubao-seed-2-0-lite-260215' },
+      diagnostic,
+    });
   }
   // Ensure all fields have valid non-null values to avoid React controlled/uncontrolled warnings
   const safeConfig: Record<string, any> = { ...config };
