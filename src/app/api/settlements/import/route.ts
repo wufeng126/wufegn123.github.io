@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { parseExcelFile } from '@/lib/excel-utils';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -140,9 +141,13 @@ export async function POST(request: NextRequest) {
       supplierNameToId.set(s.name, s.id);
     });
 
+    // 项目归属校验：非超管仅能导入其可访问项目的结算（防止越权写入其他项目）
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     const projectNameToId = new Map<string, number>();
-    projects?.forEach((p: any) => {
-      projectNameToId.set(p.name, p.id);
+    (projects || []).forEach((p: any) => {
+      if (!accessibleProjects || accessibleProjects.includes(p.id)) {
+        projectNameToId.set(p.name, p.id);
+      }
     });
 
     // 准备导入数据

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { login } from '@/lib/auth-db';
 import { logSecurityEvent, getClientIP, getUserAgent } from '@/lib/security-log';
 import { getLoginLockSeconds, recordLoginFailure, clearLoginFailures } from '@/lib/login-rate-limit';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 /**
  * POST /api/auth/login - 用户登录
@@ -59,8 +60,19 @@ export async function POST(request: Request) {
     }
 
     if (!result) {
-      // 记录登录失败日志 + 限流计数
-      const locked = recordLoginFailure(ip, String(username).trim().toLowerCase());
+      // 记录登录失败日志 + 限流计数（管理员账号不受账号维度锁定，防恶意锁死管理员）
+      let isAdminTarget = false;
+      try {
+        const { data: userRow } = await getSupabaseClient()
+          .from('users')
+          .select('role')
+          .ilike('username', String(username).trim().toLowerCase())
+          .maybeSingle();
+        isAdminTarget = ['super_admin', 'admin'].includes(String(userRow?.role || ''));
+      } catch {
+        // 查询失败不影响主流程
+      }
+      const locked = recordLoginFailure(ip, String(username).trim().toLowerCase(), isAdminTarget);
       await logSecurityEvent({
         event_type: 'login_failed',
         username: username?.trim(),

@@ -55,18 +55,22 @@ export function getLoginLockSeconds(ip: string, username: string): number {
   return 0;
 }
 
-/** 记录一次登录失败，返回是否已触发锁定（true = 刚被锁定） */
-export function recordLoginFailure(ip: string, username: string): boolean {
+/** 记录一次登录失败，返回是否已触发锁定（true = 刚被锁定）
+ *  isAdmin=true 时跳过账号维度锁定：防止攻击者用任意 IP 对管理员账号
+ *  连续失败即锁死管理员（拒绝服务）；IP 维度防爆破依然生效。 */
+export function recordLoginFailure(ip: string, username: string, isAdmin = false): boolean {
   const now = Date.now();
   prune(accountAttempts, now);
   prune(ipAttempts, now);
 
-  const account = getRecord(accountAttempts, ACCOUNT_KEY_PREFIX + username);
-  account.failures += 1;
-  if (account.failures >= ACCOUNT_MAX_FAILURES) {
-    account.lockedUntil = now + ACCOUNT_LOCK_MS;
-    account.failures = 0;
-    return true;
+  if (!isAdmin) {
+    const account = getRecord(accountAttempts, ACCOUNT_KEY_PREFIX + username);
+    account.failures += 1;
+    if (account.failures >= ACCOUNT_MAX_FAILURES) {
+      account.lockedUntil = now + ACCOUNT_LOCK_MS;
+      account.failures = 0;
+      return true;
+    }
   }
 
   const ipRecord = getRecord(ipAttempts, IP_KEY_PREFIX + ip);

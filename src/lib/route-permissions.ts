@@ -9,15 +9,20 @@
 
 /** 超级管理员角色标识（可通过环境变量覆盖） */
 const SUPER_ADMIN_ROLE = process.env.SUPER_ADMIN_ROLE || 'super_admin';
-/** 超级管理员角色ID（可通过环境变量覆盖） */
-const SUPER_ADMIN_ROLE_ID = Number(process.env.SUPER_ADMIN_ROLE_ID || 14);
+/**
+ * 超级管理员角色ID（默认不启用，仅当显式配置 SUPER_ADMIN_ROLE_ID 时参与判定）。
+ * 修复：此前默认 14，任何自定义角色 id 恰为 14 都会被误判为超管（权限提升面）。
+ */
+const SUPER_ADMIN_ROLE_ID = process.env.SUPER_ADMIN_ROLE_ID ? Number(process.env.SUPER_ADMIN_ROLE_ID) : null;
 
 /**
  * 统一超级管理员判定函数
  * 使用方式：isSuperAdminUser(payload.role, payload.roleId)
+ * 以角色标识为主；角色ID 判定仅在有显式环境变量配置时生效。
  */
 export function isSuperAdminUser(role?: string, roleId?: number): boolean {
-  return role === SUPER_ADMIN_ROLE || roleId === SUPER_ADMIN_ROLE_ID;
+  if (role === SUPER_ADMIN_ROLE) return true;
+  return SUPER_ADMIN_ROLE_ID !== null && roleId === SUPER_ADMIN_ROLE_ID;
 }
 
 /** 判断是否为普通管理员（admin 或 super_admin） */

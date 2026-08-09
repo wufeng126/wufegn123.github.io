@@ -4,6 +4,7 @@ import { parseExcelFile } from '@/lib/excel-utils';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -122,9 +123,17 @@ export async function POST(request: NextRequest) {
       throw new Error(`获取项目列表失败: ${projectsError.message}`);
     }
 
-    // 创建项目名称到 ID 的映射
+    // 项目归属校验：非超管仅能导入其可访问项目的报量（防止越权写入其他项目）
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    let matchedProjects = projects || [];
+    if (accessibleProjects) {
+      const allowedIds = new Set(accessibleProjects);
+      matchedProjects = matchedProjects.filter((p: any) => allowedIds.has(p.id));
+    }
+
+    // 创建项目名称到 ID 的映射（仅可访问项目）
     const projectNameToId = new Map<string, number>();
-    projects?.forEach((p: any) => {
+    matchedProjects.forEach((p: any) => {
       projectNameToId.set(p.name, p.id);
     });
 
