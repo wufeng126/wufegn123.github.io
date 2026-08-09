@@ -16,6 +16,9 @@ export interface SyncResult {
   visas: number;
   clientPayments: number;
   supplierPayments: number;
+  workerProfiles: number;
+  projectContracts: number;
+  salaryPayments: number;
   errors: string[];
 }
 
@@ -30,6 +33,9 @@ const BUSINESS_DATA_CATEGORIES = {
   VISA: 'visa',
   CLIENT_PAYMENT: 'client_payment',
   SUPPLIER_PAYMENT: 'supplier_payment',
+  WORKER: 'worker',
+  PROJECT_CONTRACT: 'project_contract',
+  SALARY_PAYMENT: 'salary_payment',
 } as const;
 
 /**
@@ -111,26 +117,43 @@ async function syncWorkerSalaryData(supabase: any, customHeaders?: Record<string
       payment_status,
       workers(name, work_type, id_card),
       projects(name)
-    `);
+    `)
+    .order('year_month', { ascending: false })
+    .limit(5000); // 上限保护，避免全量拉取
 
   if (error) throw error;
   if (!salaries || salaries.length === 0) return 0;
 
-  // 合并为单个文档
-  const content = salaries.map((s: any) => 
-    `${s.year_month} | ${s.workers?.name || '-'} | ${s.workers?.work_type || '-'} | 项目:${s.projects?.name || '-'} | 工时:${s.work_hours || 0} | 工价:${s.hourly_rate || 0} | 应发:${s.gross_pay || 0} | 实发:${s.net_pay || 0} | 状态:${s.payment_status || '-'}`
-  ).join('\n');
+  // 按月分片：每月一个独立文档，避免单文档过大超出向量库/LLM 上下文限制
+  const byMonth = new Map<string, any[]>();
+  salaries.forEach((s: any) => {
+    const month = String(s.year_month || '未知月份');
+    if (!byMonth.has(month)) byMonth.set(month, []);
+    byMonth.get(month)!.push(s);
+  });
 
-  const docId = await addKnowledgeDoc(supabase, {
-    title: '工人工资台账',
-    category: 'business_data',
-    source_type: 'auto_sync',
-    source_ref: 'worker_salary_all',
-    content: `工人工资台账（共${salaries.length}条记录）\n\n月份 | 姓名 | 工种 | 项目 | 工时 | 工价 | 应发 | 实发 | 状态\n${content}`,
-    status: 'active',
-  }, customHeaders);
+  // 清理分片前的旧聚合文档（避免残留旧数据）
+  await supabase.from('ai_knowledge_docs').delete().eq('source_ref', 'worker_salary_all');
 
-  return docId ? salaries.length : 0;
+  let synced = 0;
+  for (const [month, monthSalaries] of byMonth) {
+    const content = monthSalaries.map((s: any) =>
+      `${s.workers?.name || '-'} | ${s.workers?.work_type || '-'} | 项目:${s.projects?.name || '-'} | 工时:${s.work_hours || 0} | 工价:${s.hourly_rate || 0} | 应发:${s.gross_pay || 0} | 实发:${s.net_pay || 0} | 状态:${s.payment_status || '-'}`
+    ).join('\n');
+
+    const docId = await addKnowledgeDoc(supabase, {
+      title: `工人工资台账 ${month}`,
+      category: 'business_data',
+      source_type: 'auto_sync',
+      source_ref: `worker_salary_${month}`,
+      content: `工人工资台账（${month}，共${monthSalaries.length}条记录）\n\n姓名 | 工种 | 项目 | 工时 | 工价 | 应发 | 实发 | 状态\n${content}`,
+      status: 'active',
+    }, customHeaders);
+
+    if (docId) synced += monthSalaries.length;
+  }
+
+  return synced;
 }
 
 /**
@@ -147,7 +170,9 @@ async function syncSupplierData(supabase: any, customHeaders?: Record<string, st
       contract_status,
       project_id,
       projects(name)
-    `);
+    `)
+    .order("created_at", { ascending: false })
+    .limit(2000);
 
   if (error) throw error;
   if (!suppliers || suppliers.length === 0) return 0;
@@ -217,7 +242,7 @@ async function syncCertificateData(supabase: any, customHeaders?: Record<string,
       expiry_date,
       status
     `)
-    .neq('status', 'voided');
+    .neq('status', 'voided')
 
   if (error) throw error;
   if (!certificates || certificates.length === 0) return 0;
@@ -251,7 +276,9 @@ async function syncSettlementData(supabase: any, customHeaders?: Record<string, 
       status,
       suppliers(name),
       projects(name)
-    `);
+    `)
+    .order("created_at", { ascending: false })
+    .limit(2000);
 
   if (error) throw error;
   if (!settlements || settlements.length === 0) return 0;
@@ -287,7 +314,9 @@ async function syncSupplierSettlementData(supabase: any, customHeaders?: Record<
       suppliers(name),
       projects(name)
     `)
-    .neq('status', 'voided');
+    .neq('status', 'voided')
+    .order("created_at", { ascending: false })
+    .limit(2000);
 
   if (error) throw error;
   if (!settlements || settlements.length === 0) return 0;
@@ -325,7 +354,9 @@ async function syncVisaData(supabase: any, customHeaders?: Record<string, string
       status,
       projects(name)
     `)
-    .neq('status', 'voided');
+    .neq('status', 'voided')
+    .order("created_at", { ascending: false })
+    .limit(2000);
 
   if (error) throw error;
   if (!visas || visas.length === 0) return 0;
@@ -359,7 +390,9 @@ async function syncClientPaymentData(supabase: any, customHeaders?: Record<strin
       payment_method,
       status,
       projects(name)
-    `);
+    `)
+    .order("payment_date", { ascending: false })
+    .limit(2000);
 
   if (error) throw error;
   if (!payments || payments.length === 0) return 0;
@@ -393,7 +426,9 @@ async function syncSupplierPaymentData(supabase: any, customHeaders?: Record<str
       payment_type,
       status,
       supplier_contracts(contract_name, suppliers(name), projects(name))
-    `);
+    `)
+    .order("payment_date", { ascending: false })
+    .limit(2000);
 
   if (error) throw error;
   if (!payments || payments.length === 0) return 0;
@@ -415,6 +450,120 @@ async function syncSupplierPaymentData(supabase: any, customHeaders?: Record<str
 }
 
 /**
+ * 同步工人档案（花名册基础信息）
+ */
+async function syncWorkerProfileData(supabase: any, customHeaders?: Record<string, string>): Promise<number> {
+  const { data: workers, error } = await supabase
+    .from('workers')
+    .select(`
+      id,
+      name,
+      work_type,
+      status,
+      id_card,
+      phone,
+      bank_card,
+      team_name,
+      projects(name)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(3000);
+
+  if (error) throw error;
+  if (!workers || workers.length === 0) return 0;
+
+  const content = workers.map((w: any) =>
+    `${w.name || '-'} | ${w.work_type || '-'} | 状态:${w.status || '-'} | 项目:${w.projects?.name || '-'} | 班组:${w.team_name || '-'} | 证件尾号:${w.id_card ? String(w.id_card).slice(-4) : '-'} | 电话:${w.phone || '-'}`
+  ).join('\n');
+
+  const docId = await addKnowledgeDoc(supabase, {
+    title: '工人花名册',
+    category: 'business_data',
+    source_type: 'auto_sync',
+    source_ref: 'worker_profile_all',
+    content: `工人花名册（共${workers.length}名工人）\n\n姓名 | 工种 | 状态 | 项目 | 班组 | 证件尾号 | 电话\n${content}`,
+    status: 'active',
+  }, customHeaders);
+
+  return docId ? workers.length : 0;
+}
+
+/**
+ * 同步项目合同
+ */
+async function syncProjectContractData(supabase: any, customHeaders?: Record<string, string>): Promise<number> {
+  const { data: contracts, error } = await supabase
+    .from('project_contracts')
+    .select(`
+      id,
+      contract_name,
+      contract_no,
+      contract_amount,
+      payment_ratio,
+      contract_status,
+      sign_date,
+      projects(name)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(2000);
+
+  if (error) throw error;
+  if (!contracts || contracts.length === 0) return 0;
+
+  const content = contracts.map((c: any) =>
+    `${c.contract_name || '-'} | 编号:${c.contract_no || '-'} | 项目:${c.projects?.name || '-'} | 金额:${c.contract_amount || 0} | 付款比例:${c.payment_ratio ?? '-'}% | 状态:${c.contract_status || '-'} | 签订:${c.sign_date || '-'}`
+  ).join('\n');
+
+  const docId = await addKnowledgeDoc(supabase, {
+    title: '项目合同台账',
+    category: 'business_data',
+    source_type: 'auto_sync',
+    source_ref: 'project_contract_all',
+    content: `项目合同台账（共${contracts.length}条）\n\n合同名称 | 编号 | 项目 | 金额 | 付款比例 | 状态 | 签订日期\n${content}`,
+    status: 'active',
+  }, customHeaders);
+
+  return docId ? contracts.length : 0;
+}
+
+/**
+ * 同步工资发放记录
+ */
+async function syncSalaryPaymentData(supabase: any, customHeaders?: Record<string, string>): Promise<number> {
+  const { data: payments, error } = await supabase
+    .from('salary_payments')
+    .select(`
+      id,
+      year_month,
+      payment_amount,
+      payment_date,
+      payment_method,
+      workers(name),
+      projects(name)
+    `)
+    .order('payment_date', { ascending: false })
+    .limit(2000);
+
+  if (error) throw error;
+  if (!payments || payments.length === 0) return 0;
+
+  const content = payments.map((p: any) =>
+    `${p.payment_date || '-'} | ${p.workers?.name || '-'} | 项目:${p.projects?.name || '-'} | 金额:${p.payment_amount || 0} | 方式:${p.payment_method || '-'} | 月份:${p.year_month || '-'}`
+  ).join('\n');
+
+  const docId = await addKnowledgeDoc(supabase, {
+    title: '工人工资发放记录',
+    category: 'business_data',
+    source_type: 'auto_sync',
+    source_ref: 'salary_payment_all',
+    content: `工人工资发放记录（共${payments.length}条）\n\n发放日期 | 姓名 | 项目 | 金额 | 方式 | 归属月份\n${content}`,
+    status: 'active',
+  }, customHeaders);
+
+  return docId ? payments.length : 0;
+}
+
+/**
  * 同步业务数据到知识库（供 AI 助手使用）
  */
 export async function syncBusinessData(customHeaders?: Record<string, string>): Promise<SyncResult> {
@@ -422,6 +571,7 @@ export async function syncBusinessData(customHeaders?: Record<string, string>): 
   const errors: string[] = [];
   let workers = 0, suppliers = 0, projects = 0, certificates = 0, settlements = 0;
   let supplierSettlements = 0, visas = 0, clientPayments = 0, supplierPayments = 0;
+  let workerProfiles = 0, projectContracts = 0, salaryPayments = 0;
 
   try {
     workers = await syncWorkerSalaryData(supabase, customHeaders);
@@ -477,7 +627,25 @@ export async function syncBusinessData(customHeaders?: Record<string, string>): 
     errors.push(`供应商付款同步失败: ${e.message}`);
   }
 
-  return { workers, suppliers, projects, certificates, settlements, supplierSettlements, visas, clientPayments, supplierPayments, errors };
+  try {
+    workerProfiles = await syncWorkerProfileData(supabase, customHeaders);
+  } catch (e: any) {
+    errors.push(`工人档案同步失败: ${e.message}`);
+  }
+
+  try {
+    projectContracts = await syncProjectContractData(supabase, customHeaders);
+  } catch (e: any) {
+    errors.push(`项目合同同步失败: ${e.message}`);
+  }
+
+  try {
+    salaryPayments = await syncSalaryPaymentData(supabase, customHeaders);
+  } catch (e: any) {
+    errors.push(`工资发放同步失败: ${e.message}`);
+  }
+
+  return { workers, suppliers, projects, certificates, settlements, supplierSettlements, visas, clientPayments, supplierPayments, workerProfiles, projectContracts, salaryPayments, errors };
 }
 
 /**
@@ -518,6 +686,15 @@ export async function syncSingleBusinessData(
         break;
       case 'supplier_payment':
         count = await syncSupplierPaymentData(supabase, customHeaders);
+        break;
+      case 'worker':
+        count = await syncWorkerProfileData(supabase, customHeaders);
+        break;
+      case 'project_contract':
+        count = await syncProjectContractData(supabase, customHeaders);
+        break;
+      case 'salary_payment':
+        count = await syncSalaryPaymentData(supabase, customHeaders);
         break;
       default:
         return { count: 0, error: `未知的数据类型: ${dataType}` };

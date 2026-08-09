@@ -505,12 +505,18 @@ export default function AIConfigPage() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                   {[
-                    { key: 'salary', label: '工人工资台账', icon: '💰' },
-                    { key: 'supplier', label: '供应商台账', icon: '📋' },
+                    { key: 'worker_salary', label: '工人工资台账', icon: '💰' },
+                    { key: 'worker', label: '工人花名册', icon: '👷' },
+                    { key: 'salary_payment', label: '工资发放记录', icon: '💵' },
                     { key: 'project', label: '项目台账', icon: '🏗️' },
-                    { key: 'contract', label: '合同台账', icon: '📑' },
+                    { key: 'project_contract', label: '项目合同', icon: '📑' },
+                    { key: 'supplier', label: '供应商合同', icon: '📋' },
+                    { key: 'supplier_settlement', label: '供应商结算', icon: '🧾' },
+                    { key: 'supplier_payment', label: '供应商付款', icon: '🏦' },
                     { key: 'certificate', label: '证件台账', icon: '🪪' },
                     { key: 'settlement', label: '结算台账', icon: '📊' },
+                    { key: 'visa', label: '签证变更', icon: '📝' },
+                    { key: 'client_payment', label: '甲方回款', icon: '🤝' },
                   ].map(item => (
                     <Button
                       key={item.key} variant="outline" className="h-auto py-3 flex-col gap-1"
