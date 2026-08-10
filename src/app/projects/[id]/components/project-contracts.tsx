@@ -85,7 +85,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-[#1D2129]">📄 合同文件</h3>
         <div className="flex items-center gap-2">
-          <input ref={aiFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" className="hidden"
+          <input ref={aiFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.webp,.bmp" className="hidden"
             onChange={e => { uploadToAi(e.target.files); e.target.value = ''; }} />
           <button onClick={() => aiFileRef.current?.click()} disabled={aiUploading}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#00B42A] bg-[#E8FFEA] px-3 text-sm text-[#009A29] hover:bg-[#D6F5DB] disabled:opacity-50">
@@ -108,7 +108,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <p className="text-xs text-[#86909C] -mt-1">💡 提示：点「上传到 AI 助手」把合同清单和单价同步进知识库后，可在「AI 劳务助手」中直接询问（如"XX项目合同的清单内容有哪些""某清单项单价是多少"）</p>
+      <p className="text-xs text-[#86909C] -mt-1">💡 提示：点「上传到 AI 助手」把合同清单和单价同步进知识库后，可在「AI 劳务助手」中直接询问（如"XX项目合同的清单内容有哪些""某清单项单价是多少"）。<span className="text-[#165DFF]">扫描件：图片（jpg/png）会自动 OCR 识别；扫描版 PDF 请先转成图片或文字版再传。</span></p>
 
       {loading ? (
         <div className="text-center py-8 text-sm text-[#86909C]">加载中...</div>

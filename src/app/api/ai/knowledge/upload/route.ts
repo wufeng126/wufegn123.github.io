@@ -6,7 +6,57 @@ import { extractForwardHeaders } from '@/lib/ai-service';
 import { upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-const SUPPORTED_EXTENSIONS = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|epub|mobi|xml)$/i;
+const SUPPORTED_EXTENSIONS = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|epub|mobi|xml|jpe?g|png|webp|bmp)$/i;
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|bmp)$/i;
+
+/** 用 LLM 多模态能力对扫描件图片做 OCR 提取（需配置支持视觉的模型，如 Doubao） */
+async function ocrImageWithLLM(imageUrl: string, forwardHeaders: Record<string, string>): Promise<{ text: string; error?: string }> {
+  try {
+    const { getAIConfig, createConfiguredLLMClient } = await import('@/lib/ai-service');
+    const config = await getAIConfig();
+    if (!config?.enabled) return { text: '', error: 'AI 未启用，无法识别扫描件' };
+
+    const client = await createConfiguredLLMClient(forwardHeaders);
+    if (!client) return { text: '', error: 'AI 未配置密钥，无法识别扫描件' };
+
+    const stream = await client.stream([
+      {
+        role: 'system',
+        content: '你是建筑合同扫描件 OCR 助手。请完整提取图片中的全部文字，保留合同条款、清单表格（项目/数量/单位/单价/金额）结构，按原文顺序输出纯文本，不要解释、不要省略。',
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '请识别这张合同扫描件图片中的所有文字内容：' },
+          { type: 'image_url', image_url: { url: imageUrl } },
+        ],
+      },
+    ], {
+      model: config.model_id,
+      temperature: 0,
+    });
+
+    let text = '';
+    for await (const chunk of stream) {
+      const part = chunk as { content?: unknown; text?: unknown };
+      if (typeof part === 'string') text += part;
+      else if (typeof part?.content === 'string') text += part.content;
+      else if (typeof part?.text === 'string') text += part.text;
+      else if (part?.content && Array.isArray(part.content)) {
+        text += (part.content as unknown[]).map((item: unknown) => {
+          const record = item as { text?: unknown; content?: unknown };
+          return String(record?.text || record?.content || '');
+        }).join('');
+      }
+    }
+    const cleaned = text.trim();
+    if (!cleaned) return { text: '', error: '模型未返回内容，可能不支持图片识别' };
+    return { text: cleaned };
+  } catch (e: any) {
+    console.warn('[Knowledge Upload] OCR failed:', e?.message || e);
+    return { text: '', error: `扫描件识别失败：${e?.message || '模型不支持图片识别'}（可换支持视觉的模型，如 Doubao）` };
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -104,6 +154,29 @@ export async function POST(request: NextRequest) {
           console.warn('[Knowledge Upload] FetchClient extract failed:', fetchError);
         }
 
+        // Step 2.5: 扫描件兜底——文本提取为空/过短时，图片走 LLM 视觉 OCR，PDF 提示转图片
+        let ocrError = '';
+        if (!extractedContent || extractedContent.trim().length < 30) {
+          const signedUrl = await storage.generatePresignedUrl({
+            key: storageKey,
+            expireTime: 3600,
+          });
+          if (IMAGE_EXTENSIONS.test(fileName)) {
+            const ocrResult = await ocrImageWithLLM(signedUrl, forwardHeaders);
+            if (ocrResult.text) {
+              extractedContent = `【扫描件 OCR 识别】\n${ocrResult.text}`;
+            } else {
+              ocrError = ocrResult.error || '扫描件识别失败';
+            }
+          } else if (/\.pdf$/i.test(fileName)) {
+            // PDF 无法直接转图片（无渲染依赖），提示用户转图片/文字版
+            const wasScanned = !extractedContent || extractedContent.trim().length === 0;
+            if (wasScanned) {
+              ocrError = '该 PDF 未提取到文字（可能是扫描件）。请将扫描件转换为图片（jpg/png）或文字版 PDF 后重新上传，AI 才能识别内容。';
+            }
+          }
+        }
+
         // Step 3: Add to knowledge base
         let knowledgeDocIds: string[] = [];
         try {
@@ -147,6 +220,7 @@ export async function POST(request: NextRequest) {
           chunkCount: knowledgeDocIds.length,
           status: extractedContent ? 'active' : 'error',
           extracted: extractedContent.length > 0,
+          error: (!extractedContent && ocrError) ? ocrError : undefined,
         });
       } catch (fileError) {
         const msg = fileError instanceof Error ? fileError.message : '文件处理失败';
