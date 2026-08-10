@@ -99,11 +99,17 @@ let cachedClient: S3Client | null = null;
 
 function getClient(): S3Client {
   if (cachedClient) return cachedClient;
-  const { endpoint, accessKeyId, secretAccessKey, region } = requiredConfig();
+  const { endpoint, accessKeyId, secretAccessKey, bucketName, region } = requiredConfig();
+  
+  // 阿里云 OSS 必须使用虚拟主机风格：https://{bucket}.oss-{region}.aliyuncs.com
+  // 将 bucket 名称嵌入 endpoint URL，避免 SDK 的路径风格问题
+  const endpointUrl = new URL(endpoint);
+  const virtualHostEndpoint = `https://${bucketName}.${endpointUrl.hostname}`;
+  
   cachedClient = new S3Client({
-    endpoint,
+    endpoint: virtualHostEndpoint,
     region,
-    forcePathStyle: true, // 阿里云 OSS 支持 path-style
+    forcePathStyle: false,
     credentials: {
       accessKeyId,
       secretAccessKey,
