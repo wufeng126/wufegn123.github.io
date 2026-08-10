@@ -13,6 +13,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
   const [uploading, setUploading] = useState(false);
   const [aiUploading, setAiUploading] = useState(false);
   const [aiMsg, setAiMsg] = useState('');
+  const [uploadMsg, setUploadMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const aiFileRef = useRef<HTMLInputElement>(null);
 
@@ -29,14 +30,22 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
   async function upload(files: FileList | null) {
     if (!files || files.length === 0) return;
     setUploading(true);
+    setUploadMsg('');
     try {
       for (const file of Array.from(files)) {
         const form = new FormData();
         form.append('file', file);
         form.append('projectId', projectId);
-        await fetch('/api/project-contracts', { method: 'POST', body: form });
+        const res = await fetch('/api/project-contracts', { method: 'POST', body: form });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success) {
+          setUploadMsg(json.error || '上传失败');
+          return;
+        }
       }
       load();
+    } catch (e) {
+      setUploadMsg('上传失败，请检查存储配置');
     } finally { setUploading(false); }
   }
 
@@ -105,6 +114,12 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
       {aiMsg && (
         <div className={`rounded-lg px-3 py-2 text-xs ${aiMsg.startsWith('✅') ? 'bg-[#E8FFEA] text-[#009A29]' : 'bg-[#FFF1F0] text-[#F53F3F]'}`}>
           {aiMsg}
+        </div>
+      )}
+
+      {uploadMsg && (
+        <div className="rounded-lg px-3 py-2 text-xs bg-[#FFF1F0] text-[#F53F3F]">
+          ⚠️ {uploadMsg}
         </div>
       )}
 

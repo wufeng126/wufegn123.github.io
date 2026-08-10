@@ -109,6 +109,23 @@ export default function AIConfigPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [storageChecking, setStorageChecking] = useState(false);
+  const [storageStatus, setStorageStatus] = useState('');
+
+  // 检查 OSS 存储健康（配置/权限/连通性）
+  const checkStorage = async () => {
+    setStorageChecking(true);
+    setStorageStatus('');
+    try {
+      const res = await fetch('/api/storage/health');
+      const json = await res.json();
+      setStorageStatus(json.message || json.error || '检查完成');
+    } catch (e) {
+      setStorageStatus('检查失败，请稍后重试');
+    } finally {
+      setStorageChecking(false);
+    }
+  };
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [docInputMode, setDocInputMode] = useState<'manual' | 'file'>('manual');
   const [uploadingFile, setUploadFile] = useState<File | null>(null);
@@ -493,6 +510,20 @@ export default function AIConfigPage() {
               <Button onClick={saveConfig} disabled={saving}>
                 {saving ? '保存中...' : '保存配置'}
               </Button>
+              <div className="mt-4 rounded-lg border border-[#E5E6EB] p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">📦 OSS 存储检查</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">排查上传的文件是否真正写入阿里云 OSS（合同/知识库文件存储）</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={checkStorage} disabled={storageChecking}>
+                    {storageChecking ? '检查中...' : '开始检查'}
+                  </Button>
+                </div>
+                {storageStatus && (
+                  <pre className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground bg-muted/50 rounded-md p-2">{storageStatus}</pre>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
