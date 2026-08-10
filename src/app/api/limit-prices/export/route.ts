@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       // 数据权限：非超管仅导出其可访问项目的数据（防止越权导出全量）
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
     if (accessibleProjects) {
       query = query.in('project_id', accessibleProjects);
     }
