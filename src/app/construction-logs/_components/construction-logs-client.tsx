@@ -74,6 +74,7 @@ type StatItem = {
   risk_count?: number;
   high_risk_count?: number;
   cost_risk_count?: number;
+  missing_days?: string[];
 };
 
 type ProjectStatItem = {
@@ -241,6 +242,15 @@ function includesKeyword(log: LogItem, projectName: string, keyword: string) {
     log.risk_summary,
   ].filter(Boolean).join(' ').toLowerCase();
   return target.includes(keyword.toLowerCase());
+}
+
+/** 缺交明细格式化：返回预览文本 + 总数（预览超 6 个折叠） */
+function formatMissingDays(days?: string[]) {
+  if (!days || days.length === 0) return { text: '无', count: 0, fullText: '无缺交' };
+  const short = days.map(d => `${parseInt(d.slice(5, 7), 10)}/${parseInt(d.slice(8, 10), 10)}`);
+  const preview = short.slice(0, 6).join('、');
+  const fullText = short.join('、');
+  return { text: preview, count: days.length, fullText };
 }
 
 function includesRiskKeyword(risk: RiskItem, keyword: string) {
@@ -945,16 +955,19 @@ export default function ConstructionLogsClient() {
                       <th className="px-4 py-3 text-center font-medium">完整率</th>
                       <th className="px-4 py-3 text-center font-medium">提交天数</th>
                       <th className="px-4 py-3 text-center font-medium">提交次数</th>
+                      <th className="px-4 py-3 text-center font-medium">缺交明细</th>
                       <th className="px-4 py-3 text-center font-medium">风险日志</th>
                       <th className="px-4 py-3 text-center font-medium">最近提交</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={7} className="py-8 text-center text-slate-500">加载中...</td></tr>
+                      <tr><td colSpan={8} className="py-8 text-center text-slate-500">加载中...</td></tr>
                     ) : stats.length === 0 ? (
-                      <tr><td colSpan={7} className="py-8 text-center text-slate-500">本月暂无提交记录</td></tr>
-                    ) : stats.map((item, index) => (
+                      <tr><td colSpan={8} className="py-8 text-center text-slate-500">本月暂无提交记录</td></tr>
+                    ) : stats.map((item, index) => {
+                      const missing = formatMissingDays(item.missing_days);
+                      return (
                       <tr key={item.user_id} className="border-t border-slate-100 transition hover:bg-slate-50">
                         <td className="px-4 py-3 text-slate-500">{index + 1}</td>
                         <td className="px-4 py-3 font-medium text-slate-950">{item.user_name}</td>
@@ -965,10 +978,23 @@ export default function ConstructionLogsClient() {
                         </td>
                         <td className="px-4 py-3 text-center text-slate-600">{item.submitted_days || 0}/{item.expected_days || 0} 天</td>
                         <td className="px-4 py-3 text-center"><span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-blue-50 px-2 text-sm font-bold text-blue-700">{item.count}</span></td>
+                        <td className="px-4 py-3 text-center">
+                          {missing.count > 0 ? (
+                            <span
+                              className="inline-flex max-w-[220px] cursor-help items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-xs text-rose-600"
+                              title={`缺交 ${missing.count} 天：${missing.fullText}`}
+                            >
+                              {missing.text}{missing.count > 6 ? ` 等${missing.count}天` : ''}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-300">无</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center">{(item.risk_count || 0) > 0 ? <span className="inline-flex h-7 min-w-[32px] items-center justify-center rounded-full bg-amber-50 px-2 text-sm font-bold text-amber-700">{item.risk_count}</span> : <span className="text-xs text-slate-300">无</span>}</td>
                         <td className="px-4 py-3 text-center text-slate-500">{item.last_date}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -977,7 +1003,9 @@ export default function ConstructionLogsClient() {
                   <div className="p-6 text-center text-sm text-slate-500">加载中...</div>
                 ) : stats.length === 0 ? (
                   <div className="p-6 text-center text-sm text-slate-500">本月暂无提交记录</div>
-                ) : stats.map((item, index) => (
+                ) : stats.map((item, index) => {
+                  const missing = formatMissingDays(item.missing_days);
+                  return (
                   <article key={item.user_id} className="space-y-3 border-l-4 border-l-blue-300 bg-white p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0"><span className="mr-2 text-xs text-slate-500">#{index + 1}</span><span className="font-medium text-slate-950">{item.user_name}</span></div>
@@ -991,8 +1019,15 @@ export default function ConstructionLogsClient() {
                       <div><dt className="text-xs text-slate-500">风险日志</dt><dd className="mt-0.5 text-amber-700">{item.risk_count || 0}</dd></div>
                       <div><dt className="text-xs text-slate-500">最近提交</dt><dd className="mt-0.5 text-slate-600">{item.last_date || '-'}</dd></div>
                     </dl>
+                    {missing.count > 0 && (
+                      <div className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                        <span className="font-medium">缺交 {missing.count} 天：</span>
+                        <span className="break-all">{missing.fullText}</span>
+                      </div>
+                    )}
                   </article>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>

@@ -94,6 +94,33 @@ function getExpectedDays(month: string | null, dateFrom: string | null, dateTo: 
   return getMonthRange(month).expectedDays;
 }
 
+/** 生成统计范围内的全部日期列表（YYYY-MM-DD），用于计算缺交明细 */
+function getDateRangeList(month: string | null, dateFrom: string | null, dateTo: string | null): string[] {
+  let startStr: string;
+  let endStr: string;
+  if (dateFrom && dateTo) {
+    startStr = dateFrom;
+    endStr = dateTo;
+  } else {
+    const range = getMonthRange(month);
+    startStr = range.start;
+    endStr = range.end;
+  }
+  const dates: string[] = [];
+  const start = new Date(`${startStr}T00:00:00`);
+  const end = new Date(`${endStr}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return dates;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, '0');
+    const d = String(cursor.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
 function toCompleteness(submittedDays: number, expectedDays: number) {
   if (expectedDays <= 0) return 0;
   return Math.min(100, Math.round((submittedDays / expectedDays) * 100));
@@ -171,6 +198,7 @@ export async function GET(request: NextRequest) {
     const stats: Record<string, UserLogStats> = {};
     const projectStats: Record<string, ProjectLogStats> = {};
     const expectedDays = getExpectedDays(month, dateFrom, dateTo);
+    const allDates = getDateRangeList(month, dateFrom, dateTo);
     ((projectRows || []) as ProjectRow[]).forEach(project => {
       projectStats[String(project.id)] = {
         projectId: Number(project.id),
@@ -283,6 +311,8 @@ export async function GET(request: NextRequest) {
       risk_count: val.riskCount,
       high_risk_count: val.highRiskCount,
       cost_risk_count: val.costRiskCount,
+      // 缺交明细：范围内未提交的日期（YYYY-MM-DD）
+      missing_days: allDates.filter(d => !val.submittedDays.has(d)),
     })).sort((a, b) => b.count - a.count);
 
     const riskTypeList = Object.entries(riskByType)
