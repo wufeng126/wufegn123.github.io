@@ -9,6 +9,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 /**
  * 阿里云 OSS 统一存储工具层（S3 协议直连）
@@ -18,13 +19,51 @@ import path from 'node:path';
  * 导致文件实际上传到 Coze 平台内置存储而非用户自己的阿里云 OSS。
  * 本工具改为 @aws-sdk/client-s3 直连阿里云 OSS，彻底脱离 Coze 存储。
  *
+ * 回退机制（v2）：OSS 环境变量未配置/不完整时，自动回退到 Supabase Storage
+ * （数据库自带对象存储，无需额外配置），保证照片/合同/附件上传始终可用；
+ * 配置好 OSS 后自动切回阿里云 OSS，无需改代码。
+ *
  * 环境变量：
  *   OSS_ENDPOINT           阿里云 OSS endpoint（如 https://oss-cn-beijing.aliyuncs.com）
  *   OSS_ACCESS_KEY_ID      AccessKeyId
  *   OSS_ACCESS_KEY_SECRET  AccessKeySecret
  *   OSS_BUCKET_NAME        Bucket 名称
  *   OSS_REGION             区域（默认 cn-beijing）
+ *   SUPABASE_STORAGE_BUCKET 回退桶名（默认 app-files）
  */
+
+/** OSS 配置是否齐全（齐全 → 走阿里云 OSS；否则回退 Supabase Storage） */
+function hasOssConfig(): boolean {
+  return Boolean(
+    process.env.OSS_ENDPOINT?.trim() &&
+    process.env.OSS_ACCESS_KEY_ID?.trim() &&
+    process.env.OSS_ACCESS_KEY_SECRET?.trim() &&
+    process.env.OSS_BUCKET_NAME?.trim(),
+  );
+}
+
+/** 当前使用的存储模式（供诊断/日志） */
+export function getStorageMode(): 'oss' | 'supabase' {
+  return hasOssConfig() ? 'oss' : 'supabase';
+}
+
+/** 回退桶名 */
+function getFallbackBucket(): string {
+  return process.env.SUPABASE_STORAGE_BUCKET?.trim() || 'app-files';
+}
+
+/** 确保回退桶存在（service_role 可自动创建） */
+async function ensureFallbackBucket(): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if (!buckets?.some((b) => b.name === getFallbackBucket())) {
+      await supabase.storage.createBucket(getFallbackBucket(), { public: false });
+    }
+  } catch (e) {
+    console.warn('[OSS-Fallback] ensure bucket failed:', e);
+  }
+}
 
 function requiredConfig() {
   const endpoint = (process.env.OSS_ENDPOINT || '').trim();
@@ -50,7 +89,7 @@ function getClient(): S3Client {
   cachedClient = new S3Client({
     endpoint,
     region,
-    forcePathStyle: false, // 阿里云 OSS 使用 virtual-hosted-style（bucket.endpoint/key）
+    forcePathStyle: true, // 阿里云 OSS 支持 path-style
     credentials: {
       accessKeyId,
       secretAccessKey,
@@ -95,36 +134,52 @@ export async function uploadFile(options: {
   contentType?: string;
   bucket?: string;
 }): Promise<string> {
+  const key = generateObjectKey(options.fileName);
+
+  if (!hasOssConfig()) {
+    // 回退：Supabase Storage（OSS 未配置时保证上传可用）
+    const supabase = getSupabaseClient();
+    await ensureFallbackBucket();
+    const { error } = await supabase.storage
+      .from(getFallbackBucket())
+      .upload(key, options.fileContent, {
+        contentType: options.contentType || 'application/octet-stream',
+        upsert: true,
+      });
+    if (error) throw new Error(`文件上传失败（当前使用 Supabase 存储）: ${error.message}`);
+    return key;
+  }
+
   const client = getClient();
   const bucket = getBucket(options);
-  const key = generateObjectKey(options.fileName);
-  try {
-    await client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: options.fileContent,
-        ContentType: options.contentType || 'application/octet-stream',
-      }),
-    );
-  } catch (err) {
-    console.error('[OSS] uploadFile failed:', {
-      bucket,
-      key,
-      size: options.fileContent.length,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    throw err;
-  }
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: options.fileContent,
+      ContentType: options.contentType || 'application/octet-stream',
+    }),
+  );
   return key;
 }
 
-/** 生成预签名 URL（阿里云 OSS 原生签名，不需要 /sign-url 服务） */
+/** 生成预签名 URL（阿里云 OSS 原生签名；回退模式用 Supabase Storage 签名） */
 export async function generatePresignedUrl(options: {
   key: string;
   bucket?: string;
   expireTime?: number;
 }): Promise<string> {
+  if (!hasOssConfig()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.storage
+      .from(getFallbackBucket())
+      .createSignedUrl(options.key, options.expireTime || 3600);
+    if (error || !data?.signedUrl) {
+      throw new Error(`生成访问链接失败: ${error?.message || '未知错误'}`);
+    }
+    return data.signedUrl;
+  }
+
   const client = getClient();
   const bucket = getBucket(options);
   // 使用 as any 绕过 @smithy/types 版本不兼容的类型检查（运行时兼容）
@@ -137,6 +192,13 @@ export async function generatePresignedUrl(options: {
 
 /** 删除文件 */
 export async function deleteFile(options: { fileKey: string; bucket?: string }): Promise<boolean> {
+  if (!hasOssConfig()) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.storage.from(getFallbackBucket()).remove([options.fileKey]);
+    if (error) throw new Error(`删除文件失败: ${error.message}`);
+    return true;
+  }
+
   const client = getClient();
   const bucket = getBucket(options);
   await client.send(
@@ -147,6 +209,13 @@ export async function deleteFile(options: { fileKey: string; bucket?: string }):
 
 /** 读取文件内容 */
 export async function readFile(options: { fileKey: string; bucket?: string }): Promise<Buffer> {
+  if (!hasOssConfig()) {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.storage.from(getFallbackBucket()).download(options.fileKey);
+    if (error || !data) throw new Error(`读取文件失败: ${error?.message || '文件不存在'}`);
+    return Buffer.from(await data.arrayBuffer());
+  }
+
   const client = getClient();
   const bucket = getBucket(options);
   const result = await client.send(
@@ -162,6 +231,15 @@ export async function readFile(options: { fileKey: string; bucket?: string }): P
 
 /** 判断文件是否存在 */
 export async function fileExists(options: { fileKey: string; bucket?: string }): Promise<boolean> {
+  if (!hasOssConfig()) {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase.storage.from(getFallbackBucket()).list(options.fileKey.split('/').slice(0, -1).join('/') || '.', {
+      limit: 100,
+      search: options.fileKey.split('/').pop() || '',
+    });
+    return Boolean(data?.some((f) => `${options.fileKey.split('/').slice(0, -1).join('/')}/${f.name}` === options.fileKey));
+  }
+
   try {
     const client = getClient();
     const bucket = getBucket(options);
@@ -184,6 +262,18 @@ export async function listFiles(options?: {
   maxKeys?: number;
   continuationToken?: string;
 }): Promise<{ keys: string[]; isTruncated: boolean; nextContinuationToken?: string }> {
+  if (!hasOssConfig()) {
+    const supabase = getSupabaseClient();
+    const prefix = (options?.prefix || '').replace(/\/$/, '');
+    const dir = prefix.includes('/') ? prefix.slice(0, prefix.lastIndexOf('/')) : prefix || '.';
+    const { data, error } = await supabase.storage.from(getFallbackBucket()).list(dir, {
+      limit: options?.maxKeys || 1000,
+    });
+    if (error) throw new Error(`列出文件失败: ${error.message}`);
+    const keys = (data || []).map((f) => `${dir === '.' ? '' : dir}/${f.name}`).filter(Boolean);
+    return { keys, isTruncated: false, nextContinuationToken: undefined };
+  }
+
   const client = getClient();
   const bucket = getBucket(options);
   const result = await client.send(

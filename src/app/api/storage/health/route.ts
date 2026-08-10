@@ -24,11 +24,12 @@ export async function GET(request: NextRequest) {
 
     const configComplete = Boolean(endpoint && accessKeyId && secretAccessKey && bucketName);
     if (!configComplete) {
+      const fallbackBucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || 'app-files';
       return NextResponse.json({
         success: true,
         config: { endpoint: endpoint || '(未配置)', bucket: bucketName || '(未配置)', region, accessKeyId: accessKeyId || '(未配置)' },
-        status: 'not_configured',
-        message: 'OSS 未完整配置：请设置 OSS_ENDPOINT / OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET / OSS_BUCKET_NAME 环境变量后重新部署。这就是 OSS 中没有数据的原因。',
+        status: 'supabase_fallback',
+        message: `阿里云 OSS 未完整配置（OSS_ENDPOINT / OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET / OSS_BUCKET_NAME），当前照片/合同/附件自动存入 Supabase Storage（桶 ${fallbackBucket}）。上传功能可用；如需存入阿里云 OSS，请配置上述环境变量后重新部署。`,
       });
     }
 
