@@ -193,19 +193,25 @@ export async function getCurrentUser(): Promise<UserPayload | null> {
 // 中间件：验证请求中的 Token
 // 优先从 Cookie 读取，其次从 URL 查询参数 ?token= 读取（兼容 iframe 场景）
 export async function verifyRequest(request: NextRequest): Promise<UserPayload | null> {
-  // 1. 优先从 Cookie 读取
+  // 1. 优先从 x-session header 读取（前端 API 调用）
+  const sessionToken = request.headers.get('x-session');
+  if (sessionToken) {
+    return verifyToken(sessionToken);
+  }
+
+  // 2. 从 Cookie 读取
   const cookieToken = request.cookies.get('auth_token')?.value;
   if (cookieToken) {
     return verifyToken(cookieToken);
   }
 
-  // 2. 从 URL 查询参数读取（iframe 环境兜底）
+  // 3. 从 URL 查询参数读取（iframe 环境兜底）
   const urlToken = request.nextUrl.searchParams.get('token');
   if (urlToken) {
     return verifyToken(urlToken);
   }
 
-  // 3. 从 Authorization header 读取
+  // 4. 从 Authorization header 读取
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     return verifyToken(authHeader.slice(7));
