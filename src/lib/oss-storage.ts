@@ -50,7 +50,7 @@ function getClient(): S3Client {
   cachedClient = new S3Client({
     endpoint,
     region,
-    forcePathStyle: true, // 阿里云 OSS 支持 path-style
+    forcePathStyle: false, // 阿里云 OSS 使用 virtual-hosted-style（bucket.endpoint/key）
     credentials: {
       accessKeyId,
       secretAccessKey,
@@ -98,14 +98,24 @@ export async function uploadFile(options: {
   const client = getClient();
   const bucket = getBucket(options);
   const key = generateObjectKey(options.fileName);
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: options.fileContent,
-      ContentType: options.contentType || 'application/octet-stream',
-    }),
-  );
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: options.fileContent,
+        ContentType: options.contentType || 'application/octet-stream',
+      }),
+    );
+  } catch (err) {
+    console.error('[OSS] uploadFile failed:', {
+      bucket,
+      key,
+      size: options.fileContent.length,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   return key;
 }
 
