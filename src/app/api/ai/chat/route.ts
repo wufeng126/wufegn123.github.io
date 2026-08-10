@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // 检查每日限额
     const dailyLimit = aiConfig.daily_limit ?? 100;
-    const { allowed, used } = await checkDailyLimit(payload.userId, dailyLimit);
+    const { allowed, used } = await checkDailyLimit(payload.id, dailyLimit);
     if (!allowed) {
       return new Response(
         JSON.stringify({
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 记录 Token 使用量
-    incrementDailyUsage(payload.userId).catch(e =>
+    incrementDailyUsage(payload.id).catch(e =>
       console.error('[AI] Usage increment error:', e)
     );
 
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
     supabase
       .from('ai_audit_logs')
       .insert({
-        user_id: payload.userId,
+        user_id: payload.id,
         action: 'chat',
         input_summary: inputSummary.slice(0, 200),
         page_context: pageContext || null,
