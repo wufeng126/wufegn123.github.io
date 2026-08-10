@@ -18,9 +18,27 @@ export async function GET(request: NextRequest) {
 
     const endpoint = (process.env.OSS_ENDPOINT || '').trim();
     const accessKeyId = (process.env.OSS_ACCESS_KEY_ID || '').trim();
-    const secretAccessKey = (process.env.OSS_ACCESS_KEY_SECRET || '').trim();
+    // 兼容拼写错误：OSS_ACCESS_KEY_SECR → 当作 OSS_ACCESS_KEY_SECRET
+    const secretAccessKey = (process.env.OSS_ACCESS_KEY_SECRET || process.env.OSS_ACCESS_KEY_SECR || '').trim();
     const bucketName = (process.env.OSS_BUCKET_NAME || '').trim();
     const region = (process.env.OSS_REGION || 'cn-beijing').trim();
+
+    // 各变量配置状态（值前缀脱敏，便于用户核对）
+    const mask = (v: string) => (v ? `${v.slice(0, 6)}***` : '');
+    const vars = {
+      OSS_ENDPOINT: { configured: Boolean(endpoint), value: endpoint || '' },
+      OSS_ACCESS_KEY_ID: { configured: Boolean(accessKeyId), value: mask(accessKeyId) },
+      OSS_ACCESS_KEY_SECRET: {
+        configured: Boolean(secretAccessKey),
+        value: mask(secretAccessKey),
+        hint: process.env.OSS_ACCESS_KEY_SECR && !process.env.OSS_ACCESS_KEY_SECRET
+          ? '检测到拼写为 OSS_ACCESS_KEY_SECR（少 ET），系统已自动兼容，但建议改为 OSS_ACCESS_KEY_SECRET'
+          : '',
+      },
+      OSS_BUCKET_NAME: { configured: Boolean(bucketName), value: bucketName || '' },
+      OSS_REGION: { configured: Boolean(region), value: region || '' },
+    };
+    const missing = Object.entries(vars).filter(([, v]) => !v.configured).map(([k]) => k);
 
     const configComplete = Boolean(endpoint && accessKeyId && secretAccessKey && bucketName);
     if (!configComplete) {
@@ -28,8 +46,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         config: { endpoint: endpoint || '(未配置)', bucket: bucketName || '(未配置)', region, accessKeyId: accessKeyId || '(未配置)' },
+        vars,
         status: 'supabase_fallback',
-        message: `阿里云 OSS 未完整配置（OSS_ENDPOINT / OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET / OSS_BUCKET_NAME），当前照片/合同/附件自动存入 Supabase Storage（桶 ${fallbackBucket}）。上传功能可用；如需存入阿里云 OSS，请配置上述环境变量后重新部署。`,
+        message: `以下环境变量未读到：${missing.join('、') || '（无）'}。当前照片/合同/附件自动存入 Supabase Storage（桶 ${fallbackBucket}），上传功能可用。阿里云 OSS 生效需：${missing.length ? `补齐 ${missing.join('、')}（注意变量名拼写，如 OSS_ACCESS_KEY_SECRET 不可写成 OSS_ACCESS_KEY_SECR）` : '检查值是否正确'}后重新部署。`,
       });
     }
 

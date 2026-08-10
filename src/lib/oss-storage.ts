@@ -32,13 +32,27 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
  *   SUPABASE_STORAGE_BUCKET 回退桶名（默认 app-files）
  */
 
-/** OSS 配置是否齐全（齐全 → 走阿里云 OSS；否则回退 Supabase Storage） */
+/** OSS 配置是否齐全（齐全 → 走阿里云 OSS；否则回退 Supabase Storage）
+ * 兼容常见拼写错误：OSS_ACCESS_KEY_SECR → 当作 OSS_ACCESS_KEY_SECRET 的别名
+ */
+function readOssVar(name: string, aliases: string[] = []): string {
+  return (process.env[name] || aliases.map(a => process.env[a]).join('') || '').trim() || '';
+}
+
+function readOssSecret(): string {
+  return (
+    process.env.OSS_ACCESS_KEY_SECRET?.trim() ||
+    process.env.OSS_ACCESS_KEY_SECR?.trim() ||  // 兼容拼错
+    ''
+  );
+}
+
 function hasOssConfig(): boolean {
   return Boolean(
-    process.env.OSS_ENDPOINT?.trim() &&
-    process.env.OSS_ACCESS_KEY_ID?.trim() &&
-    process.env.OSS_ACCESS_KEY_SECRET?.trim() &&
-    process.env.OSS_BUCKET_NAME?.trim(),
+    readOssVar('OSS_ENDPOINT') &&
+    readOssVar('OSS_ACCESS_KEY_ID') &&
+    readOssSecret() &&
+    readOssVar('OSS_BUCKET_NAME'),
   );
 }
 
@@ -66,15 +80,15 @@ async function ensureFallbackBucket(): Promise<void> {
 }
 
 function requiredConfig() {
-  const endpoint = (process.env.OSS_ENDPOINT || '').trim();
-  const accessKeyId = (process.env.OSS_ACCESS_KEY_ID || '').trim();
-  const secretAccessKey = (process.env.OSS_ACCESS_KEY_SECRET || '').trim();
-  const bucketName = (process.env.OSS_BUCKET_NAME || '').trim();
-  const region = (process.env.OSS_REGION || 'cn-beijing').trim();
+  const endpoint = readOssVar('OSS_ENDPOINT');
+  const accessKeyId = readOssVar('OSS_ACCESS_KEY_ID');
+  const secretAccessKey = readOssSecret();
+  const bucketName = readOssVar('OSS_BUCKET_NAME');
+  const region = readOssVar('OSS_REGION') || 'cn-beijing';
 
   if (!endpoint || !accessKeyId || !secretAccessKey || !bucketName) {
     throw new Error(
-      'OSS 未配置：请设置 OSS_ENDPOINT / OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET / OSS_BUCKET_NAME',
+      `OSS 未配置完整（endpoint=${endpoint ? '✓' : '✗'} accessKeyId=${accessKeyId ? '✓' : '✗'} accessKeySecret=${secretAccessKey ? '✓' : '✗'} bucketName=${bucketName ? '✓' : '✗'}）。注意：环境变量名必须是 OSS_ACCESS_KEY_SECRET，少写 ET（写成 SECR）会导致无法读取。`,
     );
   }
 
