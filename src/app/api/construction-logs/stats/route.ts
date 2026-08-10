@@ -240,6 +240,38 @@ export async function GET(request: NextRequest) {
       if (risk.level) riskByLevel[risk.level]++;
     });
 
+    // 统计"所有人"：合并各项目配置的提交人员名单（construction_log_submitters），
+    // 未提交的人以 count=0 / 完成率 0% 出现在统计中，便于考核哪些人未提交
+    try {
+      const projectIds = (projectRows as ProjectRow[]).map(p => p.id);
+      if (projectIds.length > 0) {
+        const { data: submitterRows, error: submitterError } = await supabase
+          .from('construction_log_submitters')
+          .select('project_id, user_id')
+          .in('project_id', projectIds);
+        if (!submitterError && submitterRows?.length) {
+          const submitterUserIds = Array.from(new Set(submitterRows.map(r => Number(r.user_id)).filter(Boolean)));
+          const submitterNameMap = await fetchUserNameMap(supabase, submitterUserIds);
+          submitterRows.forEach(row => {
+            const key = String(Number(row.user_id));
+            if (!stats[key]) {
+              stats[key] = {
+                name: submitterNameMap.get(Number(row.user_id)) || `用户${row.user_id}`,
+                count: 0,
+                submittedDays: new Set<string>(),
+                lastDate: '',
+                riskCount: 0,
+                highRiskCount: 0,
+                costRiskCount: 0,
+              };
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[LogStats] 提交人员名单合并失败（不影响主统计）:', e);
+    }
+
     const list = Object.entries(stats).map(([userId, val]) => ({
       user_id: parseInt(userId),
       user_name: val.name,
