@@ -176,17 +176,17 @@ export async function POST(request: NextRequest) {
 
     // 记录审计日志
     const supabase = getSupabaseClient();
-    supabase
-      .from('ai_audit_logs')
-      .insert({
-        user_id: payload.id,
-        action: 'chat',
-        input_summary: inputSummary.slice(0, 200),
-        page_context: pageContext || null,
-        is_success: true,
-      })
-      .then(() => {})
-      .catch(e => console.error('[AI] Audit log error:', e));
+    Promise.resolve(
+      supabase
+        .from('ai_audit_logs')
+        .insert({
+          user_id: payload.id,
+          action: 'chat',
+          input_summary: inputSummary.slice(0, 200),
+          page_context: pageContext || null,
+          is_success: true,
+        })
+    ).catch(e => console.error('[AI] Audit log error:', e));
 
     // 将 AsyncGenerator 转换为 ReadableStream（SSE 格式）
     const encoder = new TextEncoder();
