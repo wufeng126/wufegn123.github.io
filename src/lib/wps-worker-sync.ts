@@ -330,7 +330,10 @@ function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existin
     project_id: projectId,
     entry_date: existing.entry_date || entryDate || null,
     team_name: preferExisting(input.teamName, existing.team_name),
-    status: normalizeWorkerStatus(input.status, existing.status),
+    // 状态补全原则：本地已有状态则保留（花名册状态可能过期/错误），本地缺失时才用花名册
+    status: existing.status
+      ? existing.status
+      : normalizeWorkerStatus(input.status, 'in_service'),
   });
 }
 

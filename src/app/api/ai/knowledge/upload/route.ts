@@ -4,6 +4,7 @@ import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { extractForwardHeaders } from '@/lib/ai-service';
 import { upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const SUPPORTED_EXTENSIONS = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|epub|mobi|xml|jpe?g|png|webp|bmp)$/i;
@@ -60,8 +61,10 @@ async function ocrImageWithLLM(imageUrl: string, forwardHeaders: Record<string, 
 
 export async function POST(request: NextRequest) {
   try {
-    // 权限检查：仅管理员+财务+项目经理可上传合同文件
-    const userRole = request.headers.get('x-user-role') || 'team_leader';
+    // 权限检查：改为服务端 token 鉴权（不依赖可伪造的 x-user-role 请求头）
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+    const userRole = auth.user?.role || 'team_leader';
     if (!['super_admin', 'admin', 'finance', 'project_manager'].includes(userRole)) {
       return NextResponse.json({ success: false, error: '您无权上传文件到知识库' }, { status: 403 });
     }

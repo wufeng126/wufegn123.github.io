@@ -23,10 +23,10 @@ export async function GET(request: NextRequest) {
     const bucketName = (process.env.OSS_BUCKET_NAME || '').trim();
     const region = (process.env.OSS_REGION || 'cn-beijing').trim();
 
-    // 各变量配置状态（值前缀脱敏，便于用户核对）
+    // 各变量配置状态（值前缀脱敏，便于用户核对；不泄露完整 endpoint/bucket/AK）
     const mask = (v: string) => (v ? `${v.slice(0, 6)}***` : '');
     const vars = {
-      OSS_ENDPOINT: { configured: Boolean(endpoint), value: endpoint || '' },
+      OSS_ENDPOINT: { configured: Boolean(endpoint), value: mask(endpoint) },
       OSS_ACCESS_KEY_ID: { configured: Boolean(accessKeyId), value: mask(accessKeyId) },
       OSS_ACCESS_KEY_SECRET: {
         configured: Boolean(secretAccessKey),
@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
           ? '检测到拼写为 OSS_ACCESS_KEY_SECR（少 ET），系统已自动兼容，但建议改为 OSS_ACCESS_KEY_SECRET'
           : '',
       },
-      OSS_BUCKET_NAME: { configured: Boolean(bucketName), value: bucketName || '' },
-      OSS_REGION: { configured: Boolean(region), value: region || '' },
+      OSS_BUCKET_NAME: { configured: Boolean(bucketName), value: mask(bucketName) },
+      OSS_REGION: { configured: Boolean(region), value: mask(region) },
     };
     const missing = Object.entries(vars).filter(([, v]) => !v.configured).map(([k]) => k);
 
@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
       const fallbackBucket = process.env.SUPABASE_STORAGE_BUCKET?.trim() || 'app-files';
       return NextResponse.json({
         success: true,
-        config: { endpoint: endpoint || '(未配置)', bucket: bucketName || '(未配置)', region, accessKeyId: accessKeyId || '(未配置)' },
         vars,
         status: 'supabase_fallback',
         message: `以下环境变量未读到：${missing.join('、') || '（无）'}。当前照片/合同/附件自动存入 Supabase Storage（桶 ${fallbackBucket}），上传功能可用。阿里云 OSS 生效需：${missing.length ? `补齐 ${missing.join('、')}（注意变量名拼写，如 OSS_ACCESS_KEY_SECRET 不可写成 OSS_ACCESS_KEY_SECR）` : '检查值是否正确'}后重新部署。`,

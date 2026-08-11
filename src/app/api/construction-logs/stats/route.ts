@@ -104,7 +104,13 @@ function getDateRangeList(month: string | null, dateFrom: string | null, dateTo:
   } else {
     const range = getMonthRange(month);
     startStr = range.start;
-    endStr = range.end;
+    // 当月（未指定日期范围）时截止到今天，避免把未来日期列为缺交
+    if (range.isCurrentMonth) {
+      const now = new Date();
+      endStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    } else {
+      endStr = range.end;
+    }
   }
   const dates: string[] = [];
   const start = new Date(`${startStr}T00:00:00`);

@@ -204,6 +204,21 @@ export async function GET(request: NextRequest) {
       query = query.lte('payment_date', endDate);
     }
 
+    // 项目权限过滤：非超管仅返回其可访问项目的发放记录（防止越权查看全量工资发放）
+    const isSuperAdmin = auth.user.is_super_admin || auth.user.role === 'super_admin';
+    if (!isSuperAdmin) {
+      const { data: userData } = await client
+        .from('users')
+        .select('managed_projects')
+        .eq('id', auth.user.id)
+        .maybeSingle();
+      const accessible = ((userData?.managed_projects || []) as number[]).map(Number);
+      if (accessible.length === 0) {
+        return NextResponse.json({ payments: [] });
+      }
+      query = query.in('project_id', accessible);
+    }
+
     const { data, error } = await query;
 
     if (error) {

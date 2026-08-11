@@ -189,8 +189,10 @@ export async function POST(request: NextRequest) {
       if (sameName) {
         const sameIdCard = id_card && sameName.id_card && String(sameName.id_card).toUpperCase() === String(id_card).trim().toUpperCase();
         if (!sameIdCard) {
+          // 身份证脱敏显示（前3后4），避免泄露完整证件号
+          const maskIdCard = (v: string) => (v && v.length >= 8 ? `${v.slice(0, 3)}********${v.slice(-4)}` : v || '未填');
           return NextResponse.json({
-            error: `该项目下已存在同名工人「${sameName.name}」（身份证 ${sameName.id_card || '未填'}），不允许重复添加同名人员。如为同一人请先修正信息，否则请更换姓名`,
+            error: `该项目下已存在同名工人「${sameName.name}」（身份证 ${maskIdCard(sameName.id_card)}），不允许重复添加同名人员。如为同一人请先修正信息，否则请更换姓名`,
           }, { status: 400 });
         }
         // 同名且同身份证 → 直接提示已存在

@@ -136,6 +136,15 @@ export async function syncSalaryPaymentStatus(salaryId: number): Promise<SalaryP
   let totalPaid = (payments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
 
   if (salary.worker_id && salary.project_id && salary.year_month) {
+    // unlinked 发放（无 salary_id）按该维度工资单数均分，与 worker-salaries GET 显示一致（避免重复计算）
+    const { count } = await client
+      .from('worker_salaries')
+      .select('id', { count: 'exact', head: true })
+      .eq('worker_id', salary.worker_id)
+      .eq('project_id', salary.project_id)
+      .eq('year_month', salary.year_month);
+    const keyCount = Math.max(1, Number(count) || 1);
+
     const { data: unlinkedPayments } = await client
       .from('salary_payments')
       .select('payment_amount')
@@ -144,10 +153,10 @@ export async function syncSalaryPaymentStatus(salaryId: number): Promise<SalaryP
       .eq('project_id', salary.project_id)
       .eq('year_month', salary.year_month);
 
-    totalPaid += (unlinkedPayments || []).reduce(
+    totalPaid += ((unlinkedPayments || []).reduce(
       (sum: number, p: any) => sum + parseNumeric(p.payment_amount),
       0
-    );
+    )) / keyCount;
   }
 
   const newStatus = calculateSalaryPaymentStatus(netPay, totalPaid);
@@ -196,10 +205,19 @@ export async function syncAllSalaryPaymentStatus(): Promise<void> {
     }
   });
 
+  // 统计同 worker+项目+月份 维度的工资单数（unlinked 均分用，与 worker-salaries GET 一致）
+  const keyCountMap = new Map<string, number>();
+  (salaries || []).forEach((s: any) => {
+    const key = salaryPaymentMatchKey(s);
+    keyCountMap.set(key, (keyCountMap.get(key) || 0) + 1);
+  });
+
   // 逐条更新
   for (const salary of salaries) {
     const netPay = parseNumeric(salary.net_pay);
-    const totalPaid = (paidMap.get(salary.id) || 0) + (unlinkedPaidMap.get(salaryPaymentMatchKey(salary)) || 0);
+    const key = salaryPaymentMatchKey(salary);
+    const keyCount = keyCountMap.get(key) || 1;
+    const totalPaid = (paidMap.get(salary.id) || 0) + ((unlinkedPaidMap.get(key) || 0) / keyCount);
 
     const newStatus = calculateSalaryPaymentStatus(netPay, totalPaid);
 
