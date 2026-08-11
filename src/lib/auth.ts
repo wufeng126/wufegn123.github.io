@@ -24,6 +24,7 @@ export interface UserPayload {
   role: UserRole;
   role_id?: number;
   permissions?: string[]; // 权限码列表
+  jti?: string; // JWT ID，用于 token 注销
 }
 
 export interface RequestAuthUser {
