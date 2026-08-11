@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -41,6 +42,27 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     const body = await request.json();
+
+    // D5 修复：与 supplier-contracts/payments 入口一致的校验——合同余额/结算单未付余额/作废状态
+    const paymentAmount = Number(body.payment_amount || 0);
+    if (body.contract_id && Number(body.contract_id) > 0) {
+      const contractValidation = await validateSupplierPayment({
+        contract_id: Number(body.contract_id),
+        payment_amount: paymentAmount,
+      });
+      if (!contractValidation.valid) {
+        return NextResponse.json({ error: contractValidation.message }, { status: 400 });
+      }
+    }
+    if (body.settlement_id && Number(body.settlement_id) > 0) {
+      const settlementValidation = await validateSupplierSettlementPayment({
+        settlement_id: Number(body.settlement_id),
+        payment_amount: paymentAmount,
+      });
+      if (!settlementValidation.valid) {
+        return NextResponse.json({ error: settlementValidation.message }, { status: 400 });
+      }
+    }
 
     const result = await insertWithSequenceFix('supplier_payments', body, supabase);
 

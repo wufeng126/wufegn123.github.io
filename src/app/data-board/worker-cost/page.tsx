@@ -183,7 +183,8 @@ export default function WorkerCostDashboard() {
     
     totalPaid = filteredPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
     
-    const totalUnpaid = Math.max(0, totalNetPay - totalPaid);
+    // 未付容差与工资发放页一致（差额 ≤1 元视为已结清）
+    const totalUnpaid = Math.abs(totalNetPay - totalPaid) <= 1 ? 0 : Math.max(0, totalNetPay - totalPaid);
     
     return { projectCount, activeWorkerCount, totalGrossPay, totalNetPay, totalPaid, totalUnpaid };
   }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
@@ -228,7 +229,7 @@ export default function WorkerCostDashboard() {
     
     return Array.from(projectMap.values()).map(item => ({
       ...item,
-      unpaid: Math.max(0, item.netPay - item.paid),  // 未付 = 实发 - 已付
+      unpaid: Math.abs(item.netPay - item.paid) <= 1 ? 0 : Math.max(0, item.netPay - item.paid),  // 未付 = 实发 - 已付（含容差）
     }));
   }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
 

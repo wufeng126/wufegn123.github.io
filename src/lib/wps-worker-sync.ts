@@ -296,12 +296,6 @@ type ExistingWorkerRow = {
   status?: string | null;
 };
 
-function preferInput(inputValue?: string | null, existingValue?: string | number | null) {
-  const value = inputValue?.trim();
-  if (value) return value;
-  return existingValue ?? null;
-}
-
 /**
  * 补全优先（v2）：已在册工人信息不全时用花名册补全；
  * 本地已有值则保留本地（防止花名册错误值覆盖正确数据）。

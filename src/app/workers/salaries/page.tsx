@@ -2,7 +2,7 @@
 import React from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,6 +93,25 @@ export default function WorkerSalariesPage() {
   const [filterYear, setFilterYear] = useState(urlYearMonth.year || new Date().getFullYear().toString());
   const [filterMonth, setFilterMonth] = useState(urlYearMonth.month || (new Date().getMonth() + 1).toString());
   const [filterProject, setFilterProject] = useState(projectFromUrl);
+
+  // A5 修复：预计算每个工人"上一月份"的应发工资，避免表格每行 O(n²) filter+sort
+  const prevGrossByWorkerMonth = useMemo(() => {
+    const map = new Map<string, number>();
+    const sorted = [...salaries].sort(
+      (a, b) => (a.worker_id || 0) - (b.worker_id || 0) || String(a.year_month).localeCompare(String(b.year_month))
+    );
+    let prevWorker: number | null = null;
+    let prevGross = 0;
+    sorted.forEach((s) => {
+      if (s.worker_id !== prevWorker) {
+        prevWorker = s.worker_id;
+        prevGross = 0;
+      }
+      map.set(`${s.worker_id}|${s.year_month}`, prevGross);
+      prevGross = parseFloat(s.gross_pay) || 0;
+    });
+    return map;
+  }, [salaries]);
   const [searchWorker, setSearchWorker] = useState(workerNameFromUrl);
   
   const [formData, setFormData] = useState({
@@ -932,9 +951,7 @@ export default function WorkerSalariesPage() {
                                   <TableCell className="text-right font-medium" style={{ color: 'var(--color-primary)' }}>
                                     {(() => {
                                       const currentGross = parseFloat(salary.gross_pay) || 0;
-                                      const sameWorkerSalaries = salaries.filter(s => s.worker_id === salary.worker_id && s.year_month < salary.year_month);
-                                      const lastSalary = sameWorkerSalaries.sort((a,b) => b.year_month.localeCompare(a.year_month))[0];
-                                      const lastGross = lastSalary ? parseFloat(lastSalary.gross_pay) || 0 : 0;
+                                      const lastGross = prevGrossByWorkerMonth.get(`${salary.worker_id}|${salary.year_month}`) || 0;
                                       const isAbnormal = lastGross > 0 && ((currentGross - lastGross) / lastGross) > 0.3;
                                       return (
                                         <span className={isAbnormal ? 'px-1.5 py-0.5 rounded text-xs font-bold' : ''} style={isAbnormal ? { background: '#FFECE8', color: '#F53F3F' } : {}}>

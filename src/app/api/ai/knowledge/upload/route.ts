@@ -129,12 +129,13 @@ export async function POST(request: NextRequest) {
         const fileName = file.name;
         const docTitle = fileName.replace(/\.[^/.]+$/, '');
 
-        // Step 1: Upload to object storage
+        // Step 1: Upload to object storage（文件名显式净化，防路径注入：移除路径分隔符与危险字符）
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        const safeFileName = fileName.replace(/[\/\\]+/g, '_').replace(/\.\./g, '_');
         const storageKey = await storage.uploadFile({
           fileContent: buffer,
-          fileName: `ai-knowledge/${Date.now()}-${fileName}`,
+          fileName: `ai-knowledge/${Date.now()}-${safeFileName}`,
           contentType: file.type || 'application/octet-stream',
         });
 

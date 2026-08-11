@@ -182,9 +182,9 @@ export async function POST(request: NextRequest) {
         // 尝试解析 Excel 日期数字
         const dateNum = parseFloat(settlementDate);
         if (!isNaN(dateNum)) {
-          // Excel 日期序列号转换
-          const excelEpoch = new Date(1899, 11, 30);
-          settlementDate = new Date(excelEpoch.getTime() + dateNum * 86400000).toISOString().split('T')[0];
+          // Excel 日期序列号转换（用 UTC 避免本地时区导致提前一天）
+          const excelEpoch = Date.UTC(1899, 11, 30);
+          settlementDate = new Date(excelEpoch + dateNum * 86400000).toISOString().split('T')[0];
         } else {
           errors.push(`第 ${index + 2} 行：结算日期格式错误，应为 YYYY-MM-DD`);
           return;

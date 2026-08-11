@@ -354,7 +354,8 @@ export function checkApiWritePermission(
 
   if (pathname === '/api/notifications') {
     if (method === 'PATCH' || method === 'PUT' || method === 'DELETE') {
-      return userPermissions.includes('notifications:view') || userPermissions.includes('notifications:settings');
+      // 修复（S7）：修改/删除通知配置仅限 notifications:settings（此前 view 即可删改，权限过宽）
+      return userPermissions.includes('notifications:settings');
     }
     if (method === 'POST') {
       return userPermissions.includes('notifications:settings');

@@ -201,6 +201,7 @@ export async function GET(request: NextRequest) {
       matchKeyCounts.set(key, (matchKeyCounts.get(key) || 0) + 1);
     });
 
+    let orphanPaymentAmount = 0; // 无对应工资单的独立发放（D7 提示用）
     ((salaryPaymentsData || []) as SalaryPaymentRow[]).forEach((payment) => {
       const amount = parseNumeric(payment.payment_amount);
 
@@ -219,7 +220,11 @@ export async function GET(request: NextRequest) {
             key,
             (unlinkedPaidAmountByMatchKey.get(key) || 0) + amount
           );
+        } else {
+          orphanPaymentAmount += amount; // 无对应工资单的独立发放（不计入已付，但提示）
         }
+      } else {
+        orphanPaymentAmount += amount;
       }
     });
 
@@ -335,6 +340,8 @@ export async function GET(request: NextRequest) {
       totalNetPay: totalNetPay.toFixed(2),
       totalPaid: totalPaid.toFixed(2),
       projectSummary,
+      // D7：无对应工资单的独立发放金额（提醒排查：此类发放未计入已付）
+      orphan_payment_amount: Math.round(orphanPaymentAmount * 100) / 100,
     });
   } catch (error: unknown) {
     console.error('API Error:', error);

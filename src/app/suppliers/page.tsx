@@ -144,7 +144,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setUser(data.user);
       }
-    } catch {}
+    } catch (e) { console.error('加载数据失败:', e); }
   }, []);
 
   // 获取供应商统计
@@ -168,7 +168,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setSuppliers(data.suppliers || []);
       }
-    } catch {}
+    } catch (e) { console.error('加载数据失败:', e); }
   }, []);
 
   // 获取合同列表
@@ -182,7 +182,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setContracts(data.contracts || []);
       }
-    } catch {}
+    } catch (e) { console.error('加载数据失败:', e); }
   }, [filterSupplier, filterStatus]);
 
   // 项目列表
@@ -196,7 +196,7 @@ export default function SuppliersPage() {
         const data = await res.json();
         setProjects(data.projects || []);
       }
-    } catch {}
+    } catch (e) { console.error('加载数据失败:', e); }
   }, []);
 
   // 初始化加载

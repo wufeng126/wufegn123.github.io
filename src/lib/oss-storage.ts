@@ -99,12 +99,11 @@ let cachedClient: S3Client | null = null;
 
 function getClient(): S3Client {
   if (cachedClient) return cachedClient;
-  const { endpoint, accessKeyId, secretAccessKey, bucketName, region } = requiredConfig();
-  
+  const { endpoint, accessKeyId, secretAccessKey, region } = requiredConfig();
   cachedClient = new S3Client({
     endpoint,
     region,
-    forcePathStyle: false, // 虚拟主机风格：https://{bucket}.oss-cn-beijing.aliyuncs.com
+    forcePathStyle: true, // 阿里云 OSS 支持 path-style
     credentials: {
       accessKeyId,
       secretAccessKey,
@@ -248,11 +247,15 @@ export async function readFile(options: { fileKey: string; bucket?: string }): P
 export async function fileExists(options: { fileKey: string; bucket?: string }): Promise<boolean> {
   if (!hasOssConfig()) {
     const supabase = getSupabaseClient();
-    const { data } = await supabase.storage.from(getFallbackBucket()).list(options.fileKey.split('/').slice(0, -1).join('/') || '.', {
-      limit: 100,
-      search: options.fileKey.split('/').pop() || '',
+    const parts = options.fileKey.split('/').filter(Boolean);
+    const name = parts.pop() || '';
+    const dir = parts.join('/') || '.';
+    const { data } = await supabase.storage.from(getFallbackBucket()).list(dir, {
+      limit: 1000,
+      search: name,
     });
-    return Boolean(data?.some((f) => `${options.fileKey.split('/').slice(0, -1).join('/')}/${f.name}` === options.fileKey));
+    // 精确比较文件名（修复：此前拼接路径比较恒不相等）
+    return Boolean(data?.some((f) => f.name === name));
   }
 
   try {

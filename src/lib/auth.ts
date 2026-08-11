@@ -94,11 +94,24 @@ export function getSecretKey() {
   return new TextEncoder().encode(secret);
 }
 
+// 已注销 token 黑名单（内存实现，单实例有效；配合 jti 使 logout 后 token 立即失效）
+// 说明：重启后黑名单清空（与 login-rate-limit 同级别取舍），生产多实例可换 Redis
+const revokedJtis = new Set<string>();
+
+export function revokeToken(jti: string) {
+  if (jti) revokedJtis.add(jti);
+}
+
+function isTokenRevoked(jti?: string) {
+  return jti ? revokedJtis.has(jti) : false;
+}
+
 // 生成 JWT Token
 export async function generateToken(payload: UserPayload): Promise<string> {
   const secretKey = getSecretKey();
   const token = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
+    .setJti(crypto.randomUUID())
     .setIssuedAt()
     .setExpirationTime(TOKEN_EXPIRY)
     .sign(secretKey);
@@ -110,6 +123,8 @@ export async function verifyToken(token: string): Promise<UserPayload | null> {
   try {
     const secretKey = getSecretKey();
     const { payload } = await jwtVerify(token, secretKey);
+    // 已注销的 token 立即失效
+    if (isTokenRevoked(payload.jti)) return null;
     return payload as unknown as UserPayload;
   } catch {
     return null;
@@ -193,25 +208,19 @@ export async function getCurrentUser(): Promise<UserPayload | null> {
 // 中间件：验证请求中的 Token
 // 优先从 Cookie 读取，其次从 URL 查询参数 ?token= 读取（兼容 iframe 场景）
 export async function verifyRequest(request: NextRequest): Promise<UserPayload | null> {
-  // 1. 优先从 x-session header 读取（前端 API 调用）
-  const sessionToken = request.headers.get('x-session');
-  if (sessionToken) {
-    return verifyToken(sessionToken);
-  }
-
-  // 2. 从 Cookie 读取
+  // 1. 优先从 Cookie 读取
   const cookieToken = request.cookies.get('auth_token')?.value;
   if (cookieToken) {
     return verifyToken(cookieToken);
   }
 
-  // 3. 从 URL 查询参数读取（iframe 环境兜底）
+  // 2. 从 URL 查询参数读取（iframe 环境兜底）
   const urlToken = request.nextUrl.searchParams.get('token');
   if (urlToken) {
     return verifyToken(urlToken);
   }
 
-  // 4. 从 Authorization header 读取
+  // 3. 从 Authorization header 读取
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     return verifyToken(authHeader.slice(7));
