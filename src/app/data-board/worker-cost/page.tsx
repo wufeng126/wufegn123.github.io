@@ -90,6 +90,7 @@ export default function WorkerCostDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [salaries, setSalaries] = useState<WorkerSalary[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
@@ -97,15 +98,17 @@ export default function WorkerCostDashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectsRes, workersRes, salariesRes] = await Promise.all([
+      const [projectsRes, workersRes, salariesRes, paymentsRes] = await Promise.all([
         fetch('/api/projects', { credentials: 'include' }),
         fetch('/api/workers', { credentials: 'include' }),
         fetch('/api/worker-salaries', { credentials: 'include' }),
+        fetch('/api/worker-payments', { credentials: 'include' }),
       ]);
 
       const projectsData = await projectsRes.json();
       const workersData = await workersRes.json();
       const salariesData = await salariesRes.json();
+      const paymentsData = await paymentsRes.json();
 
       const projectsArray = Array.isArray(projectsData.projects) ? projectsData.projects
         : Array.isArray(projectsData.data) ? projectsData.data
@@ -119,9 +122,14 @@ export default function WorkerCostDashboard() {
         : Array.isArray(salariesData.data) ? salariesData.data
         : Array.isArray(salariesData) ? salariesData : [];
       
+      const paymentsArray = Array.isArray(paymentsData.data) ? paymentsData.data
+        : Array.isArray(paymentsData.payments) ? paymentsData.payments
+        : Array.isArray(paymentsData) ? paymentsData : [];
+      
       setProjects(projectsArray);
       setWorkers(workersArray);
       setSalaries(salariesArray);
+      setPayments(paymentsArray);
     } catch (error) {
       console.error('加载数据失败:', error);
     } finally {
@@ -144,6 +152,12 @@ export default function WorkerCostDashboard() {
     return salaries.filter(s => toNumber(s.project_id) === Number(selectedProject));
   }, [salaries, selectedProject]);
 
+  // 发放记录（以工资发放页为准：已发 = 发放记录表直接汇总，与工资发放页严格一致）
+  const filteredPayments = useMemo(() => {
+    if (selectedProject === 'all') return payments;
+    return payments.filter(p => toNumber(p.project_id) === Number(selectedProject));
+  }, [payments, selectedProject]);
+
   // 统计数据
   const stats = useMemo(() => {
     const projectCount = selectedProject === 'all' ? projects.length : (selectedProject !== 'all' && selectedProject ? 1 : 0);
@@ -160,19 +174,19 @@ export default function WorkerCostDashboard() {
     // 工资统计
     let totalGrossPay = 0; // 应付（应发工资 gross_pay）
     let totalNetPay = 0;   // 实发（扣除后的 net_pay）
-    let totalPaid = 0;    // 已付（从发放记录表汇总）
+    let totalPaid = 0;    // 已付（以发放记录表为准，与工资发放页一致）
     
     filteredSalaries.forEach(s => {
       totalGrossPay += toNumber(s.gross_pay);
       totalNetPay += toNumber(s.net_pay);
     });
     
-    totalPaid = filteredSalaries.reduce((sum, s) => sum + toNumber(s.paid_amount), 0);
+    totalPaid = filteredPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
     
     const totalUnpaid = Math.max(0, totalNetPay - totalPaid);
     
     return { projectCount, activeWorkerCount, totalGrossPay, totalNetPay, totalPaid, totalUnpaid };
-  }, [projects, selectedProject, filteredWorkers, filteredSalaries]);
+  }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
 
   // 项目汇总表格数据 - 按项目年度汇总
   const projectSummaryData = useMemo(() => {
@@ -203,11 +217,12 @@ export default function WorkerCostDashboard() {
       }
     });
     
-    filteredSalaries.forEach(s => {
-      const pid = toNumber(s.project_id);
+    // 已付以发放记录表为准（与工资发放页一致）
+    filteredPayments.forEach(p => {
+      const pid = toNumber(p.project_id);
       const data = projectMap.get(pid);
       if (data) {
-        data.paid += toNumber(s.paid_amount);
+        data.paid += toNumber(p.amount);
       }
     });
     
@@ -215,7 +230,7 @@ export default function WorkerCostDashboard() {
       ...item,
       unpaid: Math.max(0, item.netPay - item.paid),  // 未付 = 实发 - 已付
     }));
-  }, [projects, selectedProject, filteredWorkers, filteredSalaries]);
+  }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
 
   // 饼图数据（按实发金额占比）
   const pieData = useMemo(() => {
@@ -228,21 +243,21 @@ export default function WorkerCostDashboard() {
       }));
   }, [projectSummaryData]);
 
-  // 月度趋势数据
+  // 月度趋势数据（已发金额以发放记录表为准）
   const monthlyTrendData = useMemo(() => {
     const monthlyMap = new Map<string, { month: string; amount: number }>();
     
-    filteredSalaries.forEach(s => {
-      const month = s.year_month ? s.year_month.substring(0, 7) : '未知';
+    filteredPayments.forEach(p => {
+      const month = p.year_month ? p.year_month.substring(0, 7) : (p.payment_date ? String(p.payment_date).substring(0, 7) : '未知');
       const existing = monthlyMap.get(month) || { month, amount: 0 };
-      existing.amount += toNumber(s.paid_amount);
+      existing.amount += toNumber(p.amount);
       monthlyMap.set(month, existing);
     });
     
     return Array.from(monthlyMap.values())
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
-  }, [filteredSalaries]);
+  }, [filteredPayments]);
 
   if (loading) {
     return (
