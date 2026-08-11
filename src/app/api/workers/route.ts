@@ -177,6 +177,26 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '无权在该项目下创建工人' }, { status: 403 });
       }
     }
+
+    // 去重校验：同一项目内不允许存在"姓名相同"或"身份证号相同"的人员
+    if (name && project_id) {
+      const { data: sameName } = await client
+        .from('workers')
+        .select('id, name, id_card')
+        .eq('project_id', project_id)
+        .eq('name', name.trim())
+        .maybeSingle();
+      if (sameName) {
+        const sameIdCard = id_card && sameName.id_card && String(sameName.id_card).toUpperCase() === String(id_card).trim().toUpperCase();
+        if (!sameIdCard) {
+          return NextResponse.json({
+            error: `该项目下已存在同名工人「${sameName.name}」（身份证 ${sameName.id_card || '未填'}），不允许重复添加同名人员。如为同一人请先修正信息，否则请更换姓名`,
+          }, { status: 400 });
+        }
+        // 同名且同身份证 → 直接提示已存在
+        return NextResponse.json({ error: '该项目下已存在该身份证号的工人，无需重复添加' }, { status: 400 });
+      }
+    }
     
     const { data: workerData, error: workerError } = await insertWithSequenceFix('workers', { 
         name, 

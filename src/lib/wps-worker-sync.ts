@@ -302,22 +302,34 @@ function preferInput(inputValue?: string | null, existingValue?: string | number
   return existingValue ?? null;
 }
 
+/**
+ * 补全优先（v2）：已在册工人信息不全时用花名册补全；
+ * 本地已有值则保留本地（防止花名册错误值覆盖正确数据）。
+ */
+function preferExisting(inputValue?: string | null, existingValue?: string | number | null) {
+  const existing = existingValue !== null && existingValue !== undefined ? String(existingValue).trim() : '';
+  if (existing) return existingValue; // 本地已有 → 保留
+  const input = inputValue?.trim();
+  return input || null; // 本地缺失 → 用花名册补全
+}
+
 function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existing: ExistingWorkerRow) {
   const idCard = sanitizeIdCard(input.idCard);
   const age = calculateAge(idCard);
   const entryDate = normalizeDate(input.entryDate);
 
   return stripNullish({
-    name: preferInput(input.name, existing.name),
-    work_type: preferInput(input.workType, existing.work_type),
-    gender: preferInput(input.gender, existing.gender),
+    // 信息补全策略：本地缺失才用花名册补全，本地已有则保留（避免花名册缺/错值覆盖）
+    name: preferExisting(input.name, existing.name),
+    work_type: preferExisting(input.workType, existing.work_type),
+    gender: preferExisting(input.gender, existing.gender),
     age: age ?? existing.age ?? null,
-    id_card: idCard || existing.id_card || null,
-    phone: preferInput(input.phone, existing.phone),
-    bank_card: preferInput(input.bankCard, existing.bank_card),
+    id_card: existing.id_card || idCard || null,
+    phone: preferExisting(input.phone, existing.phone),
+    bank_card: preferExisting(input.bankCard, existing.bank_card),
     project_id: projectId,
     entry_date: existing.entry_date || entryDate || null,
-    team_name: preferInput(input.teamName, existing.team_name),
+    team_name: preferExisting(input.teamName, existing.team_name),
     status: normalizeWorkerStatus(input.status, existing.status),
   });
 }
@@ -602,6 +614,21 @@ export async function syncWpsWorkerRecord(
 
     const existing = await findExistingWorker(client, input, project.id);
     const entryDate = normalizeDate(input.entryDate);
+
+    // 去重保护：项目内已存在同名但身份证不同的人员 → 跳过并提示（防止同名不同人被误合并/改错身份证）
+    if (existing && existing.id_card) {
+      const inputIdCard = sanitizeIdCard(input.idCard);
+      if (isValidChineseIdCard(inputIdCard) && String(existing.id_card).toUpperCase() !== inputIdCard) {
+        result = {
+          success: false,
+          action: 'skipped',
+          status: 'warning',
+          message: `项目内已存在同名工人「${existing.name}」但身份证不一致（系统${existing.id_card} vs 花名册${inputIdCard}）。为避免误改已跳过；如确为同一人，请先在花名册中修正身份证后再同步`,
+          workerName: input.name.trim(),
+        };
+        return result;
+      }
+    }
 
     if (!existing) {
       const insertData = buildWorkerData(input, project.id);
