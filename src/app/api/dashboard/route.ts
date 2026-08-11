@@ -551,7 +551,7 @@ export async function GET(request: Request) {
     // 税费 = 开票金额 − 不含税收入
     let clientReportsForTaxQuery = client
       .from('client_reports')
-      .select('invoice_amount, tax_rate, report_date');
+      .select('invoice_amount, tax_rate, report_date, settlement_amount, report_amount');
     
     if (projectId) {
       clientReportsForTaxQuery = clientReportsForTaxQuery.eq('project_id', parseInt(projectId));
