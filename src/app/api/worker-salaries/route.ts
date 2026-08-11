@@ -192,6 +192,16 @@ export async function GET(request: NextRequest) {
 
     const paidAmountBySalaryId = new Map<number, number>();
     const unlinkedPaidAmountByMatchKey = new Map<string, number>();
+
+    // 修复：无 salary_id 的发放按 worker+项目+月份 兜底匹配时，
+    // 若同一工人同月存在多条工资单，金额会重复累加到每条 → 已发放虚高（与工资发放表不一致）。
+    // 因此仅当该维度在工资单中唯一（count==1）时才允许兜底匹配。
+    const matchKeyCounts = new Map<string, number>();
+    (filteredData as WorkerSalaryRow[]).forEach((record) => {
+      const key = paymentMatchKey(record);
+      matchKeyCounts.set(key, (matchKeyCounts.get(key) || 0) + 1);
+    });
+
     ((salaryPaymentsData || []) as SalaryPaymentRow[]).forEach((payment) => {
       const amount = parseNumeric(payment.payment_amount);
 
@@ -205,10 +215,12 @@ export async function GET(request: NextRequest) {
 
       if (payment.worker_id && payment.project_id && payment.year_month) {
         const key = paymentMatchKey(payment);
-        unlinkedPaidAmountByMatchKey.set(
-          key,
-          (unlinkedPaidAmountByMatchKey.get(key) || 0) + amount
-        );
+        if (matchKeyCounts.get(key) === 1) {
+          unlinkedPaidAmountByMatchKey.set(
+            key,
+            (unlinkedPaidAmountByMatchKey.get(key) || 0) + amount
+          );
+        }
       }
     });
 
