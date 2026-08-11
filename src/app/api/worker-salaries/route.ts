@@ -193,9 +193,8 @@ export async function GET(request: NextRequest) {
     const paidAmountBySalaryId = new Map<number, number>();
     const unlinkedPaidAmountByMatchKey = new Map<string, number>();
 
-    // 修复：无 salary_id 的发放按 worker+项目+月份 兜底匹配时，
-    // 若同一工人同月存在多条工资单，金额会重复累加到每条 → 已发放虚高（与工资发放表不一致）。
-    // 因此仅当该维度在工资单中唯一（count==1）时才允许兜底匹配。
+    // 无 salary_id 的发放按 worker+项目+月份 兜底匹配 → 按该维度工资单数均分。
+    // 之前"多工资单跳过"导致已发放偏低；均分保证 Σ(unlinked) == Σ(payments)，既不虚高也不偏低。
     const matchKeyCounts = new Map<string, number>();
     (filteredData as WorkerSalaryRow[]).forEach((record) => {
       const key = paymentMatchKey(record);
@@ -215,7 +214,7 @@ export async function GET(request: NextRequest) {
 
       if (payment.worker_id && payment.project_id && payment.year_month) {
         const key = paymentMatchKey(payment);
-        if (matchKeyCounts.get(key) === 1) {
+        if ((matchKeyCounts.get(key) || 0) > 0) {
           unlinkedPaidAmountByMatchKey.set(
             key,
             (unlinkedPaidAmountByMatchKey.get(key) || 0) + amount
@@ -226,8 +225,12 @@ export async function GET(request: NextRequest) {
 
     const getPaidAmount = (record: WorkerSalaryRow) => {
       const linkedPaid = paidAmountBySalaryId.get(record.id) || 0;
-      const unlinkedPaid = unlinkedPaidAmountByMatchKey.get(paymentMatchKey(record)) || 0;
-      return linkedPaid + unlinkedPaid;
+      const key = paymentMatchKey(record);
+      const unlinkedTotal = unlinkedPaidAmountByMatchKey.get(key) || 0;
+      const keyCount = matchKeyCounts.get(key) || 0;
+      // 多工资单场景：unlinked 金额按 N 条均分（保证 Σ 与工资发放表严格相等，不虚高不偏低）
+      const unlinkedShare = keyCount > 0 ? unlinkedTotal / keyCount : 0;
+      return Math.round((linkedPaid + unlinkedShare) * 100) / 100;
     };
 
     // 格式化返回数据，关联已付金额，确保所有金额字段为数字类型
