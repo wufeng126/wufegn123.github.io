@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getAIConfig, clearAIConfigCache } from '@/lib/ai-service';
+import { requirePermission } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,9 @@ export async function GET() {
 // PUT /api/ai/config - 更新AI配置
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:ai_manage');
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const supabase = getSupabaseClient();
 

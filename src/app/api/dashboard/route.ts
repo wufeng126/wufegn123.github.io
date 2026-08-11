@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
+import { requireAuth } from '@/lib/api-auth';
 
 // 获取当前月份
 function getCurrentYearMonth() {
@@ -30,6 +31,9 @@ function getRecentMonths(count: number): string[] {
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth(request as any);
+    if (!auth.ok) return auth.response;
+
     // 解析查询参数
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');

@@ -17,6 +17,11 @@ export async function GET(request: NextRequest) {
     
     // 获取指定用户的负责项目
     const targetUserId = userId ? parseInt(userId) : currentUser.id;
+
+    // 权限校验：本人可查自己的；他人仅超管/管理员可查（防 IDOR 越权读取）
+    if (targetUserId !== currentUser.id && !['super_admin', 'admin'].includes(currentUser.role || '')) {
+      return NextResponse.json({ error: '无权查看其他用户的负责项目' }, { status: 403 });
+    }
     
     const { data, error } = await client
       .from('users')
@@ -63,6 +68,11 @@ export async function PUT(request: NextRequest) {
     
     if (!user_id) {
       return NextResponse.json({ error: '用户ID不能为空' }, { status: 400 });
+    }
+
+    // 权限校验：仅本人可改自己的项目；他人仅超管/管理员可改（防 IDOR 越权篡改负责项目）
+    if (user_id !== currentUser.id && !['super_admin', 'admin'].includes(currentUser.role || '')) {
+      return NextResponse.json({ error: '无权修改其他用户的负责项目' }, { status: 403 });
     }
     
     // 更新用户的负责项目

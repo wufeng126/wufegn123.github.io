@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { syncAllSalaryPaymentStatus } from '@/lib/business-logic';
 import { auditLog } from '@/lib/audit-log';
 import { logSecurityEvent } from '@/lib/security-log';
+import { requireApiWritePermission } from '@/lib/api-auth';
 
 type SalaryPaymentBatchRow = {
   salary_id?: number | string | null;
@@ -71,6 +72,9 @@ async function validateSalaryPaymentRows(
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const payments = (body as { payments?: SalaryPaymentBatchRow[] }).payments;
 

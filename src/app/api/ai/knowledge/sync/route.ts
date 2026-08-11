@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAllBusinessData, getSyncStatus } from '@/lib/ai-knowledge-sync';
 import { extractForwardHeaders } from '@/lib/ai-service';
+import { requirePermission } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,14 +12,15 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    // 权限检查：管理员 或 携带定时任务密钥（供 Coze 定时/外部 cron 调用）
-    const userRole = request.headers.get('x-user-role') || 'team_leader';
+    // 权限检查：服务端 token 鉴权（管理员）或 携带定时任务密钥（供 Coze 定时/外部 cron 调用）
+    // 修复：不再信任可伪造的 x-user-role 请求头
     const cronSecret = request.headers.get('x-cron-secret') || '';
     const expectedSecret = process.env.AI_SYNC_CRON_SECRET || '';
-    const isAdmin = ['super_admin', 'admin'].includes(userRole);
     const isCron = Boolean(expectedSecret) && cronSecret === expectedSecret;
-    if (!isAdmin && !isCron) {
-      return NextResponse.json({ success: false, error: '仅管理员或定时任务可触发数据同步' }, { status: 403 });
+
+    if (!isCron) {
+      const auth = await requirePermission(request, 'system:ai_manage');
+      if (!auth.ok) return auth.response;
     }
 
     const forwardHeaders = extractForwardHeaders(request.headers);

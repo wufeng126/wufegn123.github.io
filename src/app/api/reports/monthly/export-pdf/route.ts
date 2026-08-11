@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logSecurityEvent } from '@/lib/security-log';
+import { requireAuth } from '@/lib/api-auth';
 
 // ─── Helpers ───────────────────────────────────────────────
 const fmt = (v: number): string => {
@@ -30,6 +31,9 @@ const riskColor = (v: number, isProfit = true): string => {
 // ─── GET: Export history ────────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');

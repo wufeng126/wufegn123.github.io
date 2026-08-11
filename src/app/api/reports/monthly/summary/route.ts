@@ -19,6 +19,7 @@ import {
   safeSum,
   toNumber,
 } from '@/services/monthly-report-summary';
+import { requireAuth } from '@/lib/api-auth';
 
 const supabase = getSupabaseClient();
 
@@ -73,6 +74,9 @@ interface RiskItem {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     const projectId = searchParams.get('projectId');

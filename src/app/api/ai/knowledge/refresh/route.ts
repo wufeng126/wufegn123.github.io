@@ -3,6 +3,7 @@ import { addKnowledgeDoc, extractForwardHeaders, createKnowledgeClient, DATASET_
 import { syncAllBusinessData, getSyncStatus } from '@/lib/ai-knowledge-sync';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { Config, KnowledgeClient } from 'coze-coding-dev-sdk';
+import { requirePermission } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,10 +14,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    const userRole = request.headers.get('x-user-role') || 'team_leader';
-    if (!['super_admin', 'admin'].includes(userRole)) {
-      return NextResponse.json({ success: false, error: '仅管理员可刷新知识库' }, { status: 403 });
-    }
+    // 修复：不再信任可伪造的 x-user-role 请求头，改服务端 token 鉴权
+    const auth = await requirePermission(request, 'system:ai_manage');
+    if (!auth.ok) return auth.response;
 
     const forwardHeaders = extractForwardHeaders(request.headers);
 

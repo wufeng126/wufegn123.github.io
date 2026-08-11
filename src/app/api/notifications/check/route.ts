@@ -5,6 +5,7 @@ import { notifyVisaWorkflow } from '@/lib/visa-workflow';
 import { buildNotificationExtra } from '@/lib/business-notification';
 import { generateConstructionDailyReport } from '@/lib/construction-daily-report';
 import { getDefaultDailyReportDate, getShanghaiHour } from '@/lib/construction-log-deadline';
+import { requirePermission } from '@/lib/api-auth';
 
 function isEnabled(value: unknown, fallback = false) {
   if (value === undefined || value === null) return fallback;
@@ -602,6 +603,15 @@ async function checkConstructionDailyReport(client: any, force = false) {
 // 主检测函数
 export async function GET(request: NextRequest) {
   try {
+    // 鉴权：定时任务密钥（阿里云 FC 定时调用携带 x-cron-secret）或登录管理员
+    // 修复：此前公开可反复触发 → 轰炸钉钉群
+    const cronSecret = request.headers.get('x-cron-secret') || '';
+    const expectedSecret = process.env.DINGTALK_TODO_DIGEST_CRON_SECRET || '';
+    if (!(expectedSecret && cronSecret === expectedSecret)) {
+      const auth = await requirePermission(request, 'system:ai_manage');
+      if (!auth.ok) return auth.response;
+    }
+
     const { searchParams } = new URL(request.url);
     const forceCheck = searchParams.get('force') === 'true';
 

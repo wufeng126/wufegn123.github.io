@@ -68,8 +68,6 @@ const INTERNAL_APIS = [
   '/api/worker-assignments',
   '/api/workers/check-duplicates',
   '/api/weather',
-  '/api/storage',
-  '/api/worker-cost-diagnostic',
 ];
 
 // 返回JSON错误响应
@@ -195,8 +193,14 @@ export async function middleware(request: NextRequest) {
   // 9. 验证并解析 token
   const authUser = normalizeAuthUser(await verifyToken(token));
   if (!authUser) {
-    // Token无效 — 不再服务端重定向，清除无效 cookie 后放行，由前端处理
-    console.log(`[Middleware] token解析失败, 放行由前端处理: ${pathname}`);
+    // Token无效：API 请求直接 401（防绕过——此前放行导致未认证可访问无内部鉴权的路由）
+    // 页面请求仍放行由前端处理，保持钉钉免登→前端跳转流程不受影响
+    if (isApiRequest(pathname)) {
+      console.log(`[Middleware] token无效, API拒绝: ${pathname}`);
+      const errResp = jsonError('登录已过期，请重新登录', 401);
+      return addCorsHeaders(errResp, request);
+    }
+    console.log(`[Middleware] token解析失败, 页面放行由前端处理: ${pathname}`);
     const nextResp = NextResponse.next();
     nextResp.cookies.delete('auth_token');
     return nextResp;
