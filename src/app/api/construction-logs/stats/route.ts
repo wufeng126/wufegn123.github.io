@@ -80,7 +80,7 @@ function getMonthRange(month?: string | null) {
   const end = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
   const isCurrentMonth = year === now.getFullYear() && monthIndex === now.getMonth();
   const expectedDays = isCurrentMonth ? now.getDate() : daysInMonth;
-  return { start, end, expectedDays };
+  return { start, end, expectedDays, isCurrentMonth };
 }
 
 function getExpectedDays(month: string | null, dateFrom: string | null, dateTo: string | null) {
