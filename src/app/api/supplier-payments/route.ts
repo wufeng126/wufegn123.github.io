@@ -86,7 +86,6 @@ export async function POST(request: NextRequest) {
     const { data: project } = body.project_id
       ? await supabase.from('projects').select('name').eq('id', Number(body.project_id)).maybeSingle()
       : { data: null };
-    const paymentAmount = Number(body.payment_amount || 0);
 
     // 钉钉推送通知
     await pushBusinessNotification({
