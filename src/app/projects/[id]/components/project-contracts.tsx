@@ -55,7 +55,8 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
     setAiUploading(true);
     setAiMsg('');
     try {
-      const results: string[] = [];
+      const uploaded: { name: string; docId?: number }[] = [];
+      let failMsg = '';
       for (const file of Array.from(files)) {
         const form = new FormData();
         form.append('file', file);
@@ -64,14 +65,38 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
         const res = await fetch('/api/ai/knowledge/upload', { method: 'POST', body: form });
         const json = await res.json();
         if (json.success) {
-          results.push(file.name);
+          const fileResult = (json.data?.results || []).find((r: any) => r.fileName === file.name);
+          uploaded.push({ name: file.name, docId: fileResult?.id });
         } else {
-          setAiMsg(json.error || `「${file.name}」入库失败`);
+          failMsg = json.error || `「${file.name}」入库失败`;
         }
       }
-      if (results.length > 0) {
-        setAiMsg(`✅ ${results.join('、')} 已入库 AI 知识库，可在「AI 劳务助手」中询问合同清单与单价`);
+
+      if (uploaded.length === 0) {
+        setAiMsg(failMsg || '上传失败');
+        return;
       }
+
+      // 上传成功后自动提取清单项+单价，生成结构化摘要（供 AI 精准回答清单/单价）
+      const extractMsgs: string[] = [];
+      for (const u of uploaded) {
+        if (!u.docId) continue;
+        try {
+          const er = await fetch('/api/ai/knowledge/extract-contract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_id: u.docId, title: u.name }),
+          });
+          const ej = await er.json();
+          if (ej.success && !ej.skipped) extractMsgs.push(`「${u.name}」已提取清单摘要`);
+          else if (ej.success && ej.skipped) extractMsgs.push(`「${u.name}」未识别到清单`);
+          else extractMsgs.push(`「${u.name}」提取失败`);
+        } catch {
+          extractMsgs.push(`「${u.name}」提取失败`);
+        }
+      }
+
+      setAiMsg(`✅ ${uploaded.map(u => u.name).join('、')} 已入库 AI 知识库。${extractMsgs.length > 0 ? extractMsgs.join('；') + '，可在「AI 劳务助手」中询问合同清单与单价。' : ''}${failMsg ? `（${failMsg}）` : ''}`);
     } catch (e) {
       setAiMsg('上传失败，请稍后重试');
     } finally { setAiUploading(false); }

@@ -190,7 +190,14 @@ export async function POST(request: NextRequest) {
         is_blacklist: is_blacklist || false,
         remark: remark || null,
       }, client);
-    if (workerError) throw workerError;
+    if (workerError) {
+      // 唯一索引冲突（同项目同身份证）→ 友好提示，不返回 500
+      const msg = String(workerError.message || '');
+      if (msg.includes('duplicate key') || msg.includes('unique constraint') || (workerError as { code?: string }).code === '23505') {
+        return NextResponse.json({ error: '该项目下已存在该身份证号的工人，无需重复添加（如需修改信息请用批量导入的覆盖更新）' }, { status: 400 });
+      }
+      throw workerError;
+    }
     const worker = Array.isArray(workerData) ? workerData[0] : workerData;
 
     // 创建对应的项目分配记录

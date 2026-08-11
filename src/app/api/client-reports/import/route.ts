@@ -186,13 +186,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '没有有效的数据可导入' }, { status: 400 });
     }
 
+    // 幂等查重：同一项目 + 报量日期 + 结算金额（+开票金额）视为重复，跳过（防止重复导入同一 Excel）
+    const dedupeKey = (r: any) =>
+      `${r.project_id}|${r.report_date}|${Number(r.settlement_amount)}|${Number(r.invoice_amount || 0)}`;
+    const dates = Array.from(new Set(records.map((r: any) => r.report_date)));
+    const { data: existingRows } = await client
+      .from('client_reports')
+      .select('project_id, report_date, settlement_amount, invoice_amount')
+      .in('report_date', dates);
+    const existingSet = new Set(
+      (existingRows || []).map((r: any) =>
+        `${r.project_id}|${r.report_date}|${Number(r.settlement_amount)}|${Number(r.invoice_amount || 0)}`
+      )
+    );
+    const newRecords = records.filter((r: any) => !existingSet.has(dedupeKey(r)));
+    const skippedCount = records.length - newRecords.length;
+
+    if (newRecords.length === 0) {
+      return NextResponse.json({ success: true, count: 0, skipped: skippedCount, message: `全部 ${records.length} 条记录已存在，无需重复导入` });
+    }
+
     // 批量插入
-    const { data, error } = await insertWithSequenceFix('client_reports', records, client);
+    const { data, error } = await insertWithSequenceFix('client_reports', newRecords, client);
 
     if (error) {
       // 如果新字段不存在，尝试使用旧字段结构
       if (error.message.includes('column') || error.message.includes('does not exist')) {
-        const legacyRecords = records.map((r) => ({
+        const legacyRecords = newRecords.map((r) => ({
           project_id: r.project_id,
           report_amount: r.settlement_amount,
           report_date: r.report_date,
@@ -212,6 +232,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ 
           success: true, 
           count: legacyData?.length || legacyRecords.length,
+          skipped: skippedCount,
+          message: skippedCount > 0 ? `导入 ${legacyData?.length || legacyRecords.length} 条，跳过已存在的 ${skippedCount} 条` : undefined,
           reports: legacyData 
         });
       }
@@ -220,7 +242,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      count: data?.length || records.length,
+      count: data?.length || newRecords.length,
+      skipped: skippedCount,
+      message: skippedCount > 0 ? `导入 ${data?.length || newRecords.length} 条，跳过已存在的 ${skippedCount} 条` : undefined,
       reports: data 
     });
   } catch (error: any) {

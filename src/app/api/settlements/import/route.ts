@@ -228,10 +228,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '没有有效的数据可导入' }, { status: 400 });
     }
 
+    // 幂等查重：同一供应商 + 结算类型 + 金额 + 月份（+日期）视为重复，跳过（防止重复导入同一 Excel）
+    const dedupeKey = (r: any) =>
+      `${r.supplier_id}|${r.settlement_type || ''}|${Number(r.settlement_amount)}|${r.settlement_month}|${r.settlement_date || ''}`;
+    const months = Array.from(new Set(records.map((r: any) => r.settlement_month)));
+    const { data: existingRows } = await client
+      .from('settlements')
+      .select('supplier_id, settlement_type, settlement_amount, settlement_month, settlement_date')
+      .in('settlement_month', months);
+    const existingSet = new Set(
+      (existingRows || []).map((r: any) =>
+        `${r.supplier_id}|${r.settlement_type || ''}|${Number(r.settlement_amount)}|${r.settlement_month}|${r.settlement_date || ''}`
+      )
+    );
+    const newRecords = records.filter((r: any) => !existingSet.has(dedupeKey(r)));
+    const skippedCount = records.length - newRecords.length;
+
+    if (newRecords.length === 0) {
+      return NextResponse.json({ success: true, count: 0, skipped: skippedCount, message: `全部 ${records.length} 条记录已存在，无需重复导入` });
+    }
+
     // 批量插入
     const { data, error } = await client
       .from('settlements')
-      .insert(records)
+      .insert(newRecords)
       .select();
 
     if (error) {
@@ -240,7 +260,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      count: data?.length || records.length,
+      count: data?.length || newRecords.length,
+      skipped: skippedCount,
+      message: skippedCount > 0 ? `导入 ${data?.length || newRecords.length} 条，跳过已存在的 ${skippedCount} 条` : undefined,
       settlements: data 
     });
   } catch (error: any) {
