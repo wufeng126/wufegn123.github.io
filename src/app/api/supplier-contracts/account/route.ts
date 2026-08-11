@@ -29,6 +29,7 @@ type ContractRecord = {
 type SettlementRecord = {
   contract_id?: number | string | null;
   settlement_amount?: number | string | null;
+  payable_amount?: number | string | null;
   status?: string | null;
 };
 
@@ -197,14 +198,16 @@ export async function GET(request: NextRequest) {
     });
 
     const settlementBySupplier = new Map<number, number>();
+    const payableBySupplier = new Map<number, number>();
     settlementRecords.forEach((settlement) => {
       if (isVoidedStatus(settlement.status)) return;
       const sid = contractToSupplier.get(Number(settlement.contract_id));
       if (!sid) return;
-      settlementBySupplier.set(
-        sid,
-        (settlementBySupplier.get(sid) || 0) + parseNumeric(settlement.settlement_amount)
-      );
+      const settlementAmount = parseNumeric(settlement.settlement_amount);
+      // 口径统一（D1）：应付以 payable_amount 为准（进度结算按比例）；payable 缺失时用结算额兜底
+      const payableAmount = parseNumeric(settlement.payable_amount) || settlementAmount;
+      settlementBySupplier.set(sid, (settlementBySupplier.get(sid) || 0) + settlementAmount);
+      payableBySupplier.set(sid, (payableBySupplier.get(sid) || 0) + payableAmount);
     });
 
     const paidBySupplier = new Map<number, number>();
@@ -215,14 +218,13 @@ export async function GET(request: NextRequest) {
       paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + parseNumeric(payment.payment_amount));
     });
 
-    // 老表数据并入台账（历史结算/付款不再因合同关联缺失而丢失）
+    // 老表数据并入台账（历史结算/付款不再因合同关联缺失而丢失；老表无 payable，按结算额兜底）
     legacySettlementRecords.forEach((settlement) => {
       const sid = Number(settlement.supplier_id);
       if (!sid) return;
-      settlementBySupplier.set(
-        sid,
-        (settlementBySupplier.get(sid) || 0) + parseNumeric(settlement.settlement_amount)
-      );
+      const amount = parseNumeric(settlement.settlement_amount);
+      settlementBySupplier.set(sid, (settlementBySupplier.get(sid) || 0) + amount);
+      payableBySupplier.set(sid, (payableBySupplier.get(sid) || 0) + amount);
     });
     legacyPaymentRecords.forEach((payment) => {
       const sid = Number(payment.supplier_id);
@@ -242,6 +244,7 @@ export async function GET(request: NextRequest) {
       const pendingContracts = activeContracts.filter(isPendingContract);
       const signedContractCount = Math.max(activeContracts.length - pendingContracts.length, 0);
       const totalSettlement = roundMoney(settlementBySupplier.get(sid) || 0);
+      const totalPayable = roundMoney(payableBySupplier.get(sid) || 0);
       const totalPaid = roundMoney(paidBySupplier.get(sid) || 0);
       const projectNames = Array.from(
         new Set(
@@ -265,8 +268,9 @@ export async function GET(request: NextRequest) {
         contract_status_label: getContractStatusLabel(supplierContracts),
         project_names: projectNames,
         total_settlement: totalSettlement,
+        total_payable: totalPayable,
         total_paid: totalPaid,
-        total_pending: roundMoney(totalSettlement - totalPaid),
+        total_pending: roundMoney(totalPayable - totalPaid), // 未付 = 应付 - 已付（口径与看板/结算汇总一致）
       };
     });
 

@@ -37,6 +37,11 @@ interface Contract {
   project_id?: number;
   contract_no?: string;
   contract_name: string;
+  sign_date?: string;
+  expire_date?: string;
+  supply_content?: string;
+  payment_method?: string;
+  remark?: string;
   payment_ratio_active: number;
   payment_ratio_complete: number;
   payment_ratio_final: number;
@@ -181,14 +186,15 @@ export default function SupplierContractsPage() {
       project_id: String(contract.project_id || ''),
       contract_no: contract.contract_no || '',
       contract_name: contract.contract_name,
-      sign_date: '',
-      expire_date: '',
-      supply_content: '',
+      // 修复：编辑时回填原值，避免保存时空值覆盖清空原字段
+      sign_date: contract.sign_date || '',
+      expire_date: contract.expire_date || '',
+      supply_content: contract.supply_content || '',
       payment_ratio_active: String(contract.payment_ratio_active || 80),
       payment_ratio_complete: String(contract.payment_ratio_complete || 95),
       payment_ratio_final: String(contract.payment_ratio_final || 0),
-      payment_method: '按进度付款',
-      remark: '',
+      payment_method: contract.payment_method || '按进度付款',
+      remark: contract.remark || '',
     });
     setContractDialogOpen(true);
   };

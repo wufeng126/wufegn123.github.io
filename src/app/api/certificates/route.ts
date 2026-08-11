@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
-import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
+import { requireAuth, requireApiWritePermission, requirePermission } from '@/lib/api-auth';
 
 // 获取证件状态
 function getCertificateStatus(expiryDate: string): 'normal' | 'expiring' | 'expired' {
@@ -26,7 +26,8 @@ function getCertificateStatus(expiryDate: string): 'normal' | 'expiring' | 'expi
 // 获取证件列表
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    // 修复：证件含编号等敏感信息，仅具备 certificates:edit 权限（超管/管理员）可读（与中间件口径一致的纵深防御）
+    const auth = await requirePermission(request, 'certificates:edit');
     if (!auth.ok) return auth.response;
 
     const client = getSupabaseClient();

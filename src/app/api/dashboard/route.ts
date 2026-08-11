@@ -591,9 +591,10 @@ export async function GET(request: Request) {
       return sum + (parseFloat(v.visa_amount || '0') || 0);
     }, 0) || 0;
     
-    // 计算开票金额总额（含税收入）
+    // 计算开票金额总额（含税收入）—— 口径统一（D3）：invoice → settlement → report 兜底
     const totalInvoiceAmount = clientReportsForTax?.reduce((sum, r) => {
-      return sum + (parseFloat(r.invoice_amount || '0') || 0);
+      const inv = parseFloat(r.invoice_amount || '0') || parseFloat(r.settlement_amount || '0') || parseFloat(r.report_amount || '0');
+      return sum + (inv || 0);
     }, 0) || 0;
     
     // 含税收入 = 开票金额 + 签证

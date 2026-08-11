@@ -2,14 +2,15 @@ import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { addKnowledgeDoc, extractForwardHeaders } from '@/lib/ai-service';
 import { syncAllBusinessData, syncSingleDataType } from '@/lib/ai-knowledge-sync';
-import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { requireApiWritePermission, requireAuth, requirePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiResult, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getKnowledgeQuality, normalizeKnowledgeTags, upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 
 // GET /api/ai/knowledge - 获取知识库文档列表
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    // 修复：知识库文档含自动同步的工资/证件等敏感数据，仅 AI 管理员可读（纵深防御）
+    const auth = await requirePermission(request, 'system:ai_manage');
     if (!auth.ok) return auth.response;
 
     const supabase = getSupabaseClient();

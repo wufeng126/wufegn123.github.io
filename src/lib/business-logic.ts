@@ -404,9 +404,15 @@ export async function validateSupplierSettlementPayment(params: {
   return { valid: true, unpaidBalance, message: '' };
 }
 
+/** 甲方收入统一口径（D3）：invoice → settlement → report（与 data-aggregation 一致，避免多处 fallback 顺序不同） */
+export function resolveReportedIncome(invoice?: number | string | null, settlement?: number | string | null, report?: number | string | null): number {
+  return parseNumeric(invoice) || parseNumeric(settlement) || parseNumeric(report) || 0;
+}
+
 export async function getProjectReportedAmount(projectId: number): Promise<{
   totalSettlement: number;  // 结算金额
   totalInvoice: number;     // 开票金额
+  totalReported: number;    // 收入口径（invoice → settlement fallback）
 }> {
   const client = getSupabaseClient();
   const { data: reports } = await client
@@ -419,6 +425,7 @@ export async function getProjectReportedAmount(projectId: number): Promise<{
   return {
     totalSettlement: activeReports.reduce((sum: number, r: any) => sum + parseNumeric(r.settlement_amount), 0),
     totalInvoice: activeReports.reduce((sum: number, r: any) => sum + parseNumeric(r.invoice_amount), 0),
+    totalReported: activeReports.reduce((sum: number, r: any) => sum + resolveReportedIncome(r.invoice_amount, r.settlement_amount), 0),
   };
 }
 
