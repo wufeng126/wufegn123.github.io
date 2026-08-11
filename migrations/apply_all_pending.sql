@@ -6,6 +6,10 @@
 
 -- ############ 第 1 部分：AI 功能基础设施 ############
 
+-- 1. AI 全局配置表（ai_configs）
+CREATE TABLE IF NOT EXISTS ai_configs (
+  id serial PRIMARY KEY,
+  model_id varchar(100) NOT NULL,
   api_endpoint text,
   api_key varchar(500),
   max_context_length integer NOT NULL DEFAULT 20,
@@ -108,6 +112,8 @@ NOTIFY pgrst, 'reload schema';
 
 -- ############ 第 2 部分：供应商模块 ############
 
+-- 1. 供应商合同表
+CREATE TABLE IF NOT EXISTS supplier_contracts (
   id serial PRIMARY KEY,
   supplier_id integer NOT NULL,
   project_id integer,
