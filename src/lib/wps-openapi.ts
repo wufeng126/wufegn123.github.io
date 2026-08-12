@@ -63,9 +63,21 @@ type WpsRecordsResponse = {
     items?: unknown[];
     rows?: unknown[];
     total?: number;
+    total_count?: number;
+    totalCount?: number;
     has_more?: boolean;
+    hasMore?: boolean;
     page_token?: string;
     next_page_token?: string;
+    nextPageToken?: string;
+    page_info?: {
+      total?: number;
+      total_count?: number;
+      has_more?: boolean;
+      hasMore?: boolean;
+      next_page_token?: string;
+      nextPageToken?: string;
+    };
   };
   records?: unknown[];
   items?: unknown[];
@@ -230,11 +242,19 @@ export async function listWpsDbsheetRecords(config: WpsIntegrationConfig, sheetI
   const fileId = required(config.fileId || extractWpsFileId(config.documentUrl), 'WPS 多维表格文件 ID');
   const accessToken = await getWpsAccessToken(config);
   const records: Record<string, unknown>[] = [];
+  const pageSize = 100;
   let pageNum = 1;
+  let pageToken = '';
 
-  while (pageNum <= 100) {
+  while (pageNum <= 200) {
     const requestUri = `/v7/coop/dbsheet/${encodeURIComponent(fileId)}/sheets/${encodeURIComponent(sheetId)}/records/list_by_page`;
-    const body = JSON.stringify({ fields: [], page_num: pageNum, page_size: 500, prefer_id: false });
+    const body = JSON.stringify({
+      fields: [],
+      page_num: pageNum,
+      page_size: pageSize,
+      prefer_id: false,
+      ...(pageToken ? { page_token: pageToken } : {}),
+    });
     const response = await fetch(`https://openapi.wps.cn${requestUri}`, {
       method: 'POST',
       cache: 'no-store',
@@ -248,7 +268,20 @@ export async function listWpsDbsheetRecords(config: WpsIntegrationConfig, sheetI
     assertWpsSuccess(json, 'WPS 记录读取失败');
     const pageRecords = json.data?.records || json.data?.items || json.data?.rows || json.records || json.items || json.rows || [];
     records.push(...pageRecords.map(normalizeRecord));
-    if (pageRecords.length < 500 || json.data?.has_more === false) break;
+
+    const pageInfo = json.data?.page_info;
+    const total = Number(json.data?.total ?? json.data?.total_count ?? json.data?.totalCount ?? pageInfo?.total ?? pageInfo?.total_count ?? 0);
+    const rawHasMore = json.data?.has_more ?? json.data?.hasMore ?? pageInfo?.has_more ?? pageInfo?.hasMore;
+    const hasMore = Boolean(rawHasMore);
+    const nextPageToken = String(json.data?.next_page_token ?? json.data?.nextPageToken ?? pageInfo?.next_page_token ?? pageInfo?.nextPageToken ?? '').trim();
+    if (pageRecords.length === 0) break;
+    if (total > 0 && records.length >= total) break;
+    if (rawHasMore === false && !(total > records.length)) break;
+    if (!hasMore && pageRecords.length < pageSize && !(total > records.length)) break;
+    if (nextPageToken) {
+      if (nextPageToken === pageToken) break;
+      pageToken = nextPageToken;
+    }
     pageNum += 1;
   }
 

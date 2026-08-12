@@ -26,6 +26,7 @@ interface Supplier {
   name: string;
   type: string | null;
   contact_person: string | null;
+  contact?: string | null;
   phone: string | null;
   remark: string | null;
   created_at: string;
@@ -210,7 +211,23 @@ export default function SuppliersPage() {
   }, [fetchUser, fetchSuppliers, fetchSupplierStats, fetchContracts, fetchProjects]);
 
   // 筛选后的数据
-  const filteredStats = (supplierStats || []).filter((s) => {
+  const supplierLedgerRows: SupplierWithStats[] = supplierStats.length > 0
+    ? supplierStats
+    : suppliers.map((supplier) => ({
+        ...supplier,
+        contact_person: supplier.contact_person || supplier.contact || '',
+        type: supplier.type || 'supplier',
+        contract_count: 0,
+        signed_contract_count: 0,
+        pending_contract_count: 0,
+        contract_status_label: '暂无合同',
+        project_names: [],
+        total_settlement: 0,
+        total_paid: 0,
+        total_pending: 0,
+      }));
+
+  const filteredStats = (supplierLedgerRows || []).filter((s) => {
     if (!s) return false;
     const name = String(s.name || '');
     if (searchKeyword && !name.toLowerCase().includes(searchKeyword.toLowerCase())) return false;
@@ -242,7 +259,7 @@ export default function SuppliersPage() {
 
   const supplierTypeOptions = Array.from(
     new Map(
-      supplierStats.map((supplier) => [
+      supplierLedgerRows.map((supplier) => [
         String(supplier.type || '未分类'),
         getSupplierTypeLabel(supplier.type),
       ])
@@ -603,7 +620,7 @@ export default function SuppliersPage() {
                     <SelectTrigger className="h-9 w-full sm:w-36"><SelectValue placeholder="选择供应商" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部供应商</SelectItem>
-                      {supplierStats.map(s => <SelectItem key={s.id} value={String(s.id)}>{String(s.name || '')}</SelectItem>)}
+                      {supplierLedgerRows.map(s => <SelectItem key={s.id} value={String(s.id)}>{String(s.name || '')}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={filterSupplierType} onValueChange={setFilterSupplierType}>

@@ -98,7 +98,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '证件管理', href: '/certificates', icon: 'doc' },
   ],
   '/supplier-expense': [
-    { name: '供应商库', href: '/suppliers', icon: 'building' },
+    { name: '供应商库', href: '/supplier-expense?tab=suppliers', icon: 'building' },
     { name: '合同管理', href: '/supplier-contracts', icon: 'doc' },
     { name: '结算管理', href: '/settlements', icon: 'chart' },
     { name: '付款记录', href: '/payments', icon: 'money' },
@@ -126,6 +126,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '权限中心', href: '/system/permission', icon: 'doc' },
     { name: '通知中心', href: '/notifications', icon: 'alert' },
     { name: '钉钉绑定', href: '/system/dingtalk-binding', icon: 'doc' },
+    { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: 'doc', permissions: ['system:manage'] },
     { name: 'AI 助手配置', href: '/system/ai-config', icon: 'doc' },
     { name: '审批流程', href: '/system/approval-config', icon: 'doc' },
     { name: '数据备份', href: '/settings/backup', icon: 'doc' },
@@ -176,6 +177,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/miscellaneous-materials': '零星材料',
   '/settings/backup': '数据备份管理',
   '/system/dingtalk-binding': '钉钉通讯录绑定',
+  '/system/wps-config': 'WPS 花名册同步',
   '/system/ai-config': 'AI 助手配置',
   '/system/permission': '权限管理中心',
   '/system/audit-logs': '日志管理',
@@ -329,6 +331,14 @@ export default function SidebarLayout({
     if (href.startsWith('/construction-logs?tab=')) {
       const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
       return pathname === '/construction-logs' && activeConstructionTab === tab;
+    }
+    if (href.startsWith('/system-management?tab=')) {
+      const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
+      return pathname === '/system-management' && searchParams.get('tab') === tab;
+    }
+    if (href.startsWith('/supplier-expense?tab=')) {
+      const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
+      return pathname === '/supplier-expense' && (searchParams.get('tab') || 'suppliers') === tab;
     }
     if (href === '/construction-logs') {
       return pathname === '/construction-logs' && activeConstructionTab === 'logs';
