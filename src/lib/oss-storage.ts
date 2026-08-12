@@ -103,7 +103,7 @@ function getClient(): S3Client {
   cachedClient = new S3Client({
     endpoint,
     region,
-    forcePathStyle: true, // 阿里云 OSS 支持 path-style
+    forcePathStyle: false, // 阿里云 OSS 使用虚拟主机风格（bucket.endpoint）
     credentials: {
       accessKeyId,
       secretAccessKey,
