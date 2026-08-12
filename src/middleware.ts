@@ -64,6 +64,7 @@ const INTERNAL_APIS = [
   '/api/reports',
   '/api/dingtalk',
   '/api/auth/center',
+  '/api/storage',
   '/api/init',
   '/api/worker-assignments',
   '/api/workers/check-duplicates',
