@@ -327,20 +327,36 @@ export default function SidebarLayout({
     .filter((menu): menu is (typeof TOP_LEVEL_MENUS)[number] => Boolean(menu && isMenuVisible(menu.href)))
     .slice(0, 4);
 
+  const normalizeSystemManagementHref = (href: string) => {
+    const legacyHrefMap: Record<string, string> = {
+      '/system/permission': '/system-management?tab=permission',
+      '/notifications': '/system-management?tab=notifications',
+      '/system/dingtalk-binding': '/system-management?tab=dingtalk',
+      '/system/wps-config': '/system-management?tab=wps-config',
+      '/system/ai-config': '/system-management?tab=ai-config',
+      '/system/approval-config': '/system-management?tab=approval',
+      '/system/audit-logs': '/system-management?tab=audit-logs',
+    };
+
+    return legacyHrefMap[href] ?? href;
+  };
+
   const isSecondaryActive = (href: string) => {
-    if (href.startsWith('/construction-logs?tab=')) {
-      const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
+    const normalizedHref = normalizeSystemManagementHref(href);
+
+    if (normalizedHref.startsWith('/construction-logs?tab=')) {
+      const tab = new URLSearchParams(normalizedHref.split('?')[1] || '').get('tab');
       return pathname === '/construction-logs' && activeConstructionTab === tab;
     }
-    if (href.startsWith('/system-management?tab=')) {
-      const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
+    if (normalizedHref.startsWith('/system-management?tab=')) {
+      const tab = new URLSearchParams(normalizedHref.split('?')[1] || '').get('tab');
       return pathname === '/system-management' && searchParams.get('tab') === tab;
     }
-    if (href.startsWith('/supplier-expense?tab=')) {
-      const tab = new URLSearchParams(href.split('?')[1] || '').get('tab');
+    if (normalizedHref.startsWith('/supplier-expense?tab=')) {
+      const tab = new URLSearchParams(normalizedHref.split('?')[1] || '').get('tab');
       return pathname === '/supplier-expense' && (searchParams.get('tab') || 'suppliers') === tab;
     }
-    if (href === '/construction-logs') {
+    if (normalizedHref === '/construction-logs') {
       return pathname === '/construction-logs' && activeConstructionTab === 'logs';
     }
     if (pathname === '/project-center') {
@@ -353,7 +369,7 @@ export default function SidebarLayout({
         'client-payments': '/client-payments',
         'evidence-chain': '/evidence-chain',
       };
-      return projectTabHref[activeProjectTab] === href;
+      return projectTabHref[activeProjectTab] === normalizedHref;
     }
     if (pathname === '/hr-salary') {
       const hrTabHref: Record<string, string> = {
@@ -364,9 +380,9 @@ export default function SidebarLayout({
         payments: '/workers/payments',
         query: '/workers/query',
       };
-      return hrTabHref[activeHrTab] === href;
+      return hrTabHref[activeHrTab] === normalizedHref;
     }
-    return pathname.startsWith(href);
+    return pathname.startsWith(normalizedHref);
   };
 
   // 获取当前页面标题
@@ -616,10 +632,11 @@ export default function SidebarLayout({
                       <div className="mt-1 space-y-1 pb-1 pl-11">
                         {secondaryMenus.map((item) => {
                           const isSubActive = isSecondaryActive(item.href);
+                          const itemHref = normalizeSystemManagementHref(item.href);
                           return (
                             <Link
                               key={item.href}
-                              href={item.href}
+                              href={itemHref}
                               className="flex items-center gap-2 rounded-md px-3 py-2 text-xs transition"
                               style={{
                                 background: isSubActive ? '#F1F5FF' : 'transparent',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   AlertCircle,
   CheckCircle2,
@@ -242,6 +243,8 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
 }
 
 export default function WpsConfigPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const [bindings, setBindings] = useState<WpsBinding[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -264,6 +267,12 @@ export default function WpsConfigPage() {
 
   const fieldOptions = useMemo(() => allFields(sheets), [sheets]);
   const webhookUrl = `${origin}${integration.webhookPath}`;
+
+  useEffect(() => {
+    if (pathname === '/system/wps-config') {
+      router.replace('/system-management?tab=wps-config');
+    }
+  }, [pathname, router]);
 
   const fetchLogs = useCallback(async () => {
     try {

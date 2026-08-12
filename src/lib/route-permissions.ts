@@ -176,7 +176,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/supplier-contracts/account-dashboard': { permission: 'settlements:view' },
 
   // === AI助手模块 ===
-  '/ai-assistant': { permission: 'system:ai_manage' },
+  '/ai-assistant': { permission: 'ai:chat' },
 
   // === 系统管理模块 ===
   '/notifications': { permission: 'notifications:view' },
@@ -284,7 +284,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/notifications': 'notifications:settings',
 
   // AI 管理
-  '/api/ai/chat': 'projects:view',
+  '/api/ai/chat': 'ai:chat',
   '/api/ai/audit': 'system:ai_manage',
   '/api/ai/config': 'system:ai_manage',
   '/api/ai/knowledge': 'system:ai_manage',
