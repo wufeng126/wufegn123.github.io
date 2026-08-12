@@ -263,6 +263,173 @@ export function calculatePayableAmount(
 /**
  * 获取合同下的已付总额
  */
+type SupplierSettlementLikeRow = {
+  id?: number | null;
+  contract_id?: number | null;
+  settlement_amount?: unknown;
+  payable_amount?: unknown;
+  status?: string | null;
+  settlement_date?: string | null;
+  created_at?: string | null;
+  settlement_type?: string | null;
+};
+
+type SupplierPaymentLikeRow = {
+  id?: number | null;
+  contract_id?: number | null;
+  payment_amount?: unknown;
+  status?: string | null;
+  payment_date?: string | null;
+  created_at?: string | null;
+};
+
+export type SupplierSettlementCumulative = {
+  totalAmount: number;
+  totalPayable: number;
+  paidAmount: number;
+  progressPending: number;
+  finalPending: number;
+};
+
+export type SupplierSettlementSummary = {
+  totalSettlements: number;
+  totalAmount: number;
+  totalPayable: number;
+  totalFinalPayable: number;
+  totalPaid: number;
+  totalProgressPending: number;
+  totalFinalPending: number;
+  hasFinalSettlement: boolean;
+};
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function getDateKey(value?: string | null, fallback?: string | null) {
+  return String(value || fallback || '').split('T')[0] || '9999-12-31';
+}
+
+function compareSettlementRowsAsc(a: SupplierSettlementLikeRow, b: SupplierSettlementLikeRow) {
+  const dateCompare = getDateKey(a.settlement_date, a.created_at).localeCompare(getDateKey(b.settlement_date, b.created_at));
+  if (dateCompare !== 0) return dateCompare;
+  const createdCompare = String(a.created_at || '').localeCompare(String(b.created_at || ''));
+  if (createdCompare !== 0) return createdCompare;
+  return parseNumeric(a.id) - parseNumeric(b.id);
+}
+
+function comparePaymentRowsAsc(
+  a: { dateKey: string; createdAt: string; id: number },
+  b: { dateKey: string; createdAt: string; id: number }
+) {
+  const dateCompare = a.dateKey.localeCompare(b.dateKey);
+  if (dateCompare !== 0) return dateCompare;
+  const createdCompare = a.createdAt.localeCompare(b.createdAt);
+  if (createdCompare !== 0) return createdCompare;
+  return a.id - b.id;
+}
+
+export function isFinalSettlementType(type?: string | null) {
+  const normalized = String(type || '').trim().toLowerCase();
+  return (
+    normalized === 'final' ||
+    normalized === 'complete' ||
+    normalized === 'completed' ||
+    normalized.includes('结算完') ||
+    normalized.includes('最终') ||
+    normalized.includes('总结') ||
+    normalized.includes('决算')
+  );
+}
+
+export function summarizeSupplierSettlementRows(
+  settlements: SupplierSettlementLikeRow[],
+  payments: SupplierPaymentLikeRow[] = []
+): SupplierSettlementSummary {
+  const activeSettlements = (settlements || []).filter((settlement) => !isVoidedStatus(settlement.status));
+  const effectivePayments = (payments || []).filter((payment) => isEffectiveSupplierPaymentStatus(payment.status));
+  const totalAmount = roundMoney(activeSettlements.reduce((sum, settlement) => sum + parseNumeric(settlement.settlement_amount), 0));
+  const totalPayable = roundMoney(activeSettlements.reduce((sum, settlement) => sum + parseNumeric(settlement.payable_amount), 0));
+  const totalPaid = roundMoney(effectivePayments.reduce((sum, payment) => sum + parseNumeric(payment.payment_amount), 0));
+
+  return {
+    totalSettlements: activeSettlements.length,
+    totalAmount,
+    totalPayable,
+    totalFinalPayable: totalAmount,
+    totalPaid,
+    totalProgressPending: Math.max(0, roundMoney(totalPayable - totalPaid)),
+    totalFinalPending: Math.max(0, roundMoney(totalAmount - totalPaid)),
+    hasFinalSettlement: activeSettlements.some((settlement) => isFinalSettlementType(settlement.settlement_type)),
+  };
+}
+
+export function buildSupplierSettlementCumulativeMap(
+  settlements: SupplierSettlementLikeRow[],
+  payments: SupplierPaymentLikeRow[] = []
+): Map<number, SupplierSettlementCumulative> {
+  const timelineBySettlementId = new Map<number, SupplierSettlementCumulative>();
+  const settlementsByContract = new Map<number, SupplierSettlementLikeRow[]>();
+  const paymentsByContract = new Map<number, Array<{ id: number; amount: number; dateKey: string; createdAt: string }>>();
+
+  (payments || [])
+    .filter((payment) => isEffectiveSupplierPaymentStatus(payment.status))
+    .forEach((payment) => {
+      const contractId = Number(payment.contract_id || 0);
+      if (!contractId) return;
+      const rows = paymentsByContract.get(contractId) || [];
+      rows.push({
+        id: Number(payment.id || 0),
+        amount: parseNumeric(payment.payment_amount),
+        dateKey: getDateKey(payment.payment_date, payment.created_at),
+        createdAt: String(payment.created_at || ''),
+      });
+      paymentsByContract.set(contractId, rows);
+    });
+
+  paymentsByContract.forEach((rows) => rows.sort(comparePaymentRowsAsc));
+
+  (settlements || [])
+    .filter((settlement) => !isVoidedStatus(settlement.status))
+    .forEach((settlement) => {
+      const contractId = Number(settlement.contract_id || 0);
+      if (!contractId) return;
+      const rows = settlementsByContract.get(contractId) || [];
+      rows.push(settlement);
+      settlementsByContract.set(contractId, rows);
+    });
+
+  settlementsByContract.forEach((rows, contractId) => {
+    const contractPayments = paymentsByContract.get(contractId) || [];
+    const sortedRows = [...rows].sort(compareSettlementRowsAsc);
+    let totalAmount = 0;
+    let totalPayable = 0;
+    let runningPaid = 0;
+    let paymentIndex = 0;
+
+    sortedRows.forEach((settlement) => {
+      totalAmount = roundMoney(totalAmount + parseNumeric(settlement.settlement_amount));
+      totalPayable = roundMoney(totalPayable + parseNumeric(settlement.payable_amount));
+      const settlementDateKey = getDateKey(settlement.settlement_date, settlement.created_at);
+
+      while (paymentIndex < contractPayments.length && contractPayments[paymentIndex].dateKey <= settlementDateKey) {
+        runningPaid = roundMoney(runningPaid + contractPayments[paymentIndex].amount);
+        paymentIndex += 1;
+      }
+
+      timelineBySettlementId.set(Number(settlement.id || 0), {
+        totalAmount,
+        totalPayable,
+        paidAmount: runningPaid,
+        progressPending: Math.max(0, roundMoney(totalPayable - runningPaid)),
+        finalPending: Math.max(0, roundMoney(totalAmount - runningPaid)),
+      });
+    });
+  });
+
+  return timelineBySettlementId;
+}
+
 export async function getContractPaidAmount(contractId: number): Promise<number> {
   const client = getSupabaseClient();
   const { data: payments } = await client
@@ -286,13 +453,11 @@ export async function getContractSettlementSummary(contractId: number) {
     .select('settlement_amount, payable_amount, status')
     .eq('contract_id', contractId);
 
-  const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
-  const totalSettlement = activeSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
-  const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.payable_amount), 0);
+  const summary = summarizeSupplierSettlementRows((settlements || []) as SupplierSettlementLikeRow[]);
 
   return {
-    totalSettlement,  // 决算应付 = 累计结算金额
-    totalPayable,     // 履约应付 = 各期应付之和
+    totalSettlement: summary.totalAmount,
+    totalPayable: summary.totalPayable,
   };
 }
 

@@ -3,7 +3,13 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { isEffectiveSupplierPaymentStatus, isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
+import {
+  buildSupplierSettlementCumulativeMap,
+  isEffectiveSupplierPaymentStatus,
+  isVoidedStatus,
+  REVIEW_STATUS,
+  summarizeSupplierSettlementRows,
+} from '@/lib/business-logic';
 
 function toNumber(value: unknown) {
   const num = Number(value || 0);
@@ -123,75 +129,16 @@ export async function GET(request: NextRequest) {
 
     const activeSettlements = result.filter((s: any) => !isVoidedStatus(s.status));
     const settlementContractIds = [...new Set(activeSettlements.map((s: any) => s.contract_id).filter(Boolean))];
-    const contractPaymentsMap = new Map<number, Array<{ amount: number; dateKey: string; createdAt: string; id: number }>>();
+    let paymentRows: any[] = [];
     if (settlementContractIds.length > 0) {
       const { data: payments } = await supabase
         .from('supplier_payments')
         .select('id, contract_id, payment_amount, payment_date, created_at, status')
         .in('contract_id', settlementContractIds);
-
-      (payments || [])
-        .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
-        .forEach((payment: any) => {
-          const contractId = Number(payment.contract_id);
-          if (!contractId) return;
-          const rows = contractPaymentsMap.get(contractId) || [];
-          rows.push({
-            id: toNumber(payment.id),
-            amount: toNumber(payment.payment_amount),
-            dateKey: getSortDate(payment.payment_date, payment.created_at),
-            createdAt: String(payment.created_at || ''),
-          });
-          contractPaymentsMap.set(contractId, rows);
-        });
+      paymentRows = payments || [];
     }
 
-    contractPaymentsMap.forEach((payments) => {
-      payments.sort((a, b) => {
-        const dateCompare = a.dateKey.localeCompare(b.dateKey);
-        if (dateCompare !== 0) return dateCompare;
-        const createdCompare = a.createdAt.localeCompare(b.createdAt);
-        if (createdCompare !== 0) return createdCompare;
-        return a.id - b.id;
-      });
-    });
-
-    const cumulativeBySettlementId = new Map<number, {
-      totalAmount: number;
-      totalPayable: number;
-      paidAmount: number;
-      progressPending: number;
-      finalPending: number;
-    }>();
-
-    const settlementsByContract = new Map<number, any[]>();
-    activeSettlements.forEach((settlement: any) => {
-      const contractId = Number(settlement.contract_id);
-      if (!contractId) return;
-      const rows = settlementsByContract.get(contractId) || [];
-      rows.push(settlement);
-      settlementsByContract.set(contractId, rows);
-    });
-
-    settlementsByContract.forEach((rows, contractId) => {
-      let totalAmount = 0;
-      let totalPayable = 0;
-      rows.sort(compareBySettlementDateAsc).forEach((settlement: any) => {
-        totalAmount = roundMoney(totalAmount + toNumber(settlement.settlement_amount));
-        totalPayable = roundMoney(totalPayable + toNumber(settlement.payable_amount));
-        const settlementDateKey = getSortDate(settlement.settlement_date, settlement.created_at);
-        const paidAmount = roundMoney((contractPaymentsMap.get(contractId) || [])
-          .filter((payment) => payment.dateKey <= settlementDateKey)
-          .reduce((sum, payment) => sum + payment.amount, 0));
-        cumulativeBySettlementId.set(Number(settlement.id), {
-          totalAmount,
-          totalPayable,
-          paidAmount,
-          progressPending: Math.max(0, roundMoney(totalPayable - paidAmount)),
-          finalPending: Math.max(0, roundMoney(totalAmount - paidAmount)),
-        });
-      });
-    });
+    const cumulativeBySettlementId = buildSupplierSettlementCumulativeMap(activeSettlements, paymentRows);
 
     result = result
       .map((settlement: any) => {
@@ -213,25 +160,18 @@ export async function GET(request: NextRequest) {
       })
       .sort(compareBySettlementDateDesc);
 
-    const totalPaid = Array.from(contractPaymentsMap.values())
-      .flat()
-      .reduce((sum, payment) => sum + payment.amount, 0);
-    const totalAmount = activeSettlements.reduce((sum: number, s: any) => sum + toNumber(s.settlement_amount), 0);
-    const totalPayable = activeSettlements.reduce((sum: number, s: any) => sum + toNumber(s.payable_amount), 0);
-    const totalFinalPayable = totalAmount;
-    const totalProgressPending = Math.max(0, totalPayable - totalPaid);
-    const totalFinalPending = Math.max(0, totalFinalPayable - totalPaid);
+    const summary = summarizeSupplierSettlementRows(activeSettlements, paymentRows);
 
     return NextResponse.json({
       settlements: result,
       summary: {
-        totalSettlements: activeSettlements.length,
-        totalAmount,
-        totalPayable,
-        totalFinalPayable,
-        totalPaid,
-        totalProgressPending,
-        totalFinalPending,
+        totalSettlements: summary.totalSettlements,
+        totalAmount: summary.totalAmount,
+        totalPayable: summary.totalPayable,
+        totalFinalPayable: summary.totalFinalPayable,
+        totalPaid: summary.totalPaid,
+        totalProgressPending: summary.totalProgressPending,
+        totalFinalPending: summary.totalFinalPending,
       },
     });
   } catch (error: any) {

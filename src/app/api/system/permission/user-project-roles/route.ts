@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { requireSuperAdmin } from "@/lib/api-auth";
 import {
   isMissingProjectRolesTable,
   normalizeProjectRoleCodes,
   PROJECT_ROLE_LABELS,
   type ProjectRoleCode,
-} from '@/lib/user-project-roles';
+} from "@/lib/user-project-roles";
 
 type ProjectRoleRow = {
   id?: number;
@@ -26,11 +26,11 @@ function getErrorMessage(error: unknown) {
 
 function normalizeProjectIds(value: unknown): number[] {
   try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map((projectId) => Number(projectId))
-      .filter((projectId) => Number.isInteger(projectId));
+      .filter((projectId) => Number.isInteger(projectId) && projectId > 0);
   } catch {
     return [];
   }
@@ -62,20 +62,20 @@ function groupRows(rows: ProjectRoleRow[]) {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
 
-    const userId = Number(request.nextUrl.searchParams.get('user_id') || 0);
+    const userId = Number(request.nextUrl.searchParams.get("user_id") || 0);
     const client = getSupabaseClient();
 
     let query = client
-      .from('user_project_roles')
-      .select('id,user_id,project_id,role_code')
-      .order('user_id', { ascending: true })
-      .order('project_id', { ascending: true });
+      .from("user_project_roles")
+      .select("id,user_id,project_id,role_code")
+      .order("user_id", { ascending: true })
+      .order("project_id", { ascending: true });
 
     if (userId) {
-      query = query.eq('user_id', userId);
+      query = query.eq("user_id", userId);
     }
 
     const { data, error } = await query;
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
@@ -114,7 +114,7 @@ export async function PUT(request: NextRequest) {
     const assignments = Array.isArray(body.assignments) ? (body.assignments as ProjectRolePayload[]) : [];
 
     if (!userId) {
-      return NextResponse.json({ success: false, error: '用户ID不能为空' }, { status: 400 });
+      return NextResponse.json({ success: false, error: "用户ID不能为空" }, { status: 400 });
     }
 
     const rows = assignments.flatMap((assignment) => {
@@ -131,9 +131,9 @@ export async function PUT(request: NextRequest) {
     const client = getSupabaseClient();
 
     const { data: existingUser, error: userError } = await client
-      .from('users')
-      .select('id,managed_projects')
-      .eq('id', userId)
+      .from("users")
+      .select("id,managed_projects")
+      .eq("id", userId)
       .maybeSingle();
 
     if (userError) {
@@ -141,18 +141,18 @@ export async function PUT(request: NextRequest) {
     }
 
     if (!existingUser) {
-      return NextResponse.json({ success: false, error: '用户不存在' }, { status: 404 });
+      return NextResponse.json({ success: false, error: "用户不存在" }, { status: 404 });
     }
 
     const { error: deleteError } = await client
-      .from('user_project_roles')
+      .from("user_project_roles")
       .delete()
-      .eq('user_id', userId);
+      .eq("user_id", userId);
 
     if (deleteError) {
       if (isMissingProjectRolesTable(deleteError)) {
         return NextResponse.json(
-          { success: false, error: '项目身份配置表不存在，请先执行数据库迁移 create_user_project_roles.sql' },
+          { success: false, error: "项目身份配置表不存在，请先执行数据库迁移 create_user_project_roles.sql" },
           { status: 500 }
         );
       }
@@ -161,21 +161,25 @@ export async function PUT(request: NextRequest) {
     }
 
     if (rows.length > 0) {
-      const { error: insertError } = await client.from('user_project_roles').insert(rows);
+      const { error: insertError } = await client.from("user_project_roles").insert(rows);
       if (insertError) {
         return NextResponse.json({ success: false, error: insertError.message }, { status: 500 });
       }
     }
 
+    const roleProjectIds = Array.from(new Set(rows.map((row) => row.project_id)));
     const currentProjectIds = normalizeProjectIds((existingUser as { managed_projects?: unknown }).managed_projects);
-    const roleProjectIds = rows.map((row) => row.project_id);
-    const mergedProjectIds = Array.from(new Set([...currentProjectIds, ...roleProjectIds]));
+    const nextProjectIds = roleProjectIds;
 
-    if (mergedProjectIds.length !== currentProjectIds.length) {
+    const projectIdsChanged =
+      nextProjectIds.length !== currentProjectIds.length ||
+      nextProjectIds.some((projectId, index) => projectId !== currentProjectIds[index]);
+
+    if (projectIdsChanged) {
       const { error: updateError } = await client
-        .from('users')
-        .update({ managed_projects: mergedProjectIds })
-        .eq('id', userId);
+        .from("users")
+        .update({ managed_projects: nextProjectIds })
+        .eq("id", userId);
 
       if (updateError) {
         return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
