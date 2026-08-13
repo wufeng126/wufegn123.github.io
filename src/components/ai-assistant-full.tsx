@@ -53,9 +53,9 @@ const ROLE_GROUPS = [
   {
     group: '💰 预算',
     items: [
-      { label: '未付款供应商', prompt: '列出所有有未付款的供应商，按未付金额排序' },
-      { label: '签证变更统计', prompt: '统计各项目的签证变更金额和影响' },
-      { label: '超支预警', prompt: '筛选未付金额超过10万的供应商，给出风险提示' },
+      { label: '工人工资明细', prompt: '查询张三的工资明细，按月份列出应发、实发/应付、已发和未发' },
+      { label: '合同清单查询', prompt: '查询某项目合同清单，列出清单项、工作内容、单位、匹配量和合同单价' },
+      { label: '清单项内容', prompt: '查询某项目某个清单项的工作内容、计量单位和合同单价' },
     ],
   },
   {
@@ -72,17 +72,17 @@ const TEMPLATE_CATEGORIES = [
   {
     group: '工人工资',
     items: [
-      { label: '查询工人累计工资', prompt: '请列出所有工人的累计实发工资，按金额从高到低排列' },
-      { label: '月度工资汇总', prompt: '请汇总本月所有项目的工人工资总额，包括应发和实发' },
-      { label: '未发放工资查询', prompt: '有哪些月份的工资还未发放？列出未发放工资明细' },
+      { label: '查询工人工资明细', prompt: '查询张三的工资明细，按月份列出应发、实发/应付、已发、未发余额和发放状态' },
+      { label: '查询已发工资', prompt: '查询张三已发工资是多少，并列出已发对应的项目和月份' },
+      { label: '查询未发余额', prompt: '查询张三还有多少工资未发，按项目和月份列出原因线索' },
     ],
   },
   {
-    group: '项目&清单',
+    group: '合同清单',
     items: [
-      { label: '项目清单单价', prompt: '请列出所有项目的分项工程清单单价' },
-      { label: '项目成本对比', prompt: '对比各项目的成本构成，分析哪个项目成本超支' },
-      { label: '工程量完成率', prompt: '各项目分项工程的完成率是多少？哪些进度滞后？' },
+      { label: '查询项目合同清单', prompt: '查询某项目合同清单，列出清单项、工作内容、单位、匹配量和合同单价' },
+      { label: '查询清单项单价', prompt: '查询某项目模板工程的工作内容、计量单位和合同单价' },
+      { label: '合同清单缺失检查', prompt: '检查某项目是否已经导入结构化合同清单，没有的话告诉我缺什么' },
     ],
   },
   {
@@ -211,6 +211,18 @@ const dataCardIcons: Record<string, string> = {
   page: '📄',
 };
 
+function getCurrentProjectId(): number | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const params = new URLSearchParams(window.location.search);
+  const queryValue = params.get('project_id') || params.get('projectId');
+  const queryId = Number(queryValue || 0);
+  if (Number.isFinite(queryId) && queryId > 0) return queryId;
+
+  const pathMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+  const pathId = Number(pathMatch?.[1] || 0);
+  return Number.isFinite(pathId) && pathId > 0 ? pathId : undefined;
+}
+
 /* ============ 主组件 ============ */
 export function AIAssistantFull() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -268,6 +280,8 @@ export function AIAssistantFull() {
           messages: chatMessages,
           session_id: sessionId,
           page_context: pageContext,
+          pageContext,
+          project_id: getCurrentProjectId(),
         }),
       });
 
@@ -489,7 +503,7 @@ export function AIAssistantFull() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="输入问题，例如：本月成本哪里超了？"
+              placeholder="输入问题，例如：查询张三工资明细，或查询某项目合同清单"
               className="min-h-[42px]"
             />
             <Button

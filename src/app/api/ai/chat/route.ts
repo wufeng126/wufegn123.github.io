@@ -9,6 +9,7 @@ import {
   checkDailyLimit,
   incrementDailyUsage,
   fetchBusinessDataForContext,
+  detectQueryIntent,
   createConfiguredLLMClient,
   extractForwardHeaders,
   getAIConfig,
@@ -38,7 +39,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { messages, pageContext } = body;
+    const { messages } = body;
+    const pageContext = typeof body.pageContext === 'string'
+      ? body.pageContext
+      : (typeof body.page_context === 'string' ? body.page_context : undefined);
+    const projectIdValue = body.projectId ?? body.project_id;
+    const parsedProjectId = Number(projectIdValue || 0);
+    const projectId = Number.isFinite(parsedProjectId) && parsedProjectId > 0 ? parsedProjectId : undefined;
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ success: false, error: '消息格式错误' }), {
@@ -127,9 +134,12 @@ export async function POST(request: NextRequest) {
     // 获取业务数据上下文（基于用户角色和页面上下文）
     let businessContext = '';
     try {
+      const queryIntent = detectQueryIntent(inputSummary);
       businessContext = await fetchBusinessDataForContext(
         payload.role || 'team_leader',
-        pageContext
+        pageContext,
+        queryIntent,
+        projectId
       );
     } catch (e) {
       console.error('[AI] Business context error:', e);

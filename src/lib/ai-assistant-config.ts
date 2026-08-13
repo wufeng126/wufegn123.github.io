@@ -36,17 +36,17 @@ export const PAGE_SUGGESTIONS: PageSuggestions[] = [
   {
     keywords: ['workspace', '工作台', 'dashboard'],
     suggestions: [
-      { label: '今日项目总览', prompt: '汇总所有项目本月报量、回款、成本情况' },
-      { label: '待办事项', prompt: '我有哪些待处理的事项？包括未审工资、未确认结算等' },
-      { label: '经营概览', prompt: '公司当前整体经营情况如何？包括总项目数、总工人数、总成本' },
+      { label: '查询工人工资', prompt: '查询张三的工资明细、已发工资和未发余额' },
+      { label: '查询合同清单', prompt: '查询某项目合同清单，列出清单项、工作内容、单位和合同单价' },
+      { label: '待办事项', prompt: '我有哪些待处理事项？按待办、风险、结果、抄送分类列出' },
     ],
   },
   {
     keywords: ['project', '项目'],
     suggestions: [
-      { label: '项目成本分析', prompt: '分析当前项目的成本构成和利润率' },
-      { label: '项目进度', prompt: '当前项目的工程量完成进度如何？' },
-      { label: '项目知识', prompt: '当前项目有哪些月度分析和经验总结？' },
+      { label: '合同清单', prompt: '查询当前项目合同内清单和工作内容，包含单位、匹配量、合同单价' },
+      { label: '清单项单价', prompt: '查询当前项目某个清单项的工作内容和合同单价' },
+      { label: '项目知识', prompt: '当前项目有哪些手动录入的经营经验和月度分析？' },
     ],
   },
   {
@@ -60,16 +60,16 @@ export const PAGE_SUGGESTIONS: PageSuggestions[] = [
   {
     keywords: ['salary', '工资', 'worker', '工人'],
     suggestions: [
-      { label: '本月工资汇总', prompt: '汇总本月所有项目的工人工资总额' },
-      { label: '未发工资', prompt: '有哪些工人工资还未发放？' },
-      { label: '工人累计工资排行', prompt: '列出所有工人累计实发工资从高到低' },
+      { label: '工资明细', prompt: '查询张三的工资明细，按月份列出应发、实发/应付、已发和未发' },
+      { label: '已发工资', prompt: '查询张三已发工资是多少，并列出对应月份' },
+      { label: '未发余额', prompt: '查询张三还有多少工资未发，按项目和月份列明' },
     ],
   },
   {
     keywords: ['supplier', '供应商', 'contract', '合同'],
     suggestions: [
-      { label: '未付供应商', prompt: '列出有未付款的供应商，按金额排序' },
-      { label: '合同结算', prompt: '汇总各供应商合同结算和已付款情况' },
+      { label: '合同清单', prompt: '查询某项目合同清单，列出清单项、工作内容、单位、合同单价' },
+      { label: '供应商付款', prompt: '查询某供应商合同结算、已付款和未付款情况' },
     ],
   },
   {

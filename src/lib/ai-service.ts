@@ -4,6 +4,7 @@
  */
 import { LLMClient, KnowledgeClient, Config, HeaderUtils, DataSourceType, type CozeConfig } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { calculateSalaryPaymentStatus, calculateSalaryUnpaidAmount } from '@/lib/business-logic';
 
 // ============ 类型定义 ============
 
@@ -33,7 +34,15 @@ export interface AIModuleCheck {
   reason?: string;
 }
 
-export type UserRole = 'super_admin' | 'admin' | 'finance' | 'project_manager' | 'team_leader';
+export type UserRole =
+  | 'super_admin'
+  | 'admin'
+  | 'finance'
+  | 'budget'
+  | 'boss'
+  | 'project_manager'
+  | 'team_leader'
+  | 'site_staff';
 
 // ============ 配置管理 ============
 
@@ -244,18 +253,45 @@ export async function incrementDailyUsage(userId: number, tokens: number = 0): P
 // ============ 角色权限检查 ============
 
 // 各模块对应的角色权限
-const MODULE_ROLE_MAP: Record<string, UserRole[]> = {
-  module_data_query: ['super_admin', 'admin', 'finance', 'project_manager'],
-  module_report_analysis: ['super_admin', 'admin', 'finance', 'project_manager'],
-  module_error_diagnosis: ['super_admin', 'admin', 'project_manager', 'team_leader'],
-  module_doc_generation: ['super_admin', 'admin', 'finance', 'project_manager'],
-  module_supplier_analysis: ['super_admin', 'admin', 'finance'],
-  module_salary_analysis: ['super_admin', 'admin', 'finance'],
-  module_visa_assistant: ['super_admin', 'admin', 'project_manager'],
+const MODULE_ROLE_MAP: Record<string, string[]> = {
+  module_data_query: ['super_admin', 'admin', 'finance', 'budget', 'boss', 'project_manager'],
+  module_report_analysis: ['super_admin', 'admin', 'finance', 'budget', 'boss', 'project_manager'],
+  module_error_diagnosis: ['super_admin', 'admin', 'project_manager', 'team_leader', 'site_staff'],
+  module_doc_generation: ['super_admin', 'admin', 'finance', 'budget', 'project_manager'],
+  module_supplier_analysis: ['super_admin', 'admin', 'finance', 'budget', 'boss'],
+  module_salary_analysis: ['super_admin', 'admin', 'finance', 'budget', 'boss'],
+  module_visa_assistant: ['super_admin', 'admin', 'budget', 'project_manager'],
 };
 
-// 敏感数据模块（仅财务+管理员可看金额详情）
-const SENSITIVE_DATA_ROLES: UserRole[] = ['super_admin', 'admin', 'finance'];
+const ROLE_ALIASES: Record<string, string[]> = {
+  super_admin: ['super_admin', '超级管理员'],
+  admin: ['admin', '公司管理员', '管理员'],
+  finance: ['finance', '财务', '财务人员'],
+  budget: ['budget', 'estimator', 'cost', '商务', '预算', '预算员', '造价'],
+  boss: ['boss', 'owner', 'ceo', 'general_manager', '老板', '总经理'],
+  project_manager: ['project_manager', 'project-manager', '项目经理', '项目管理员'],
+  team_leader: ['team_leader', 'team-leader', '班组负责人'],
+  site_staff: ['site_staff', 'site-staff', 'site staff', '现场', '现场人员'],
+};
+
+function normalizeRoleText(value: string) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function roleMatches(userRole: string, allowedRole: string) {
+  const normalizedRole = normalizeRoleText(userRole);
+  if (!normalizedRole) return false;
+  if (normalizedRole === normalizeRoleText(allowedRole)) return true;
+
+  const aliases = ROLE_ALIASES[allowedRole] || [];
+  return aliases.some((alias) => {
+    const normalizedAlias = normalizeRoleText(alias);
+    return normalizedRole === normalizedAlias || normalizedRole.includes(normalizedAlias);
+  });
+}
+
+// 敏感数据模块（工资、结算、付款金额等）
+const SENSITIVE_DATA_ROLE_KEYS = ['super_admin', 'admin', 'finance', 'budget', 'boss'];
 
 export function checkModulePermission(
   config: AIConfig,
@@ -263,7 +299,7 @@ export function checkModulePermission(
   userRole: string
 ): AIModuleCheck {
   // 超级管理员始终有权限
-  if (userRole === 'super_admin') return { allowed: true };
+  if (roleMatches(userRole, 'super_admin')) return { allowed: true };
 
   // 检查模块是否启用
   const moduleEnabled = (config as any)[moduleKey];
@@ -271,7 +307,7 @@ export function checkModulePermission(
 
   // 检查角色权限
   const allowedRoles = MODULE_ROLE_MAP[moduleKey];
-  if (allowedRoles && !allowedRoles.includes(userRole as UserRole)) {
+  if (allowedRoles && !allowedRoles.some((role) => roleMatches(userRole, role))) {
     return { allowed: false, reason: '您的角色无权使用此AI功能' };
   }
 
@@ -279,7 +315,7 @@ export function checkModulePermission(
 }
 
 export function canAccessSensitiveData(userRole: string): boolean {
-  return SENSITIVE_DATA_ROLES.includes(userRole as UserRole);
+  return SENSITIVE_DATA_ROLE_KEYS.some((role) => roleMatches(userRole, role));
 }
 
 // ============ 敏感信息脱敏 ============
@@ -424,21 +460,63 @@ export async function getUserSessions(userId: number, limit: number = 20): Promi
  * 智能意图识别 - 从用户提问中识别查询意图和实体
  */
 export interface QueryIntent {
-  type: 'worker_salary' | 'project_cost' | 'supplier_payment' | 'certificate' | 'general';
+  type: 'worker_salary' | 'contract_list' | 'project_cost' | 'supplier_payment' | 'certificate' | 'general';
   entities: {
     workerName?: string;
     projectName?: string;
+    itemKeyword?: string;
     supplierName?: string;
     yearMonth?: string;
   };
+}
+
+function parseNumeric(value: unknown): number {
+  const num = Number(value || 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function formatMoney(value: unknown): string {
+  return `${parseNumeric(value).toFixed(2)}元`;
+}
+
+function normalizeKeyword(value?: string): string | undefined {
+  const cleaned = String(value || '')
+    .replace(/^(查询|查看|帮我|请|一下|这个|当前)/, '')
+    .replace(/(的)?(工资|薪水|薪酬|工资明细|已发工资|未发余额|合同清单|清单|工作内容|合同内|单价).*$/, '')
+    .trim();
+  return cleaned && cleaned.length >= 2 ? cleaned : undefined;
+}
+
+function normalizeProjectName(value?: string): string | undefined {
+  const cleaned = String(value || '')
+    .replace(/^(查询|查看|帮我|请|当前|这个|该)/, '')
+    .replace(/(的)?(合同清单|合同内清单|清单|工作内容|合同单价|综合单价|报价清单).*$/, '')
+    .trim();
+  const genericProjectNames = new Set(['项目', '某项目', '当前项目', '这个项目', '该项目', '本项目', '对应项目']);
+  if (!cleaned || genericProjectNames.has(cleaned)) return undefined;
+  return cleaned.length >= 2 ? cleaned : undefined;
+}
+
+function normalizeItemKeyword(value?: string): string | undefined {
+  const cleaned = String(value || '')
+    .replace(/^(查询|查看|帮我|请|当前|这个|该|本项目|项目|合同内|合同里|清单里|清单中|有没有)/, '')
+    .replace(/(的)?(合同清单|合同内清单|清单|合同单价|综合单价|计量单位|工作内容|内容|单价|单位|包含哪些|包含|包括|是什么|多少|有没有).*$/, '')
+    .trim();
+  const genericItemNames = new Set(['项目', '工程', '合同', '清单', '合同内', '工作内容', '计量单位', '报价清单']);
+  if (!cleaned || genericItemNames.has(cleaned)) return undefined;
+  if (/(项目|标段)$/.test(cleaned)) return undefined;
+  return cleaned.length >= 2 ? cleaned : undefined;
+}
+
+function paymentMatchKey(record: { worker_id?: number | string | null; project_id?: number | string | null; year_month?: string | null }) {
+  return `${record.worker_id || ''}:${record.project_id || ''}:${record.year_month || ''}`;
 }
 
 export function detectQueryIntent(input: string): QueryIntent {
   const entities: QueryIntent['entities'] = {};
   let type: QueryIntent['type'] = 'general';
 
-  // 检测年月
-  const monthMatch = input.match(/(\d{4})\s*[年]\s*(\d{1,2})\s*[月]/);
+  const monthMatch = input.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/);
   if (monthMatch) {
     entities.yearMonth = `${monthMatch[1]}-${monthMatch[2].padStart(2, '0')}`;
   } else {
@@ -446,38 +524,63 @@ export function detectQueryIntent(input: string): QueryIntent {
     if (ymMatch) entities.yearMonth = ymMatch[1];
   }
 
-  // 工人工资类
-  if (/工资|薪水|薪酬|发放|实发|应发|借支|个税|劳保|工时|工价/.test(input)) {
+  const workerSalaryIntent = /工资|薪水|薪酬|已发|未发|发放|实发|应发|借支|个税|劳保|工时|工价/.test(input);
+  const contractListIntent = /合同清单|合同内|清单|工作内容|合同单价|综合单价|计量单位|报价清单/.test(input);
+  const supplierPaymentIntent = /供应商|分包|结算|应付|未付|付款|合同付款|合同结算/.test(input);
+  const projectCostIntent = /项目|产值|签证|工程量|利润|成本|报价/.test(input);
+
+  if (workerSalaryIntent) {
     type = 'worker_salary';
-    // 提取工人姓名
-    const nameMatch = input.match(/([^\s,，。、]+?)(?:工人|师傅|的|累计|一共|总共)/);
-    if (nameMatch && nameMatch[1].length >= 2 && nameMatch[1].length <= 4) {
-      entities.workerName = nameMatch[1];
-    }
-  }
-
-  // 项目&清单价格类
-  if (/项目|清单|单价|产值|签证|工程量|利润|成本|报价/.test(input)) {
-    type = 'project_cost';
-    // 提取项目名关键词
-    const projPatterns = [
-      /(?:南京|延安|欧亚|中交|智慧港|住宅|能源)[^\s,，。、]*/g,
-      /([^\s,，。、]{2,8}?)(?:项目|工程|标段)/g,
+    const namePatterns = [
+      /(?:查询|查看|统计|帮我查)?\s*([^\s,，。、]{2,8}?)(?:的)?(?:工资|薪水|薪酬|已发|未发|发放|实发|应发)/,
+      /(?:工人|师傅)\s*([^\s,，。、]{2,8})/,
     ];
-    for (const p of projPatterns) {
-      const m = p.exec(input);
-      if (m) { entities.projectName = m[0]; break; }
+    for (const pattern of namePatterns) {
+      const match = input.match(pattern);
+      const workerName = normalizeKeyword(match?.[1]);
+      if (workerName) {
+        entities.workerName = workerName;
+        break;
+      }
     }
-  }
-
-  // 供应商付款类
-  if (/供应商|分包|结算|应付|未付|已付|付款|合同/.test(input)) {
+  } else if (contractListIntent) {
+    type = 'contract_list';
+    const itemPatterns = [
+      /(?:合同内|合同里|清单里|清单中)?\s*([^\s,，。、]{2,30}?)(?:包含|包括|的合同单价|的综合单价|的计量单位|的工作内容|单价|单位|内容)/,
+      /(?:有没有|查询|查看)\s*([^\s,，。、]{2,30}?)(?:这个)?(?:清单项|项目|内容)?$/,
+      /(模板工程|模板|钢筋绑扎|钢筋|混凝土浇筑|混凝土|防水|砌筑|抹灰|脚手架|土方|桩基|二次结构|地下室防水附加项|附加项)/,
+    ];
+    for (const pattern of itemPatterns) {
+      const match = input.match(pattern);
+      const itemKeyword = normalizeItemKeyword(match?.[1]);
+      if (itemKeyword) {
+        entities.itemKeyword = itemKeyword;
+        break;
+      }
+    }
+  } else if (supplierPaymentIntent) {
     type = 'supplier_payment';
     const supMatch = input.match(/([^\s,，。、]+?)(?:公司|集团|分包|供应商)/);
     if (supMatch) entities.supplierName = supMatch[1] + (input.includes('公司') ? '公司' : input.includes('集团') ? '集团' : '');
+  } else if (projectCostIntent) {
+    type = 'project_cost';
   }
 
-  // 证件类
+  if (projectCostIntent || contractListIntent) {
+    const projPatterns = [
+      /([^\s,，。、]{2,30}?)(?:项目|工程|标段)/,
+      /(?:项目|工程)\s*[:：]?\s*([^\s,，。、]{2,30})/,
+    ];
+    for (const pattern of projPatterns) {
+      const match = input.match(pattern);
+      const projectName = normalizeProjectName(match?.[1] || match?.[0]);
+      if (projectName) {
+        entities.projectName = projectName;
+        break;
+      }
+    }
+  }
+
   if (/证件|到期|过期|身份证|资质|安全员/.test(input)) {
     type = 'certificate';
   }
@@ -503,128 +606,186 @@ export async function fetchBusinessDataForContext(
   try {
     // ====== 1. 工人工资数据 ======
     if (intent.type === 'worker_salary' || !pageContext || pageContext.includes('worker') || pageContext.includes('salary') || pageContext.includes('dashboard')) {
-      // 工人花名册
-      let workerQuery = supabase.from('workers').select('id,name,work_type,phone,id_card,project_id,status,in_service_date,leave_date');
+      let workerQuery = supabase
+        .from('workers')
+        .select('id,name,work_type,phone,id_card,project_id,status,entry_date,left_at,projects(name)');
       if (projectId) workerQuery = workerQuery.eq('project_id', projectId);
-      if (intent.entities.workerName) {
-        workerQuery = supabase.from('workers').select('id,name,work_type,phone,id_card,project_id,status,in_service_date,leave_date').ilike('name', `%${intent.entities.workerName}%`);
-      }
-      const { data: workers } = await workerQuery.limit(50);
+      if (intent.entities.workerName) workerQuery = workerQuery.ilike('name', `%${intent.entities.workerName}%`);
+      const { data: workers } = await workerQuery.limit(intent.entities.workerName ? 20 : 50);
 
       if (workers && workers.length > 0) {
-        const workerSummary = canSensitive
-          ? workers.map((w: any) => `- ${w.name} | 工种:${w.work_type || '-'} | 状态:${w.status || '在场'} | 入场:${w.in_service_date || '-'} | 退场:${w.leave_date || '-'} ${w.phone ? `| 手机:${w.phone}` : ''}`).join('\n')
-          : workers.map((w: any) => `- ${w.name} | 工种:${w.work_type || '-'} | 状态:${w.status || '在场'}`).join('\n');
-        parts.push(`【工人花名册】(共${workers.length}人)\n${workerSummary}`);
+        const workerSummary = workers.map((w: any) => {
+          const projectName = Array.isArray(w.projects) ? w.projects[0]?.name : w.projects?.name;
+          const identityHint = canSensitive
+            ? `${w.phone ? ` | 手机:${w.phone}` : ''}${w.id_card ? ` | 身份证尾号:${String(w.id_card).slice(-4)}` : ''}`
+            : '';
+          return `- ${w.name} | 项目:${projectName || '-'} | 工种:${w.work_type || '-'} | 状态:${w.status || '在场'} | 入场:${w.entry_date || '-'} | 退场:${w.left_at || '-'}${identityHint}`;
+        }).join('\n');
+        parts.push(`【工人花名册】共${workers.length}人\n${workerSummary}${workers.length > 1 && intent.entities.workerName ? '\n提示：匹配到多个同名或近似姓名工人，回答时需要提醒用户按项目、手机号或身份证尾号核对。' : ''}`);
 
-        // 工资明细 - 查询这些工人的工资数据
         if (canSensitive) {
           const workerIds = workers.map((w: any) => w.id);
           let salaryQuery = supabase.from('worker_salaries')
-            .select('worker_id,year_month,work_hours,hourly_rate,contract_work_pay,gross_pay,income_tax,advance_pay,labor_insurance,net_pay,payment_status')
+            .select('id,worker_id,project_id,year_month,work_hours,hourly_rate,contract_work_pay,gross_pay,income_tax,advance_pay,labor_insurance,fine,net_pay,payment_status,projects(name)')
             .in('worker_id', workerIds)
             .order('year_month', { ascending: false });
 
-          if (intent.entities.yearMonth) {
-            salaryQuery = salaryQuery.eq('year_month', intent.entities.yearMonth);
-          }
+          if (intent.entities.yearMonth) salaryQuery = salaryQuery.eq('year_month', intent.entities.yearMonth);
+          if (projectId) salaryQuery = salaryQuery.eq('project_id', projectId);
           const { data: salaries } = await salaryQuery.limit(200);
 
           if (salaries && salaries.length > 0) {
-            // 按工人分组汇总
-            const salaryByWorker: Record<string, any[]> = {};
-            for (const s of salaries) {
-              const wid = s.worker_id;
-              if (!salaryByWorker[wid]) salaryByWorker[wid] = [];
-              salaryByWorker[wid].push(s);
-            }
+            let paymentQuery = supabase
+              .from('salary_payments')
+              .select('salary_id,worker_id,project_id,year_month,payment_amount')
+              .in('worker_id', workerIds);
+            if (intent.entities.yearMonth) paymentQuery = paymentQuery.eq('year_month', intent.entities.yearMonth);
+            const { data: payments } = await paymentQuery.limit(500);
 
-            const workerMap: Record<number, any> = {};
-            for (const w of workers) workerMap[w.id] = w;
+            const visibleSalaryIds = new Set(salaries.map((s: any) => Number(s.id)));
+            const paidAmountBySalaryId = new Map<number, number>();
+            const unlinkedPaidAmountByMatchKey = new Map<string, number>();
+            const matchKeyCounts = new Map<string, number>();
 
-            const salaryLines: string[] = [];
-            for (const [wid, sals] of Object.entries(salaryByWorker)) {
-              const wName = workerMap[Number(wid)]?.name || '未知';
-              const totalGross = sals.reduce((sum: number, s: any) => sum + (Number(s.gross_pay) || 0), 0);
-              const totalNet = sals.reduce((sum: number, s: any) => sum + (Number(s.net_pay) || 0), 0);
-              const totalTax = sals.reduce((sum: number, s: any) => sum + (Number(s.income_tax) || 0), 0);
-              const totalAdvance = sals.reduce((sum: number, s: any) => sum + (Number(s.advance_pay) || 0), 0);
-              const totalLabor = sals.reduce((sum: number, s: any) => sum + (Number(s.labor_insurance) || 0), 0);
-              const unpaidCount = sals.filter((s: any) => s.payment_status === 'unpaid').length;
-              const partialCount = sals.filter((s: any) => s.payment_status === 'partial').length;
+            salaries.forEach((record: any) => {
+              const key = paymentMatchKey(record);
+              matchKeyCounts.set(key, (matchKeyCounts.get(key) || 0) + 1);
+            });
 
-              salaryLines.push(`${wName}: 累计应发${totalGross.toFixed(2)}元, 累计实发${totalNet.toFixed(2)}元, 个税${totalTax.toFixed(2)}, 借支${totalAdvance.toFixed(2)}, 劳保${totalLabor.toFixed(2)} | ${unpaidCount > 0 ? `未发${unpaidCount}月` : ''}${partialCount > 0 ? `部分发${partialCount}月` : '已全部发放'}`);
-
-              // 月度明细
-              if (intent.entities.yearMonth || intent.entities.workerName) {
-                for (const s of sals.slice(0, 6)) {
-                  salaryLines.push(`  ${s.year_month}: 工时${s.work_hours}h×${s.hourly_rate}元/h + 包活${s.contract_work_pay || 0} = 应发${s.gross_pay}元, 实发${s.net_pay}元 [${s.payment_status || 'unpaid'}]`);
+            (payments || []).forEach((payment: any) => {
+              const amount = parseNumeric(payment.payment_amount);
+              const salaryId = Number(payment.salary_id || 0);
+              if (salaryId && visibleSalaryIds.has(salaryId)) {
+                paidAmountBySalaryId.set(salaryId, (paidAmountBySalaryId.get(salaryId) || 0) + amount);
+                return;
+              }
+              if (payment.worker_id && payment.project_id && payment.year_month) {
+                const key = paymentMatchKey(payment);
+                if ((matchKeyCounts.get(key) || 0) > 0) {
+                  unlinkedPaidAmountByMatchKey.set(key, (unlinkedPaidAmountByMatchKey.get(key) || 0) + amount);
                 }
               }
-            }
-            parts.push(`【工资汇总】(共${salaries.length}条记录)\n${salaryLines.join('\n')}`);
+            });
+
+            const getPaidAmount = (record: any) => {
+              const linkedPaid = paidAmountBySalaryId.get(Number(record.id)) || 0;
+              const key = paymentMatchKey(record);
+              const unlinkedTotal = unlinkedPaidAmountByMatchKey.get(key) || 0;
+              const keyCount = matchKeyCounts.get(key) || 0;
+              return Math.round((linkedPaid + (keyCount > 0 ? unlinkedTotal / keyCount : 0)) * 100) / 100;
+            };
+
+            const workerMap = new Map<number, any>(workers.map((w: any) => [Number(w.id), w]));
+            const enriched = salaries.map((s: any) => {
+              const paidAmount = getPaidAmount(s);
+              const netPay = parseNumeric(s.net_pay);
+              return {
+                ...s,
+                worker: workerMap.get(Number(s.worker_id)),
+                projectName: Array.isArray(s.projects) ? s.projects[0]?.name : s.projects?.name,
+                paidAmount,
+                unpaidAmount: calculateSalaryUnpaidAmount(netPay, paidAmount),
+                computedStatus: calculateSalaryPaymentStatus(netPay, paidAmount),
+              };
+            });
+
+            const totalGross = enriched.reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+            const totalNet = enriched.reduce((sum: number, s: any) => sum + parseNumeric(s.net_pay), 0);
+            const totalPaid = enriched.reduce((sum: number, s: any) => sum + parseNumeric(s.paidAmount), 0);
+            const totalUnpaid = enriched.reduce((sum: number, s: any) => sum + parseNumeric(s.unpaidAmount), 0);
+
+            const salaryLines = enriched.slice(0, intent.entities.workerName ? 30 : 12).map((s: any) => {
+              const workerName = s.worker?.name || '未知工人';
+              const statusName: Record<string, string> = { unpaid: '未发', partial: '部分发放', paid: '已发清', overpaid: '超发' };
+              return `- ${workerName} | ${s.year_month} | 项目:${s.projectName || '-'} | 应发:${formatMoney(s.gross_pay)} | 实发/应付:${formatMoney(s.net_pay)} | 已发:${formatMoney(s.paidAmount)} | 未发:${formatMoney(s.unpaidAmount)} | 状态:${statusName[s.computedStatus] || s.computedStatus} | 工时:${parseNumeric(s.work_hours)} | 工价:${formatMoney(s.hourly_rate)}`;
+            });
+
+            parts.push(`【工人工资查询结果】共${salaries.length}条工资记录\n汇总：累计应发${formatMoney(totalGross)}，累计实发/应付${formatMoney(totalNet)}，累计已发${formatMoney(totalPaid)}，未发余额${formatMoney(totalUnpaid)}\n明细：\n${salaryLines.join('\n')}\n来源入口：[月度工资](/workers/salaries${intent.entities.workerName ? `?worker_id=${workers[0].id}` : ''})、[工人档案](/workers/query${intent.entities.workerName ? `?keyword=${encodeURIComponent(intent.entities.workerName)}` : ''})`);
+          } else {
+            parts.push(`【工人工资查询结果】已找到工人，但没有匹配到工资记录。可到[月度工资](/workers/salaries)核对是否已录入工资。`);
           }
+        } else {
+          parts.push('【工资数据权限】当前角色不可查看工资金额明细，回答时只说明无法展示敏感金额，并引导联系管理员或财务。');
         }
+      } else if (intent.entities.workerName) {
+        parts.push(`【工人工资查询结果】未找到姓名包含“${intent.entities.workerName}”的工人。可让用户补充项目、手机号或检查花名册姓名。`);
       }
     }
 
-    // ====== 2. 项目&清单价格数据 ======
-    if (intent.type === 'project_cost' || !pageContext || pageContext.includes('project') || pageContext.includes('work-item') || pageContext.includes('cost') || pageContext.includes('dashboard')) {
+    // ====== 2. 合同清单/项目工程量清单数据 ======
+    if (intent.type === 'contract_list' || intent.type === 'project_cost' || !pageContext || pageContext.includes('project') || pageContext.includes('work-item') || pageContext.includes('quantity') || pageContext.includes('dashboard')) {
       let projQuery = supabase.from('projects').select('id,name,year,status,expected_completion_date');
       if (projectId) projQuery = projQuery.eq('id', projectId);
-      if (intent.entities.projectName) {
-        projQuery = supabase.from('projects').select('id,name,year,status,expected_completion_date').ilike('name', `%${intent.entities.projectName}%`);
-      }
-      const { data: projects } = await projQuery.limit(20);
+      if (intent.entities.projectName) projQuery = projQuery.ilike('name', `%${intent.entities.projectName.replace(/(项目|工程|标段)$/, '')}%`);
+      const { data: projects } = await projQuery.limit(intent.entities.projectName ? 10 : 20);
 
       if (projects && projects.length > 0) {
         const projLines: string[] = [];
         for (const p of projects) {
-          let line = `${p.name} (${p.year}, ${p.status})`;
+          let line = `${p.name} (${p.year || '-'}, ${p.status || '-'})`;
           if (p.expected_completion_date) line += ` | 预计完工:${p.expected_completion_date}`;
 
           if (canSensitive) {
-            // 甲方报量
-            const { data: reports } = await supabase.from('client_reports')
-              .select('settlement_amount,report_date')
+            const { data: subitems } = await supabase.from('work_item_subitems')
+              .select('subitem_name,unit,budget_quantity,contract_price,unit_price,limit_price,remark')
               .eq('project_id', p.id)
-              .neq('status', 'voided');
-            const totalReport = (reports || []).reduce((sum: number, r: any) => sum + (Number(r.settlement_amount || r.report_amount) || 0), 0);
-
-            // 甲方付款
-            const { data: payments } = await supabase.from('client_payments')
-              .select('payment_amount')
-              .eq('project_id', p.id);
-            const totalPaid = (payments || []).reduce((sum: number, pm: any) => sum + (Number(pm.payment_amount) || 0), 0);
-
-            line += ` | 报量结算:${totalReport.toFixed(2)}元 | 已回款:${totalPaid.toFixed(2)}元`;
-            if (totalReport > 0) line += ` | 回款率:${(totalPaid / totalReport * 100).toFixed(1)}%`;
-
-            // 工程量清单
+              .limit(intent.entities.itemKeyword ? 100 : 30);
             const { data: workItems } = await supabase.from('work_items')
               .select('item_name,unit,budget_quantity,unit_price')
               .eq('project_id', p.id)
-              .limit(20);
-            if (workItems && workItems.length > 0) {
-              line += `\n  清单: ${workItems.map((wi: any) => `${wi.item_name}(${wi.unit}, 预算:${wi.budget_quantity}, 单价:${wi.unit_price}元)`).join('; ')}`;
+              .limit(intent.entities.itemKeyword ? 100 : 30);
+            const { data: contracts } = await supabase.from('project_contracts')
+              .select('file_name,file_size,remark,created_at')
+              .eq('project_id', p.id)
+              .limit(5);
+
+            const keyword = intent.entities.itemKeyword?.toLowerCase();
+            const matchedSubitems = keyword
+              ? (subitems || []).filter((item: any) =>
+                String(item.subitem_name || '').toLowerCase().includes(keyword)
+                || String(item.remark || '').toLowerCase().includes(keyword)
+              )
+              : (subitems || []);
+            const matchedWorkItems = keyword
+              ? (workItems || []).filter((item: any) =>
+                String(item.item_name || '').toLowerCase().includes(keyword)
+              )
+              : (workItems || []);
+
+            if (matchedSubitems.length > 0) {
+              line += `\n  结构化合同/工程量清单（分项工程）：`;
+              line += matchedSubitems.slice(0, 12).map((item: any) => {
+                const price = item.contract_price ?? item.unit_price ?? item.limit_price ?? '-';
+                return `\n  - ${item.subitem_name} | 单位:${item.unit || '-'} | 匹配量:${item.budget_quantity || '-'} | 合同单价:${price === '-' ? '-' : formatMoney(price)} | 工作内容/备注:${item.remark || '-'}`;
+              }).join('');
+            } else if (matchedWorkItems.length > 0) {
+              line += `\n  结构化工程量清单：`;
+              line += matchedWorkItems.slice(0, 12).map((item: any) => `\n  - ${item.item_name} | 单位:${item.unit || '-'} | 预算量:${item.budget_quantity || '-'} | 单价:${formatMoney(item.unit_price)}`).join('');
+            } else if (intent.entities.itemKeyword && ((subitems && subitems.length > 0) || (workItems && workItems.length > 0))) {
+              line += `\n  未找到名称或备注匹配“${intent.entities.itemKeyword}”的结构化清单项。回答时需说明当前项目已有清单，但未匹配到该项，建议到报量管理核对清单名称或补录。`;
+            } else if (contracts && contracts.length > 0) {
+              line += `\n  只找到合同文件：${contracts.map((c: any) => c.file_name).join('、')}。未找到结构化清单，回答时需说明需先导入/解析合同清单，不能编造扫描件内容。`;
+            } else {
+              line += '\n  未找到结构化合同清单或合同文件。';
             }
           }
+
+          line += `\n  来源入口：[报量管理](/quantity-reporting?project_id=${p.id})、[项目详情](/projects/${p.id})、[知识库](/knowledge)`;
           projLines.push(line);
         }
-        parts.push(`【项目台账】(共${projects.length}个)\n${projLines.join('\n')}`);
+        parts.push(`【合同清单查询结果】共${projects.length}个项目\n${projLines.join('\n')}`);
+      } else if (intent.entities.projectName) {
+        parts.push(`【合同清单查询结果】未找到名称匹配“${intent.entities.projectName}”的项目。可让用户补充项目全称或到项目管理核对。`);
       }
     }
 
-    // ====== 3. 供应商&合同数据 ======
+    // ====== 3. 供应商&合同付款数据 ======
     if (intent.type === 'supplier_payment' || !pageContext || pageContext.includes('supplier') || pageContext.includes('cost') || pageContext.includes('dashboard')) {
-      // 供应商列表
       const { data: suppliers } = await supabase.from('suppliers').select('id,name,contact_person,phone').limit(30);
       if (suppliers && suppliers.length > 0 && canSensitive) {
         const supplierLines: string[] = [];
         for (const sp of suppliers) {
           let line = `${sp.name} | 联系人:${sp.contact_person || '-'}`;
-
-          // 合同
           let contractQuery = supabase.from('supplier_contracts')
             .select('id,contract_name,total_amount,cumulative_paid,contract_status,project_id')
             .eq('supplier_id', sp.id);
@@ -633,23 +794,22 @@ export async function fetchBusinessDataForContext(
 
           if (contracts && contracts.length > 0) {
             for (const c of contracts) {
-              const unpaid = (Number(c.total_amount) || 0) - (Number(c.cumulative_paid) || 0);
-              line += `\n  合同:${c.contract_name} | 总额:${c.total_amount || 0}元 | 已付:${c.cumulative_paid || 0}元 | 未付:${unpaid.toFixed(2)}元 | 状态:${c.contract_status || '履约中'}`;
+              const unpaid = parseNumeric(c.total_amount) - parseNumeric(c.cumulative_paid);
+              line += `\n  合同:${c.contract_name} | 总额:${formatMoney(c.total_amount)} | 已付:${formatMoney(c.cumulative_paid)} | 未付:${formatMoney(unpaid)} | 状态:${c.contract_status || '履约中'}`;
             }
           }
 
-          // 结算（兼容旧settlements表 + 新supplier_settlements表）
           const { data: oldSettlements } = await supabase.from('settlements')
             .select('settlement_amount,settlement_date,settlement_month')
             .eq('supplier_id', sp.id);
           if (oldSettlements && oldSettlements.length > 0) {
-            const totalSettlement = oldSettlements.reduce((sum: number, s: any) => sum + (Number(s.settlement_amount) || 0), 0);
-            line += `\n  累计结算:${totalSettlement.toFixed(2)}元(${oldSettlements.length}笔)`;
+            const totalSettlement = oldSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+            line += `\n  累计结算:${formatMoney(totalSettlement)}(${oldSettlements.length}笔)`;
           }
 
           supplierLines.push(line);
         }
-        parts.push(`【供应商台账】(共${suppliers.length}家)\n${supplierLines.join('\n')}`);
+        parts.push(`【供应商台账】共${suppliers.length}家\n${supplierLines.join('\n')}`);
       }
     }
 
@@ -662,7 +822,7 @@ export async function fetchBusinessDataForContext(
         .gt('expiry_date', new Date().toISOString().slice(0, 10))
         .limit(20);
       if (expiringCerts && expiringCerts.length > 0) {
-        parts.push(`【即将过期证件】(30天内, 共${expiringCerts.length}项)\n${expiringCerts.map((c: any) => `- ${c.name} | 持有:${c.owner_name || '-'} | 编号:${c.certificate_number || '-'} | 到期:${c.expiry_date}`).join('\n')}`);
+        parts.push(`【即将过期证件】30天内，共${expiringCerts.length}项\n${expiringCerts.map((c: any) => `- ${c.name} | 持有:${c.owner_name || '-'} | 编号:${c.certificate_number || '-'} | 到期:${c.expiry_date}`).join('\n')}`);
       }
       const { data: expiredCerts } = await supabase
         .from('certificates')
@@ -670,7 +830,7 @@ export async function fetchBusinessDataForContext(
         .lt('expiry_date', new Date().toISOString().slice(0, 10))
         .limit(10);
       if (expiredCerts && expiredCerts.length > 0) {
-        parts.push(`【已过期证件】(共${expiredCerts.length}项)\n${expiredCerts.map((c: any) => `- ${c.name} | 持有:${c.owner_name || '-'} | 到期:${c.expiry_date}`).join('\n')}`);
+        parts.push(`【已过期证件】共${expiredCerts.length}项\n${expiredCerts.map((c: any) => `- ${c.name} | 持有:${c.owner_name || '-'} | 到期:${c.expiry_date}`).join('\n')}`);
       }
     }
 
@@ -681,14 +841,14 @@ export async function fetchBusinessDataForContext(
         if (projectId) reportQuery = reportQuery.eq('project_id', projectId);
         const { data: clientReports } = await reportQuery.neq('status', 'voided').order('report_date', { ascending: false }).limit(30);
         if (clientReports && clientReports.length > 0) {
-          parts.push(`【甲方报量】(共${clientReports.length}条)\n${clientReports.map((r: any) => `- ${r.work_content} | 数量:${r.quantity} | 单价:${r.unit_price} | 金额:${r.settlement_amount || r.quantity * r.unit_price} | 日期:${r.report_date} | 状态:${r.status || 'draft'}`).join('\n')}`);
+          parts.push(`【甲方报量】共${clientReports.length}条\n${clientReports.map((r: any) => `- ${r.work_content} | 数量:${r.quantity} | 单价:${formatMoney(r.unit_price)} | 金额:${formatMoney(r.settlement_amount || parseNumeric(r.quantity) * parseNumeric(r.unit_price))} | 日期:${r.report_date} | 状态:${r.status || 'draft'}`).join('\n')}`);
         }
 
         let paymentQuery = supabase.from('client_payments').select('project_id,payment_amount,payment_date,payment_method,status');
         if (projectId) paymentQuery = paymentQuery.eq('project_id', projectId);
         const { data: clientPayments } = await paymentQuery.order('payment_date', { ascending: false }).limit(30);
         if (clientPayments && clientPayments.length > 0) {
-          parts.push(`【甲方付款】(共${clientPayments.length}条)\n${clientPayments.map((pm: any) => `- 金额:${pm.payment_amount} | 日期:${pm.payment_date} | 方式:${pm.payment_method || '-'} | 状态:${pm.status || 'completed'}`).join('\n')}`);
+          parts.push(`【甲方付款】共${clientPayments.length}条\n${clientPayments.map((pm: any) => `- 金额:${formatMoney(pm.payment_amount)} | 日期:${pm.payment_date} | 方式:${pm.payment_method || '-'} | 状态:${pm.status || 'completed'}`).join('\n')}`);
         }
       }
     }
@@ -702,9 +862,9 @@ export async function fetchBusinessDataForContext(
 
       if (canSensitive) {
         const { data: salaryAgg } = await supabase.from('worker_salaries').select('gross_pay,net_pay');
-        const totalGross = (salaryAgg || []).reduce((s: number, r: any) => s + (Number(r.gross_pay) || 0), 0);
-        const totalNet = (salaryAgg || []).reduce((s: number, r: any) => s + (Number(r.net_pay) || 0), 0);
-        parts.push(`【工资统计】累计应发:${totalGross.toFixed(2)}元 | 累计实发:${totalNet.toFixed(2)}元`);
+        const totalGross = (salaryAgg || []).reduce((s: number, r: any) => s + parseNumeric(r.gross_pay), 0);
+        const totalNet = (salaryAgg || []).reduce((s: number, r: any) => s + parseNumeric(r.net_pay), 0);
+        parts.push(`【工资统计】累计应发:${formatMoney(totalGross)} | 累计实发/应付:${formatMoney(totalNet)}`);
       }
     }
 
@@ -727,7 +887,8 @@ export function buildSystemPrompt(
   const canSensitive = canAccessSensitiveData(userRole);
   const roleName: Record<string, string> = {
     super_admin: '超级管理员', admin: '管理员', finance: '财务人员',
-    project_manager: '项目管理员', team_leader: '班组负责人',
+    budget: '预算员', boss: '老板', project_manager: '项目经理',
+    team_leader: '班组负责人', site_staff: '现场人员',
   };
 
   return `你是建筑劳务企业数据管理系统的AI劳务助手，专精建筑劳务、财务、项目管理领域。
@@ -738,8 +899,8 @@ export function buildSystemPrompt(
 - 当前页面：${pageContext || '首页'}
 
 ## 核心能力
-1. **工人薪资查询**：支持按工人姓名、项目、月份查询工资明细，自动汇总累计发放、个税、借支、实发等
-2. **项目清单价格查询**：查询项目工程量清单单价、产值、成本、利润，关联合同报价文件
+1. **工人工资查询**：按工人姓名、项目、月份查询工资明细，区分应发、实发/应付、已发、未发余额
+2. **合同清单查询**：按项目查询合同内清单、工作内容、单位、匹配量、合同单价，优先使用结构化工程量清单
 3. **供应商款项查询**：查询各供应商合同金额、已付/未付/结算情况、合同状态
 4. **证件到期管理**：查询即将过期和已过期证件，提醒办理
 5. **报表智能解读**：自动分析看板图表，输出资金、用工风险提醒
@@ -750,15 +911,17 @@ export function buildSystemPrompt(
 - 使用中文回答，数据用**表格**或**列表**清晰展示
 - 金额保留2位小数，超过1万用万元单位（如 1.23万元）
 - 百分比保留1位小数
-- 回答工人工资时：列出工人姓名→所属项目→月度明细→累计汇总→发放状态
+- 回答工人工资时：必须列出工人姓名、所属项目、月份、应发、实发/应付、已发、未发余额、发放状态；如果同名工人超过1人，先提醒按项目/手机号/身份证尾号核对
 - 回答供应商款项时：列出供应商名→合同名→总额→已付→未付→合同状态
-- 回答项目清单时：列出项目名→清单项→单位→预算量→单价
+- 回答合同清单时：列出项目名、清单项/分项工程、单位、匹配量/预算量、合同单价、工作内容/备注、来源入口
+- 合同清单、金额、单价必须来自业务台账或知识库；只找到合同文件但没有结构化清单时，明确说明“未找到结构化清单，需先导入/解析”，不能编造扫描件内容
 - 发现风险时主动提醒（🔴高危 🟡警告 🟢正常）
-- 引用业务数据时生成可点击链接，格式：[项目:名称](/projects/ID)、[工人:姓名](/workers/roster)、[供应商:名称](/supplier-contracts)
+- 引用业务数据时生成可点击链接，优先使用：[月度工资](/workers/salaries)、[工人档案](/workers/query)、[报量管理](/quantity-reporting)、[项目详情](/projects/ID)、[供应商](/supplier-contracts)
 - 如无法回答，建议用户联系管理员或查阅系统帮助
 
 ## 业务规则
 - 工资计算：应发工资 = 工时×工价 + 包活工资；实发工资 = 应发工资 - 个税 - 借支 - 劳保
+- 工资发放口径：已发工资来自 salary_payments；优先按工资单ID匹配，老数据按工人+项目+月份兜底匹配；未发余额 = 实发/应付 - 已发
 - 利润率 = (总结算金额 - 总成本) / 总结算金额 × 100%
 - 回款率 = 已回款金额 / 总结算金额 × 100%
 - 回款率超100%为超收/预收，需标注🟡风险
