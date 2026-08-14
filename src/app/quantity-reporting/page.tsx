@@ -19,7 +19,7 @@ import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
   Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers,
-  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft, ArrowRight
+  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft, ArrowRight, Scale
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 import { useConfirm } from '@/hooks/use-confirm';
@@ -365,6 +365,15 @@ const demoAddonSettlements = (yearMonth: string) => [
   { id: -905103, project_id: DEMO_PROJECT_ID, addon_id: -902103, addon_name: '二次搬运', unit: '车', year_month: yearMonth, quantity: '5', unit_price: '650', amount: 3250, remark: '材料堆场调整' },
 ];
 
+// P0-1 演示回款（项目级，effective=false 模拟未生效/待审核）
+const demoClientPayments = [
+  { payment_amount: 1200000, payment_date: '2026-05-20', effective: true },
+  { payment_amount: 860000, payment_date: '2026-06-18', effective: true },
+  { payment_amount: 640000, payment_date: '2026-07-15', effective: true },
+  { payment_amount: 500000, payment_date: '2026-08-10', effective: true },
+  { payment_amount: 300000, payment_date: '2026-08-25', effective: false },
+];
+
 const demoProgressExpected = (yearMonth: string): ProgressExpectedRecord[] => [
   { subitem_id: -901101, expected_quantity: 1950, matched_quantity: 1950, task_count: 3, completed_task_count: 2, latest_progress: 86, task_labels: [`${yearMonth} 1#楼模板节点`], unit: 'm2' },
   { subitem_id: -901102, expected_quantity: 240, matched_quantity: 240, task_count: 2, completed_task_count: 2, latest_progress: 100, task_labels: [`${yearMonth} 钢筋节点`], unit: 't' },
@@ -466,6 +475,11 @@ function WorkItemsContent() {
   const [monthlySettlementRecords, setMonthlySettlementRecords] = useState<any[]>([]);
   const [monthlyAddonSettlementRecords, setMonthlyAddonSettlementRecords] = useState<any[]>([]);
   const [monthlySettlementLoading, setMonthlySettlementLoading] = useState(false);
+
+  // P0-1 勾稽台账（报量-结算-回款月度结转）
+  const [reconYearMonth, setReconYearMonth] = useState<string>('');
+  const [reconData, setReconData] = useState<{ rows: any[]; summary: any } | null>(null);
+  const [reconLoading, setReconLoading] = useState(false);
 
   // 内部附加清单
   const [addonTemplates, setAddonTemplates] = useState<InternalAddonTemplate[]>([]);
@@ -590,6 +604,21 @@ function WorkItemsContent() {
       setMonthlyAddonSettlementRecords([]);
     }
   }, [selectedProjectId]);
+
+  // P0-1 勾稽台账：默认月份 + 数据加载（报量/结算保存后 allSubitems 变化自动刷新）
+  useEffect(() => {
+    if (!reconYearMonth) {
+      setReconYearMonth(getCurrentYearMonth());
+    }
+  }, [reconYearMonth]);
+
+  useEffect(() => {
+    if (selectedProjectId && reconYearMonth) {
+      fetchReconciliation();
+    } else {
+      setReconData(null);
+    }
+  }, [selectedProjectId, reconYearMonth, allSubitems]);
 
   const confirm = useConfirm();
 
@@ -1827,6 +1856,109 @@ function WorkItemsContent() {
     }
   };
 
+  // P0-1 获取勾稽台账数据（报量 vs 结算 分项级 + 回款项目级）
+  const fetchReconciliation = async (ym?: string) => {
+    if (!selectedProjectId) return;
+    const target = ym || reconYearMonth;
+    if (!target) return;
+
+    setReconLoading(true);
+    try {
+      if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+        // 演示：用演示月报量/结算 + 演示回款构建（与 API 口径一致）
+        const demoReports = demoMonthlyReports(target);
+        const demoSettlements = demoMonthlySettlements(target);
+        const reportMap = new Map(demoReports.map((r: any) => [r.subitem_id, parseFloat(r.report_quantity) || 0]));
+        const settleMap = new Map(demoSettlements.map((s: any) => [s.subitem_id, parseFloat(s.completed_quantity) || 0]));
+        const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
+        const rows = DEMO_SUBITEMS.map(sub => {
+          const contractPrice = toNumber(sub.contract_price);
+          const limitPrice = toNumber(sub.limit_price);
+          const effectivePrice = limitPrice || contractPrice;
+          const budgetQty = toNumber(sub.budget_quantity);
+          const monthReportQty = reportMap.get(sub.id) || 0;
+          const monthSettleQty = settleMap.get(sub.id) || 0;
+          const cumulativeReportQty = toNumber(sub.completed_quantity);
+          const cumulativeSettleQty = toNumber(sub.settlement_quantity);
+          const monthReportAmount = round2(monthReportQty * contractPrice);
+          const monthSettleAmount = round2(monthSettleQty * effectivePrice);
+          const cumulativeReportAmount = round2(cumulativeReportQty * contractPrice);
+          const cumulativeSettleAmount = round2(cumulativeSettleQty * effectivePrice);
+          const monthDifference = round2(monthReportAmount - monthSettleAmount);
+          const cumulativeDifference = round2(cumulativeReportAmount - cumulativeSettleAmount);
+          const differenceRatio = monthReportAmount > 0 ? Math.abs((monthDifference / monthReportAmount) * 100) : null;
+
+          return {
+            subitem_id: sub.id,
+            subitem_name: sub.subitem_name,
+            unit: sub.unit,
+            budget_quantity: budgetQty,
+            contract_price: contractPrice,
+            limit_price: limitPrice || null,
+            month_report_quantity: monthReportQty,
+            month_report_amount: monthReportAmount,
+            cumulative_report_quantity: cumulativeReportQty,
+            cumulative_report_amount: cumulativeReportAmount,
+            month_settlement_quantity: monthSettleQty,
+            month_settlement_amount: monthSettleAmount,
+            cumulative_settlement_quantity: cumulativeSettleQty,
+            cumulative_settlement_amount: cumulativeSettleAmount,
+            month_difference: monthDifference,
+            cumulative_difference: cumulativeDifference,
+            difference_ratio: differenceRatio === null ? null : round2(differenceRatio),
+            over_budget: budgetQty > 0 && cumulativeReportQty > budgetQty,
+            settlement_over_report: monthSettleQty > monthReportQty,
+            ratio_warning: differenceRatio !== null && differenceRatio > 30,
+          };
+        });
+
+        const activePayments = demoClientPayments.filter(p => p.effective);
+        const monthPaymentAmount = round2(
+          activePayments.filter(p => p.payment_date.slice(0, 7) === target).reduce((sum, p) => sum + p.payment_amount, 0)
+        );
+        const cumulativePaymentAmount = round2(
+          activePayments.filter(p => p.payment_date.slice(0, 7) <= target).reduce((sum, p) => sum + p.payment_amount, 0)
+        );
+        const monthReportAmount = round2(rows.reduce((sum, r) => sum + r.month_report_amount, 0));
+        const monthSettleAmount = round2(rows.reduce((sum, r) => sum + r.month_settlement_amount, 0));
+        const cumulativeReportAmount = round2(rows.reduce((sum, r) => sum + r.cumulative_report_amount, 0));
+        const cumulativeSettleAmount = round2(rows.reduce((sum, r) => sum + r.cumulative_settlement_amount, 0));
+
+        setReconData({
+          rows,
+          summary: {
+            month_report_amount: monthReportAmount,
+            month_settlement_amount: monthSettleAmount,
+            month_difference: round2(monthReportAmount - monthSettleAmount),
+            cumulative_report_amount: cumulativeReportAmount,
+            cumulative_settlement_amount: cumulativeSettleAmount,
+            cumulative_difference: round2(cumulativeReportAmount - cumulativeSettleAmount),
+            month_payment_amount: monthPaymentAmount,
+            cumulative_payment_amount: cumulativePaymentAmount,
+            receivable_amount: round2(cumulativeReportAmount - cumulativePaymentAmount),
+            over_budget_count: rows.filter(r => r.over_budget).length,
+            ratio_warning_count: rows.filter(r => r.ratio_warning).length,
+            settlement_over_report_count: rows.filter(r => r.settlement_over_report).length,
+          },
+        });
+        return;
+      }
+
+      const res = await fetch(`/api/subitem-reconciliation?project_id=${selectedProjectId}&year_month=${target}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '查询失败');
+      }
+      setReconData({ rows: data.rows || [], summary: data.summary });
+    } catch (error: any) {
+      console.error('获取勾稽台账失败:', error);
+      toast({ title: '获取勾稽数据失败', description: error.message || '网络错误，请重试', variant: 'error' });
+    } finally {
+      setReconLoading(false);
+    }
+  };
+
   // 打开月度对上报量对话框
   const openMonthlyReportDialog = async () => {
     if (!selectedProjectId) {
@@ -1861,6 +1993,7 @@ function WorkItemsContent() {
           unit: subitem.unit,
           budget_quantity: subitem.budget_quantity,
           report_quantity: record?.report_quantity || '0',
+          db_report_quantity: record?.report_quantity || '0',
           total_reported: totalReported.toString(),
           record_id: record?.id || null,
         };
@@ -1899,6 +2032,28 @@ function WorkItemsContent() {
     if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
       toast({ title: '演示保存', description: `已模拟保存 ${recordsToSave.length} 条月度对上报量，演示数据不会写入数据库。`, variant: 'success' });
       return;
+    }
+
+    // P0-1 超预算强制确认：累计报量将超出预算量时必须确认（不可绕过）
+    const overBudgetItems = monthlyReportRecords
+      .filter(r => recordsToSave.some(s => s.subitem_id === r.subitem_id))
+      .map(r => {
+        const budget = parseFloat(r.budget_quantity || '0') || 0;
+        const oldMonth = parseFloat(r.db_report_quantity || '0') || 0;
+        const newMonth = parseFloat(r.report_quantity || '0') || 0;
+        const cumulative = parseFloat(r.total_reported || '0') || 0;
+        const projected = cumulative - oldMonth + newMonth;
+        return { subitem_name: r.subitem_name, budget, projected, over: budget > 0 && projected > budget };
+      })
+      .filter(x => x.over);
+
+    if (overBudgetItems.length > 0) {
+      const confirmed = await confirm({
+        title: '累计报量将超出预算量',
+        description: `以下 ${overBudgetItems.length} 个分项保存后累计报量将超过预算量：${overBudgetItems.slice(0, 5).map(x => `《${x.subitem_name}》预算 ${formatQuantity(x.budget)}，保存后 ${formatQuantity(x.projected)}`).join('；')}${overBudgetItems.length > 5 ? ` 等 ${overBudgetItems.length} 项` : ''}。是否继续保存？`,
+        variant: 'destructive',
+      });
+      if (!confirmed) return;
     }
 
     try {
@@ -2051,6 +2206,7 @@ function WorkItemsContent() {
             : (limitPrice || (subitem.contract_price ? String(subitem.contract_price) : '')),
           over_limit_reason: record?.over_limit_reason || '',
           settlement_quantity: record?.completed_quantity || '0',
+          db_settlement_quantity: record?.completed_quantity || '0',
           total_settlement: totalSettlement.toString(),
           record_id: record?.id || null,
         };
@@ -2137,10 +2293,60 @@ function WorkItemsContent() {
       return;
     }
 
+    // P0-1 差异提示（非阻塞）：本月结算 vs 本月报量 差异 > 30%（可能少结/多报）
+    try {
+      const isDemoProject = parseInt(selectedProjectId) === DEMO_PROJECT_ID;
+      const monthReports = isDemoProject
+        ? demoMonthlyReports(settlementYearMonth)
+        : (await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${settlementYearMonth}`, { credentials: 'include' }).then(res => res.json())).records || [];
+      const reportMap = new Map<number, number>(
+        monthReports.map((rec: any) => [rec.subitem_id, parseFloat(rec.report_quantity) || 0] as [number, number])
+      );
+      const diffWarnings = recordsToSave
+        .map(s => ({
+          name: monthlySettlementRecords.find(r => r.subitem_id === s.subitem_id)?.subitem_name || `分项#${s.subitem_id}`,
+          report: reportMap.get(s.subitem_id) || 0,
+          settle: parseFloat(String(s.completed_quantity)) || 0,
+        }))
+        .filter(x => x.report > 0 && Math.abs(x.settle - x.report) / x.report > 0.3)
+        .map(x => `《${x.name}》报 ${formatQuantity(x.report)} vs 结 ${formatQuantity(x.settle)}`);
+      if (diffWarnings.length > 0) {
+        toast({
+          title: '结算与报量差异较大',
+          description: `本月以下分项结算与报量差异超 30%，请核查是否少结/多报：${diffWarnings.slice(0, 3).join('；')}${diffWarnings.length > 3 ? ` 等 ${diffWarnings.length} 项` : ''}`,
+          variant: 'warning',
+        });
+      }
+    } catch (error) {
+      // 差异提示失败不阻塞保存
+    }
+
     if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
       const totalSaved = recordsToSave.length + addonRecordsToSave.length;
       toast({ title: '演示保存', description: `已模拟保存 ${totalSaved} 条月度对下结算记录，演示数据不会写入数据库。`, variant: 'success' });
       return;
+    }
+
+    // P0-1 超预算强制确认：累计结算将超出预算量时必须确认
+    const overBudgetItems = monthlySettlementRecords
+      .filter(r => recordsToSave.some(s => s.subitem_id === r.subitem_id))
+      .map(r => {
+        const budget = parseFloat(r.budget_quantity || '0') || 0;
+        const oldMonth = parseFloat(r.db_settlement_quantity || '0') || 0;
+        const newMonth = parseFloat(r.settlement_quantity || '0') || 0;
+        const cumulative = parseFloat(r.total_settlement || '0') || 0;
+        const projected = cumulative - oldMonth + newMonth;
+        return { subitem_name: r.subitem_name, budget, projected, over: budget > 0 && projected > budget };
+      })
+      .filter(x => x.over);
+
+    if (overBudgetItems.length > 0) {
+      const confirmed = await confirm({
+        title: '累计结算将超出预算量',
+        description: `以下 ${overBudgetItems.length} 个分项保存后累计结算量将超过预算量：${overBudgetItems.slice(0, 5).map(x => `《${x.subitem_name}》预算 ${formatQuantity(x.budget)}，保存后 ${formatQuantity(x.projected)}`).join('；')}${overBudgetItems.length > 5 ? ` 等 ${overBudgetItems.length} 项` : ''}。是否继续保存？`,
+        variant: 'destructive',
+      });
+      if (!confirmed) return;
     }
 
     try {
@@ -3301,6 +3507,10 @@ function WorkItemsContent() {
                 <AlertTriangle className="w-4 h-4" />
                 差异分析
               </TabsTrigger>
+              <TabsTrigger value="reconciliation" className="gap-2">
+                <Scale className="w-4 h-4" />
+                勾稽台账
+              </TabsTrigger>
               </TabsList>
             </div>
 
@@ -4320,6 +4530,178 @@ function WorkItemsContent() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* P0-1 勾稽台账：报量 vs 结算 vs 回款 月度结转 */}
+            <TabsContent value="reconciliation" className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">报量-结算-回款勾稽台账</h3>
+                  <p className="text-sm text-gray-500 mt-1">按月结转：分项级「对上报量 vs 对下结算」＋ 项目级「甲方回款」；累计报量 − 累计回款 = 应收未收空间</p>
+                </div>
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+                  <Select value={reconYearMonth} onValueChange={setReconYearMonth}>
+                    <SelectTrigger className="w-full sm:w-36">
+                      <SelectValue placeholder="选择月份" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getMonthsList().map(month => (
+                        <SelectItem key={month} value={month}>{month}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" onClick={() => fetchReconciliation()} disabled={reconLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${reconLoading ? 'animate-spin' : ''}`} />刷新
+                  </Button>
+                </div>
+              </div>
+
+              {reconLoading && !reconData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+                  </div>
+                  <Skeleton className="h-64 rounded-xl" />
+                </div>
+              ) : reconData && reconData.summary ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-6 lg:gap-4">
+                    <Card className="border-blue-200 bg-blue-50">
+                      <CardContent className="py-3">
+                        <p className="text-sm text-blue-600">本月报量金额</p>
+                        <p className="text-lg font-bold text-blue-700 mt-1">{formatCurrency(reconData.summary.month_report_amount)}</p>
+                        <p className="mt-1 text-xs text-blue-700/70">{reconYearMonth}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-amber-200 bg-amber-50">
+                      <CardContent className="py-3">
+                        <p className="text-sm text-amber-600">本月结算金额</p>
+                        <p className="text-lg font-bold text-amber-700 mt-1">{formatCurrency(reconData.summary.month_settlement_amount)}</p>
+                        <p className="mt-1 text-xs text-amber-700/70">{reconYearMonth}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-emerald-200 bg-emerald-50">
+                      <CardContent className="py-3">
+                        <p className="text-sm text-emerald-600">本月回款</p>
+                        <p className="text-lg font-bold text-emerald-700 mt-1">{formatCurrency(reconData.summary.month_payment_amount)}</p>
+                        <p className="mt-1 text-xs text-emerald-700/70">{reconYearMonth}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className={reconData.summary.month_difference < 0 ? 'border-red-200 bg-red-50' : 'border-purple-200 bg-purple-50'}>
+                      <CardContent className="py-3">
+                        <p className={reconData.summary.month_difference < 0 ? 'text-sm text-red-600' : 'text-sm text-purple-600'}>本月对上对下差额</p>
+                        <p className={reconData.summary.month_difference < 0 ? 'text-lg font-bold text-red-700 mt-1' : 'text-lg font-bold text-purple-700 mt-1'}>
+                          {formatCurrency(reconData.summary.month_difference)}
+                        </p>
+                        <p className={reconData.summary.month_difference < 0 ? 'mt-1 text-xs text-red-700/70' : 'mt-1 text-xs text-purple-700/70'}>报量 − 结算</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-slate-200 bg-slate-50">
+                      <CardContent className="py-3">
+                        <p className="text-sm text-slate-600">累计回款</p>
+                        <p className="text-lg font-bold text-slate-800 mt-1">{formatCurrency(reconData.summary.cumulative_payment_amount)}</p>
+                        <p className="mt-1 text-xs text-slate-500">截止 {reconYearMonth}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className={reconData.summary.receivable_amount > 0 ? 'border-orange-200 bg-orange-50' : 'border-emerald-200 bg-emerald-50'}>
+                      <CardContent className="py-3">
+                        <p className={reconData.summary.receivable_amount > 0 ? 'text-sm text-orange-600' : 'text-sm text-emerald-600'}>
+                          {reconData.summary.receivable_amount > 0 ? '应收未回款' : '超收/预收'}
+                        </p>
+                        <p className={reconData.summary.receivable_amount > 0 ? 'text-lg font-bold text-orange-700 mt-1' : 'text-lg font-bold text-emerald-700 mt-1'}>
+                          {formatCurrency(Math.abs(reconData.summary.receivable_amount))}
+                        </p>
+                        <p className={reconData.summary.receivable_amount > 0 ? 'mt-1 text-xs text-orange-700/70' : 'mt-1 text-xs text-emerald-700/70'}>累计报量 − 累计回款</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-gray-500">风险标记：</span>
+                    <Badge variant={reconData.summary.over_budget_count > 0 ? 'destructive' : 'outline'}>
+                      累计报量超预算 {reconData.summary.over_budget_count} 项
+                    </Badge>
+                    <Badge variant={reconData.summary.settlement_over_report_count > 0 ? 'destructive' : 'outline'}>
+                      少报多结 {reconData.summary.settlement_over_report_count} 项
+                    </Badge>
+                    <Badge variant={reconData.summary.ratio_warning_count > 0 ? 'destructive' : 'outline'}>
+                      差异超30% {reconData.summary.ratio_warning_count} 项
+                    </Badge>
+                  </div>
+
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-max">
+                        <TableHeader>
+                          <TableRow className="bg-slate-50">
+                            <TableHead className="whitespace-nowrap">分项</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">预算量</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">合同单价</TableHead>
+                            <TableHead className="whitespace-nowrap text-center text-blue-600">本月报量（数量 / 金额）</TableHead>
+                            <TableHead className="whitespace-nowrap text-center text-blue-600">累计报量（数量 / 金额）</TableHead>
+                            <TableHead className="whitespace-nowrap text-center text-amber-600">本月结算（数量 / 金额）</TableHead>
+                            <TableHead className="whitespace-nowrap text-center text-amber-600">累计结算（数量 / 金额）</TableHead>
+                            <TableHead className="whitespace-nowrap text-center text-purple-600">本月差异（金额 / 率）</TableHead>
+                            <TableHead className="whitespace-nowrap">标记</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {reconData.rows.map((row: any) => (
+                            <TableRow key={row.subitem_id}>
+                              <TableCell className="font-medium whitespace-nowrap">
+                                {row.subitem_name}
+                                <span className="ml-1 text-xs text-gray-400">{row.unit || ''}</span>
+                              </TableCell>
+                              <TableCell className="text-right whitespace-nowrap">{formatQuantity(row.budget_quantity)}</TableCell>
+                              <TableCell className="text-right whitespace-nowrap">{formatCurrency(row.contract_price)}</TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                <div className="text-blue-700">{formatQuantity(row.month_report_quantity)}</div>
+                                <div className="text-xs text-gray-400">{formatCurrency(row.month_report_amount)}</div>
+                              </TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                <div className="text-blue-700">{formatQuantity(row.cumulative_report_quantity)}</div>
+                                <div className="text-xs text-gray-400">{formatCurrency(row.cumulative_report_amount)}</div>
+                              </TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                <div className="text-amber-700">{formatQuantity(row.month_settlement_quantity)}</div>
+                                <div className="text-xs text-gray-400">{formatCurrency(row.month_settlement_amount)}</div>
+                              </TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                <div className="text-amber-700">{formatQuantity(row.cumulative_settlement_quantity)}</div>
+                                <div className="text-xs text-gray-400">{formatCurrency(row.cumulative_settlement_amount)}</div>
+                              </TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                <div className={row.month_difference < 0 ? 'text-red-600 font-medium' : 'text-purple-700'}>
+                                  {formatCurrency(row.month_difference)}
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {row.difference_ratio !== null && row.difference_ratio !== undefined ? formatPercent(row.difference_ratio) : '-'}
+                                </div>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                <div className="flex flex-wrap gap-1">
+                                  {row.over_budget && <Badge variant="destructive">超预算</Badge>}
+                                  {row.settlement_over_report && <Badge variant="destructive">少报多结</Badge>}
+                                  {row.ratio_warning && <Badge variant="outline" className="border-orange-200 bg-orange-100 text-orange-700">差异较大</Badge>}
+                                  {!row.over_budget && !row.settlement_over_report && !row.ratio_warning && (
+                                    <span className="text-xs text-gray-400">正常</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-400">
+                    口径：报量金额 = 对上报量 × 合同单价；结算金额 = 对下结算量 × 实际结算单价（未填退回限价/合同价）；回款为项目级（client_payments），不分配到分项；应收 = 累计报量 − 累计回款。
+                  </p>
+                </>
+              ) : (
+                <div className="text-center py-10 text-gray-500">请选择项目与月份查看勾稽台账</div>
+              )}
             </TabsContent>
           </Tabs>
         )}
