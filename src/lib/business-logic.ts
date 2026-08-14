@@ -299,6 +299,24 @@ import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
 export { DEFAULT_PAYMENT_RATIOS };
 
 /**
+ * P0-2 限价过程控制：结算单价超限校验（纯函数，可单测）
+ * - 无限价（limitPrice 为空或 ≤0）→ 不拦截（保持现状兼容，历史分项无 limit_price）
+ * - 超限返回 overLimit=true + 超限比例（保留 1 位小数）
+ */
+export function validateSettlementLimitPrice(params: {
+  unitPrice: number;
+  limitPrice?: number | string | null;
+}): { overLimit: boolean; overRatio: number } {
+  const limit = parseNumeric(params.limitPrice);
+  if (limit <= 0) return { overLimit: false, overRatio: 0 };
+  const ratio = limit > 0 ? ((params.unitPrice - limit) / limit) * 100 : 0;
+  return {
+    overLimit: params.unitPrice > limit,
+    overRatio: Math.round(ratio * 10) / 10,
+  };
+}
+
+/**
  * 计算结算单应付金额
  * 应付金额 = 结算金额 × 合同付款比例（根据结算类型选择不同比例）
  */

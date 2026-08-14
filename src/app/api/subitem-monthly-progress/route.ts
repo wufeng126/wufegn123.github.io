@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { parseNumeric, validateSettlementLimitPrice } from '@/lib/business-logic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
         subitem_id,
         year_month,
         completed_quantity,
+        unit_price,
+        over_limit,
+        over_limit_reason,
         remark,
         created_at,
         work_item_subitems (
@@ -29,6 +33,7 @@ export async function GET(request: NextRequest) {
           unit,
           budget_quantity,
           contract_price,
+          limit_price,
           project_id
         )
       `)
@@ -67,9 +72,13 @@ export async function GET(request: NextRequest) {
       unit: record.work_item_subitems?.unit || '',
       budget_quantity: record.work_item_subitems?.budget_quantity || '0',
       contract_price: record.work_item_subitems?.contract_price || null,
+      limit_price: record.work_item_subitems?.limit_price || null,
       project_id: record.work_item_subitems?.project_id || null,
       year_month: record.year_month,
       completed_quantity: record.completed_quantity,
+      unit_price: record.unit_price,
+      over_limit: record.over_limit,
+      over_limit_reason: record.over_limit_reason,
       remark: record.remark,
       created_at: record.created_at,
     }));
@@ -98,10 +107,36 @@ export async function POST(request: NextRequest) {
     const results = [];
     
     for (const record of records) {
-      const { subitem_id, year_month, completed_quantity, remark } = record;
+      const { subitem_id, year_month, completed_quantity, unit_price, over_limit_reason, remark } = record;
 
       if (!subitem_id || !year_month || completed_quantity === undefined) {
         continue;
+      }
+
+      // P0-2 限价过程控制：服务端超限校验（防绕过）
+      // 读取分项限价；无限价（历史分项）不拦截
+      const { data: subitem } = await client
+        .from('work_item_subitems')
+        .select('id, limit_price')
+        .eq('id', parseInt(subitem_id))
+        .single();
+
+      const limitPrice = subitem?.limit_price ?? null;
+      const settleUnitPrice = unit_price !== undefined && unit_price !== '' ? parseNumeric(unit_price) : null;
+      let overLimit = false;
+      let overRatio = 0;
+
+      if (settleUnitPrice !== null) {
+        const check = validateSettlementLimitPrice({ unitPrice: settleUnitPrice, limitPrice });
+        overLimit = check.overLimit;
+        overRatio = check.overRatio;
+        // 超限必须填原因（留痕），否则拒绝
+        if (overLimit && (!over_limit_reason || !String(over_limit_reason).trim())) {
+          return NextResponse.json(
+            { error: `结算单价 ${settleUnitPrice} 超限价 ${limitPrice}（+${overRatio}%），请填写超限原因`, code: 'OVER_LIMIT_REASON_REQUIRED' },
+            { status: 400 }
+          );
+        }
       }
 
       // 检查是否已存在该月份的记录
@@ -112,14 +147,19 @@ export async function POST(request: NextRequest) {
         .eq('year_month', year_month)
         .single();
 
+      const saveFields: Record<string, unknown> = {
+        completed_quantity: completed_quantity.toString(),
+        remark,
+      };
+      if (settleUnitPrice !== null) saveFields.unit_price = settleUnitPrice;
+      saveFields.over_limit = overLimit;
+      saveFields.over_limit_reason = overLimit ? String(over_limit_reason).trim() : null;
+
       if (existing) {
         // 更新已有记录
         const { data, error } = await client
           .from('subitem_monthly_progress')
-          .update({ 
-            completed_quantity: completed_quantity.toString(),
-            remark 
-          })
+          .update(saveFields)
           .eq('id', existing.id)
           .select()
           .single();
@@ -131,11 +171,10 @@ export async function POST(request: NextRequest) {
         // 创建新记录
         const { data, error } = await client
           .from('subitem_monthly_progress')
-          .insert({ 
+          .insert({
             subitem_id: parseInt(subitem_id),
             year_month,
-            completed_quantity: completed_quantity.toString(),
-            remark 
+            ...saveFields,
           })
           .select()
           .single();

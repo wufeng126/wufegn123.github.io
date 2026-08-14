@@ -11,6 +11,7 @@ import {
   isFinalSettlementType,
   summarizeSupplierSettlementRows,
   resolveReportedIncome,
+  validateSettlementLimitPrice,
   normalizeReviewStatus,
   isReviewedStatus,
   isVoidedStatus,
@@ -254,6 +255,30 @@ describe('resolveReportedIncome（甲方收入口径 D3）', () => {
     expect(resolveReportedIncome(undefined, null, 80)).toBe(80);
     expect(resolveReportedIncome(null, null, null)).toBe(0);
     expect(resolveReportedIncome('0', '0', '50')).toBe(50); // invoice 为 0 时跳过
+  });
+});
+
+describe('validateSettlementLimitPrice（P0-2 限价超限校验）', () => {
+  it('结算单价超过限价 → overLimit + 超限比例', () => {
+    expect(validateSettlementLimitPrice({ unitPrice: 1086, limitPrice: 980 })).toEqual({ overLimit: true, overRatio: 10.8 });
+    expect(validateSettlementLimitPrice({ unitPrice: 56.5, limitPrice: 52 })).toEqual({ overLimit: true, overRatio: 8.7 });
+  });
+
+  it('结算单价等于或低于限价 → 不超限', () => {
+    expect(validateSettlementLimitPrice({ unitPrice: 980, limitPrice: 980 }).overLimit).toBe(false);
+    expect(validateSettlementLimitPrice({ unitPrice: 168, limitPrice: 175 }).overLimit).toBe(false);
+    expect(validateSettlementLimitPrice({ unitPrice: 1000, limitPrice: 980 }).overRatio).toBeGreaterThan(0);
+  });
+
+  it('无限价（空/0/字符串）→ 不拦截（兼容历史分项）', () => {
+    expect(validateSettlementLimitPrice({ unitPrice: 1000, limitPrice: null })).toEqual({ overLimit: false, overRatio: 0 });
+    expect(validateSettlementLimitPrice({ unitPrice: 1000, limitPrice: undefined }).overLimit).toBe(false);
+    expect(validateSettlementLimitPrice({ unitPrice: 1000, limitPrice: 0 }).overLimit).toBe(false);
+    expect(validateSettlementLimitPrice({ unitPrice: 1000, limitPrice: '' }).overLimit).toBe(false);
+  });
+
+  it('超限比例保留 1 位小数', () => {
+    expect(validateSettlementLimitPrice({ unitPrice: 100.01, limitPrice: 90 }).overRatio).toBe(11.1);
   });
 });
 

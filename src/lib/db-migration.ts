@@ -1919,6 +1919,15 @@ CREATE INDEX IF NOT EXISTS security_logs_event_type_idx ON security_logs(event_t
 CREATE INDEX IF NOT EXISTS security_logs_user_id_idx ON security_logs(user_id);
 CREATE INDEX IF NOT EXISTS security_logs_created_at_idx ON security_logs(created_at DESC);
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2026-08-14 (P0-2 限价过程控制): subitem_monthly_progress 增加结算单价与超限留痕
+-- 与 migrations/add_subitem_settlement_limit_price.sql 一致
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE subitem_monthly_progress
+  ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2),
+  ADD COLUMN IF NOT EXISTS over_limit BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS over_limit_reason TEXT;
+
 NOTIFY pgrst, 'reload schema';
 `;
 

@@ -322,6 +322,10 @@ export const subitemMonthlyProgress = pgTable("subitem_monthly_progress", {
 	subitemId: integer("subitem_id").notNull(),
 	yearMonth: varchar("year_month", { length: 7 }).notNull(), // 格式: YYYY-MM
 	completedQuantity: numeric("completed_quantity", { precision: 12, scale:  2 }).notNull(), // 当月完成量
+	// P0-2 限价过程控制：结算单价 + 超限留痕
+	unitPrice: numeric("unit_price", { precision: 12, scale:  2 }), // 当月结算单价（默认带出分项限价，可改）
+	overLimit: boolean("over_limit").default(false), // 是否超限价
+	overLimitReason: text("over_limit_reason"), // 超限原因（留痕）
 	remark: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [

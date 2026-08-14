@@ -431,6 +431,7 @@ function WorkItemsContent() {
     unit: '',
     budget_quantity: '',
     contract_price: '',
+    limit_price: '', // P0-2：新增分项即填限价（内部成本控制线），避免限价留空导致结算价 fallback 混用
     remark: '',
   });
   const [batchText, setBatchText] = useState('');
@@ -1292,7 +1293,7 @@ function WorkItemsContent() {
           budget_quantity: form.budget_quantity || '0',
           contract_price: form.contract_price || null,
           completed_quantity: '0',
-          limit_price: null,
+          limit_price: form.limit_price || null,
           remark: form.remark || null,
         }),
       });
@@ -1650,6 +1651,7 @@ function WorkItemsContent() {
       unit: item.unit,
       budget_quantity: item.budget_quantity || '',
       contract_price: item.contract_price || '',
+      limit_price: item.limit_price || '',
       remark: item.remark || '',
     });
     setEditDialogOpen(true);
@@ -1661,6 +1663,7 @@ function WorkItemsContent() {
       unit: '',
       budget_quantity: '',
       contract_price: '',
+      limit_price: '',
       remark: '',
     });
   };
@@ -2034,11 +2037,19 @@ function WorkItemsContent() {
       const mergedRecords = projectSubitems.map(subitem => {
         const record = recordsMap.get(subitem.id) as any;
         const totalSettlement = parseFloat(subitem.settlement_quantity || '0') || 0;
+        const limitPrice = subitem.limit_price ? String(subitem.limit_price) : '';
         return {
           subitem_id: subitem.id,
           subitem_name: subitem.subitem_name,
           unit: subitem.unit,
           budget_quantity: subitem.budget_quantity,
+          contract_price: subitem.contract_price ? String(subitem.contract_price) : '',
+          limit_price: limitPrice,
+          // P0-2：结算单价默认带出限价，无限价退回合同价（三层价格同屏 + 超限校验）
+          unit_price: record?.unit_price != null && record?.unit_price !== ''
+            ? String(record.unit_price)
+            : (limitPrice || (subitem.contract_price ? String(subitem.contract_price) : '')),
+          over_limit_reason: record?.over_limit_reason || '',
           settlement_quantity: record?.completed_quantity || '0',
           total_settlement: totalSettlement.toString(),
           record_id: record?.id || null,
@@ -2078,6 +2089,20 @@ function WorkItemsContent() {
     ));
   };
 
+  // P0-2：结算单价变化（实时超限标红由渲染层校验）
+  const handleMonthlySettlementUnitPriceChange = (subitemId: number, value: string) => {
+    setMonthlySettlementRecords(prev => prev.map(r =>
+      r.subitem_id === subitemId ? { ...r, unit_price: value } : r
+    ));
+  };
+
+  // P0-2：超限原因输入
+  const handleMonthlySettlementOverReasonChange = (subitemId: number, value: string) => {
+    setMonthlySettlementRecords(prev => prev.map(r =>
+      r.subitem_id === subitemId ? { ...r, over_limit_reason: value } : r
+    ));
+  };
+
   const handleMonthlyAddonSettlementChange = (addonId: number, value: string) => {
     setMonthlyAddonSettlementRecords(prev => prev.map(r =>
       r.addon_id === addonId ? { ...r, quantity: value } : r
@@ -2092,6 +2117,9 @@ function WorkItemsContent() {
         subitem_id: r.subitem_id,
         year_month: settlementYearMonth,
         completed_quantity: r.settlement_quantity || '0',
+        // P0-2：提交结算单价与超限原因（服务端二次校验）
+        unit_price: r.unit_price || null,
+        over_limit_reason: r.over_limit_reason || '',
       }));
 
     const addonRecordsToSave = monthlyAddonSettlementRecords
@@ -2517,6 +2545,20 @@ function WorkItemsContent() {
     if (percent >= 80) return 'bg-green-500';
     if (percent >= 50) return 'bg-blue-500';
     return 'bg-yellow-500';
+  };
+
+  // P0-2 限价控制：前端实时超限判断（内联实现，避免 client 引入 server 依赖）
+  const isUnitPriceOverLimit = (record: any): boolean => {
+    const limit = parseFloat(record.limit_price);
+    const unit = parseFloat(record.unit_price);
+    if (!limit || !unit || isNaN(limit) || isNaN(unit)) return false;
+    return unit > limit;
+  };
+  const getUnitPriceOverRatio = (record: any): string => {
+    const limit = parseFloat(record.limit_price);
+    const unit = parseFloat(record.unit_price);
+    if (!limit || isNaN(limit) || !unit || isNaN(unit)) return '0.0';
+    return ((unit - limit) / limit * 100).toFixed(1);
   };
 
   const getDashboardStatusClass = (status: DashboardStatus) => {
@@ -4312,9 +4354,16 @@ function WorkItemsContent() {
                 <Input type="number" step="0.01" value={form.contract_price || ''} onChange={(e) => setForm({ ...form, contract_price: e.target.value })} placeholder="元" />
               </div>
             </div>
-            <div>
-              <Label>备注</Label>
-              <Input value={form.remark || ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} placeholder="备注信息" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                {/* P0-2：新增即填限价，避免限价留空导致结算价 fallback 混用 */}
+                <Label>限价（内部成本控制线）</Label>
+                <Input type="number" step="0.01" value={form.limit_price || ''} onChange={(e) => setForm({ ...form, limit_price: e.target.value })} placeholder="元，对下结算超此价需填原因" />
+              </div>
+              <div>
+                <Label>备注</Label>
+                <Input value={form.remark || ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} placeholder="备注信息" />
+              </div>
             </div>
             <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
@@ -4815,7 +4864,10 @@ function WorkItemsContent() {
                     <TableHead>分项名称</TableHead>
                     <TableHead>单位</TableHead>
                     <TableHead className="text-right">预算量</TableHead>
+                    <TableHead className="text-right">合同单价</TableHead>
+                    <TableHead className="text-right">限价</TableHead>
                     <TableHead className="text-right">当月结算量</TableHead>
+                    <TableHead className="text-right">结算单价</TableHead>
                     <TableHead className="text-right">累计结算量</TableHead>
                     <TableHead className="text-right">剩余工程量</TableHead>
                     <TableHead className="text-right">结算率</TableHead>
@@ -4835,6 +4887,8 @@ function WorkItemsContent() {
                         <TableCell className="font-medium">{record.subitem_name}</TableCell>
                         <TableCell>{record.unit}</TableCell>
                         <TableCell className="text-right">{record.budget_quantity}</TableCell>
+                        <TableCell className="text-right text-blue-600">{record.contract_price || '-'}</TableCell>
+                        <TableCell className="text-right text-orange-600">{record.limit_price || '-'}</TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number"
@@ -4844,6 +4898,32 @@ function WorkItemsContent() {
                             onChange={(e) => handleMonthlySettlementChange(record.subitem_id, e.target.value)}
                             placeholder="0"
                           />
+                        </TableCell>
+                        {/* P0-2：结算单价（默认带出限价/合同价），超限实时标红 + 原因留痕 */}
+                        <TableCell className="text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className={`w-24 text-right ${isUnitPriceOverLimit(record) ? 'border-red-400 text-red-600' : ''}`}
+                              value={record.unit_price || ''}
+                              onChange={(e) => handleMonthlySettlementUnitPriceChange(record.subitem_id, e.target.value)}
+                              placeholder="单价"
+                            />
+                            {isUnitPriceOverLimit(record) && (
+                              <div className="flex flex-col gap-1 w-44">
+                                <span className="text-[11px] font-medium text-red-600">
+                                  超限价 {getUnitPriceOverRatio(record)}%
+                                </span>
+                                <Input
+                                  value={record.over_limit_reason || ''}
+                                  onChange={(e) => handleMonthlySettlementOverReasonChange(record.subitem_id, e.target.value)}
+                                  placeholder="必填：超限原因（留痕）"
+                                  className="h-7 text-[11px] border-red-300"
+                                />
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-medium text-blue-600">{record.total_settlement}</TableCell>
                         <TableCell className="text-right font-medium text-orange-600">{remaining.toFixed(2)}</TableCell>
