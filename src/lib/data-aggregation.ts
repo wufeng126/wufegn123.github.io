@@ -21,6 +21,128 @@ import {
 import { parseNumeric, round2, yearMonthToRange } from './format';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 
+// ========== D2/D4 供应商结算/付款 口径统一工具 ==========
+
+/**
+ * 供应商结算指纹（用于老表 settlements 与新表 supplier_settlements 去重）。
+ * 同笔结算在迁移/双录入场景下两表并存：供应商 + 项目 + 金额 + 日期 + 类型 完全一致视为同一笔，
+ * 保留新表记录（含 payable_amount/合同关联），丢弃老表重复项。
+ */
+export function supplierSettlementFingerprint(input: {
+  supplierId: number;
+  projectId: number;
+  amount: number;
+  date: string | null;
+  type?: string | null;
+}): string {
+  const amount = round2(parseNumeric(input.amount));
+  return [input.supplierId, input.projectId, amount, (input.date || '').trim(), (input.type || '').trim()].join('|');
+}
+
+/** 供应商付款指纹（老表 payments 与新表 supplier_payments 去重） */
+export function supplierPaymentFingerprint(input: {
+  supplierId: number;
+  projectId: number;
+  amount: number;
+  date: string | null;
+}): string {
+  const amount = round2(parseNumeric(input.amount));
+  return [input.supplierId, input.projectId, amount, (input.date || '').trim()].join('|');
+}
+
+/** 将新表记录置入去重集合（新表为权威来源，优先保留） */
+export function addSupplierFingerprints(
+  set: Set<string>,
+  records: Array<{ supplierId: number; projectId: number; amount: number; date: string | null; type?: string | null }>,
+  fingerprint: (input: { supplierId: number; projectId: number; amount: number; date: string | null; type?: string | null }) => string,
+) {
+  for (const r of records) set.add(fingerprint(r));
+}
+
+/**
+ * 供应商结算总金额（D2 统一口径：dashboard/月报/台账共用）
+ * = 新表 supplier_settlements（排除作废，经合同关联项目）
+ *   + 老表 settlements（历史遗留，按 project_id 直连），两表同笔按指纹去重（保留新表）
+ */
+export async function getSupplierSettlementTotal(
+  client: unknown,
+  options: { projectId?: number; startDate?: string } = {},
+): Promise<number> {
+  const db = client as { from: (table: string) => any };
+  const { projectId, startDate } = options;
+
+  // 1. 新表：合同 → 项目 + 供应商
+  let contractQuery = db.from('supplier_contracts').select('id, project_id, supplier_id');
+  if (projectId) contractQuery = contractQuery.eq('project_id', projectId);
+  const { data: contracts } = await contractQuery;
+  const contractIds: number[] = (contracts || []).map((c: any) => Number(c.id));
+  const contractToProject = new Map<number, number>();
+  const contractToSupplier = new Map<number, number>();
+  (contracts || []).forEach((c: any) => {
+    const cid = Number(c.id);
+    const pid = Number(c.project_id);
+    const sid = Number(c.supplier_id);
+    if (cid && pid) contractToProject.set(cid, pid);
+    if (cid && sid) contractToSupplier.set(cid, sid);
+  });
+
+  let total = 0;
+  const newFingerprints = new Set<string>();
+
+  if (contractIds.length > 0) {
+    let settleQuery = db
+      .from('supplier_settlements')
+      .select('contract_id, settlement_amount, settlement_date, settlement_type, status')
+      .in('contract_id', contractIds);
+    if (startDate) settleQuery = settleQuery.gte('settlement_date', startDate);
+    const { data: newSettlements } = await settleQuery;
+    for (const s of (newSettlements || []) as any[]) {
+      if (isVoidedStatus(s.status)) continue;
+      const pid = contractToProject.get(Number(s.contract_id));
+      if (!pid || (projectId && pid !== projectId)) continue;
+      if (startDate && s.settlement_date && String(s.settlement_date) < startDate) continue;
+      const amount = parseNumeric(s.settlement_amount);
+      total += amount;
+      newFingerprints.add(supplierSettlementFingerprint({
+        supplierId: contractToSupplier.get(Number(s.contract_id)) || 0,
+        projectId: pid,
+        amount,
+        date: s.settlement_date ? String(s.settlement_date) : null,
+        type: s.settlement_type,
+      }));
+    }
+  }
+
+  // 2. 老表（历史遗留；表不存在时静默跳过）
+  try {
+    let legacyQuery = db.from('settlements').select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type');
+    if (projectId) legacyQuery = legacyQuery.eq('project_id', projectId);
+    if (startDate) legacyQuery = legacyQuery.gte('settlement_date', startDate);
+    const { data: legacy } = await legacyQuery;
+    for (const s of (legacy || []) as any[]) {
+      const pid = Number(s.project_id);
+      const sid = Number(s.supplier_id);
+      if (projectId && pid !== projectId) continue;
+      if (startDate && s.settlement_date && String(s.settlement_date) < startDate) continue;
+      const amount = parseNumeric(s.settlement_amount);
+      // 与同 supplier 的新表记录按指纹去重
+      const fp = supplierSettlementFingerprint({
+        supplierId: sid,
+        projectId: pid,
+        amount,
+        date: s.settlement_date ? String(s.settlement_date) : null,
+        type: s.settlement_type,
+      });
+      if (newFingerprints.has(fp)) continue;
+      total += amount;
+    }
+  } catch {
+    // 老表可能不存在（新库未建），静默跳过
+  }
+
+  return round2(total);
+}
+
 // ========== 类型定义 ==========
 
 export interface DateRange {

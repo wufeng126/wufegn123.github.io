@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
       source: 'old' | 'new';
       raw: Record<string, unknown>;
     }
-    const allSettlements: UnifiedSettlement[] = [];
+    let allSettlements: UnifiedSettlement[] = [];
 
     // Old settlements (direct supplier_id + project_id)
     for (const s of oldSettlements as Record<string, unknown>[]) {
@@ -285,7 +285,7 @@ export async function GET(request: NextRequest) {
       source: 'old' | 'new';
       raw: Record<string, unknown>;
     }
-    const allPayments: UnifiedPayment[] = [];
+    let allPayments: UnifiedPayment[] = [];
 
     // Old payments (direct supplier_id + project_id)
     for (const p of oldPayments as Record<string, unknown>[]) {
@@ -323,6 +323,33 @@ export async function GET(request: NextRequest) {
         raw: p,
       });
     }
+
+    // === D4 修复：老表+新表按指纹去重 ===
+    // 同一笔结算/付款在迁移或双录入场景下可能两表并存：供应商+项目+金额+日期+类型
+    // 完全一致视为同一笔，保留新表记录（含 payable_amount/合同关联），丢弃老表重复项。
+    const settlementDedupKeys = new Set<string>();
+    for (const s of allSettlements) {
+      if (s.source === 'new') {
+        settlementDedupKeys.add(
+          [s.supplierId, s.projectId, s.settlementAmount, (s.settlementDate || s.settlementMonth || '').trim(), (s.settlementType || '').trim()].join('|')
+        );
+      }
+    }
+    allSettlements = allSettlements.filter(
+      (s) =>
+        s.source === 'new' ||
+        !settlementDedupKeys.has([s.supplierId, s.projectId, s.settlementAmount, (s.settlementDate || s.settlementMonth || '').trim(), (s.settlementType || '').trim()].join('|'))
+    );
+
+    const paymentDedupKeys = new Set<string>();
+    for (const p of allPayments) {
+      if (p.source === 'new') {
+        paymentDedupKeys.add([p.supplierId, p.projectId, p.paymentAmount, (p.paymentDate || '').trim()].join('|'));
+      }
+    }
+    allPayments = allPayments.filter(
+      (p) => p.source === 'new' || !paymentDedupKeys.has([p.supplierId, p.projectId, p.paymentAmount, (p.paymentDate || '').trim()].join('|'))
+    );
 
     const teamSettlementCostByProject = new Map<number, { month: number }>();
     await Promise.all(targetProjectIds.map(async (pid) => {

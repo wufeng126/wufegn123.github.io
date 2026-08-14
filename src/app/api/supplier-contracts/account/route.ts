@@ -30,6 +30,8 @@ type SettlementRecord = {
   contract_id?: number | string | null;
   settlement_amount?: number | string | null;
   payable_amount?: number | string | null;
+  settlement_date?: string | null;
+  settlement_type?: string | null;
   status?: string | null;
 };
 
@@ -37,6 +39,7 @@ type PaymentRecord = {
   supplier_id?: number | string | null;
   contract_id?: number | string | null;
   payment_amount?: number | string | null;
+  payment_date?: string | null;
   status?: string | null;
 };
 
@@ -132,13 +135,25 @@ export async function GET(request: NextRequest) {
     let paymentRecords: PaymentRecord[] = [];
     let projectRecords: ProjectRecord[] = [];
     // 历史老表数据（settlements/payments 挂 supplier_id 直连），用于补全台账中因合同关联缺失而丢失的金额
-    let legacySettlementRecords: { supplier_id?: number | string | null; settlement_amount?: number | string | null }[] = [];
-    let legacyPaymentRecords: { supplier_id?: number | string | null; payment_amount?: number | string | null }[] = [];
+    let legacySettlementRecords: {
+      supplier_id?: number | string | null;
+      project_id?: number | string | null;
+      settlement_amount?: number | string | null;
+      settlement_date?: string | null;
+      settlement_type?: string | null;
+      settlement_month?: string | null;
+    }[] = [];
+    let legacyPaymentRecords: {
+      supplier_id?: number | string | null;
+      project_id?: number | string | null;
+      payment_amount?: number | string | null;
+      payment_date?: string | null;
+    }[] = [];
 
     if (contractIds.length > 0) {
       const { data: settlements, error: settlementsError } = await supabase
         .from('supplier_settlements')
-        .select('contract_id, settlement_amount, status')
+        .select('contract_id, settlement_amount, settlement_date, settlement_type, status')
         .in('contract_id', contractIds);
 
       if (settlementsError) throw settlementsError;
@@ -148,7 +163,7 @@ export async function GET(request: NextRequest) {
     if (supplierIds.length > 0) {
       const { data: payments, error: paymentsError } = await supabase
         .from('supplier_payments')
-        .select('supplier_id, contract_id, payment_amount, status')
+        .select('supplier_id, contract_id, payment_amount, payment_date, status')
         .in('supplier_id', supplierIds);
 
       if (paymentsError) throw paymentsError;
@@ -159,11 +174,11 @@ export async function GET(request: NextRequest) {
       const [legacySettlementsRes, legacyPaymentsRes] = await Promise.all([
         supabase
           .from('settlements')
-          .select('supplier_id, settlement_amount')
+          .select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type, settlement_month')
           .in('supplier_id', supplierIds),
         supabase
           .from('payments')
-          .select('supplier_id, payment_amount')
+          .select('supplier_id, project_id, payment_amount, payment_date')
           .in('supplier_id', supplierIds),
       ]);
       if (legacySettlementsRes.error && !isMissingTableError(legacySettlementsRes.error)) {
@@ -190,11 +205,38 @@ export async function GET(request: NextRequest) {
 
     const contractsBySupplier = new Map<number, ContractRecord[]>();
     const contractToSupplier = new Map<number, number>();
+    const contractToProject = new Map<number, number>();
     contractRecords.forEach((contract) => {
       const sid = Number(contract.supplier_id);
       const contractId = Number(contract.id);
+      const pid = Number(contract.project_id);
       contractToSupplier.set(contractId, sid);
+      if (pid) contractToProject.set(contractId, pid);
       contractsBySupplier.set(sid, [...(contractsBySupplier.get(sid) || []), contract]);
+    });
+
+    // D4 修复：老表+新表按指纹去重（新表为权威来源）。
+    // 同笔结算/付款在迁移或双录入场景下两表并存：供应商+项目+金额+日期(+类型) 一致视为同一笔，
+    // 老表重复项不再并入台账，避免重复计数。
+    const newSettlementFingerprints = new Set<string>();
+    settlementRecords.forEach((settlement) => {
+      if (isVoidedStatus(settlement.status)) return;
+      const sid = contractToSupplier.get(Number(settlement.contract_id));
+      const pid = contractToProject.get(Number(settlement.contract_id));
+      if (!sid || !pid) return;
+      newSettlementFingerprints.add(
+        [sid, pid, roundMoney(parseNumeric(settlement.settlement_amount)), (settlement.settlement_date || '').trim(), (settlement.settlement_type || '').trim()].join('|')
+      );
+    });
+    const newPaymentFingerprints = new Set<string>();
+    paymentRecords.forEach((payment) => {
+      if (!isEffectiveSupplierPaymentStatus(payment.status)) return;
+      const sid = Number(payment.supplier_id) || contractToSupplier.get(Number(payment.contract_id));
+      const pid = contractToProject.get(Number(payment.contract_id));
+      if (!sid || !pid) return;
+      newPaymentFingerprints.add(
+        [sid, pid, roundMoney(parseNumeric(payment.payment_amount)), (payment.payment_date || '').trim()].join('|')
+      );
     });
 
     const settlementBySupplier = new Map<number, number>();
@@ -219,17 +261,25 @@ export async function GET(request: NextRequest) {
     });
 
     // 老表数据并入台账（历史结算/付款不再因合同关联缺失而丢失；老表无 payable，按结算额兜底）
+    // D4：与指纹相同的老表记录（即新表已有同笔）跳过，不重复计入
     legacySettlementRecords.forEach((settlement) => {
       const sid = Number(settlement.supplier_id);
       if (!sid) return;
       const amount = parseNumeric(settlement.settlement_amount);
+      const pid = Number(settlement.project_id) || 0;
+      const fp = [sid, pid, roundMoney(amount), (settlement.settlement_date || '').trim(), (settlement.settlement_type || '').trim()].join('|');
+      if (newSettlementFingerprints.has(fp)) return;
       settlementBySupplier.set(sid, (settlementBySupplier.get(sid) || 0) + amount);
       payableBySupplier.set(sid, (payableBySupplier.get(sid) || 0) + amount);
     });
     legacyPaymentRecords.forEach((payment) => {
       const sid = Number(payment.supplier_id);
       if (!sid) return;
-      paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + parseNumeric(payment.payment_amount));
+      const amount = parseNumeric(payment.payment_amount);
+      const pid = Number(payment.project_id) || 0;
+      const fp = [sid, pid, roundMoney(amount), (payment.payment_date || '').trim()].join('|');
+      if (newPaymentFingerprints.has(fp)) return;
+      paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + amount);
     });
 
     const projectNameMap = new Map<number, string>();

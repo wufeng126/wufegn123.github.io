@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
-import { getGlobalSummary, getProjectFinancialSummary, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
+import { getGlobalSummary, getProjectFinancialSummary, getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { requireAuth } from '@/lib/api-auth';
 
@@ -468,22 +468,12 @@ export async function GET(request: Request) {
     // ========== 成本数据 ==========
     
     // 供应商结算金额（材料机械成本）- 支持项目筛选
-    let settlementsQuery = client
-      .from('settlements')
-      .select('settlement_amount, settlement_date');
-    
-    if (projectId) {
-      settlementsQuery = settlementsQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      settlementsQuery = settlementsQuery.gte('settlement_date', rangeStartDate);
-    }
-    
-    const { data: settlements } = await settlementsQuery;
-    
-    const totalSupplierCost = settlements?.reduce((sum, s) => {
-      return sum + (parseFloat(s.settlement_amount || '0') || 0);
-    }, 0) || 0;
+    // D2 修复：统一走 data-aggregation 口径（新表 supplier_settlements 排除作废 +
+    // 老表 settlements 按指纹去重），与成本利润中心/月报一致，不再单独查老表
+    const totalSupplierCost = await getSupplierSettlementTotal(client, {
+      projectId: projectId ? parseInt(projectId) : undefined,
+      startDate: timeRange !== 'year' ? rangeStartDate : undefined,
+    });
     
     // 工人工资（使用 gross_pay 应发工资）- 支持项目筛选和时间范围筛选
     let workerSalariesQuery = client
@@ -705,15 +695,11 @@ export async function GET(request: Request) {
         const { data: projReports } = await projReportsQuery;
         const projIncome = projReports?.filter((r: any) => r.status !== 'voided').reduce((sum: number, r: any) => sum + (parseFloat(r.settlement_amount || r.report_amount || '0') || 0), 0) || 0;
 
-        let projSettlementsQuery = client
-          .from('settlements')
-          .select('settlement_amount, settlement_date')
-          .eq('project_id', project.id);
-        if (timeRange !== 'year') {
-          projSettlementsQuery = projSettlementsQuery.gte('settlement_date', rangeStartDate);
-        }
-        const { data: projSettlements } = await projSettlementsQuery;
-        const projSupplierCost = projSettlements?.reduce((sum: number, s: any) => sum + (parseFloat(s.settlement_amount || '0') || 0), 0) || 0;
+        // D2 修复：与 KPI 同口径（新表+老表按指纹去重），避免项目对比图与汇总数字不一致
+        const projSupplierCost = await getSupplierSettlementTotal(client, {
+          projectId: project.id,
+          startDate: timeRange !== 'year' ? rangeStartDate : undefined,
+        });
 
         let projSalariesQuery = client
           .from('worker_salaries')
