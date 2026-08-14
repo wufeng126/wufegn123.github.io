@@ -647,7 +647,7 @@ export default function SettlementsPage() {
           ) : (
             <div className="text-center py-12 text-gray-500">
               <p>暂无结算数据</p>
-              <p className="text-sm mt-2">点击"新增结算"添加</p>
+              <p className="text-sm mt-2">点击“新增结算”添加</p>
             </div>
           )}
         </CardContent>

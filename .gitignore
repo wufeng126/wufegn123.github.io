@@ -113,3 +113,6 @@ Desktop.ini
 package-lock.json
 yarn.lock
 .codegraph
+
+# Impeccable review artifacts (local only)
+.impeccable/

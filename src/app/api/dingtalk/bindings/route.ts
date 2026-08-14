@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { createClient } from '@supabase/supabase-js';
 import { requirePermission } from '@/lib/api-auth';
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     if (tab === 'bound') {
       // 已绑定用户：系统用户 + 钉钉信息
-      let query = supabase
+      const query = supabase
         .from('users')
         .select(`
           id, username, name, role, managed_projects,
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     } else if (tab === 'unbound_users') {
       // 未绑定系统用户
-      let query = supabase
+      const query = supabase
         .from('users')
         .select('id, username, name, role')
         .is('dingtalk_user_id', null)
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
 
       const boundSet = new Set((boundIds || []).map((b: Record<string, unknown>) => b.dingtalk_user_id));
 
-      let contactsQuery = supabase
+      const contactsQuery = supabase
         .from('dingtalk_contacts')
         .select('*')
         .eq('active', true)
@@ -367,7 +367,7 @@ export async function POST(request: NextRequest) {
       // 通过 Supabase Auth Admin API 获取用户手机号（public.users 无 phone 列）
       const supabaseUrl = process.env.COZE_SUPABASE_URL || '';
       const serviceRoleKey = process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || '';
-      let authUserPhones: Record<string, string> = {};
+      const authUserPhones: Record<string, string> = {};
       if (serviceRoleKey && supabaseUrl) {
         try {
           const adminClient = createClient(supabaseUrl, serviceRoleKey, {

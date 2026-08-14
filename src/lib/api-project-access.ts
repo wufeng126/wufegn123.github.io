@@ -1,4 +1,5 @@
 import type { RequestAuthUser } from '@/lib/auth';
+import { isMissingProjectRolesTable } from '@/lib/user-project-roles';
 
 type ProjectAccessClient = {
   from: (table: string) => {
@@ -8,6 +9,10 @@ type ProjectAccessClient = {
       };
     };
   };
+};
+
+type ProjectRoleQuery = {
+  eq: (column: string, value: unknown) => PromiseLike<{ data: Array<{ project_id?: unknown }> | null; error?: { message?: string; code?: string } | null }>;
 };
 
 export function parseProjectIds(value: unknown): number[] {
@@ -62,9 +67,31 @@ export async function getAccessibleProjectIds(
     return [];
   }
 
-  if (!data?.managed_projects) return [];
+  const directIds = data?.managed_projects ? parseProjectIds(data.managed_projects) : [];
 
-  return parseProjectIds(data.managed_projects);
+  // A4 修复：合并 user_project_roles 项目角色授权（预算员/项目经理/财务/现场人员）。
+  // 表不存在（老库未迁移）时静默忽略，不阻断主流程。
+  let roleProjectIds: number[] = [];
+  try {
+    const roleTable = (db.from('user_project_roles') as unknown) as {
+      select: (columns: string) => ProjectRoleQuery;
+    };
+    const { data: roleRows, error: roleError } = await roleTable
+      .select('project_id')
+      .eq('user_id', user.id);
+
+    if (!roleError && Array.isArray(roleRows)) {
+      roleProjectIds = roleRows
+        .map((row) => Number(row.project_id))
+        .filter((projectId) => Number.isInteger(projectId));
+    } else if (roleError && !isMissingProjectRolesTable(roleError)) {
+      console.warn(`[project-access] user_project_roles query failed for user ${user.id}: ${roleError.message || 'unknown error'}`);
+    }
+  } catch (err) {
+    console.warn(`[project-access] user_project_roles query failed for user ${user.id}:`, err);
+  }
+
+  return Array.from(new Set([...directIds, ...roleProjectIds]));
 }
 
 export async function getTodoProjectIds(

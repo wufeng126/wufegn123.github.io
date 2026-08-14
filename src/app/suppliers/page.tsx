@@ -296,19 +296,12 @@ export default function SuppliersPage() {
   const handleSaveSupplier = async () => {
     if (!supplierForm.name.trim()) { toast({ title: '请输入供应商名称', variant: 'error' }); return; }
     
-    console.log('========== 保存供应商 ==========');
-    console.log('editingSupplierId:', editingSupplierId, '类型:', typeof editingSupplierId);
-    console.log('supplierForm:', supplierForm);
-    
     try {
       const url = '/api/suppliers';
       const method = editingSupplierId ? 'PUT' : 'POST';
       const submitData = editingSupplierId
         ? { ...supplierForm, id: editingSupplierId }
         : supplierForm;
-      
-      console.log('提交数据:', JSON.stringify(submitData));
-      console.log('请求方法:', method);
       
       const res = await fetch(url, {
         method, 
@@ -317,12 +310,7 @@ export default function SuppliersPage() {
         credentials: 'include',
       });
       
-      console.log('响应状态:', res.status);
-      
       if (res.ok) {
-        const result = await res.json();
-        console.log('保存成功, API返回:', result);
-        
         // 关闭对话框并重置状态
         setSupplierDialogOpen(false);
         setEditingSupplier(null);

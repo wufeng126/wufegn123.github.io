@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Database, Download, Plus, Save, TrendingUp, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useToast } from '@/hooks/use-toast';
 
 interface StandardItem {
   id: number;
@@ -106,6 +107,7 @@ function boolFromCell(value: unknown) {
 }
 
 export default function BidLibraryPage() {
+  const { toast } = useToast();
   const importRef = useRef<HTMLInputElement>(null);
   const standardImportRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>('standard');
@@ -181,7 +183,7 @@ export default function BidLibraryPage() {
   ], [standards, bidPrices.length, costPrices.length, standardInsights]);
 
   async function saveStandard() {
-    if (!standardForm.code || !standardForm.name) return alert('请填写编码和清单名称');
+    if (!standardForm.code || !standardForm.name) { toast({ title: '请填写编码和清单名称', variant: 'error' }); return; }
     setSaving(true);
     try {
       const res = await fetch('/api/bid-estimations/library', {
@@ -194,14 +196,14 @@ export default function BidLibraryPage() {
       setStandardForm(initialStandard);
       await load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : '保存失败');
+      toast({ title: e instanceof Error ? e.message : '保存失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
   }
 
   async function savePrice() {
-    if (!priceForm.standard_item_id || !priceForm.price) return alert('请选择标准清单并填写单价');
+    if (!priceForm.standard_item_id || !priceForm.price) { toast({ title: '请选择标准清单并填写单价', variant: 'error' }); return; }
     setSaving(true);
     try {
       const type = tab === 'bidPrice' ? 'bidPrice' : 'costPrice';
@@ -227,7 +229,7 @@ export default function BidLibraryPage() {
       setPriceForm(initialPrice);
       await load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : '保存失败');
+      toast({ title: e instanceof Error ? e.message : '保存失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -369,11 +371,11 @@ export default function BidLibraryPage() {
 
         const items = Array.from(rowMap.values());
         if (invalidRows.length) {
-          alert(`第 ${invalidRows.join('、')} 行缺少标准编码或标准清单名称，请补充后再导入`);
+          toast({ title: `第 ${invalidRows.join('、')} 行缺少标准编码或标准清单名称，请补充后再导入`, variant: 'error' });
           return;
         }
         if (!items.length) {
-          alert('未识别到可导入的标准清单，请检查模板内容');
+          toast({ title: '未识别到可导入的标准清单，请检查模板内容', variant: 'error' });
           return;
         }
 
@@ -393,9 +395,9 @@ export default function BidLibraryPage() {
         if (!json.success) throw new Error(json.error);
 
         await load();
-        alert(`标准清单导入完成：新增 ${json.data?.created || 0} 条，更新 ${json.data?.updated || 0} 条`);
+        toast({ title: `标准清单导入完成：新增 ${json.data?.created || 0} 条，更新 ${json.data?.updated || 0} 条`, variant: 'success' });
       } catch (e: unknown) {
-        alert(e instanceof Error ? e.message : '标准清单批量导入失败');
+        toast({ title: e instanceof Error ? e.message : '标准清单批量导入失败', variant: 'error' });
       } finally {
         setSaving(false);
         if (standardImportRef.current) standardImportRef.current.value = '';
@@ -435,7 +437,7 @@ export default function BidLibraryPage() {
       }).filter(row => row.originalName || row.price || row.projectName);
 
       if (!parsed.length) {
-        alert('未识别到可导入的数据，请检查清单名称和单价列');
+        toast({ title: '未识别到可导入的数据，请检查清单名称和单价列', variant: 'error' });
         return;
       }
 
@@ -451,7 +453,7 @@ export default function BidLibraryPage() {
 
   async function confirmImportRows() {
     const validRows = reviewRows.filter(row => !row.ignored && row.standardItemId && row.price > 0);
-    if (!validRows.length) return alert('请至少保留一条已匹配且有单价的数据');
+    if (!validRows.length) { toast({ title: '请至少保留一条已匹配且有单价的数据', variant: 'error' }); return; }
 
     const type = tab === 'bidPrice' ? 'bidPrice' : 'costPrice';
     setSaving(true);
@@ -492,9 +494,9 @@ export default function BidLibraryPage() {
 
       await load();
       setReviewRows([]);
-      alert(`已导入 ${validRows.length} 条${priceTypeLabel}，并同步沉淀清单别名`);
+      toast({ title: `已导入 ${validRows.length} 条${priceTypeLabel}，并同步沉淀清单别名`, variant: 'success' });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : '批量导入失败');
+      toast({ title: e instanceof Error ? e.message : '批量导入失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -524,7 +526,7 @@ export default function BidLibraryPage() {
       await load();
       updateReviewRow(row.rowId, { standardItemId: json.data.id, matchScore: 100, ignored: false });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : '新增标准清单失败');
+      toast({ title: e instanceof Error ? e.message : '新增标准清单失败', variant: 'error' });
     } finally {
       setSaving(false);
     }

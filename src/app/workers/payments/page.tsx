@@ -992,7 +992,7 @@ export default function WorkerPaymentsPage() {
                   <FileText className="w-8 h-8" style={{ color: 'var(--color-text-3)' }} />
                 </div>
                 <p className="empty-state-title">暂无付款记录</p>
-                <p className="empty-state-description">点击"新增发放记录"添加</p>
+                <p className="empty-state-description">点击“新增发放记录”添加</p>
               </div>
             </CardContent>
           </Card>

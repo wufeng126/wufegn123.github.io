@@ -148,7 +148,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <p className="text-xs text-[#86909C] -mt-1">💡 提示：点「上传到 AI 助手」把合同清单和单价同步进知识库后，可在「AI 劳务助手」中直接询问（如"XX项目合同的清单内容有哪些""某清单项单价是多少"）。<span className="text-[#165DFF]">扫描件：图片（jpg/png）会自动 OCR 识别；扫描版 PDF 请先转成图片或文字版再传。</span></p>
+      <p className="text-xs text-[#86909C] -mt-1">💡 提示：点「上传到 AI 助手」把合同清单和单价同步进知识库后，可在「AI 劳务助手」中直接询问（如“XX项目合同的清单内容有哪些”“某清单项单价是多少”）。<span className="text-[#165DFF]">扫描件：图片（jpg/png）会自动 OCR 识别；扫描版 PDF 请先转成图片或文字版再传。</span></p>
 
       {loading ? (
         <div className="text-center py-8 text-sm text-[#86909C]">加载中...</div>

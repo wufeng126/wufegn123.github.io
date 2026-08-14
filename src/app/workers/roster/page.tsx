@@ -1311,7 +1311,7 @@ export default function WorkerRosterPage() {
                   <Users className="w-8 h-8" style={{ color: 'var(--color-text-3)' }} />
                 </div>
                 <p className="empty-state-title">暂无工人数据</p>
-                <p className="empty-state-description">点击"新增工人"按钮添加</p>
+                <p className="empty-state-description">点击“新增工人”按钮添加</p>
               </div>
             )}
           </CardContent>

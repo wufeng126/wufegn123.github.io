@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, type RequestAuthUser } from '@/lib/auth';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
+import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
 
 type WorkerProjectEntity = {
   name?: string | null;
@@ -47,24 +48,28 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-// 获取可访问的项目ID列表
+// 获取可访问的项目ID列表（A4 修复：统一走 api-project-access，
+// 合并 users.managed_projects 与 user_project_roles 项目角色授权）
 async function getAccessibleProjectIds(userId: number, userRole: string) {
   const client = getSupabaseClient();
-  
-  // 超级管理员可以访问所有项目
-  if (userRole === 'super_admin') {
+
+  const user = {
+    id: userId,
+    username: '',
+    role: userRole,
+    roleId: 0,
+    is_super_admin: userRole === 'super_admin',
+  } as RequestAuthUser;
+
+  const ids = await getUnifiedAccessibleProjectIds(client, user);
+
+  // 超级管理员（返回 null 表示全部）：与旧行为一致，返回全部项目ID列表
+  if (ids === null) {
     const { data } = await client.from('projects').select('id');
     return normalizeProjectIds((data || []).map((project) => project.id));
   }
-  
-  // 获取用户直接分配的项目
-  const { data: userData } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', userId)
-    .single();
-  
-  return normalizeProjectIds(userData?.managed_projects);
+
+  return ids;
 }
 
 export async function GET(request: NextRequest) {

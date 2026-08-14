@@ -158,7 +158,6 @@ export async function middleware(request: NextRequest) {
   let tokenFromUrl = false;
   let tokenSource = 'cookie';
   const urlTokenParam = request.nextUrl.searchParams.get('token');
-  console.log(`[Middleware] 请求: ${pathname}, cookie: ${!!token}, url_token: ${!!urlTokenParam}`);
   if (!token) {
     token = urlTokenParam || '';
     if (token) {
@@ -173,9 +172,6 @@ export async function middleware(request: NextRequest) {
       token = authHeader.slice(7);
       tokenSource = 'header';
     }
-  }
-  if (token) {
-    console.log(`[Middleware] token来源: ${tokenSource}, 路径: ${pathname}`);
   }
 
   // 8. 未登录处理

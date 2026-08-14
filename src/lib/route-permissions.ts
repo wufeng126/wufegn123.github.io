@@ -202,7 +202,6 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 export const PUBLIC_PAGES = [
   '/login',
   '/dingtalk',
-  '/ui-preview',
   '/api/auth/login',
   '/api/auth/init',
   '/api/auth/me',
@@ -353,11 +352,13 @@ export function checkApiWritePermission(
   }
 
   if (pathname === '/api/notifications') {
-    if (method === 'PATCH' || method === 'PUT' || method === 'DELETE') {
-      // 修复（S7）：修改/删除通知配置仅限 notifications:settings（此前 view 即可删改，权限过宽）
-      return userPermissions.includes('notifications:settings');
+    if (method === 'PATCH' || method === 'PUT') {
+      // 修复（S7 修复过度回归）：PUT/PATCH 仅用于"标记已读"（id/all/markAllRead），
+      // 普通 notifications:view 用户必须能标记已读；通知设置走独立的
+      // /api/notifications/settings 路由（由 notifications:settings 控制）。
+      return userPermissions.includes('notifications:view');
     }
-    if (method === 'POST') {
+    if (method === 'DELETE' || method === 'POST') {
       return userPermissions.includes('notifications:settings');
     }
   }

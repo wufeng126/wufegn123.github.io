@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
-// 目标网页地址
-const WEB_URL = 'https://d6e3bb20-c45b-47c4-94ab-82634f5db024.dev.coze.site/';
+// 目标网页地址（可通过 VITE_WEB_URL 环境变量覆盖，默认指向生产部署地址）
+const WEB_URL = (import.meta.env?.VITE_WEB_URL as string | undefined)?.trim() || 'https://d6e3bb20-c45b-47c4-94ab-82634f5db024.dev.coze.site/';
 
 function App() {
   const [loading, setLoading] = useState(true);

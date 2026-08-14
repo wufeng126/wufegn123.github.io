@@ -108,7 +108,7 @@ async function loadAttendanceTotals(
   end: string,
   workerIds?: number[],
 ) {
-  let logQuery = supabase
+  const logQuery = supabase
     .from('construction_logs')
     .select('id,log_date')
     .eq('project_id', projectId)

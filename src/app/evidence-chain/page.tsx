@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   Archive,
   AlertCircle,
@@ -318,6 +319,7 @@ function toForm(record: EvidenceRecord): EvidenceForm {
 }
 
 export default function EvidenceChainPage() {
+  const { toast } = useToast();
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [records, setRecords] = useState<EvidenceRecord[]>([]);
   const [summary, setSummary] = useState<EvidenceSummary>({
@@ -521,7 +523,7 @@ export default function EvidenceChainPage() {
       const attachments = Array.isArray(data.data?.attachments) ? data.data.attachments : [];
       setForm((current) => ({ ...current, attachments: [...current.attachments, ...attachments] }));
     } catch (error) {
-      alert(error instanceof Error ? error.message : '附件上传失败');
+      toast({ title: error instanceof Error ? error.message : '附件上传失败', variant: 'error' });
     } finally {
       setUploading(false);
     }
@@ -536,11 +538,11 @@ export default function EvidenceChainPage() {
 
   async function saveRecord() {
     if (!form.project_id) {
-      alert('请选择所属项目');
+      toast({ title: '请选择所属项目', variant: 'error' });
       return;
     }
     if (!form.title.trim()) {
-      alert('请填写证据标题');
+      toast({ title: '请填写证据标题', variant: 'error' });
       return;
     }
     setSaving(true);
@@ -564,7 +566,7 @@ export default function EvidenceChainPage() {
       setDrawerOpen(false);
       await loadRecords();
     } catch (error) {
-      alert(error instanceof Error ? error.message : '保存失败');
+      toast({ title: error instanceof Error ? error.message : '保存失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -578,7 +580,7 @@ export default function EvidenceChainPage() {
       if (!res.ok || data.success === false) throw new Error(data.error || '删除失败');
       await loadRecords();
     } catch (error) {
-      alert(error instanceof Error ? error.message : '删除失败');
+      toast({ title: error instanceof Error ? error.message : '删除失败', variant: 'error' });
     }
   }
 

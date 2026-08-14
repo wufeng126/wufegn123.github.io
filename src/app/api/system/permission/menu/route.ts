@@ -218,18 +218,18 @@ export async function GET() {
     // 1. 收集 PERMISSION_MENU_STRUCTURE 中所有权限码
     const allCodes: string[] = [];
     const flatPerms: { name: string; code: string; resource: string; action: string; category: string; description: string }[] = [];
-    for (const module of PERMISSION_MENU_STRUCTURE) {
-      for (const child of module.children) {
+    for (const menuModule of PERMISSION_MENU_STRUCTURE) {
+      for (const child of menuModule.children) {
         allCodes.push(child.code);
         const parts = child.code.split(':');
-        const resource = parts[0] || module.code;
+        const resource = parts[0] || menuModule.code;
         const action = parts.slice(1).join(':') || 'view';
         flatPerms.push({
           name: child.name,
           code: child.code,
           resource,
           action,
-          category: module.name,
+          category: menuModule.name,
           description: child.name,
         });
       }
@@ -295,16 +295,16 @@ export async function POST() {
     
     // 2. 构建所有权限记录
     const permissionRecords: any[] = [];
-    for (const module of PERMISSION_MENU_STRUCTURE) {
-      for (const child of module.children) {
+    for (const menuModule of PERMISSION_MENU_STRUCTURE) {
+      for (const child of menuModule.children) {
         if (!existingCodes.has(child.code)) {
           permissionRecords.push({
             name: child.name,
             code: child.code,
-            resource: module.code,
+            resource: menuModule.code,
             action: child.code.split(':')[1] || 'view',
-            category: module.name,
-            description: `${module.name} - ${child.name}`,
+            category: menuModule.name,
+            description: `${menuModule.name} - ${child.name}`,
           });
         }
       }

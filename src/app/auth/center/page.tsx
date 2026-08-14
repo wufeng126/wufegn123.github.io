@@ -236,8 +236,6 @@ export default function AuthCenterPage() {
   // 加载数据
   const loadData = useCallback(async () => {
     try {
-      console.log('[PermissionCenter] Loading data...');
-      
       // 并行加载角色和权限数据
       const [rolesRes, usersRes, permsRes] = await Promise.all([
         fetch('/api/auth/center/roles'),
@@ -250,13 +248,6 @@ export default function AuthCenterPage() {
         usersRes.json(),
         permsRes.json(),
       ]);
-      
-      console.log('[PermissionCenter] Data loaded:', {
-        rolesCount: rolesData.roles?.length || 0,
-        usersCount: usersData.users?.length || 0,
-        permsCount: permsData.permissions?.length || 0,
-        groupedCount: permsData.groupedPermissions?.length || 0,
-      });
       
       if (rolesData.roles) {
         setRoles(rolesData.roles);
@@ -271,7 +262,6 @@ export default function AuthCenterPage() {
         setGroupedPermissions(permsData.groupedPermissions);
       } else {
         // 使用默认权限模块
-        console.log('[PermissionCenter] Using default permission modules');
         setGroupedPermissions(DEFAULT_PERMISSION_MODULES);
       }
       

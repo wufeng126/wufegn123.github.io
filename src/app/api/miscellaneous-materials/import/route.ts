@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
       // Excel 文件：使用 xlsx 库解析
       const buffer = await file.arrayBuffer();
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- 条件加载 xlsx（仅 Excel 文件）
       const XLSX = require('xlsx');
       const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
       const sheetName = workbook.SheetNames[0];

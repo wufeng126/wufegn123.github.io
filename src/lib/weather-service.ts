@@ -148,7 +148,7 @@ const CHINA_CITY_CODES: Record<string, string> = {
 /** 从用户输入解析城市代码（支持 "北京" / "北京市" / "江苏苏州"） */
 function resolveChinaCityCode(city: string): string | null {
   if (!city) return null;
-  let name = String(city).trim().replace(/省|市|自治区|特别行政区|壮族|回族|维吾尔/g, '');
+  const name = String(city).trim().replace(/省|市|自治区|特别行政区|壮族|回族|维吾尔/g, '');
   // "江苏苏州" → 取最后一段城市名
   if (name.length > 3) {
     const candidates = [name.slice(2), name.slice(3)];

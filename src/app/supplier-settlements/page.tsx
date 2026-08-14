@@ -428,7 +428,7 @@ export default function SupplierSettlementsPage() {
                   <FileText className="w-8 h-8" style={{ color: '#C9CDD4' }} />
                 </div>
                 <p className="empty-state-title">暂无结算记录</p>
-                <p className="empty-state-description">点击"新增结算"按钮添加</p>
+                <p className="empty-state-description">点击“新增结算”按钮添加</p>
               </div>
             )}
           </CardContent>

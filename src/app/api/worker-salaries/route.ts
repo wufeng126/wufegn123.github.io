@@ -4,6 +4,8 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { SALARY_PAYMENT_TOLERANCE, calculateSalaryPaymentStatus, calculateSalaryUnpaidAmount, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
+import type { RequestAuthUser } from '@/lib/auth';
 
 type RelatedNameEntity = {
   name?: string | null;
@@ -92,24 +94,28 @@ function parseNumeric(value: unknown): number {
   return 0;
 }
 
-// 获取可访问的项目ID列表
+// 获取可访问的项目ID列表（A4 修复：统一走 api-project-access，
+// 合并 users.managed_projects 与 user_project_roles 项目角色授权）
 async function getAccessibleProjectIds(userId: number, userRole: string) {
   const client = getSupabaseClient();
-  
-  // 超级管理员可以访问所有项目
-  if (userRole === 'super_admin') {
+
+  const user = {
+    id: userId,
+    username: '',
+    role: userRole,
+    roleId: 0,
+    is_super_admin: userRole === 'super_admin',
+  } as RequestAuthUser;
+
+  const ids = await getUnifiedAccessibleProjectIds(client, user);
+
+  // 超级管理员（返回 null 表示全部）：与旧行为一致，返回全部项目ID列表
+  if (ids === null) {
     const { data } = await client.from('projects').select('id');
     return normalizeProjectIds((data || []).map((project) => project.id));
   }
-  
-  // 获取用户直接分配的项目
-  const { data: userData } = await client
-    .from('users')
-    .select('managed_projects')
-    .eq('id', userId)
-    .single();
-  
-  return normalizeProjectIds(userData?.managed_projects);
+
+  return ids;
 }
 
 export async function GET(request: NextRequest) {

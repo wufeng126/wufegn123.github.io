@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Download, FileSpreadsheet, Plus, Save, Search, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useToast } from '@/hooks/use-toast';
 
 interface StandardItem {
   id: number;
@@ -107,6 +108,7 @@ function money(value: number) {
 
 export default function NewBidPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [bidId, setBidId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -354,7 +356,7 @@ export default function NewBidPage() {
         is_manual_price: false,
       } : row));
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : '新增标准清单失败');
+      toast({ title: e instanceof Error ? e.message : '新增标准清单失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -387,8 +389,8 @@ export default function NewBidPage() {
   }
 
   async function saveBid({ saveVersion = false } = {}) {
-    if (!name.trim()) return alert('请填写项目名称');
-    if (!items.length) return alert('请先上传甲方清单');
+    if (!name.trim()) { toast({ title: '请填写项目名称', variant: 'error' }); return; }
+    if (!items.length) { toast({ title: '请先上传甲方清单', variant: 'error' }); return; }
     setSaving(true);
     try {
       let id = bidId;
@@ -487,7 +489,7 @@ export default function NewBidPage() {
 
       router.push(`/cost-estimation/bid/${id}`);
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : '保存失败');
+      toast({ title: e instanceof Error ? e.message : '保存失败', variant: 'error' });
     } finally {
       setSaving(false);
     }

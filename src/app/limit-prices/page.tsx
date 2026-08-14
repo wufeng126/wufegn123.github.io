@@ -155,7 +155,6 @@ export default function LimitPricesPage() {
     try {
       const res = await fetch('/api/projects', { credentials: 'include' });
       const data = await res.json();
-      console.log('项目数据:', data);
       // 支持 {data: [...]} 或 {projects: [...]} 或直接数组格式
       if (data?.data && Array.isArray(data.data)) {
         setProjects(data.data);
@@ -1210,7 +1209,7 @@ export default function LimitPricesPage() {
           </DialogHeader>
           <div className="py-4">
             <p className="mb-4">
-              确认作废限价 "<strong>{currentItem?.subitem_name}</strong>"？
+              确认作废限价 “<strong>{currentItem?.subitem_name}</strong>”？
             </p>
             <div className="grid gap-2">
               <Label>作废原因 <span className="text-red-500">*</span></Label>

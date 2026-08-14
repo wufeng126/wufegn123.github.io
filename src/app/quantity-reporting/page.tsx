@@ -1106,7 +1106,7 @@ function WorkItemsContent() {
       const dataLines = hasHeader ? lines.slice(1) : lines;
       
       // 解析头部获取列映射
-      let colMap: Record<string, number> = {};
+      const colMap: Record<string, number> = {};
       if (hasHeader) {
         const headerParts = headerLine.split(/[,\t，]/).map(p => p.trim().replace(/^["']|["']$/g, ''));
         headerParts.forEach((h, idx) => {
