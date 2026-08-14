@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
-import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+import { DEFAULT_PAYMENT_RATIOS, isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
 function isFinalSettlementType(type?: string | null) {
@@ -153,9 +153,10 @@ export async function POST(request: NextRequest) {
         supply_content: supply_content || null,
         attachment_url: attachment_url || null,
         payment_method: payment_method || '按进度付款',
-        payment_ratio_active: payment_ratio_active === '' ? null : (payment_ratio_active ? Number(payment_ratio_active) : 80),
-        payment_ratio_complete: payment_ratio_complete === '' ? null : (payment_ratio_complete ? Number(payment_ratio_complete) : 95),
-        payment_ratio_final: payment_ratio_final === '' ? null : (payment_ratio_final ? Number(payment_ratio_final) : 0),
+        // L6 修复：默认值引用共享常量（DEFAULT_PAYMENT_RATIOS），与前端表单/数据库 schema 一致
+        payment_ratio_active: payment_ratio_active === '' ? null : (payment_ratio_active ? Number(payment_ratio_active) : DEFAULT_PAYMENT_RATIOS.active),
+        payment_ratio_complete: payment_ratio_complete === '' ? null : (payment_ratio_complete ? Number(payment_ratio_complete) : DEFAULT_PAYMENT_RATIOS.complete),
+        payment_ratio_final: payment_ratio_final === '' ? null : (payment_ratio_final ? Number(payment_ratio_final) : DEFAULT_PAYMENT_RATIOS.final),
         payment_days: payment_days === '' ? null : (payment_days ? Number(payment_days) : null),
         payment_remark: payment_remark || null,
         remark: remark || null,

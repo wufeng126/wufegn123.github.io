@@ -140,7 +140,7 @@ export async function GET(request: Request) {
         role: user.role,
         name: displayName,
         dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
-        roleId: user.role_id || (isSuperAdminUser(user.role) ? 1 : 0),
+        roleId: user.role_id ?? 0,
         permissions,
       },
       user: {
@@ -149,7 +149,7 @@ export async function GET(request: Request) {
         role: user.role,
         name: displayName,
         dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
-        role_id: user.role_id || (isSuperAdminUser(user.role) ? 1 : 0),
+        role_id: user.role_id ?? 0,
         permissions,
       },
     });

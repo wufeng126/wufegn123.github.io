@@ -75,10 +75,10 @@ export async function getSupplierSettlementTotal(
   let contractQuery = db.from('supplier_contracts').select('id, project_id, supplier_id');
   if (projectId) contractQuery = contractQuery.eq('project_id', projectId);
   const { data: contracts } = await contractQuery;
-  const contractIds: number[] = (contracts || []).map((c: any) => Number(c.id));
+  const contractIds: number[] = (contracts || []).map((c: ContractRow) => Number(c.id));
   const contractToProject = new Map<number, number>();
   const contractToSupplier = new Map<number, number>();
-  (contracts || []).forEach((c: any) => {
+  (contracts || []).forEach((c: ContractRow) => {
     const cid = Number(c.id);
     const pid = Number(c.project_id);
     const sid = Number(c.supplier_id);
@@ -97,7 +97,7 @@ export async function getSupplierSettlementTotal(
     if (startDate) settleQuery = settleQuery.gte('settlement_date', startDate);
     if (endDate) settleQuery = settleQuery.lte('settlement_date', endDate);
     const { data: newSettlements } = await settleQuery;
-    for (const s of (newSettlements || []) as any[]) {
+    for (const s of (newSettlements || []) as SupplierSettlementRow[]) {
       if (isVoidedStatus(s.status)) continue;
       const pid = contractToProject.get(Number(s.contract_id));
       if (!pid || (projectId && pid !== projectId)) continue;
@@ -110,7 +110,7 @@ export async function getSupplierSettlementTotal(
         projectId: pid,
         amount,
         date: s.settlement_date ? String(s.settlement_date) : null,
-        type: s.settlement_type,
+        type: s.settlement_type ? String(s.settlement_type) : null,
       }));
     }
   }
@@ -122,7 +122,7 @@ export async function getSupplierSettlementTotal(
     if (startDate) legacyQuery = legacyQuery.gte('settlement_date', startDate);
     if (endDate) legacyQuery = legacyQuery.lte('settlement_date', endDate);
     const { data: legacy } = await legacyQuery;
-    for (const s of (legacy || []) as any[]) {
+    for (const s of (legacy || []) as LegacySettlementRow[]) {
       const pid = Number(s.project_id);
       const sid = Number(s.supplier_id);
       if (projectId && pid !== projectId) continue;
@@ -135,7 +135,7 @@ export async function getSupplierSettlementTotal(
         projectId: pid,
         amount,
         date: s.settlement_date ? String(s.settlement_date) : null,
-        type: s.settlement_type,
+        type: s.settlement_type ? String(s.settlement_type) : null,
       });
       if (newFingerprints.has(fp)) continue;
       total += amount;
@@ -256,16 +256,66 @@ export interface ProjectListItem {
 
 // ========== 内部工具 ==========
 
-/** 构建日期过滤条件 */
-function buildDateFilter(
-  query: any,
+// any 治理：通用数据库行类型（替代 reduce/filter 回调中的显式 any）
+type ContractRow = { id?: unknown; project_id?: unknown; supplier_id?: unknown };
+type SupplierSettlementRow = {
+  contract_id?: unknown;
+  settlement_amount?: unknown;
+  payable_amount?: unknown;
+  settlement_date?: unknown;
+  settlement_type?: unknown;
+  status?: string | null;
+};
+type SupplierPaymentRow = {
+  supplier_id?: unknown;
+  contract_id?: unknown;
+  payment_amount?: unknown;
+  payment_date?: unknown;
+  status?: string | null;
+};
+type LegacySettlementRow = {
+  supplier_id?: unknown;
+  project_id?: unknown;
+  settlement_amount?: unknown;
+  settlement_date?: unknown;
+  settlement_type?: unknown;
+};
+type LegacyPaymentRow = {
+  supplier_id?: unknown;
+  project_id?: unknown;
+  payment_amount?: unknown;
+  payment_date?: unknown;
+};
+type ClientReportRow = {
+  status?: string | null;
+  settlement_amount?: unknown;
+  invoice_amount?: unknown;
+  report_amount?: unknown;
+  tax_rate?: unknown;
+};
+type ClientPaymentRow = { status?: string | null; payment_amount?: unknown };
+type VisaRow = { visa_amount?: unknown };
+type WorkerSalaryRow = { project_id?: unknown; gross_pay?: unknown; net_pay?: unknown; year_month?: unknown };
+type SalaryPaymentRow = { payment_amount?: unknown };
+type TeamSettlementRow = { id?: unknown; status?: string | null };
+type TeamSettlementItemRow = { amount?: unknown };
+type ExpenseRow = { amount?: unknown };
+type MiscMaterialRow = { amount?: unknown };
+
+/** Supabase 查询构建器的日期过滤最小结构（保留具体类型 T 以支持链式调用） */
+type DateFilterableQuery = { gte: (column: string, value: unknown) => unknown; lte: (column: string, value: unknown) => unknown };
+
+/** 构建日期过滤条件（any 治理：泛型保留查询构建器类型） */
+function buildDateFilter<T extends DateFilterableQuery>(
+  query: T,
   column: string,
   dateRange?: DateRange
-): any {
+): T {
   if (!dateRange) return query;
-  if (dateRange.start) query = query.gte(column, dateRange.start);
-  if (dateRange.end) query = query.lte(column, dateRange.end);
-  return query;
+  let q = query;
+  if (dateRange.start) q = query.gte(column, dateRange.start) as T;
+  if (dateRange.end) q = q.lte(column, dateRange.end) as T;
+  return q;
 }
 
 /** 年月转日期范围（兼容 year_month 字段查询） */
@@ -273,9 +323,10 @@ function yearMonthFilter(yearMonth: string): { start: string; end: string } {
   return yearMonthToRange(yearMonth);
 }
 
-function isMissingTeamSettlementSchemaError(error: any): boolean {
-  const message = String(error?.message || '').toLowerCase();
-  const code = String(error?.code || '').toUpperCase();
+function isMissingTeamSettlementSchemaError(error: unknown): boolean {
+  const err = error as { message?: string; code?: string } | null;
+  const message = String(err?.message || '').toLowerCase();
+  const code = String(err?.code || '').toUpperCase();
   return (
     code === '42P01' ||
     code === 'PGRST205' ||
@@ -323,8 +374,8 @@ export async function getTeamSettlementCostAmount(
     }
 
     const settlementIds = (settlements || [])
-      .filter((settlement: any) => !isVoidedStatus(settlement.status))
-      .map((settlement: any) => Number(settlement.id))
+      .filter((settlement: TeamSettlementRow) => !isVoidedStatus(settlement.status))
+      .map((settlement: TeamSettlementRow) => Number(settlement.id))
       .filter(Boolean);
 
     if (settlementIds.length === 0) return 0;
@@ -339,7 +390,7 @@ export async function getTeamSettlementCostAmount(
       throw itemsError;
     }
 
-    return (items || []).reduce((sum: number, item: any) => sum + parseNumeric(item.amount), 0);
+    return (items || []).reduce((sum: number, item: TeamSettlementItemRow) => sum + parseNumeric(item.amount), 0);
   } catch (error) {
     if (isMissingTeamSettlementSchemaError(error)) return 0;
     throw error;
@@ -389,7 +440,7 @@ export async function getProjectFinancialSummary(
   let invoiceAmount = 0;
   let taxFromInvoice = 0;
   let untaxedIncome = 0;
-  (clientReports || []).forEach((r: any) => {
+  (clientReports || []).forEach((r: ClientReportRow) => {
     const inv = parseNumeric(r.invoice_amount) || parseNumeric(r.settlement_amount) || parseNumeric(r.report_amount);
     const tr = parseNumeric(r.tax_rate) || projectTaxRate;
     invoiceAmount += inv;
@@ -410,7 +461,7 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: visas } = await visasQuery;
-  const visaAmount = (visas || []).reduce((sum: number, v: any) => sum + parseNumeric(v.visa_amount), 0);
+  const visaAmount = (visas || []).reduce((sum: number, v: VisaRow) => sum + parseNumeric(v.visa_amount), 0);
 
   // 3. 供应商结算（仅已审核，排除作废）
   const { data: contracts } = await client
@@ -418,7 +469,7 @@ export async function getProjectFinancialSummary(
     .select('id')
     .eq('project_id', projectId);
 
-  const contractIds = (contracts || []).map((c: any) => c.id);
+  const contractIds = (contracts || []).map((c: ContractRow) => c.id);
 
   let settlementAmount = 0;
   let supplierPayableBaseAmount = 0;
@@ -434,10 +485,10 @@ export async function getProjectFinancialSummary(
 
     const { data: settlements } = await settlementsQuery;
 
-    const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
-    settlementAmount = activeSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+    const activeSettlements = (settlements || []).filter((s: SupplierSettlementRow) => !isVoidedStatus(s.status));
+    settlementAmount = activeSettlements.reduce((sum: number, s: SupplierSettlementRow) => sum + parseNumeric(s.settlement_amount), 0);
     supplierPayableBaseAmount = activeSettlements.reduce(
-      (sum: number, s: any) => sum + parseNumeric(s.payable_amount),
+      (sum: number, s: SupplierSettlementRow) => sum + parseNumeric(s.payable_amount),
       0
     );
   }
@@ -456,9 +507,9 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: salaries } = await salariesQuery;
-  const workerSalaryAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.gross_pay), 0);
+  const workerSalaryAmount = (salaries || []).reduce((sum: number, s: WorkerSalaryRow) => sum + parseNumeric(s.gross_pay), 0);
   // 实发口径：未付工资 = 实发应发 - 已发（避免应发口径虚高，与工资模块统一）
-  const workerNetPayAmount = (salaries || []).reduce((sum: number, s: any) => sum + parseNumeric(s.net_pay), 0);
+  const workerNetPayAmount = (salaries || []).reduce((sum: number, s: WorkerSalaryRow) => sum + parseNumeric(s.net_pay), 0);
   const teamSettlementAmount = await getTeamSettlementCostAmount(client, { projectId, dateRange });
   const salaryAmount = workerSalaryAmount + teamSettlementAmount;
 
@@ -474,7 +525,7 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: expenses } = await expensesQuery;
-  const expenseAmount = (expenses || []).reduce((sum: number, e: any) => sum + parseNumeric(e.amount), 0);
+  const expenseAmount = (expenses || []).reduce((sum: number, e: ExpenseRow) => sum + parseNumeric(e.amount), 0);
 
   // 6. 零星材料（仅已审核）
   let miscMaterialsQuery = client
@@ -488,7 +539,7 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: miscMaterials } = await miscMaterialsQuery;
-  const miscMaterialAmount = (miscMaterials || []).reduce((sum: number, m: any) => sum + parseNumeric(m.amount), 0);
+  const miscMaterialAmount = (miscMaterials || []).reduce((sum: number, m: MiscMaterialRow) => sum + parseNumeric(m.amount), 0);
 
   // 7. 甲方已回款
   let clientPaymentsQuery = client
@@ -502,8 +553,8 @@ export async function getProjectFinancialSummary(
 
   const { data: clientPayments } = await clientPaymentsQuery;
   const clientPaidAmount = (clientPayments || [])
-    .filter((p: any) => isEffectiveClientPaymentStatus(p.status))
-    .reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+    .filter((p: ClientPaymentRow) => isEffectiveClientPaymentStatus(p.status))
+    .reduce((sum: number, p: ClientPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
 
   // 8. 供应商已付款
   let supplierPaidAmount = 0;
@@ -520,8 +571,8 @@ export async function getProjectFinancialSummary(
     const { data: supplierPayments } = await supplierPaymentsQuery;
 
     supplierPaidAmount = (supplierPayments || [])
-      .filter((p: any) => isEffectiveSupplierPaymentStatus(p.status))
-      .reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+      .filter((p: SupplierPaymentRow) => isEffectiveSupplierPaymentStatus(p.status))
+      .reduce((sum: number, p: SupplierPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
   }
 
   // 9. 工人已发工资
@@ -535,7 +586,7 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: salaryPayments } = await salaryPaymentsQuery;
-  const workerPaidAmount = (salaryPayments || []).reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+  const workerPaidAmount = (salaryPayments || []).reduce((sum: number, p: SalaryPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
 
   // ========== 汇总计算 ==========
   const taxableIncome = invoiceAmount + visaAmount;

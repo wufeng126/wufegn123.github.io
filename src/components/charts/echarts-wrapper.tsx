@@ -87,6 +87,9 @@ export default function EChartsWrapper({ option, style, className, onChartClick 
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      // 性能修复：组件卸载时释放图表实例（此前未 dispose，SPA 切换/弹窗关闭会累积泄漏）
+      instance.dispose();
+      instanceRef.current = null;
     };
   }, [option, onChartClick]);
 

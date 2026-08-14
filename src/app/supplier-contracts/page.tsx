@@ -23,6 +23,7 @@ import {
   Plus, Search, Pencil, Trash2
 } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
+import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
 
 // ============ 类型定义 ============
 interface Supplier {
@@ -95,11 +96,13 @@ export default function SupplierContractsPage() {
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
 
-  // 表单状态
+  // 表单状态（L6 修复：付款比例默认值引用共享常量）
   const [contractForm, setContractForm] = useState({
     supplier_id: '', project_id: '', contract_no: '', contract_name: '',
     sign_date: '', expire_date: '', supply_content: '',
-    payment_ratio_active: '80', payment_ratio_complete: '95', payment_ratio_final: '0',
+    payment_ratio_active: String(DEFAULT_PAYMENT_RATIOS.active),
+    payment_ratio_complete: String(DEFAULT_PAYMENT_RATIOS.complete),
+    payment_ratio_final: String(DEFAULT_PAYMENT_RATIOS.final),
     payment_method: '按进度付款', remark: '',
   });
 
@@ -176,7 +179,9 @@ export default function SupplierContractsPage() {
     setContractForm({
       supplier_id: '', project_id: '', contract_no: '', contract_name: '',
       sign_date: '', expire_date: '', supply_content: '',
-      payment_ratio_active: '80', payment_ratio_complete: '95', payment_ratio_final: '0',
+      payment_ratio_active: String(DEFAULT_PAYMENT_RATIOS.active),
+      payment_ratio_complete: String(DEFAULT_PAYMENT_RATIOS.complete),
+      payment_ratio_final: String(DEFAULT_PAYMENT_RATIOS.final),
       payment_method: '按进度付款', remark: '',
     });
     setContractDialogOpen(true);
@@ -193,9 +198,9 @@ export default function SupplierContractsPage() {
       sign_date: contract.sign_date || '',
       expire_date: contract.expire_date || '',
       supply_content: contract.supply_content || '',
-      payment_ratio_active: String(contract.payment_ratio_active || 80),
-      payment_ratio_complete: String(contract.payment_ratio_complete || 95),
-      payment_ratio_final: String(contract.payment_ratio_final || 0),
+      payment_ratio_active: String(contract.payment_ratio_active || DEFAULT_PAYMENT_RATIOS.active),
+      payment_ratio_complete: String(contract.payment_ratio_complete || DEFAULT_PAYMENT_RATIOS.complete),
+      payment_ratio_final: String(contract.payment_ratio_final || DEFAULT_PAYMENT_RATIOS.final),
       payment_method: contract.payment_method || '按进度付款',
       remark: contract.remark || '',
     });
@@ -216,9 +221,9 @@ export default function SupplierContractsPage() {
         body: JSON.stringify({
           ...contractForm,
           supplier_id: parseInt(contractForm.supplier_id),
-          payment_ratio_active: parseFloat(contractForm.payment_ratio_active) || 80,
-          payment_ratio_complete: parseFloat(contractForm.payment_ratio_complete) || 95,
-          payment_ratio_final: parseFloat(contractForm.payment_ratio_final) || 0,
+          payment_ratio_active: parseFloat(contractForm.payment_ratio_active) || DEFAULT_PAYMENT_RATIOS.active,
+          payment_ratio_complete: parseFloat(contractForm.payment_ratio_complete) || DEFAULT_PAYMENT_RATIOS.complete,
+          payment_ratio_final: parseFloat(contractForm.payment_ratio_final) || DEFAULT_PAYMENT_RATIOS.final,
         }),
         credentials: 'include',
       });
