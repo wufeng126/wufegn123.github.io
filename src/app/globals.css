@@ -76,7 +76,7 @@
   /* ═══════════════ 文字色 ═══════════════ */
   --text-primary: #1D2129;
   --text-secondary: #4E5969;
-  --text-muted: #86909C;
+  --text-muted: #667085; /* a11y 修复：原 #86909C 对白底对比度约 3.2:1 不达 WCAG AA（4.5:1），加深为 #667085（约 4.9:1） */
   --text-placeholder: #C9CDD4;
   
   /* ═══════════════ 边框与分割线 ═══════════════ */
@@ -117,7 +117,7 @@
   --secondary: #F5F7F9;
   --secondary-foreground: #1D2129;
   --muted: #F5F7F9;
-  --muted-foreground: #86909C;
+  --muted-foreground: #667085; /* a11y 修复：同 --text-muted，达 WCAG AA */
   --accent: #F0F5FF;
   --accent-foreground: #165DFF;
   --destructive: #F53F3F;
@@ -1872,4 +1872,16 @@ html { font-variant-numeric: tabular-nums; }
 }
 .kb-section-title .kb-section-icon {
   color: #165DFF !important;
+}
+
+/* ═══════════════ 无障碍：尊重减少动态偏好（a11y） ═══════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

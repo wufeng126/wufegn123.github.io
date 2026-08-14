@@ -321,7 +321,7 @@ export default function SettlementPage() {
                       </TableCell>
                       {canManage && (
                         <TableCell className="text-center">
-                          <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteSettlement(s.id)}><Trash2 className="h-4 w-4" /></Button>
+                          <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteSettlement(s.id)} aria-label="删除"><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       )}
                     </TableRow>

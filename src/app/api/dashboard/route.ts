@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
+import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, resolveReportedIncome, VISA_DONE_STATUSES } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary, getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { requireAuth } from '@/lib/api-auth';
@@ -693,7 +693,8 @@ export async function GET(request: Request) {
           projReportsQuery = projReportsQuery.gte('report_date', rangeStartDate);
         }
         const { data: projReports } = await projReportsQuery;
-        const projIncome = projReports?.filter((r: any) => r.status !== 'voided').reduce((sum: number, r: any) => sum + (parseFloat(r.settlement_amount || r.report_amount || '0') || 0), 0) || 0;
+        // L3 修复：项目收入与主口径统一（invoice → settlement → report 兜底），此前缺 invoice 优先
+        const projIncome = projReports?.filter((r: any) => r.status !== 'voided').reduce((sum: number, r: any) => sum + resolveReportedIncome(r.invoice_amount, r.settlement_amount, r.report_amount), 0) || 0;
 
         // D2 修复：与 KPI 同口径（新表+老表按指纹去重），避免项目对比图与汇总数字不一致
         const projSupplierCost = await getSupplierSettlementTotal(client, {

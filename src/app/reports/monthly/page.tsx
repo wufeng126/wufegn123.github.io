@@ -569,7 +569,7 @@ export default function MonthlyReportPage() {
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                           <Eye className="w-4 h-4" /> 本月经营结论
                         </CardTitle>
-                        <Button variant="ghost" size="sm" onClick={handleCopyConclusion} className="h-7">
+                        <Button variant="ghost" size="sm" onClick={handleCopyConclusion} className="h-7" aria-label="复制">
                           {copied ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
                           {copied ? '已复制' : '复制'}
                         </Button>

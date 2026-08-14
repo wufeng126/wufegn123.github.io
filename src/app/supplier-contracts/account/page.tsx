@@ -515,10 +515,10 @@ export default function SupplierRosterPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => openEditDialog(supplier)}>
+                            <Button size="sm" variant="ghost" onClick={() => openEditDialog(supplier)} aria-label="编辑">
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDelete(supplier.id)} className="text-red-600">
+                            <Button size="sm" variant="ghost" onClick={() => handleDelete(supplier.id)} className="text-red-600" aria-label="删除">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => openContractDialog(supplier.id)} title="查看合同">
@@ -556,13 +556,13 @@ export default function SupplierRosterPage() {
                       )}
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
-                      <Button size="sm" variant="outline" onClick={() => openEditDialog(supplier)} className="px-0">
+                      <Button size="sm" variant="outline" onClick={() => openEditDialog(supplier)} className="px-0" aria-label="编辑">
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openContractDialog(supplier.id)} className="px-0">
                         <FileText className="h-4 w-4 text-blue-600" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleDelete(supplier.id)} className="px-0 text-red-600">
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(supplier.id)} className="px-0 text-red-600" aria-label="删除">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -683,7 +683,7 @@ export default function SupplierRosterPage() {
                               <Button size="sm" variant="ghost" onClick={() => openContractDialog(undefined, contract)}>
                                 <Edit className="w-4 h-4" />
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={() => handleDeleteContract(contract.id)} className="text-red-600">
+                              <Button size="sm" variant="ghost" onClick={() => handleDeleteContract(contract.id)} className="text-red-600" aria-label="删除">
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>

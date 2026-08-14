@@ -66,10 +66,10 @@ export function addSupplierFingerprints(
  */
 export async function getSupplierSettlementTotal(
   client: unknown,
-  options: { projectId?: number; startDate?: string } = {},
+  options: { projectId?: number; startDate?: string; endDate?: string } = {},
 ): Promise<number> {
   const db = client as { from: (table: string) => any };
-  const { projectId, startDate } = options;
+  const { projectId, startDate, endDate } = options;
 
   // 1. 新表：合同 → 项目 + 供应商
   let contractQuery = db.from('supplier_contracts').select('id, project_id, supplier_id');
@@ -95,12 +95,14 @@ export async function getSupplierSettlementTotal(
       .select('contract_id, settlement_amount, settlement_date, settlement_type, status')
       .in('contract_id', contractIds);
     if (startDate) settleQuery = settleQuery.gte('settlement_date', startDate);
+    if (endDate) settleQuery = settleQuery.lte('settlement_date', endDate);
     const { data: newSettlements } = await settleQuery;
     for (const s of (newSettlements || []) as any[]) {
       if (isVoidedStatus(s.status)) continue;
       const pid = contractToProject.get(Number(s.contract_id));
       if (!pid || (projectId && pid !== projectId)) continue;
       if (startDate && s.settlement_date && String(s.settlement_date) < startDate) continue;
+      if (endDate && s.settlement_date && String(s.settlement_date) > endDate) continue;
       const amount = parseNumeric(s.settlement_amount);
       total += amount;
       newFingerprints.add(supplierSettlementFingerprint({
@@ -118,12 +120,14 @@ export async function getSupplierSettlementTotal(
     let legacyQuery = db.from('settlements').select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type');
     if (projectId) legacyQuery = legacyQuery.eq('project_id', projectId);
     if (startDate) legacyQuery = legacyQuery.gte('settlement_date', startDate);
+    if (endDate) legacyQuery = legacyQuery.lte('settlement_date', endDate);
     const { data: legacy } = await legacyQuery;
     for (const s of (legacy || []) as any[]) {
       const pid = Number(s.project_id);
       const sid = Number(s.supplier_id);
       if (projectId && pid !== projectId) continue;
       if (startDate && s.settlement_date && String(s.settlement_date) < startDate) continue;
+      if (endDate && s.settlement_date && String(s.settlement_date) > endDate) continue;
       const amount = parseNumeric(s.settlement_amount);
       // 与同 supplier 的新表记录按指纹去重
       const fp = supplierSettlementFingerprint({
@@ -619,7 +623,8 @@ export async function getGlobalSummary(
   const { data: workersData } = await workersQuery;
 
   const totalWorkers = workersData?.length || 0;
-  const inServiceWorkers = workersData?.filter(w => w.status !== 'left').length || 0;
+  // L4 修复：在场口径与工人成本看板统一（status 为 in_service 或空才计入；archived 等其他状态不计入在场）
+  const inServiceWorkers = workersData?.filter(w => !w.status || w.status === 'in_service').length || 0;
   const leftWorkers = workersData?.filter(w => w.status === 'left').length || 0;
 
   // 逐项目汇总（使用统一函数）

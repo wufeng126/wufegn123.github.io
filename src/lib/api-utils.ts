@@ -107,10 +107,30 @@ export function apiServerError(message = '服务器内部错误') {
   return apiError(message, 500, 'INTERNAL_ERROR');
 }
 
+/** L1 修复：数据库/SQL 内部错误模式（回显会泄露表结构/连接信息，改为通用文案） */
+const DB_ERROR_PATTERNS: RegExp[] = [
+  /relation\s+"?[a-z_]+"?\s+does not exist/i,
+  /column\s+"?[a-z_.]+"?\s+does not exist/i,
+  /duplicate key value violates/i,
+  /syntax error at or near/i,
+  /invalid input syntax/i,
+  /could not (open|read|connect|resolve)/i,
+  /sqlstate/i,
+  /pq:\s/i,
+  /postgrest/i,
+  /connection refused/i,
+  /connection timed out/i,
+];
+
 export function getErrorMessage(error: unknown, fallback = '服务器内部错误'): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string' && error) return error;
-  return fallback;
+  let message: string;
+  if (error instanceof Error && error.message) message = error.message;
+  else if (typeof error === 'string' && error) message = error;
+  else return fallback;
+
+  // 数据库内部错误不直接回显（业务错误如"合同不存在"仍正常返回）
+  if (DB_ERROR_PATTERNS.some((re) => re.test(message))) return fallback;
+  return message;
 }
 
 export async function withApiErrorHandling<T>(

@@ -836,7 +836,7 @@ export default function SettlementPage() {
                         <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); openSettlementDetail(s); }}>
                           <FileText className="w-4 h-4 text-blue-600" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }}>
+                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }} aria-label="删除">
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       </TableCell>

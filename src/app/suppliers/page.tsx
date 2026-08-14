@@ -704,9 +704,9 @@ export default function SuppliersPage() {
                         <TableCell className="text-right text-green-600">{formatCurrency(supplier.total_paid)}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex justify-center gap-1">
-                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)}><FileCheck className="w-4 h-4 text-gray-500" /></Button>}
-                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)}><Pencil className="w-4 h-4 text-blue-600" /></Button>}
-                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteSupplier(supplier.id)}><Trash2 className="w-4 h-4" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)} aria-label="新增合同"><FileCheck className="w-4 h-4 text-gray-500" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)} aria-label="编辑"><Pencil className="w-4 h-4 text-blue-600" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteSupplier(supplier.id)} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -743,9 +743,9 @@ export default function SuppliersPage() {
                         </div>
                       </div>
                       <div className="flex shrink-0 gap-1">
-                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)}><FileCheck className="w-4 h-4" /></Button>}
-                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)}><Pencil className="w-4 h-4" /></Button>}
-                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-red-600" onClick={() => handleDeleteSupplier(supplier.id)}><Trash2 className="w-4 h-4" /></Button>}
+                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => openAddContractDialog(supplier.id)} aria-label="新增合同"><FileCheck className="w-4 h-4" /></Button>}
+                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => handleEditSupplier(supplier)} aria-label="编辑"><Pencil className="w-4 h-4" /></Button>}
+                        {canManage && <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-red-600" onClick={() => handleDeleteSupplier(supplier.id)} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>}
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -857,8 +857,8 @@ export default function SuppliersPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex justify-center gap-1">
-                            {canManage && <Button size="sm" variant="ghost" onClick={() => handleEditContract(contract)}><Pencil className="w-4 h-4" /></Button>}
-                            {canManage && <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="w-4 h-4" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" onClick={() => handleEditContract(contract)} aria-label="编辑"><Pencil className="w-4 h-4" /></Button>}
+                            {canManage && <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteContract(contract.id)} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>}
                           </div>
                         </TableCell>
                       </TableRow>

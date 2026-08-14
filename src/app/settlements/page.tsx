@@ -591,7 +591,7 @@ export default function SettlementsPage() {
                     <TableCell>{settlement.settlement_month}</TableCell>
                     <TableCell>{settlement.project_name || '-'}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => openEditDialog(settlement)}>
+                      <Button size="sm" variant="ghost" onClick={() => openEditDialog(settlement)} aria-label="编辑">
                         <Pencil className="w-4 h-4" />
                       </Button>
                     </TableCell>

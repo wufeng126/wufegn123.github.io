@@ -343,8 +343,8 @@ export default function SupplierContractsPage() {
               {canManage && (
                 <TableCell className="text-center">
                   <div className="flex justify-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => handleEditContract(contract)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeleteContract(contract.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleEditContract(contract)} aria-label="编辑"><Pencil className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeleteContract(contract.id)} aria-label="删除"><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </TableCell>
               )}

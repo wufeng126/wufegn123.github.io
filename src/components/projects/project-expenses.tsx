@@ -334,10 +334,10 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
                         <TableCell className="max-w-[150px] truncate" style={{ color: '#86909C' }}>{expense.remark || '-'}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: '#165DFF' }}>
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: '#165DFF' }} aria-label="编辑">
                               <Pencil className="w-3 h-3" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }}>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }} aria-label="删除">
                               <Trash2 className="w-3 h-3" />
                             </Button>
                           </div>
@@ -361,10 +361,10 @@ export function ProjectExpenses({ projectId }: ProjectExpensesProps) {
                     <div className="flex items-center justify-between text-sm" style={{ color: '#86909C' }}>
                       <span>{expense.expense_date}</span>
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: '#165DFF' }}>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: '#165DFF' }} aria-label="编辑">
                           <Pencil className="w-3 h-3" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }}>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }} aria-label="删除">
                           <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>

@@ -2968,10 +2968,10 @@ function WorkItemsContent() {
                               <TableCell className="text-sm text-gray-500 max-w-32 truncate">{item.remark || '-'}</TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
-                                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(item)}>
+                                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(item)} aria-label="编辑">
                                     <Pencil className="w-3 h-3" />
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(item.id)}>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(item.id)} aria-label="删除">
                                     <Trash2 className="w-3 h-3" />
                                   </Button>
                                 </div>
@@ -3420,10 +3420,10 @@ function WorkItemsContent() {
                               <TableCell className="text-sm text-gray-500 max-w-40 truncate">{template.remark || '-'}</TableCell>
                               <TableCell>
                                 <div className="flex justify-center gap-1">
-                                  <Button size="sm" variant="ghost" onClick={() => openTemplateDialog(template)}>
+                                  <Button size="sm" variant="ghost" onClick={() => openTemplateDialog(template)} aria-label="编辑">
                                     <Pencil className="w-3 h-3" />
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteTemplate(template.id)}>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteTemplate(template.id)} aria-label="删除">
                                     <Trash2 className="w-3 h-3" />
                                   </Button>
                                 </div>
@@ -3509,10 +3509,10 @@ function WorkItemsContent() {
                               <TableCell className="text-right font-semibold text-orange-600">{formatCurrency(parseFloat(addon.total_amount || '0') || 0)}</TableCell>
                               <TableCell>
                                 <div className="flex justify-center gap-1">
-                                  <Button size="sm" variant="ghost" onClick={() => openProjectAddonDialog(addon)}>
+                                  <Button size="sm" variant="ghost" onClick={() => openProjectAddonDialog(addon)} aria-label="编辑">
                                     <Pencil className="w-3 h-3" />
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProjectAddon(addon.id)}>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteProjectAddon(addon.id)} aria-label="删除">
                                     <Trash2 className="w-3 h-3" />
                                   </Button>
                                 </div>
@@ -4680,10 +4680,10 @@ function WorkItemsContent() {
                         <TableCell className="text-gray-400 text-sm">{new Date(record.created_at).toLocaleString()}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openReportHistoryEditDialog(record)} className="h-8 px-2">
+                            <Button variant="ghost" size="sm" onClick={() => openReportHistoryEditDialog(record)} className="h-8 px-2" aria-label="编辑">
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteReportHistory(record.id)} className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50">
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteReportHistory(record.id)} className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50" aria-label="删除">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -4789,7 +4789,7 @@ function WorkItemsContent() {
                             <Button variant="ghost" size="sm" onClick={() => openSettleHistoryEditDialog(record)} className="h-8 px-2">
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteSettleHistory(record.id)} className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50">
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteSettleHistory(record.id)} className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50" aria-label="删除">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>

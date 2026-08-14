@@ -1233,7 +1233,7 @@ export default function WorkerRosterPage() {
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1.5">
-                                      <Button size="sm" variant="ghost" onClick={() => handleEdit(worker)} className="h-7 px-2" style={{ color: 'var(--color-primary)' }}><Pencil className="w-4 h-4" /></Button>
+                                      <Button size="sm" variant="ghost" onClick={() => handleEdit(worker)} className="h-7 px-2" style={{ color: 'var(--color-primary)' }} aria-label="编辑"><Pencil className="w-4 h-4" /></Button>
                                       <Button 
                                         size="sm" 
                                         variant="ghost" 
@@ -1245,7 +1245,7 @@ export default function WorkerRosterPage() {
                                         {worker.status === 'left' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
                                       </Button>
                                       <Button size="sm" variant="ghost" onClick={() => handleOpenTransfer(worker)} className="h-7 px-2" style={{ color: '#722ED1' }} title="调动"><Building2 className="w-4 h-4" /></Button>
-                                      <Button size="sm" variant="ghost" onClick={() => handleDelete(worker.id)} className="h-7 px-2" style={{ color: '#F53F3F' }}><Trash2 className="w-4 h-4" /></Button>
+                                      <Button size="sm" variant="ghost" onClick={() => handleDelete(worker.id)} className="h-7 px-2" style={{ color: '#F53F3F' }} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -1296,12 +1296,12 @@ export default function WorkerRosterPage() {
                                 </div>
                               </div>
                               <div className="mt-3 grid grid-cols-4 gap-2">
-                                <Button size="sm" variant="outline" onClick={() => handleEdit(worker)} className="h-8 px-0" style={{ color: 'var(--color-primary)' }}><Pencil className="w-4 h-4" /></Button>
-                                <Button size="sm" variant="outline" onClick={() => handleToggleStatus(worker)} className="h-8 px-0" style={{ color: worker.status === 'left' ? '#00B42A' : '#FF7D00' }}>
+                                <Button size="sm" variant="outline" onClick={() => handleEdit(worker)} className="h-8 px-0" style={{ color: 'var(--color-primary)' }} aria-label="编辑"><Pencil className="w-4 h-4" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => handleToggleStatus(worker)} className="h-8 px-0" style={{ color: worker.status === 'left' ? '#00B42A' : '#FF7D00' }} aria-label="切换状态">
                                   {worker.status === 'left' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
                                 </Button>
                                 <Button size="sm" variant="outline" onClick={() => handleOpenTransfer(worker)} className="h-8 px-0" style={{ color: '#722ED1' }}><Building2 className="w-4 h-4" /></Button>
-                                <Button size="sm" variant="outline" onClick={() => handleDelete(worker.id)} className="h-8 px-0" style={{ color: '#F53F3F' }}><Trash2 className="w-4 h-4" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => handleDelete(worker.id)} className="h-8 px-0" style={{ color: '#F53F3F' }} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>
                               </div>
                             </article>
                           ))}

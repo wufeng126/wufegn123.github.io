@@ -84,8 +84,11 @@ const formatCurrency = (value: number | string | null | undefined) => {
   return `¥${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+// L8 修复：金额加 Number.isFinite 兜底，避免异常值显示"NaN万"
 const formatWan = (value: number | string | null | undefined) => {
-  return `${(Number(value || 0) / 10000).toFixed(1)}万`;
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (num == null || !Number.isFinite(num)) return '-';
+  return `${(num / 10000).toFixed(1)}万`;
 };
 
 const formatDate = (value?: string | null) => {
@@ -684,7 +687,7 @@ export default function PaymentsPage() {
                         <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedPayment(payment); }}>
                           <FileText className="h-4 w-4 text-blue-600" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }} className="text-red-600 hover:text-red-700">
+                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }} className="text-red-600 hover:text-red-700" aria-label="删除">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>

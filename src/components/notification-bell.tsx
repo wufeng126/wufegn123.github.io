@@ -25,13 +25,20 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // 点击外部关闭
+  // 点击外部关闭 + Esc 关闭（a11y：下拉焦点管理）
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   async function fetchUnread() {
@@ -70,7 +77,7 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => { setOpen(!open); if (!open) fetchUnread(); }} className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-[#F2F3F5]" title="消息通知">
+      <button onClick={() => { setOpen(!open); if (!open) fetchUnread(); }} aria-label="消息通知" aria-expanded={open} aria-haspopup="true" className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-[#F2F3F5]" title="消息通知">
         <Bell className="w-[18px] h-[18px]" style={{ color: count > 0 ? '#165DFF' : '#4E5969' }} />
         {count > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F53F3F] text-[10px] font-bold text-white flex items-center justify-center leading-none shadow">

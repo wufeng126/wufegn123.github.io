@@ -6,6 +6,8 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    // 仅对源码文件应用规则覆盖（避免作用于未注册 react-hooks 插件的文件类型，如 .cjs）
+    files: ['**/*.{ts,tsx,js,jsx,mjs}'],
     // 遗留代码的 any 使用量极大（900+ 处），降级为 warning 使 lint 门禁转绿；
     // 规则仍保留，新代码应避免 any。后续按模块专项治理逐步消除。
     rules: {

@@ -24,6 +24,9 @@ import { TabContainer, TabItem } from '@/components/tab-container';
 import { Button } from '@/components/ui/button';
 import { authFetch } from '@/lib/auth-client';
 
+// L5 修复：重点跟进阈值（应收/资金缺口 ≥ 100 万），提取为常量便于调整
+const MAJOR_RECEIVABLE_THRESHOLD = 1000000;
+
 const CostCenterPage = dynamic(() => import('@/app/cost-center/page'), { ssr: false });
 const WorkerCostPage = dynamic(() => import('@/app/data-board/worker-cost/page'), { ssr: false });
 const SupplierCostPage = dynamic(() => import('@/app/data-board/supplier-cost/page'), { ssr: false });
@@ -152,7 +155,7 @@ function getRisk(row: ProjectRow) {
   }
   const receivable = toNumber(row.receivableAmount);
   const fundingGap = toNumber(row.fundingGapAmount);
-  if (receivable >= 1000000 || fundingGap >= 1000000) {
+  if (receivable >= MAJOR_RECEIVABLE_THRESHOLD || fundingGap >= MAJOR_RECEIVABLE_THRESHOLD) {
     return { label: '重点跟进', tone: 'bg-rose-50 text-rose-700' };
   }
   if (receivable > 0 || fundingGap > 0) {

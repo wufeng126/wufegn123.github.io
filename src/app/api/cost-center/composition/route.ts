@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { VISA_DONE_STATUSES } from '@/lib/business-logic';
-import { getTeamSettlementCostAmount } from '@/lib/data-aggregation';
+import { getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 
 // 获取年月的起止日期
 function getMonthDateRange(year: number, month: number): { startDate: string; endDate: string } {
@@ -118,31 +118,8 @@ export async function GET(request: NextRequest) {
     const { data: prevVisaData } = await prevVisaQuery;
 
     // ========== 成本数据 ==========
-    // 3. 供应商及班组结算数据
-    let settlementQuery = client
-      .from('settlements')
-      .select('project_id, settlement_amount, settlement_date');
-    
-    let prevSettlementQuery = client
-      .from('settlements')
-      .select('project_id, settlement_amount, settlement_date');
-
-    if (projectId) {
-      settlementQuery = settlementQuery.eq('project_id', parseInt(projectId));
-      prevSettlementQuery = prevSettlementQuery.eq('project_id', parseInt(projectId));
-    }
-
-    if (viewType === 'monthly') {
-      settlementQuery = settlementQuery
-        .gte('settlement_date', currentMonthRange.startDate)
-        .lte('settlement_date', currentMonthRange.endDate);
-      prevSettlementQuery = prevSettlementQuery
-        .gte('settlement_date', prevMonthRange.startDate)
-        .lte('settlement_date', prevMonthRange.endDate);
-    }
-
-    const { data: currentSettlementData } = await settlementQuery;
-    const { data: prevSettlementData } = await prevSettlementQuery;
+    // 3. 供应商结算（L2 修复：统一走 data-aggregation 口径——新表 supplier_settlements 排除作废
+    //    + 老表 settlements 按指纹去重，与成本利润中心主接口一致；班组结算金额在汇总时单独加 getTeamSettlementCostAmount）
 
     // 4. 工人工资数据（使用 year_month 字段）
     let salaryQuery = client
@@ -255,8 +232,12 @@ export async function GET(request: NextRequest) {
       sum + (parseFloat(item.invoice_amount || '0') || 0), 0) || 0;
     const currentVisaAmount = currentVisaData?.reduce((sum, item) => 
       sum + (parseFloat(item.visa_amount || '0') || 0), 0) || 0;
-    const currentSettlementAmount = currentSettlementData?.reduce((sum, item) => 
-      sum + (parseFloat(item.settlement_amount || '0') || 0), 0) || 0;
+    // L2 修复：供应商结算走统一口径（新表+老表去重、排除作废）
+    const currentSettlementAmount = await getSupplierSettlementTotal(client, {
+      projectId: projectId ? parseInt(projectId) : undefined,
+      startDate: viewType === 'monthly' ? currentMonthRange.startDate : undefined,
+      endDate: viewType === 'monthly' ? currentMonthRange.endDate : undefined,
+    });
     const currentWorkerSalaryAmount = currentSalaryData?.reduce((sum, item) => 
       sum + (parseFloat(item.gross_pay || '0') || 0), 0) || 0;
     const currentTeamSettlementAmount = await getTeamSettlementCostAmount(client, {
@@ -283,8 +264,12 @@ export async function GET(request: NextRequest) {
       sum + (parseFloat(item.invoice_amount || '0') || 0), 0) || 0;
     const prevVisaAmount = prevVisaData?.reduce((sum, item) => 
       sum + (parseFloat(item.visa_amount || '0') || 0), 0) || 0;
-    const prevSettlementAmount = prevSettlementData?.reduce((sum, item) => 
-      sum + (parseFloat(item.settlement_amount || '0') || 0), 0) || 0;
+    // L2 修复：供应商结算走统一口径（新表+老表去重、排除作废）
+    const prevSettlementAmount = await getSupplierSettlementTotal(client, {
+      projectId: projectId ? parseInt(projectId) : undefined,
+      startDate: viewType === 'monthly' ? prevMonthRange.startDate : undefined,
+      endDate: viewType === 'monthly' ? prevMonthRange.endDate : undefined,
+    });
     const prevWorkerSalaryAmount = prevSalaryData?.reduce((sum, item) => 
       sum + (parseFloat(item.gross_pay || '0') || 0), 0) || 0;
     const prevTeamSettlementAmount = await getTeamSettlementCostAmount(client, {

@@ -550,10 +550,10 @@ function ComprehensiveExpenseContent() {
                             <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: 'var(--color-text-3)' }}>{expense.remark || '-'}</td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex items-center justify-center gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: 'var(--color-primary)' }}>
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: 'var(--color-primary)' }} aria-label="编辑">
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }}>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }} aria-label="删除">
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -583,10 +583,10 @@ function ComprehensiveExpenseContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>{expense.handler || '-'}</span>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: 'var(--color-primary)' }}>
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense)} style={{ color: 'var(--color-primary)' }} aria-label="编辑">
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }}>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(expense)} style={{ color: '#F53F3F' }} aria-label="删除">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
