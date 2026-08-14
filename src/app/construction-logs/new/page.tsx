@@ -1338,7 +1338,7 @@ function NewConstructionLogPageContent() {
             </div>
           )}
 
-          <div className="mobile-sticky-actions construction-log-submit-bar flex flex-col items-stretch justify-between gap-3 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/90 backdrop-blur sm:sticky sm:bottom-3 sm:z-20 sm:flex-row sm:items-center sm:p-4">
+          <div className="construction-log-submit-bar flex flex-col items-stretch justify-between gap-3 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200/90 backdrop-blur sm:sticky sm:bottom-3 sm:z-20 sm:flex-row sm:items-center sm:p-4">
             <button
               type="button"
               onClick={addDraft}

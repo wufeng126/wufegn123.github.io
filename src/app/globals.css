@@ -1529,7 +1529,7 @@ input::placeholder, textarea::placeholder {
   }
 
   .construction-log-entry-page form {
-    padding-bottom: 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   }
 
   .construction-log-entry-page textarea {
@@ -1573,7 +1573,14 @@ input::placeholder, textarea::placeholder {
 
   .construction-log-submit-bar {
     gap: 0.65rem !important;
+    margin-top: 1rem !important;
+    margin-bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important;
     padding: 0.75rem !important;
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: auto !important;
   }
 
   .construction-log-submit-bar > button:first-child {
