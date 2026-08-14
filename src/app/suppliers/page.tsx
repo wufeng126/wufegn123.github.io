@@ -19,6 +19,7 @@ import {
   FileCheck, Clock, Users
 } from 'lucide-react';
 import { LinkableCell } from '@/components/linkable-cell';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // ============ 类型定义 ============
 interface Supplier {
@@ -210,6 +211,8 @@ export default function SuppliersPage() {
     load();
   }, [fetchUser, fetchSuppliers, fetchSupplierStats, fetchContracts, fetchProjects]);
 
+  const confirm = useConfirm();
+
   // 筛选后的数据
   const supplierLedgerRows: SupplierWithStats[] = supplierStats.length > 0
     ? supplierStats
@@ -333,7 +336,11 @@ export default function SuppliersPage() {
   };
 
   const handleDeleteSupplier = async (id: number) => {
-    if (!confirm('确定要删除该供应商吗？相关合同也会被删除。')) return;
+    if (!(await confirm({
+      title: '确定要删除该供应商吗？',
+      description: '相关合同也会被删除。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/suppliers?ids=${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -421,7 +428,11 @@ export default function SuppliersPage() {
   };
 
   const handleDeleteContract = async (id: number) => {
-    if (!confirm('确定要删除该合同吗？删除后关联的结算单和付款记录也将一并删除。')) return;
+    if (!(await confirm({
+      title: '确定要删除该合同吗？',
+      description: '删除后关联的结算单和付款记录也将一并删除。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/supplier-contracts/${id}`, { method: 'DELETE' });
       const data = await res.json();

@@ -25,6 +25,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { usePermission } from '@/contexts/permission-context';
+import { useConfirm } from '@/hooks/use-confirm';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
@@ -545,6 +546,8 @@ export default function ConstructionLogsClient() {
     return () => window.clearTimeout(timeoutId);
   }, [loadSubmitters, submitterProjectId, tab]);
 
+  const confirm = useConfirm();
+
   const projectNameById = useMemo(() => {
     const map = new Map<number, string>();
     projects.forEach(project => map.set(Number(project.id), project.name));
@@ -615,7 +618,11 @@ export default function ConstructionLogsClient() {
   }
 
   async function handleDeleteLog(logId: number) {
-    if (!window.confirm('确认删除这条施工日志吗？删除后相关风险提醒也会同步清理。')) return;
+    if (!(await confirm({
+      title: '确认删除这条施工日志吗？',
+      description: '删除后相关风险提醒也会同步清理。',
+      variant: 'destructive',
+    }))) return;
     setDeletingLogId(logId);
     setMessage('');
     try {
@@ -632,7 +639,11 @@ export default function ConstructionLogsClient() {
   }
 
   async function handleCancelSchedule(logId: number) {
-    if (!window.confirm('确认取消这条预约提交吗？取消后不会自动提交。')) return;
+    if (!(await confirm({
+      title: '确认取消这条预约提交吗？',
+      description: '取消后不会自动提交。',
+      variant: 'destructive',
+    }))) return;
     setCancelingLogId(logId);
     setMessage('');
     try {

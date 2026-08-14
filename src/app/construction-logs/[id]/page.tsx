@@ -20,6 +20,7 @@ import {
   XCircle,
   Users,
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 type RiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
@@ -352,6 +353,8 @@ function ConstructionLogDetailPageContent() {
     return () => window.cancelAnimationFrame(frame);
   }, [comments.length, commentsLoading, detail, loading, searchParams]);
 
+  const confirm = useConfirm();
+
   const photoAttachments = useMemo(
     () =>
       (detail?.attachments || []).filter((attachment) =>
@@ -436,7 +439,7 @@ function ConstructionLogDetailPageContent() {
 
   async function handleCancelSchedule() {
     if (!detail || !detail.can_cancel_schedule) return;
-    if (!window.confirm('确定要取消这条预约提交吗？')) return;
+    if (!(await confirm({ title: '确定要取消这条预约提交吗？', variant: 'destructive' }))) return;
     setSaving(true);
     setError('');
     try {

@@ -22,6 +22,7 @@ import {
   Search, Trash2, Receipt
 } from 'lucide-react';
 import { LinkableCell } from '@/components/linkable-cell';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // ============ 类型定义 ============
 interface Supplier {
@@ -158,6 +159,8 @@ export default function SettlementPage() {
     load();
   }, [fetchUser, fetchSuppliers, fetchContracts, fetchSettlements]);
 
+  const confirm = useConfirm();
+
   // 筛选后的数据
   const filteredSettlements = settlements.filter(s => {
     if (searchKeyword) {
@@ -211,7 +214,7 @@ export default function SettlementPage() {
   };
 
   const handleDeleteSettlement = async (id: number) => {
-    if (!confirm('确定删除该结算单？')) return;
+    if (!(await confirm({ title: '确定删除该结算单？', variant: 'destructive' }))) return;
     try {
       const res = await fetch(`/api/supplier-contracts/settlements/${id}`, { method: 'DELETE' });
       if (res.ok) {

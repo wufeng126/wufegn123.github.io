@@ -26,6 +26,8 @@ function addCorsHeaders(response: NextResponse, request: NextRequest): NextRespo
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-session, x-wps-sync-token');
   }
+  // L9 缓解：URL ?token= 兜底机制存在时，禁止 Referer 携带 token 外泄
+  response.headers.set('Referrer-Policy', 'no-referrer');
   return response;
 }
 

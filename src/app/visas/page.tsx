@@ -40,6 +40,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // 类型定义
 interface Project {
@@ -451,7 +452,7 @@ export default function VisasPage() {
 
   // 删除附件
   const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!confirm('确定要删除此附件吗？')) return;
+    if (!(await confirm({ title: '确定要删除此附件吗？', variant: 'destructive' }))) return;
     
     try {
       const res = await fetch(`/api/visas/attachments/${attachmentId}`, {
@@ -628,6 +629,8 @@ export default function VisasPage() {
 
     void openTargetVisa();
   }, [targetVisaId, loading, openedVisaId, visas]);
+
+  const confirm = useConfirm();
 
   // 生成签证编号
   const generateVisaNumber = () => {
@@ -815,7 +818,11 @@ export default function VisasPage() {
 
   // 提交签证
   const handleSubmit = async (visa: Visa) => {
-    if (!confirm(`确定要提交签证 "${visa.visa_number}" 吗？提交后将推送给项目经理办理签字。`)) return;
+    if (!(await confirm({
+      title: `确定要提交签证 "${visa.visa_number}" 吗？`,
+      description: '提交后将推送给项目经理办理签字。',
+      variant: 'destructive',
+    }))) return;
     
     setSaving(true);
     try {
@@ -953,7 +960,11 @@ export default function VisasPage() {
 
   // 预算员确认签证已计入结算
   const handleSettle = async (visa: Visa) => {
-    if (!confirm(`确定甲方商务已将签证 "${visa.visa_number}" 计入结算吗？确认后流程将完成。`)) return;
+    if (!(await confirm({
+      title: `确定甲方商务已将签证 "${visa.visa_number}" 计入结算吗？`,
+      description: '确认后流程将完成。',
+      variant: 'destructive',
+    }))) return;
     
     setSaving(true);
     try {

@@ -32,6 +32,7 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 type ProjectOption = {
   id: number;
@@ -472,6 +473,8 @@ export default function EvidenceChainPage() {
     return () => window.clearTimeout(timer);
   }, [drawerOpen, form.project_id, form.handling_result, loadVisaOptions]);
 
+  const confirm = useConfirm();
+
   function patchForm<K extends keyof EvidenceForm>(key: K, value: EvidenceForm[K]) {
     setForm((current) => {
       const next = { ...current, [key]: value };
@@ -573,7 +576,7 @@ export default function EvidenceChainPage() {
   }
 
   async function deleteRecord(record: EvidenceRecord) {
-    if (!window.confirm(`确认删除“${record.title}”吗？`)) return;
+    if (!(await confirm({ title: `确认删除“${record.title}”吗？`, variant: 'destructive' }))) return;
     try {
       const res = await fetch(`/api/evidence-chain?id=${record.id}`, { method: 'DELETE' });
       const data = await res.json();

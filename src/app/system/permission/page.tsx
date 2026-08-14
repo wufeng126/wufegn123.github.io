@@ -56,6 +56,7 @@ import {
   PROJECT_ROLE_OPTIONS,
   type ProjectRoleCode,
 } from '@/lib/user-project-roles';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // 权限菜单结构（按新导航6大模块分组）
 // 权限编码统一格式: {resource}:{action}
@@ -563,6 +564,8 @@ export default function PermissionCenterPage() {
     return () => window.clearTimeout(timer);
   }, [loadData]);
 
+  const confirm = useConfirm();
+
   // 初始化权限数据
   const initPermissions = async () => {
     try {
@@ -732,7 +735,7 @@ export default function PermissionCenterPage() {
       toast({ title: '无法删除', description: '超级管理员角色不能删除', variant: 'error' });
       return;
     }
-    if (!confirm(`确定要删除角色 "${role.name}" 吗？`)) return;
+    if (!(await confirm({ title: `确定要删除角色 "${role.name}" 吗？`, variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`/api/system/permission/roles?id=${role.id}`, { method: 'DELETE' });

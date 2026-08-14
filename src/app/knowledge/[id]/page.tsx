@@ -12,6 +12,7 @@ import {
   getKnowledgeSourceLabel,
   normalizeKnowledgeTags,
 } from '@/lib/knowledge-taxonomy';
+import { useConfirm } from '@/hooks/use-confirm';
 
 type KnowledgeDoc = {
   id: string | number;
@@ -358,6 +359,8 @@ export default function KnowledgeDetailPage() {
   const [acting, setActing] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const confirm = useConfirm();
+
   useEffect(() => {
     let mounted = true;
 
@@ -477,7 +480,11 @@ export default function KnowledgeDetailPage() {
 
   async function handleDeleteMonthlyDraft() {
     if (!doc?.id || deleting) return;
-    const confirmed = window.confirm('确认删除这份月度分析草稿吗？删除后不会再出现在知识库列表中。');
+    const confirmed = await confirm({
+      title: '确认删除这份月度分析草稿吗？',
+      description: '删除后不会再出现在知识库列表中。',
+      variant: 'destructive',
+    });
     if (!confirmed) return;
 
     setDeleting(true);

@@ -26,6 +26,7 @@ import {
   Plus, Search, Trash2, Edit, CheckCircle, XCircle,
   Download, AlertTriangle, Eye, Upload, FileSpreadsheet
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Project {
   id: number;
@@ -203,6 +204,8 @@ export default function LimitPricesPage() {
     }
   }, [user, loadData]);
 
+  const confirm = useConfirm();
+
   // 重置表单
   const resetForm = () => {
     setFormData({
@@ -359,7 +362,11 @@ export default function LimitPricesPage() {
 
   // 审核
   const handleReview = async (item: LimitPrice) => {
-    if (!confirm(`确认审核 "${item.subitem_name}" 限价？\n审核后普通账号将无法编辑。`)) return;
+    if (!(await confirm({
+      title: `确认审核 "${item.subitem_name}" 限价？`,
+      description: '审核后普通账号将无法编辑。',
+      variant: 'destructive',
+    }))) return;
     
     try {
       const res = await fetch(`/api/limit-prices/${item.id}/review`, {
@@ -416,7 +423,11 @@ export default function LimitPricesPage() {
 
   // 删除
   const handleDelete = async (item: LimitPrice) => {
-    if (!confirm(`确认删除 "${item.subitem_name}"？\n此操作不可恢复。`)) return;
+    if (!(await confirm({
+      title: `确认删除 "${item.subitem_name}"？`,
+      description: '此操作不可恢复。',
+      variant: 'destructive',
+    }))) return;
     
     try {
       const res = await fetch(`/api/limit-prices/${item.id}`, {

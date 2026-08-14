@@ -30,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface ProjectOption {
   id: number;
@@ -319,6 +320,8 @@ export default function WpsConfigPage() {
     return () => window.clearTimeout(timer);
   }, [fetchData]);
 
+  const confirm = useConfirm();
+
   const filteredBindings = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return bindings;
@@ -508,7 +511,11 @@ export default function WpsConfigPage() {
   };
 
   const deleteBinding = async (binding: WpsBinding) => {
-    if (!window.confirm('确认删除这条 WPS 绑定配置吗？删除后不会影响已同步的工人档案。')) return;
+    if (!(await confirm({
+      title: '确认删除这条 WPS 绑定配置吗？',
+      description: '删除后不会影响已同步的工人档案。',
+      variant: 'destructive',
+    }))) return;
     const response = await fetch(`/api/integrations/wps/workers/bindings?id=${binding.id}`, { method: 'DELETE' });
     const data = await response.json();
     if (!response.ok || !data.success) {

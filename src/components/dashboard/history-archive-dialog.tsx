@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { History, GitCompare, Trash2, Archive, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface ArchiveItem {
   id: number;
@@ -122,6 +123,8 @@ export function HistoryArchiveDialog({ open, onOpenChange, currentMonth, project
     }
   }, [open, fetchArchives]);
 
+  const confirm = useConfirm();
+
   const handleArchive = async () => {
     try {
       const res = await fetch(`/api/reports/monthly/summary?month=${currentMonth}&project_id=${projectId === 'all' ? '' : projectId}`);
@@ -151,7 +154,7 @@ export function HistoryArchiveDialog({ open, onOpenChange, currentMonth, project
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确认删除此存档？')) return;
+    if (!(await confirm({ title: '确认删除此存档？', variant: 'destructive' }))) return;
     try {
       await fetch(`/api/reports/monthly/archives?id=${id}`, { method: 'DELETE' });
       fetchArchives();

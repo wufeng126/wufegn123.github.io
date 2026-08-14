@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Download, Plus, Trash2, FileText } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Supplier {
   id: number;
@@ -321,6 +322,8 @@ export default function PaymentsPage() {
     setDialogOpen(true);
   }, [contracts, searchParams, settlements]);
 
+  const confirm = useConfirm();
+
   const filteredData = useMemo(() => {
     return payments.filter((payment) => {
       if (filterType !== 'all' && payment.payment_type !== filterType) return false;
@@ -428,7 +431,11 @@ export default function PaymentsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除此付款记录吗？删除后会影响供应商成本与未付金额统计。')) return;
+    if (!(await confirm({
+      title: '确定要删除此付款记录吗？',
+      description: '删除后会影响供应商成本与未付金额统计。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/supplier-contracts/payments/${id}`, { method: 'DELETE' });
       if (res.ok) {

@@ -21,6 +21,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Worker {
   id: number;
@@ -192,6 +193,8 @@ export default function WorkerSalariesPage() {
     }
   }, [loading]);
 
+  const confirm = useConfirm();
+
   const fetchBaseData = async () => {
     try {
       const [workersRes, projectsRes] = await Promise.all([
@@ -314,7 +317,7 @@ export default function WorkerSalariesPage() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return toast({ title: '请先选择要删除的记录', variant: 'error' });
-    if (!confirm(`确定要删除选中的 ${selectedIds.size} 条工资记录吗？`)) return;
+    if (!(await confirm({ title: `确定要删除选中的 ${selectedIds.size} 条工资记录吗？`, variant: 'destructive' }))) return;
     try {
       const res = await fetch('/api/worker-salaries/batch-delete', {
         method: 'POST',
@@ -375,7 +378,11 @@ export default function WorkerSalariesPage() {
   // 数据管理 - 确认删除选中记录
   const handleDataManagerDelete = async () => {
     if (deleteSelectedIds.size === 0) return toast({ title: '请先选择要删除的记录', variant: 'error' });
-    if (!confirm(`确定要删除选中的 ${deleteSelectedIds.size} 条工资记录吗？此操作不可恢复！`)) return;
+    if (!(await confirm({
+      title: `确定要删除选中的 ${deleteSelectedIds.size} 条工资记录吗？`,
+      description: '此操作不可恢复！',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch('/api/worker-salaries/batch-delete', {
         method: 'POST',

@@ -32,6 +32,7 @@ import {
   ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // 类型定义
 interface Project {
@@ -344,6 +345,8 @@ function WorkItemsContent() {
     }
   }, [selectedProjectId]);
 
+  const confirm = useConfirm();
+
   const fetchData = async () => {
     setLoading(true);
     setShowContent(false);
@@ -465,7 +468,11 @@ function WorkItemsContent() {
   };
 
   const handleDeleteTemplate = async (id: number) => {
-    if (!confirm('确定删除该公司通用模板吗？已导入项目的清单不会受影响。')) return;
+    if (!(await confirm({
+      title: '确定删除该公司通用模板吗？',
+      description: '已导入项目的清单不会受影响。',
+      variant: 'destructive',
+    }))) return;
 
     try {
       const res = await fetch(`/api/internal-addon-templates?ids=${id}`, {
@@ -558,7 +565,11 @@ function WorkItemsContent() {
   };
 
   const handleDeleteProjectAddon = async (id: number) => {
-    if (!confirm('确定删除该项目内部附加清单吗？历史结算记录会保留，但该清单不再显示。')) return;
+    if (!(await confirm({
+      title: '确定删除该项目内部附加清单吗？',
+      description: '历史结算记录会保留，但该清单不再显示。',
+      variant: 'destructive',
+    }))) return;
 
     try {
       const res = await fetch(`/api/project-internal-addons?ids=${id}`, {
@@ -1289,7 +1300,7 @@ function WorkItemsContent() {
 
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除该分项工程吗？')) return;
+    if (!(await confirm({ title: '确定要删除该分项工程吗？', variant: 'destructive' }))) return;
     
     try {
       const res = await fetch(`/api/work-item-subitems?ids=${id}`, {
@@ -1641,7 +1652,11 @@ function WorkItemsContent() {
 
   // 删除月度报量记录
   const handleDeleteMonthlyReport = async (recordId: number) => {
-    if (!confirm('确定要删除这条报量记录吗？删除后将更新累计报量。')) return;
+    if (!(await confirm({
+      title: '确定要删除这条报量记录吗？',
+      description: '删除后将更新累计报量。',
+      variant: 'destructive',
+    }))) return;
     
     try {
       const res = await fetch(`/api/subitem-monthly-reports/${recordId}`, {
@@ -1851,7 +1866,11 @@ function WorkItemsContent() {
 
   // 删除结算量记录
   const handleDeleteSettlement = async (recordId: number) => {
-    if (!confirm('确定要删除这条结算记录吗？删除后将更新累计结算量。')) return;
+    if (!(await confirm({
+      title: '确定要删除这条结算记录吗？',
+      description: '删除后将更新累计结算量。',
+      variant: 'destructive',
+    }))) return;
     
     try {
       const res = await fetch(`/api/subitem-monthly-progress/${recordId}`, {
@@ -1975,7 +1994,11 @@ function WorkItemsContent() {
   };
 
   const handleDeleteReportHistory = async (recordId: number) => {
-    if (!confirm('确定要删除这条报量记录吗？删除后将更新累计报量。')) return;
+    if (!(await confirm({
+      title: '确定要删除这条报量记录吗？',
+      description: '删除后将更新累计报量。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/subitem-monthly-reports/${recordId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -2056,7 +2079,11 @@ function WorkItemsContent() {
   };
 
   const handleDeleteSettleHistory = async (recordId: number) => {
-    if (!confirm('确定要删除这条结算记录吗？删除后将更新累计结算量。')) return;
+    if (!(await confirm({
+      title: '确定要删除这条结算记录吗？',
+      description: '删除后将更新累计结算量。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/subitem-monthly-progress/${recordId}`, { method: 'DELETE' });
       if (res.ok) {

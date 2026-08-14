@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Search, Plus, Edit, Trash2, FileText } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Supplier {
   id: number;
@@ -116,6 +117,8 @@ export default function SupplierRosterPage() {
   useEffect(() => {
     loadContracts();
   }, []);
+
+  const confirm = useConfirm();
 
   const loadProjects = async () => {
     try {
@@ -238,7 +241,7 @@ export default function SupplierRosterPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除该供应商吗？')) return;
+    if (!(await confirm({ title: '确定要删除该供应商吗？', variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`/api/suppliers?id=${id}`, { method: 'DELETE' });
@@ -358,7 +361,11 @@ export default function SupplierRosterPage() {
   };
 
   const handleDeleteContract = async (id: number) => {
-    if (!confirm('确定要删除该合同吗？删除后关联的结算单和付款记录也将一并删除。')) return;
+    if (!(await confirm({
+      title: '确定要删除该合同吗？',
+      description: '删除后关联的结算单和付款记录也将一并删除。',
+      variant: 'destructive',
+    }))) return;
 
     try {
       const res = await fetch(`/api/supplier-contracts/${id}`, { method: 'DELETE' });

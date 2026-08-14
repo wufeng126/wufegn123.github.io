@@ -18,6 +18,7 @@ import { LinkableCell } from '@/components/linkable-cell';
 import WorkerImportDialog from '@/components/worker-import-dialog';
 import { WorkerDataManageDialog } from '@/components/worker-data-manage-dialog';
 import Link from 'next/link';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Worker {
   id: number;
@@ -200,6 +201,8 @@ export default function WorkerRosterPage() {
     }
     setWorkers(filtered);
   }, [filterProject, filterWorkType, filterStatus, searchName, allWorkers]);
+
+  const confirm = useConfirm();
 
   // 按项目分组工人（用于折叠展示）
   const groupedWorkers = useMemo(() => {
@@ -430,7 +433,11 @@ export default function WorkerRosterPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除此工人吗？若该工人在出勤、工资核算或工资发放中已有数据，将无法删除。')) return;
+    if (!(await confirm({
+      title: '确定要删除此工人吗？',
+      description: '若该工人在出勤、工资核算或工资发放中已有数据，将无法删除。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/workers/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -452,7 +459,7 @@ export default function WorkerRosterPage() {
   const handleToggleStatus = async (worker: Worker) => {
     const newStatus = worker.status === 'left' ? 'in_service' : 'left';
     const actionText = newStatus === 'left' ? '退场' : '返场';
-    if (!confirm(`确定要${actionText}此工人吗？`)) return;
+    if (!(await confirm({ title: `确定要${actionText}此工人吗？`, variant: 'destructive' }))) return;
     
     try {
       const res = await fetch(`/api/workers/${worker.id}`, {
@@ -502,7 +509,7 @@ export default function WorkerRosterPage() {
 
   const handleBatchLeave = async () => {
     if (selectedIds.size === 0) return toast({ title: '请先选择要退场的工人', variant: 'error' });
-    if (!confirm(`确定要将选中的 ${selectedIds.size} 个工人标记为退场吗？`)) return;
+    if (!(await confirm({ title: `确定要将选中的 ${selectedIds.size} 个工人标记为退场吗？`, variant: 'destructive' }))) return;
     try {
       const res = await fetch('/api/workers/batch-update', {
         method: 'POST',
@@ -524,7 +531,7 @@ export default function WorkerRosterPage() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return toast({ title: '请先选择要删除的工人', variant: 'error' });
-    if (!confirm(`确定要删除选中的 ${selectedIds.size} 个工人吗？`)) return;
+    if (!(await confirm({ title: `确定要删除选中的 ${selectedIds.size} 个工人吗？`, variant: 'destructive' }))) return;
     try {
       const res = await fetch('/api/workers/batch-delete', {
         method: 'POST',
@@ -581,7 +588,7 @@ export default function WorkerRosterPage() {
   };
 
   const handleLeaveAssignment = async (assignmentId: number) => {
-    if (!confirm('确定要退场该项目吗？')) return;
+    if (!(await confirm({ title: '确定要退场该项目吗？', variant: 'destructive' }))) return;
     try {
       const res = await fetch(`/api/worker-assignments?id=${assignmentId}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {

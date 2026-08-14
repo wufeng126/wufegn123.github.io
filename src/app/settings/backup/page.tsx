@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Download, Trash2, RefreshCw, Database, Clock, CheckCircle, XCircle, Play, Settings, FileText, HardDrive } from "lucide-react";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface BackupRecord {
   id: number;
@@ -121,6 +122,8 @@ export default function BackupPage() {
     }
   }, [currentRecordId, backingUp, loadRecords, toast]);
 
+  const confirm = useConfirm();
+
   const handleBackup = async () => {
     if (selectedModules.length === 0) {
       toast({ title: "请选择至少一个模块", variant: "error" });
@@ -195,7 +198,7 @@ export default function BackupPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("确定要删除这条备份记录吗？")) return;
+    if (!(await confirm({ title: "确定要删除这条备份记录吗？", variant: "destructive" }))) return;
 
     try {
       const res = await fetch(`/api/backups/records?id=${id}`, {

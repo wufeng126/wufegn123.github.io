@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { isSuperAdminUser } from '@/lib/route-permissions';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Project {
   id: number;
@@ -180,11 +181,17 @@ export default function ProjectDetailPage() {
     fetchUser();
   }, []);
 
+  const confirm = useConfirm();
+
   const handleArchiveProject = async () => {
     if (!project || archiving) return;
     const note = window.prompt('请输入归档备注，可留空：');
     if (note === null) return;
-    const confirmed = window.confirm('确认归档该项目吗？归档后将清理施工日志照片，且不能再提交施工日志和出勤。');
+    const confirmed = await confirm({
+      title: '确认归档该项目吗？',
+      description: '归档后将清理施工日志照片，且不能再提交施工日志和出勤。',
+      variant: 'destructive',
+    });
     if (!confirmed) return;
 
     setArchiving(true);

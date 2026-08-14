@@ -22,6 +22,7 @@ import {
   Plus, Trash2, AlertTriangle, Lock, CheckCircle, Clock, FileText, Upload
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // ============ 类型定义 ============
 interface Supplier {
@@ -537,7 +538,7 @@ export default function SettlementPage() {
   };
 
   const handleDeleteSettlement = async (id: number) => {
-    if (!confirm('确定要删除这条结算记录吗？')) return;
+    if (!(await confirm({ title: '确定要删除这条结算记录吗？', variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`/api/supplier-contracts/settlements/${id}`, {
@@ -623,6 +624,8 @@ export default function SettlementPage() {
       void openSettlementDetail(target);
     }
   }, [openSettlementDetail, searchParams, selectedSettlement, settlements]);
+
+  const confirm = useConfirm();
 
   const goToPaymentsLedger = useCallback((settlement: Settlement, settlementOnly = false) => {
     const params = new URLSearchParams();

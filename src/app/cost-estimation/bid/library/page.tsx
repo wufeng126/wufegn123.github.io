@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Database, Download, Plus, Save, TrendingUp, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface StandardItem {
   id: number;
@@ -143,6 +144,8 @@ export default function BidLibraryPage() {
         }
       });
   }, []);
+
+  const confirm = useConfirm();
 
   const activeRows = tab === 'bidPrice' ? bidPrices : costPrices;
   const priceTypeLabel = tab === 'bidPrice' ? '历史中标单价' : '内部结算单价';
@@ -382,7 +385,11 @@ export default function BidLibraryPage() {
         const existingCodes = new Set(standards.map(item => normalize(item.code)));
         const updateCount = items.filter(item => existingCodes.has(normalize(item.code))).length;
         const duplicateTip = duplicatedCodes.size ? `\n同一文件中有 ${duplicatedCodes.size} 个重复编码，系统将保留最后一条。` : '';
-        const confirmed = window.confirm(`识别到 ${items.length} 条标准清单，其中 ${updateCount} 条会更新现有编码，${items.length - updateCount} 条会新增。${duplicateTip}\n确认导入吗？`);
+        const confirmed = await confirm({
+          title: `识别到 ${items.length} 条标准清单，其中 ${updateCount} 条会更新现有编码，${items.length - updateCount} 条会新增。`,
+          description: `${duplicateTip}\n确认导入吗？`,
+          variant: 'destructive',
+        });
         if (!confirmed) return;
 
         setSaving(true);

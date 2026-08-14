@@ -561,16 +561,34 @@ export default function MonthlyReportPage() {
             {/* ─── Core KPIs ─── */}
             {reportMode === 'boss' && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {/* 经营结论置顶：先给老板结论，再给数字（第一屏主次重构） */}
+                {conclusion && (
+                  <Card className="border-l-4 border-l-primary">
+                    <CardHeader className="pb-2 pt-4 px-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <Eye className="w-4 h-4" /> 本月经营结论
+                        </CardTitle>
+                        <Button variant="ghost" size="sm" onClick={handleCopyConclusion} className="h-7">
+                          {copied ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+                          {copied ? '已复制' : '复制'}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                      <div className="text-sm leading-relaxed whitespace-pre-line">{conclusion}</div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">核心经营指标</h2>
+                  <span className="text-xs text-muted-foreground">产值 / 利润 / 现金净流为老板最关注的三项</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                   <KpiCard label="本月产值" value={fmtAmtUnit(ov.monthIncome).value} unit={fmtAmtUnit(ov.monthIncome).unit}
                     tooltip="统计口径：已审核甲方报量金额" onClick={() => router.push('/client-reports')}
                     change={comp.mom?.income} changeLabel="环比" />
-                  <KpiCard label="本月回款" value={fmtAmtUnit(ov.monthReceived).value} unit={fmtAmtUnit(ov.monthReceived).unit}
-                    tooltip="统计口径：甲方付款到账金额" onClick={() => router.push('/client-payments')}
-                    change={comp.mom?.received} changeLabel="环比" />
-                  <KpiCard label="本月确认成本" value={fmtAmtUnit(ov.monthCost).value} unit={fmtAmtUnit(ov.monthCost).unit}
-                    tooltip="统计口径：本月人工+供应商结算+综合费用+材料+税费（确认成本，非实际支付）"
-                    change={comp.mom?.cost} changeLabel="环比" />
                   <KpiCard label="本月经营利润" value={fmtAmtUnit(ov.operatingProfit).value} unit={fmtAmtUnit(ov.operatingProfit).unit}
                     tooltip="统计口径：本月确认产值+本月已审批签证-本月确认成本，反映项目当月经营成果"
                     change={comp.mom?.profit} changeLabel="环比"
@@ -578,12 +596,22 @@ export default function MonthlyReportPage() {
                   <KpiCard label="本月现金净流" value={fmtAmtUnit(ov.cashNetFlow).value} unit={fmtAmtUnit(ov.cashNetFlow).unit}
                     tooltip="统计口径：本月实际回款-本月实际支付，反映当月资金收支压力"
                     risk={ov.cashNetFlow < 0 ? 'warning' : undefined} />
+                  <KpiCard label="本月回款" value={fmtAmtUnit(ov.monthReceived).value} unit={fmtAmtUnit(ov.monthReceived).unit}
+                    tooltip="统计口径：甲方付款到账金额" onClick={() => router.push('/client-payments')}
+                    change={comp.mom?.received} changeLabel="环比" />
+                  <KpiCard label="本月确认成本" value={fmtAmtUnit(ov.monthCost).value} unit={fmtAmtUnit(ov.monthCost).unit}
+                    tooltip="统计口径：本月人工+供应商结算+综合费用+材料+税费（确认成本，非实际支付）"
+                    change={comp.mom?.cost} changeLabel="环比" />
                   <KpiCard label="未回款/缺口" value={fmtAmtUnit(ov.unreceived).value} unit={fmtAmtUnit(ov.unreceived).unit}
                     tooltip="统计口径：产值-已回款"
                     risk={ov.unreceived > 0 ? 'warning' : undefined} />
                 </div>
 
                 {/* Payable Pressure KPIs */}
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">应付压力</h2>
+                  <span className="text-xs text-muted-foreground">本月需关注的未付资金</span>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KpiCard label="本月应付合计" value={fmtAmtUnit(pp.totalPayable).value} unit={fmtAmtUnit(pp.totalPayable).unit}
                     tooltip="人工未付+供应商未付" risk={pp.totalPayable > 0 ? 'warning' : undefined} />
@@ -630,26 +658,6 @@ export default function MonthlyReportPage() {
             )}
 
 
-
-            {/* ─── Business Conclusion ─── */}
-            {conclusion && reportMode === 'boss' && (
-              <Card className="border-l-4 border-l-primary">
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Eye className="w-4 h-4" /> 本月经营结论
-                    </CardTitle>
-                    <Button variant="ghost" size="sm" onClick={handleCopyConclusion} className="h-7">
-                      {copied ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
-                      {copied ? '已复制' : '复制'}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <div className="text-sm leading-relaxed whitespace-pre-line">{conclusion}</div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* ─── Payable Plan ─── */}
             {reportMode !== 'detail' && (

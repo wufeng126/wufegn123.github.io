@@ -44,6 +44,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // 默认权限模块配置 - 与系统侧边栏菜单同步
 const DEFAULT_PERMISSION_MODULES = [
@@ -278,6 +279,8 @@ export default function AuthCenterPage() {
     loadData();
   }, [loadData]);
 
+  const confirm = useConfirm();
+
   // 权限勾选相关函数
   const isModuleAllChecked = (module: GroupedPermission) => {
     return module.permissions.every((p) => selectedPermissions.includes(p.code));
@@ -396,7 +399,7 @@ export default function AuthCenterPage() {
       toast({ title: '无法删除', description: '超级管理员角色不能删除', variant: 'error' });
       return;
     }
-    if (!confirm(`确定要删除角色 "${role.name}" 吗？`)) return;
+    if (!(await confirm({ title: `确定要删除角色 "${role.name}" 吗？`, variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`/api/auth/center/roles?id=${role.id}`, {
@@ -481,7 +484,7 @@ export default function AuthCenterPage() {
   };
 
   const deleteUser = async (user: User) => {
-    if (!confirm(`确定要删除用户 "${user.name}" 吗？`)) return;
+    if (!(await confirm({ title: `确定要删除用户 "${user.name}" 吗？`, variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`/api/auth/center/users?id=${user.id}`, {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { Upload, FileText, Trash2, Download, Loader2, Sparkles } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface Contract {
   id: number; file_name: string; file_size: number; file_type: string; remark: string; created_at: string;
@@ -26,6 +27,8 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
   }
 
   useEffect(() => { load(); }, [projectId]);
+
+  const confirm = useConfirm();
 
   async function upload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -103,7 +106,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
   }
 
   async function remove(id: number) {
-    if (!confirm('确认删除？')) return;
+    if (!(await confirm({ title: '确认删除？', variant: 'destructive' }))) return;
     await fetch(`/api/project-contracts?id=${id}`, { method: 'DELETE' });
     load();
   }

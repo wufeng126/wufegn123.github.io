@@ -22,6 +22,7 @@ import {
 import {
   Plus, Search, Pencil, Trash2
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // ============ 类型定义 ============
 interface Supplier {
@@ -153,6 +154,8 @@ export default function SupplierContractsPage() {
     load();
   }, [fetchUser, fetchSuppliers, fetchContracts]);
 
+  const confirm = useConfirm();
+
   // 筛选后的数据
   const filteredContracts = contracts.filter(c => {
     if (searchKeyword) {
@@ -231,7 +234,11 @@ export default function SupplierContractsPage() {
   };
 
   const handleDeleteContract = async (id: number) => {
-    if (!confirm('确定删除该合同？删除后关联的结算单和付款记录也将一并删除。')) return;
+    if (!(await confirm({
+      title: '确定删除该合同？',
+      description: '删除后关联的结算单和付款记录也将一并删除。',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await fetch(`/api/supplier-contracts/${id}`, { method: 'DELETE' });
       const data = await res.json();

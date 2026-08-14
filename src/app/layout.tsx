@@ -4,6 +4,7 @@ import SidebarLayout from '@/components/sidebar-layout';
 import { Toaster } from '@/components/ui/toaster';
 import { PermissionProvider } from '@/contexts/permission-context';
 import { RouteGuard } from '@/components/route-guard';
+import { ConfirmProvider } from '@/hooks/use-confirm';
 import FetchInterceptor from '@/components/fetch-interceptor';
 import './globals.css';
 
@@ -34,12 +35,14 @@ export default function RootLayout({
       <body>
         <FetchInterceptor />
         <PermissionProvider>
-          <Suspense fallback={<div className="flex items-center justify-center h-screen">加载中...</div>}>
-            <SidebarLayout>
-              <RouteGuard>{children}</RouteGuard>
-            </SidebarLayout>
-          </Suspense>
-          <Toaster />
+          <ConfirmProvider>
+            <Suspense fallback={<div className="flex items-center justify-center h-screen">加载中...</div>}>
+              <SidebarLayout>
+                <RouteGuard>{children}</RouteGuard>
+              </SidebarLayout>
+            </Suspense>
+            <Toaster />
+          </ConfirmProvider>
         </PermissionProvider>
       </body>
     </html>

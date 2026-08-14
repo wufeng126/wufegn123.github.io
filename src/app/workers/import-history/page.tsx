@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { History, Trash2, Download, ArrowLeft, FileText, UserPlus, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface ImportHistory {
   id: number;
@@ -47,6 +48,8 @@ export default function ImportHistoryPage() {
     }
   }, [loading]);
 
+  const confirm = useConfirm();
+
   const fetchHistory = async () => {
     setLoading(true);
     try {
@@ -62,7 +65,7 @@ export default function ImportHistoryPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除这条导入记录吗？')) return;
+    if (!(await confirm({ title: '确定要删除这条导入记录吗？', variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`/api/workers/import-history?id=${id}`, { method: 'DELETE' });

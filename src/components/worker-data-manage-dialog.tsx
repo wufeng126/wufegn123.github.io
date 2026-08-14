@@ -15,6 +15,7 @@ import {
   FileWarning,
   Users
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface BackupRecord {
   id: number;
@@ -65,6 +66,8 @@ export function WorkerDataManageDialog({
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  const confirm = useConfirm();
 
   const fetchBackupData = useCallback(async () => {
     setIsLoading(true);
@@ -194,7 +197,11 @@ export function WorkerDataManageDialog({
       return;
     }
 
-    if (!confirm(`确定要永久删除选中的 ${selectedBackupIds.size} 条备份数据吗？此操作不可恢复！`)) {
+    if (!(await confirm({
+      title: `确定要永久删除选中的 ${selectedBackupIds.size} 条备份数据吗？`,
+      description: '此操作不可恢复！',
+      variant: 'destructive',
+    }))) {
       return;
     }
 
