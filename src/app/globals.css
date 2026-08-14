@@ -145,7 +145,7 @@
   --sidebar-active: #F0F5FF;
   --sidebar-active-border: #165DFF;
   --color-text-2: #4E5969;
-  --color-text-3: #86909C;
+  --color-text-3: #667085;
 
   /* ═══════════════ 科技感专用变量 ═══════════════ */
   --tech-grid-color: rgba(22, 93, 255, 0.03);
@@ -213,7 +213,7 @@ body {
 }
 
 .page-subtitle {
-  color: #86909C;
+  color: #667085;
   @apply text-sm mt-0.5;
 }
 
@@ -457,7 +457,7 @@ body {
 
 .badge-gray {
   background: #F2F3F5;
-  color: #86909C;
+  color: #667085;
   border: 1px solid #C9CDD4;
 }
 
@@ -472,7 +472,7 @@ body {
 
 .filter-icon {
   @apply w-5 h-5 flex-shrink-0;
-  color: #86909C;
+  color: #667085;
 }
 
 .search-input {
@@ -580,7 +580,7 @@ body {
 
 .sidebar-group-header {
   @apply flex items-center justify-between px-3 py-2.5 text-xs font-semibold tracking-wide cursor-pointer select-none;
-  color: #86909C;
+  color: #667085;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   transition: color 0.15s;
@@ -596,21 +596,6 @@ body {
 
 .sidebar-group-header.expanded .chevron {
   transform: rotate(90deg);
-}
-
-.sidebar-group-items {
-  overflow: hidden;
-  transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
-}
-
-.sidebar-group-items.collapsed {
-  max-height: 0;
-  opacity: 0;
-}
-
-.sidebar-group-items.expanded {
-  max-height: 500px;
-  opacity: 1;
 }
 
 .sidebar-bottom {
@@ -687,7 +672,7 @@ body {
 }
 
 .empty-state-description {
-  color: #86909C;
+  color: #667085;
   @apply text-sm mt-1;
 }
 
@@ -968,7 +953,7 @@ input::placeholder, textarea::placeholder {
 
 .chart-card-action-btn {
   @apply w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 cursor-pointer;
-  color: #86909C;
+  color: #667085;
   background: transparent;
   border: none;
 }
@@ -1006,7 +991,7 @@ input::placeholder, textarea::placeholder {
 
 .kpi-label {
   @apply text-sm font-medium;
-  color: #86909C;
+  color: #667085;
 }
 
 .kpi-change {
@@ -1025,16 +1010,6 @@ input::placeholder, textarea::placeholder {
 
 .kpi-sparkline {
   @apply h-8 mt-2;
-}
-
-.kpi-progress {
-  @apply h-1.5 rounded-full overflow-hidden mt-3;
-  background: #F2F3F5;
-}
-
-.kpi-progress-fill {
-  @apply h-full rounded-full;
-  transition: width 0.6s ease;
 }
 
 /* ========== 移动端响应式适配 ========== */

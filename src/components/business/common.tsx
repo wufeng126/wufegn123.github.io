@@ -319,6 +319,13 @@ export function KpiCard({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => {
+        // a11y：role=button 需支持键盘触发（Enter/Space）
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      } : undefined}
     >
       <div className="flex items-start justify-between mb-1.5">
         <div className="flex items-center gap-2">
@@ -402,10 +409,10 @@ export function ChartCard({
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold" style={{ color: '#1D2129' }}>
             {title}
-            {unit && <span className="text-xs font-normal ml-1" style={{ color: '#C9CDD4' }}>单位：{unit}</span>}
+            {unit && <span className="text-xs font-normal ml-1" style={{ color: '#667085' }}>单位：{unit}</span>}
           </CardTitle>
           {lastUpdated && (
-            <span className="text-xs" style={{ color: '#C9CDD4' }}>更新于 {lastUpdated}</span>
+            <span className="text-xs" style={{ color: '#8A8F98' }}>更新于 {lastUpdated}</span>
           )}
         </div>
       </CardHeader>

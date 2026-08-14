@@ -80,7 +80,7 @@ export default function NotificationBell() {
       <button onClick={() => { setOpen(!open); if (!open) fetchUnread(); }} aria-label="消息通知" aria-expanded={open} aria-haspopup="true" className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-[#F2F3F5]" title="消息通知">
         <Bell className="w-[18px] h-[18px]" style={{ color: count > 0 ? '#165DFF' : '#4E5969' }} />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F53F3F] text-[10px] font-bold text-white flex items-center justify-center leading-none shadow">
+          <span aria-live="polite" className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F53F3F] text-[10px] font-bold text-white flex items-center justify-center leading-none shadow">
             {count > 99 ? '99+' : count}
           </span>
         )}

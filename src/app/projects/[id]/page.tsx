@@ -241,7 +241,7 @@ export default function ProjectDetailPage() {
     return [
       {
         title: '报量管理',
-        desc: '维护预算工程量、对上报量、对下结算和差异提醒',
+        desc: '维护预算工程量、对上报量（给甲方）、对下结算（给班组）和差异提醒',
         href: `/quantity-reporting?projectId=${encodedProjectId}`,
         value: `${stats?.workItemCount || 0} 个分项`,
         icon: ListTree,

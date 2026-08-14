@@ -16,16 +16,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
   Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers,
@@ -145,11 +135,15 @@ const ENTRY_WORKBENCH_MODES: Array<{
 export default function WorkItemsPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-12 h-12 mx-auto mb-4 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-          <p style={{ color: '#86909C' }}>加载中...</p>
+      // 加载态统一：骨架屏（替代纯文字"加载中..."）
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
         </div>
+        <Skeleton className="h-12 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     }>
       <WorkItemsContent />
@@ -177,7 +171,6 @@ function WorkItemsContent() {
   // 预算工程量相关状态
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // 新增/编辑对话框
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -1318,6 +1311,13 @@ function WorkItemsContent() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
+    // 统一确认体系（原为旁路 AlertDialog + bg-red-600，改用 useConfirm）
+    const confirmed = await confirm({
+      title: '确认删除',
+      description: `确定要删除选中的 ${selectedIds.size} 条记录吗？此操作不可恢复。`,
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/work-item-subitems?ids=${Array.from(selectedIds).join(',')}`, {
         method: 'DELETE',
@@ -1326,7 +1326,6 @@ function WorkItemsContent() {
       if (res.ok) {
         const count = selectedIds.size;
         setSelectedIds(new Set());
-        setDeleteDialogOpen(false);
         refreshSubitems();
         toast({ title: '删除成功', description: `已删除 ${count} 条记录`, variant: 'success' });
       }
@@ -2123,11 +2122,11 @@ function WorkItemsContent() {
 
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case '在建': return 'bg-[#1A58B3] text-white';
+      case '在建': return 'bg-[#165DFF] text-white';
       case '竣工结算': return 'bg-emerald-500 text-white';
       case '质保期': return 'bg-purple-500 text-white';
       case '质保期满': return 'bg-amber-500 text-white';
-      case '进行中': return 'bg-[#1A58B3] text-white';
+      case '进行中': return 'bg-[#165DFF] text-white';
       case '已完成': return 'bg-emerald-500 text-white';
       case '暂停': return 'bg-amber-500 text-white';
       default: return 'bg-gray-100 text-gray-700';
@@ -2141,11 +2140,12 @@ function WorkItemsContent() {
     return <Badge variant="default">正常</Badge>;
   };
 
+  // 进度颜色语义修复：进度高是好事（绿/蓝），红色仅用于真正风险（如超预算）
   const getProgressColor = (percent: number) => {
     if (percent >= 100) return 'bg-green-500';
-    if (percent >= 80) return 'bg-red-500';
-    if (percent >= 50) return 'bg-yellow-500';
-    return 'bg-blue-500';
+    if (percent >= 80) return 'bg-green-500';
+    if (percent >= 50) return 'bg-blue-500';
+    return 'bg-yellow-500';
   };
 
   const getDashboardStatusClass = (status: DashboardStatus) => {
@@ -2203,15 +2203,15 @@ function WorkItemsContent() {
       {quantityView === 'summary' && (
         <>
       <div className={`grid grid-cols-2 gap-3 transition-all duration-500 delay-100 lg:grid-cols-4 lg:gap-4 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <Card className="group border-[#1A58B3]/20 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#1A58B3]/10">
+        <Card className="group border-[#165DFF]/20 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#165DFF]/10">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#1A58B3] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+              <div className="w-10 h-10 rounded-lg bg-[#165DFF] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <Layers className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500">预算工程量金额</p>
-                <AnimatedNumber value={dashboardTotals.budgetAmount} format={formatCurrency} className="text-lg font-bold text-[#1A58B3]" />
+                <AnimatedNumber value={dashboardTotals.budgetAmount} format={formatCurrency} className="text-lg font-bold text-[#165DFF]" />
                 <p className="mt-0.5 text-xs text-gray-400">{overallStats.totalSubitems} 个清单项</p>
               </div>
             </div>
@@ -2322,7 +2322,7 @@ function WorkItemsContent() {
                   <TableCell className="px-3 py-4">
                     <div className="flex min-w-[130px] items-center gap-2">
                       <div className="h-2 flex-1 rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-[#1A58B3]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
+                        <div className="h-2 rounded-full bg-[#165DFF]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
                       </div>
                       <span className="w-12 text-right text-xs text-slate-500">{formatPercent(row.reportProgress)}</span>
                     </div>
@@ -2388,7 +2388,7 @@ function WorkItemsContent() {
                     <span>{formatPercent(row.reportProgress)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-[#1A58B3]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
+                    <div className="h-2 rounded-full bg-[#165DFF]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
                   </div>
                 </div>
                 <div>
@@ -2443,7 +2443,7 @@ function WorkItemsContent() {
       {quantityView === 'entry' && (
         <>
       <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <Card className="border-[#1A58B3]/20">
+        <Card className="border-[#165DFF]/20">
           <CardContent className="py-4">
             <Button
               variant="outline"
@@ -2456,7 +2456,7 @@ function WorkItemsContent() {
             </Button>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#1A58B3]" />
+                <Building2 className="w-5 h-5 text-[#165DFF]" />
                 <span className="font-medium text-gray-700">选择项目：</span>
               </div>
               <div className="w-full min-w-0 sm:w-auto">
@@ -2735,15 +2735,18 @@ function WorkItemsContent() {
 
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {loading ? (
-          <div className="text-center py-16">
-            <div className="w-12 h-12 mx-auto mb-4 border-4 border-[#1A58B3]/20 border-t-[#1A58B3] rounded-full animate-spin" />
-            <p className="text-gray-400">加载中...</p>
+          // 加载态统一：骨架屏（替代纯文字"加载中..."）
+          <div className="space-y-3 py-6">
+            <Skeleton className="h-10 rounded-lg" />
+            <Skeleton className="h-10 rounded-lg" />
+            <Skeleton className="h-10 rounded-lg" />
+            <Skeleton className="h-24 rounded-lg" />
           </div>
         ) : !selectedProjectId ? (
           <Card>
             <CardContent className="py-16 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#1A58B3]/10 flex items-center justify-center">
-                <BarChart3 className="w-8 h-8 text-[#1A58B3]/40" />
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#165DFF]/10 flex items-center justify-center">
+                <BarChart3 className="w-8 h-8 text-[#165DFF]/40" />
               </div>
               <p className="text-gray-500 mb-2">请先选择项目</p>
               <p className="text-sm text-gray-400">选择项目后可进行预算工程量、对上报量、对下结算和差异分析</p>
@@ -2808,11 +2811,11 @@ function WorkItemsContent() {
                     <FileText className="w-4 h-4 mr-2" />月度报量导入
                   </Button>
                   {selectedIds.size > 0 && (
-                    <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} className="w-full sm:w-auto">
+                    <Button variant="destructive" onClick={handleBatchDelete} className="w-full sm:w-auto">
                       <Trash2 className="w-4 h-4 mr-2" />删除 ({selectedIds.size})
                     </Button>
                   )}
-                  <Button onClick={() => { resetForm(); setAddDialogOpen(true); }} className="w-full bg-[#1A58B3] hover:bg-[#144a96] sm:w-auto">
+                  <Button onClick={() => { resetForm(); setAddDialogOpen(true); }} className="w-full bg-[#165DFF] hover:bg-[#144a96] sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />新增
                   </Button>
                 </div>
@@ -2964,7 +2967,7 @@ function WorkItemsContent() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">{item.contract_price || '-'}</TableCell>
-                              <TableCell className="text-right font-bold text-[#1A58B3]">{formatCurrency(budgetAmount)}</TableCell>
+                              <TableCell className="text-right font-bold text-[#165DFF]">{formatCurrency(budgetAmount)}</TableCell>
                               <TableCell className="text-sm text-gray-500 max-w-32 truncate">{item.remark || '-'}</TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
@@ -3137,7 +3140,7 @@ function WorkItemsContent() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">{item.contract_price || '-'}</TableCell>
-                              <TableCell className="text-right font-bold text-[#1A58B3]">{formatCurrency(reportAmount)}</TableCell>
+                              <TableCell className="text-right font-bold text-[#165DFF]">{formatCurrency(reportAmount)}</TableCell>
                               <TableCell>{getProgressBadge(progress)}</TableCell>
                               <TableCell className="text-center">
                                 <Button size="sm" variant="ghost" onClick={() => openReportHistory(item)} title="查看历史记录">
@@ -3302,7 +3305,7 @@ function WorkItemsContent() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">{item.limit_price || item.contract_price || '-'}</TableCell>
-                              <TableCell className="text-right font-bold text-[#1A58B3]">{formatCurrency(settlementAmount)}</TableCell>
+                              <TableCell className="text-right font-bold text-[#165DFF]">{formatCurrency(settlementAmount)}</TableCell>
                               <TableCell>{getProgressBadge(progress)}</TableCell>
                               <TableCell className="text-center">
                                 <Button size="sm" variant="ghost" onClick={() => openSettleHistory(item)} title="查看历史记录">
@@ -3337,7 +3340,7 @@ function WorkItemsContent() {
                   <Button variant="outline" onClick={handleImportAddonTemplates} disabled={addonSaving || addonTemplates.length === 0} className="w-full sm:w-auto">
                     <Copy className="w-4 h-4 mr-2" />从模板导入
                   </Button>
-                  <Button onClick={() => openProjectAddonDialog()} className="w-full bg-[#1A58B3] hover:bg-[#144a96] sm:w-auto">
+                  <Button onClick={() => openProjectAddonDialog()} className="w-full bg-[#165DFF] hover:bg-[#144a96] sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />新增项目清单
                   </Button>
                   <Button variant="outline" onClick={() => { fetchAddonTemplates(); fetchProjectAddons(); }} disabled={addonLoading} className="w-full sm:w-auto">
@@ -3383,7 +3386,7 @@ function WorkItemsContent() {
                                 <p className="truncate text-sm font-semibold text-slate-900">{template.name}</p>
                                 <p className="mt-1 text-xs text-slate-500">单位：{template.unit || '-'}</p>
                               </div>
-                              <p className="shrink-0 text-sm font-semibold text-[#1A58B3]">{formatCurrency(parseFloat(template.default_price || '0') || 0)}</p>
+                              <p className="shrink-0 text-sm font-semibold text-[#165DFF]">{formatCurrency(parseFloat(template.default_price || '0') || 0)}</p>
                             </div>
                             {template.remark && <p className="mt-2 line-clamp-2 text-xs text-slate-500">{template.remark}</p>}
                             <div className="mt-3 flex justify-end gap-2">
@@ -3729,7 +3732,7 @@ function WorkItemsContent() {
                               <TableCell className={row.settleRemainingQty < 0 ? 'text-right font-semibold text-red-600' : 'text-right text-gray-700'}>
                                 {row.isAddon ? '-' : formatQuantity(row.settleRemainingQty)}
                               </TableCell>
-                              <TableCell className={row.amountGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right font-semibold text-[#1A58B3]'}>
+                              <TableCell className={row.amountGap < 0 ? 'text-right font-semibold text-red-600' : 'text-right font-semibold text-[#165DFF]'}>
                                 {formatCurrency(row.amountGap)}
                               </TableCell>
                               <TableCell>
@@ -3817,7 +3820,7 @@ function WorkItemsContent() {
 
                           <div className="mt-3 flex items-center justify-between rounded-md border bg-white px-3 py-2 text-sm">
                             <span className="text-gray-500">金额差额</span>
-                            <span className={row.amountGap < 0 ? 'font-semibold text-red-600' : 'font-semibold text-[#1A58B3]'}>
+                            <span className={row.amountGap < 0 ? 'font-semibold text-red-600' : 'font-semibold text-[#165DFF]'}>
                               {formatCurrency(row.amountGap)}
                             </span>
                           </div>
@@ -3963,19 +3966,7 @@ function WorkItemsContent() {
         </DialogContent>
       </Dialog>
 
-      {/* 批量删除确认对话框 */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>确定要删除选中的 {selectedIds.size} 条记录吗？此操作不可恢复。</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBatchDelete} className="bg-red-600 hover:bg-red-700">删除</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* 批量删除确认：已统一走 useConfirm（原旁路 AlertDialog 已移除） */}
 
       {/* 内部附加清单公司模板对话框 */}
       <Dialog open={templateDialogOpen} onOpenChange={(open) => { setTemplateDialogOpen(open); if (!open) resetTemplateForm(); }}>

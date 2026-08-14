@@ -711,7 +711,7 @@ export default function WorkerSalaryQueryPage() {
                       <TableCell></TableCell>
                       <TableCell className="text-right bg-blue-50">{formatNumber(stats.totalGrossPay)}</TableCell>
                       <TableCell className="text-right bg-purple-50">{formatNumber(stats.totalPaid)}</TableCell>
-                      <TableCell className={`text-right ${stats.totalUnpaid > 0 ? 'text-red-600' : 'text-gray-500'} bg-red-50`}>
+                      <TableCell className={`text-right ${stats.totalUnpaid > 0 ? 'text-red-600 bg-red-50' : 'text-gray-500'}`}>
                         {formatNumber(stats.totalUnpaid)}
                       </TableCell>
                       <TableCell className="text-right">{formatNumber(stats.totalTax)}</TableCell>

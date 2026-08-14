@@ -931,7 +931,7 @@ export default function ConstructionLogsClient() {
                 ) : projectStats.length === 0 ? (
                   <div className="p-6 text-center text-sm text-slate-500">本月暂无项目提交记录</div>
                 ) : projectStats.map(item => (
-                  <article key={item.project_id} className="space-y-3 border-l-4 border-l-emerald-300 bg-white p-4">
+                  <article key={item.project_id} className="space-y-3 bg-white p-4">
                     <div className="flex items-start justify-between gap-3">
                       <h4 className="min-w-0 font-medium text-slate-950">{item.project_name || projectNameById.get(Number(item.project_id)) || `项目${item.project_id}`}</h4>
                       <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${item.completeness_rate >= 90 ? 'bg-emerald-50 text-emerald-700' : item.completeness_rate >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
@@ -1017,7 +1017,7 @@ export default function ConstructionLogsClient() {
                 ) : stats.map((item, index) => {
                   const missing = formatMissingDays(item.missing_days);
                   return (
-                  <article key={item.user_id} className="space-y-3 border-l-4 border-l-blue-300 bg-white p-4">
+                  <article key={item.user_id} className="space-y-3 bg-white p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0"><span className="mr-2 text-xs text-slate-500">#{index + 1}</span><span className="font-medium text-slate-950">{item.user_name}</span></div>
                       <span className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold ${(item.completeness_rate || 0) >= 90 ? 'bg-emerald-50 text-emerald-700' : (item.completeness_rate || 0) >= 60 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
