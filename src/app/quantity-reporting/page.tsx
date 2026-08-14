@@ -81,6 +81,7 @@ type ProgressExpectedRecord = {
 type DashboardStatus = '正常' | '对上偏慢' | '对下偏快' | '重点关注';
 type EntryWorkbenchMode = 'client' | 'internal' | 'additional';
 type QuantityView = 'summary' | 'entry';
+type QuantityEntryPanel = 'monthly' | 'ledger';
 
 interface ProjectDashboardRow {
   project: Project;
@@ -132,6 +133,246 @@ const ENTRY_WORKBENCH_MODES: Array<{
   },
 ];
 
+const DEMO_PROJECT_ID = -901001;
+const DEMO_YEAR_MONTH = '2026-08';
+
+const DEMO_PROJECT: Project = {
+  id: DEMO_PROJECT_ID,
+  name: '报量演示项目-观澜商业综合体',
+  year: 2026,
+  status: '在建',
+  contract_amount: '186000000',
+};
+
+const DEMO_SUBITEMS: WorkItemSubitem[] = [
+  {
+    id: -901101,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '1#楼地下室模板工程',
+    unit: 'm2',
+    budget_quantity: '12800',
+    completed_quantity: '7600',
+    settlement_quantity: '6900',
+    contract_price: '52',
+    limit_price: '48',
+    remark: '地下室至二层累计完成，报量略高于对下结算。',
+  },
+  {
+    id: -901102,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '1#楼钢筋制作安装',
+    unit: 't',
+    budget_quantity: '1850',
+    completed_quantity: '1160',
+    settlement_quantity: '980',
+    contract_price: '6100',
+    limit_price: '5750',
+    remark: '主体结构持续推进，需关注钢筋结算资料。',
+  },
+  {
+    id: -901103,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '1#楼混凝土浇筑',
+    unit: 'm3',
+    budget_quantity: '9200',
+    completed_quantity: '5100',
+    settlement_quantity: '5450',
+    contract_price: '486',
+    limit_price: '458',
+    remark: '对下结算略快于对上报量，适合展示多结少报风险。',
+  },
+  {
+    id: -901104,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '2#楼砌体工程',
+    unit: 'm3',
+    budget_quantity: '3600',
+    completed_quantity: '980',
+    settlement_quantity: '420',
+    contract_price: '328',
+    limit_price: '302',
+    remark: '刚进入大面施工，本月需要补充确认完成范围。',
+  },
+  {
+    id: -901105,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '2#楼内墙抹灰',
+    unit: 'm2',
+    budget_quantity: '24600',
+    completed_quantity: '0',
+    settlement_quantity: '1800',
+    contract_price: '26',
+    limit_price: '23',
+    remark: '本月有对下结算但对上未报，模拟漏报提醒。',
+  },
+  {
+    id: -901106,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '屋面防水工程',
+    unit: 'm2',
+    budget_quantity: '5200',
+    completed_quantity: '4680',
+    settlement_quantity: '4210',
+    contract_price: '68',
+    limit_price: '61',
+    remark: '接近完成，剩余工程量不多。',
+  },
+  {
+    id: -901107,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '外墙保温一体板',
+    unit: 'm2',
+    budget_quantity: '18600',
+    completed_quantity: '8200',
+    settlement_quantity: '7900',
+    contract_price: '138',
+    limit_price: '126',
+    remark: '外立面按楼层推进。',
+  },
+  {
+    id: -901108,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '铝合金门窗安装',
+    unit: 'm2',
+    budget_quantity: '7800',
+    completed_quantity: '2300',
+    settlement_quantity: '2100',
+    contract_price: '415',
+    limit_price: '392',
+    remark: '用于查看低进度清单展示。',
+  },
+  {
+    id: -901109,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '水电预埋安装',
+    unit: '点位',
+    budget_quantity: '9800',
+    completed_quantity: '6100',
+    settlement_quantity: '6500',
+    contract_price: '32',
+    limit_price: '29',
+    remark: '对下略快，需要复核现场签认。',
+  },
+  {
+    id: -901110,
+    project_id: DEMO_PROJECT_ID,
+    project_name: DEMO_PROJECT.name,
+    subitem_name: '脚手架搭拆',
+    unit: 'm2',
+    budget_quantity: '42000',
+    completed_quantity: '39600',
+    settlement_quantity: '43500',
+    contract_price: '18',
+    limit_price: '16',
+    remark: '模拟对下超结，方便看风险标签。',
+  },
+];
+
+const DEMO_ADDON_TEMPLATES: InternalAddonTemplate[] = [
+  { id: -902001, name: '零星用工', unit: '工日', default_price: '320', remark: '现场临时配合、清理、转运等零星事项' },
+  { id: -902002, name: '夜间赶工补贴', unit: '班组班次', default_price: '1200', remark: '经项目经理确认后的夜间赶工' },
+  { id: -902003, name: '二次搬运', unit: '车', default_price: '650', remark: '材料二次倒运或场内转运' },
+];
+
+const DEMO_PROJECT_ADDONS: ProjectInternalAddon[] = [
+  {
+    id: -902101,
+    project_id: DEMO_PROJECT_ID,
+    template_id: -902001,
+    name: '零星用工',
+    unit: '工日',
+    unit_price: '320',
+    remark: '地下室材料清理与临边防护配合',
+    total_quantity: '42',
+    total_amount: '13440',
+  },
+  {
+    id: -902102,
+    project_id: DEMO_PROJECT_ID,
+    template_id: -902002,
+    name: '夜间赶工补贴',
+    unit: '班组班次',
+    unit_price: '1200',
+    remark: '1#楼混凝土浇筑夜间连续施工',
+    total_quantity: '6',
+    total_amount: '7200',
+  },
+  {
+    id: -902103,
+    project_id: DEMO_PROJECT_ID,
+    template_id: -902003,
+    name: '二次搬运',
+    unit: '车',
+    unit_price: '650',
+    remark: '雨季材料堆场调整产生二次搬运',
+    total_quantity: '18',
+    total_amount: '11700',
+  },
+];
+
+const withDemoProjects = (source: Project[] = []) => {
+  const projects = source.filter(project => project.id !== DEMO_PROJECT_ID);
+  return [DEMO_PROJECT, ...projects];
+};
+
+const withDemoSubitems = (source: WorkItemSubitem[] = []) => {
+  const subitems = source.filter(item => item.project_id !== DEMO_PROJECT_ID);
+  return [...DEMO_SUBITEMS, ...subitems];
+};
+
+const withDemoTemplates = (source: InternalAddonTemplate[] = []) => {
+  const templates = source.filter(template => template.id > 0);
+  return [...DEMO_ADDON_TEMPLATES, ...templates];
+};
+
+const demoMonthlyReports = (yearMonth: string) => [
+  { id: -903101, subitem_id: -901101, year_month: yearMonth, report_quantity: '1800', remark: '本月完成地下室后浇带及二层局部模板' },
+  { id: -903102, subitem_id: -901102, year_month: yearMonth, report_quantity: '260', remark: '主体钢筋按楼层节点报量' },
+  { id: -903103, subitem_id: -901103, year_month: yearMonth, report_quantity: '900', remark: '本月浇筑量已提交确认' },
+  { id: -903104, subitem_id: -901104, year_month: yearMonth, report_quantity: '420', remark: '二层砌体完成量' },
+  { id: -903105, subitem_id: -901106, year_month: yearMonth, report_quantity: '680', remark: '屋面防水收尾报量' },
+  { id: -903106, subitem_id: -901107, year_month: yearMonth, report_quantity: '1500', remark: '外墙东立面完成量' },
+  { id: -903107, subitem_id: -901108, year_month: yearMonth, report_quantity: '520', remark: '窗框安装完成量' },
+  { id: -903108, subitem_id: -901109, year_month: yearMonth, report_quantity: '880', remark: '水电预埋点位确认' },
+  { id: -903109, subitem_id: -901110, year_month: yearMonth, report_quantity: '3600', remark: '脚手架随主体施工累计确认' },
+];
+
+const demoMonthlySettlements = (yearMonth: string) => [
+  { id: -904101, subitem_id: -901101, year_month: yearMonth, completed_quantity: '1600', remark: '模板班组本月结算' },
+  { id: -904102, subitem_id: -901102, year_month: yearMonth, completed_quantity: '210', remark: '钢筋班组本月结算' },
+  { id: -904103, subitem_id: -901103, year_month: yearMonth, completed_quantity: '1050', remark: '混凝土浇筑结算略快' },
+  { id: -904104, subitem_id: -901104, year_month: yearMonth, completed_quantity: '260', remark: '砌体班组结算' },
+  { id: -904105, subitem_id: -901105, year_month: yearMonth, completed_quantity: '1800', remark: '抹灰已结算但对上未报' },
+  { id: -904106, subitem_id: -901106, year_month: yearMonth, completed_quantity: '610', remark: '防水班组结算' },
+  { id: -904107, subitem_id: -901107, year_month: yearMonth, completed_quantity: '1320', remark: '保温一体板结算' },
+  { id: -904108, subitem_id: -901108, year_month: yearMonth, completed_quantity: '480', remark: '门窗安装结算' },
+  { id: -904109, subitem_id: -901109, year_month: yearMonth, completed_quantity: '1080', remark: '预埋安装结算略快' },
+  { id: -904110, subitem_id: -901110, year_month: yearMonth, completed_quantity: '4200', remark: '脚手架本月超结风险演示' },
+];
+
+const demoAddonSettlements = (yearMonth: string) => [
+  { id: -905101, project_id: DEMO_PROJECT_ID, addon_id: -902101, addon_name: '零星用工', unit: '工日', year_month: yearMonth, quantity: '16', unit_price: '320', amount: 5120, remark: '现场材料清理及临时配合' },
+  { id: -905102, project_id: DEMO_PROJECT_ID, addon_id: -902102, addon_name: '夜间赶工补贴', unit: '班组班次', year_month: yearMonth, quantity: '2', unit_price: '1200', amount: 2400, remark: '混凝土夜间连续浇筑' },
+  { id: -905103, project_id: DEMO_PROJECT_ID, addon_id: -902103, addon_name: '二次搬运', unit: '车', year_month: yearMonth, quantity: '5', unit_price: '650', amount: 3250, remark: '材料堆场调整' },
+];
+
+const demoProgressExpected = (yearMonth: string): ProgressExpectedRecord[] => [
+  { subitem_id: -901101, expected_quantity: 1950, matched_quantity: 1950, task_count: 3, completed_task_count: 2, latest_progress: 86, task_labels: [`${yearMonth} 1#楼模板节点`], unit: 'm2' },
+  { subitem_id: -901102, expected_quantity: 240, matched_quantity: 240, task_count: 2, completed_task_count: 2, latest_progress: 100, task_labels: [`${yearMonth} 钢筋节点`], unit: 't' },
+  { subitem_id: -901103, expected_quantity: 1180, matched_quantity: 1180, task_count: 3, completed_task_count: 3, latest_progress: 100, task_labels: [`${yearMonth} 混凝土节点`], unit: 'm3' },
+  { subitem_id: -901105, expected_quantity: 1800, matched_quantity: 1800, task_count: 1, completed_task_count: 1, latest_progress: 100, task_labels: [`${yearMonth} 抹灰样板段`], unit: 'm2' },
+  { subitem_id: -901110, expected_quantity: 3800, matched_quantity: 3800, task_count: 2, completed_task_count: 2, latest_progress: 100, task_labels: [`${yearMonth} 脚手架节点`], unit: 'm2' },
+];
+
 export default function WorkItemsPage() {
   return (
     <Suspense fallback={
@@ -162,6 +403,7 @@ function WorkItemsContent() {
   
   // 当前选中的项目
   const [quantityView, setQuantityView] = useState<QuantityView>('summary');
+  const [entryPanel, setEntryPanel] = useState<QuantityEntryPanel>('monthly');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [dashboardKeyword, setDashboardKeyword] = useState('');
   
@@ -285,6 +527,7 @@ function WorkItemsContent() {
   const [analysisProgressExpected, setAnalysisProgressExpected] = useState<ProgressExpectedRecord[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [entryWorkbenchMode, setEntryWorkbenchMode] = useState<EntryWorkbenchMode>('client');
+  const demoAutoOpenedRef = useRef(false);
 
   useEffect(() => {
     fetchData();
@@ -299,6 +542,15 @@ function WorkItemsContent() {
     if (projectIdParam) {
       setSelectedProjectId(projectIdParam);
       setQuantityView('entry');
+      setEntryPanel('monthly');
+    } else if (!demoAutoOpenedRef.current && typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        demoAutoOpenedRef.current = true;
+        setSelectedProjectId(String(DEMO_PROJECT_ID));
+        setQuantityView('entry');
+        setEntryPanel('monthly');
+      }
     }
     if (warningParam) {
       setWarningFilter(warningParam);
@@ -350,10 +602,12 @@ function WorkItemsContent() {
       ]);
       const projectsData = await projectsRes.json();
       const subitemsData = await subitemsRes.json();
-      setProjects(projectsData.projects || []);
-      setAllSubitems(subitemsData.subitems || []);
+      setProjects(withDemoProjects(projectsData.projects || []));
+      setAllSubitems(withDemoSubitems(subitemsData.subitems || []));
     } catch (error) {
       console.error('获取数据失败:', error);
+      setProjects(withDemoProjects([]));
+      setAllSubitems(withDemoSubitems([]));
     } finally {
       setLoading(false);
     }
@@ -363,15 +617,20 @@ function WorkItemsContent() {
     try {
       const res = await fetch('/api/internal-addon-templates', { credentials: 'include' });
       const data = await res.json();
-      setAddonTemplates(data.templates || []);
+      setAddonTemplates(withDemoTemplates(data.templates || []));
     } catch (error) {
       console.error('获取内部附加清单模板失败:', error);
-      setAddonTemplates([]);
+      setAddonTemplates(withDemoTemplates([]));
     }
   };
 
   const fetchProjectAddons = async (projectId = selectedProjectId) => {
     if (!projectId) return;
+    if (parseInt(projectId) === DEMO_PROJECT_ID) {
+      setProjectAddons(DEMO_PROJECT_ADDONS);
+      setAddonLoading(false);
+      return;
+    }
     setAddonLoading(true);
     try {
       const res = await fetch(`/api/project-internal-addons?project_id=${projectId}`, { credentials: 'include' });
@@ -972,14 +1231,17 @@ function WorkItemsContent() {
     };
   }, [entryWorkbenchRows]);
 
+  const activeEntryMode = ENTRY_WORKBENCH_MODES.find(mode => mode.key === entryWorkbenchMode) || ENTRY_WORKBENCH_MODES[0];
+
   // 刷新数据
   const refreshSubitems = async () => {
     try {
       const res = await fetch('/api/work-item-subitems', { credentials: 'include' });
       const data = await res.json();
-      setAllSubitems(data.subitems || []);
+      setAllSubitems(withDemoSubitems(data.subitems || []));
     } catch (error) {
       console.error('刷新数据失败:', error);
+      setAllSubitems(withDemoSubitems([]));
     }
   };
 
@@ -1002,6 +1264,10 @@ function WorkItemsContent() {
   
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，新增清单不会写入数据库。请选择真实项目后录入。', variant: 'warning' });
+      return;
+    }
     
     // 表单验证
     if (!form.subitem_name.trim()) {
@@ -1050,6 +1316,10 @@ function WorkItemsContent() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentSubitem) return;
+    if (currentSubitem.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，修改不会写入数据库。请选择真实项目后编辑。', variant: 'warning' });
+      return;
+    }
     
     // 表单验证
     if (!form.subitem_name.trim()) {
@@ -1093,6 +1363,10 @@ function WorkItemsContent() {
 
   const handleBatchAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，批量导入不会写入数据库。请选择真实项目后导入。', variant: 'warning' });
+      return;
+    }
     if (!batchText.trim()) {
       toast({ title: '验证失败', description: '请输入数据', variant: 'warning' });
       return;
@@ -1210,6 +1484,11 @@ function WorkItemsContent() {
   const handleMonthlyReportImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，导入不会写入数据库。请选择真实项目后导入。', variant: 'warning' });
+      e.target.value = '';
+      return;
+    }
     
     if (!selectedYearMonth) {
       toast({ title: '请先选择年月', description: '在导入前请先在弹窗中选择要录入的月份', variant: 'error' });
@@ -1271,6 +1550,10 @@ function WorkItemsContent() {
       toast({ title: '请先选择项目', variant: 'warning' });
       return;
     }
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，模板下载请在真实项目中使用。', variant: 'warning' });
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-reports/template?project_id=${selectedProjectId}`, {
         credentials: 'include',
@@ -1293,6 +1576,10 @@ function WorkItemsContent() {
 
 
   const handleDelete = async (id: number) => {
+    if (id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，删除不会写入数据库。', variant: 'warning' });
+      return;
+    }
     if (!(await confirm({ title: '确定要删除该分项工程吗？', variant: 'destructive' }))) return;
     
     try {
@@ -1311,6 +1598,10 @@ function WorkItemsContent() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID || Array.from(selectedIds).some(id => id < 0)) {
+      toast({ title: '演示项目', description: '当前为演示数据，批量删除不会写入数据库。', variant: 'warning' });
+      return;
+    }
     // 统一确认体系（原为旁路 AlertDialog + bg-red-600，改用 useConfirm）
     const confirmed = await confirm({
       title: '确认删除',
@@ -1452,6 +1743,10 @@ function WorkItemsContent() {
   const handleBudgetEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!budgetEditItem) return;
+    if (budgetEditItem.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，预算修改不会写入数据库。请选择真实项目后编辑。', variant: 'warning' });
+      return;
+    }
     
     try {
       const res = await fetch('/api/work-item-subitems', {
@@ -1490,6 +1785,15 @@ function WorkItemsContent() {
 
   const fetchAnalysisRecords = async () => {
     if (!selectedProjectId || !analysisYearMonth) return;
+
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      setAnalysisReports(demoMonthlyReports(analysisYearMonth));
+      setAnalysisSettlements(demoMonthlySettlements(analysisYearMonth));
+      setAnalysisAddonSettlements(demoAddonSettlements(analysisYearMonth));
+      setAnalysisProgressExpected(demoProgressExpected(analysisYearMonth));
+      setAnalysisLoading(false);
+      return;
+    }
 
     setAnalysisLoading(true);
     try {
@@ -1536,8 +1840,10 @@ function WorkItemsContent() {
   const fetchMonthlyReportRecords = async (yearMonth: string) => {
     setMonthlyReportLoading(true);
     try {
-      const res = await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${yearMonth}`);
-      const data = await res.json();
+      const isDemoProject = parseInt(selectedProjectId) === DEMO_PROJECT_ID;
+      const data = isDemoProject
+        ? { records: demoMonthlyReports(yearMonth) }
+        : await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${yearMonth}`).then(res => res.json());
       
       // 合并当前项目的所有子项与月度记录
       const projectSubitems = allSubitems.filter(s => s.project_id === parseInt(selectedProjectId));
@@ -1587,6 +1893,11 @@ function WorkItemsContent() {
       return;
     }
 
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示保存', description: `已模拟保存 ${recordsToSave.length} 条月度对上报量，演示数据不会写入数据库。`, variant: 'success' });
+      return;
+    }
+
     try {
       const res = await fetch('/api/subitem-monthly-reports', {
         method: 'PUT',
@@ -1620,6 +1931,10 @@ function WorkItemsContent() {
   // 保存月度报量编辑
   const handleSaveMonthlyReportEdit = async () => {
     if (!monthlyReportEditRecord) return;
+    if (monthlyReportEditRecord.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，修改不会写入数据库。', variant: 'warning' });
+      return;
+    }
     
     try {
       const res = await fetch(`/api/subitem-monthly-reports/${monthlyReportEditRecord.id}`, {
@@ -1651,6 +1966,10 @@ function WorkItemsContent() {
 
   // 删除月度报量记录
   const handleDeleteMonthlyReport = async (recordId: number) => {
+    if (recordId < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，删除不会写入数据库。', variant: 'warning' });
+      return;
+    }
     if (!(await confirm({
       title: '确定要删除这条报量记录吗？',
       description: '删除后将更新累计报量。',
@@ -1695,16 +2014,18 @@ function WorkItemsContent() {
   const fetchMonthlySettlementRecords = async (yearMonth: string) => {
     setMonthlySettlementLoading(true);
     try {
-      const [res, addonsRes, addonRecordsRes] = await Promise.all([
-        fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }),
-        fetch(`/api/project-internal-addons?project_id=${selectedProjectId}`, { credentials: 'include' }),
-        fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }),
-      ]);
-      const [data, addonsData, addonRecordsData] = await Promise.all([
-        res.json(),
-        addonsRes.json(),
-        addonRecordsRes.json(),
-      ]);
+      const isDemoProject = parseInt(selectedProjectId) === DEMO_PROJECT_ID;
+      const [data, addonsData, addonRecordsData] = isDemoProject
+        ? [
+            { records: demoMonthlySettlements(yearMonth) },
+            { addons: DEMO_PROJECT_ADDONS },
+            { records: demoAddonSettlements(yearMonth) },
+          ]
+        : await Promise.all([
+            fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }).then(res => res.json()),
+            fetch(`/api/project-internal-addons?project_id=${selectedProjectId}`, { credentials: 'include' }).then(res => res.json()),
+            fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }).then(res => res.json()),
+          ]);
       
       // 合并当前项目的所有子项与月度记录
       const projectSubitems = allSubitems.filter(s => s.project_id === parseInt(selectedProjectId));
@@ -1788,6 +2109,12 @@ function WorkItemsContent() {
       return;
     }
 
+    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      const totalSaved = recordsToSave.length + addonRecordsToSave.length;
+      toast({ title: '演示保存', description: `已模拟保存 ${totalSaved} 条月度对下结算记录，演示数据不会写入数据库。`, variant: 'success' });
+      return;
+    }
+
     try {
       const requests = [];
       if (recordsToSave.length > 0) {
@@ -1838,6 +2165,10 @@ function WorkItemsContent() {
   // 保存结算量编辑
   const handleSaveSettlementEdit = async () => {
     if (!settlementEditRecord) return;
+    if (settlementEditRecord.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，修改不会写入数据库。', variant: 'warning' });
+      return;
+    }
     
     try {
       const res = await fetch(`/api/subitem-monthly-progress/${settlementEditRecord.id}`, {
@@ -1865,6 +2196,10 @@ function WorkItemsContent() {
 
   // 删除结算量记录
   const handleDeleteSettlement = async (recordId: number) => {
+    if (recordId < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
+      toast({ title: '演示项目', description: '当前为演示数据，删除不会写入数据库。', variant: 'warning' });
+      return;
+    }
     if (!(await confirm({
       title: '确定要删除这条结算记录吗？',
       description: '删除后将更新累计结算量。',
@@ -1934,6 +2269,11 @@ function WorkItemsContent() {
     setReportHistoryItem(item);
     setReportHistoryOpen(true);
     setReportHistoryLoading(true);
+    if (item.id < 0) {
+      setReportHistoryData(demoMonthlyReports(DEMO_YEAR_MONTH).filter(record => record.subitem_id === item.id));
+      setReportHistoryLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-reports?subitem_id=${item.id}`);
       const data = await res.json();
@@ -1947,6 +2287,11 @@ function WorkItemsContent() {
 
   const fetchReportHistory = async (subitemId: number) => {
     setReportHistoryLoading(true);
+    if (subitemId < 0) {
+      setReportHistoryData(demoMonthlyReports(DEMO_YEAR_MONTH).filter(record => record.subitem_id === subitemId));
+      setReportHistoryLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-reports?subitem_id=${subitemId}`);
       const data = await res.json();
@@ -1969,6 +2314,10 @@ function WorkItemsContent() {
 
   const handleSaveReportHistoryEdit = async () => {
     if (!reportHistoryEditRecord || !reportHistoryItem) return;
+    if (reportHistoryEditRecord.id < 0 || (reportHistoryItem?.id ?? 0) < 0) {
+      toast({ title: '演示项目', description: '当前为演示数据，历史记录修改不会写入数据库。', variant: 'warning' });
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-reports/${reportHistoryEditRecord.id}`, {
         method: 'PUT',
@@ -1981,7 +2330,7 @@ function WorkItemsContent() {
       if (res.ok) {
         toast({ title: '修改成功', description: '报量数据已更新', variant: 'success' });
         setReportHistoryEditDialogOpen(false);
-        fetchReportHistory(reportHistoryItem.id);
+        if (reportHistoryItem?.id !== undefined) fetchReportHistory(reportHistoryItem.id);
         refreshSubitems();
       } else {
         const error = await res.json();
@@ -1993,6 +2342,10 @@ function WorkItemsContent() {
   };
 
   const handleDeleteReportHistory = async (recordId: number) => {
+    if (recordId < 0 || (reportHistoryItem?.id ?? 0) < 0) {
+      toast({ title: '演示项目', description: '当前为演示数据，历史记录删除不会写入数据库。', variant: 'warning' });
+      return;
+    }
     if (!(await confirm({
       title: '确定要删除这条报量记录吗？',
       description: '删除后将更新累计报量。',
@@ -2019,6 +2372,11 @@ function WorkItemsContent() {
     setSettleHistoryItem(item);
     setSettleHistoryOpen(true);
     setSettleHistoryLoading(true);
+    if (item.id < 0) {
+      setSettleHistoryData(demoMonthlySettlements(DEMO_YEAR_MONTH).filter(record => record.subitem_id === item.id));
+      setSettleHistoryLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-progress?subitem_id=${item.id}`);
       const data = await res.json();
@@ -2032,6 +2390,11 @@ function WorkItemsContent() {
 
   const fetchSettleHistory = async (subitemId: number) => {
     setSettleHistoryLoading(true);
+    if (subitemId < 0) {
+      setSettleHistoryData(demoMonthlySettlements(DEMO_YEAR_MONTH).filter(record => record.subitem_id === subitemId));
+      setSettleHistoryLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-progress?subitem_id=${subitemId}`);
       const data = await res.json();
@@ -2054,6 +2417,10 @@ function WorkItemsContent() {
 
   const handleSaveSettleHistoryEdit = async () => {
     if (!settleHistoryEditRecord || !settleHistoryItem) return;
+    if (settleHistoryEditRecord.id < 0 || (settleHistoryItem?.id ?? 0) < 0) {
+      toast({ title: '演示项目', description: '当前为演示数据，历史记录修改不会写入数据库。', variant: 'warning' });
+      return;
+    }
     try {
       const res = await fetch(`/api/subitem-monthly-progress/${settleHistoryEditRecord.id}`, {
         method: 'PUT',
@@ -2066,7 +2433,7 @@ function WorkItemsContent() {
       if (res.ok) {
         toast({ title: '修改成功', description: '结算量数据已更新', variant: 'success' });
         setSettleHistoryEditDialogOpen(false);
-        fetchSettleHistory(settleHistoryItem.id);
+        if (settleHistoryItem?.id !== undefined) fetchSettleHistory(settleHistoryItem.id);
         refreshSubitems();
       } else {
         const error = await res.json();
@@ -2078,6 +2445,10 @@ function WorkItemsContent() {
   };
 
   const handleDeleteSettleHistory = async (recordId: number) => {
+    if (recordId < 0 || (settleHistoryItem?.id ?? 0) < 0) {
+      toast({ title: '演示项目', description: '当前为演示数据，历史记录删除不会写入数据库。', variant: 'warning' });
+      return;
+    }
     if (!(await confirm({
       title: '确定要删除这条结算记录吗？',
       description: '删除后将更新累计结算量。',
@@ -2161,7 +2532,21 @@ function WorkItemsContent() {
     return 'text-gray-700';
   };
 
-  const selectedProject = projects.find(p => p.id.toString() === selectedProjectId);
+  const isDemoProjectSelected = selectedProjectId === String(DEMO_PROJECT_ID);
+  const selectedProject = useMemo(
+    () => projects.find(p => p.id.toString() === selectedProjectId) || (isDemoProjectSelected ? DEMO_PROJECT : undefined),
+    [projects, selectedProjectId, isDemoProjectSelected]
+  );
+  const demoProjectSnapshot = useMemo(() => {
+    if (!isDemoProjectSelected) return null;
+    return {
+      subitemCount: DEMO_SUBITEMS.length,
+      reportCount: demoMonthlyReports(analysisYearMonth || DEMO_YEAR_MONTH).length,
+      settlementCount: demoMonthlySettlements(analysisYearMonth || DEMO_YEAR_MONTH).length,
+      addonCount: DEMO_PROJECT_ADDONS.length,
+      progressCount: demoProgressExpected(analysisYearMonth || DEMO_YEAR_MONTH).length,
+    };
+  }, [analysisYearMonth, isDemoProjectSelected]);
 
   if (loading) {
     return (
@@ -2198,6 +2583,20 @@ function WorkItemsContent() {
           刷新
         </Button>
       </div>
+
+      {demoProjectSnapshot && (
+        <div className={`rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-amber-900 shadow-sm transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">当前正在查看演示项目</p>
+              <p className="mt-1 text-sm text-amber-800">
+                已预填 {demoProjectSnapshot.subitemCount} 条清单、{demoProjectSnapshot.reportCount} 条本月报量、{demoProjectSnapshot.settlementCount} 条本月结算、{demoProjectSnapshot.addonCount} 条附加项、{demoProjectSnapshot.progressCount} 条进度对照。
+              </p>
+            </div>
+            <Badge className="w-fit bg-amber-500 text-white hover:bg-amber-500">演示数据</Badge>
+          </div>
+        </div>
+      )}
 
       {/* 总览统计卡片 */}
       {quantityView === 'summary' && (
@@ -2352,6 +2751,7 @@ function WorkItemsContent() {
                       onClick={() => {
                         setSelectedProjectId(row.project.id.toString());
                         setQuantityView('entry');
+                        setEntryPanel('monthly');
                       }}
                       className="h-9 gap-2 bg-slate-950 hover:bg-slate-800"
                     >
@@ -2423,6 +2823,7 @@ function WorkItemsContent() {
                 onClick={() => {
                   setSelectedProjectId(row.project.id.toString());
                   setQuantityView('entry');
+                  setEntryPanel('monthly');
                 }}
                 className="mt-3 h-9 w-full gap-2 bg-slate-950 hover:bg-slate-800"
               >
@@ -2454,37 +2855,69 @@ function WorkItemsContent() {
               <ArrowLeft className="h-4 w-4" />
               返回项目汇总
             </Button>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#165DFF]" />
-                <span className="font-medium text-gray-700">选择项目：</span>
-              </div>
-              <div className="w-full min-w-0 sm:w-auto">
-                <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                  <SelectTrigger className="w-full max-w-full sm:w-64">
-                  <SelectValue placeholder="请选择项目进行数据录入" />
-                  </SelectTrigger>
-                  <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        <span>{project.name}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${getStatusStyle(project.status)}`}>
-                          {project.status}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {selectedProject && (
-                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 sm:gap-3">
-                  <span>{selectedProject.year}年度</span>
-                  <span>·</span>
-                  <span>{subitems.length} 个分项工程</span>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-[#1A58B3]" />
+                  <span className="font-medium text-gray-700">选择项目：</span>
                 </div>
-              )}
+                <div className="w-full min-w-0 sm:w-auto">
+                  <Select
+                    value={selectedProjectId}
+                    onValueChange={(value) => {
+                      setSelectedProjectId(value);
+                      setEntryPanel('monthly');
+                    }}
+                  >
+                    <SelectTrigger className="w-full max-w-full sm:w-72">
+                    <SelectValue placeholder="请选择项目进行数据录入" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <span>{project.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${getStatusStyle(project.status)}`}>
+                            {project.status}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {selectedProject && (
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 sm:gap-3">
+                    <span>{selectedProject.year}年度</span>
+                    <span>·</span>
+                    <span>{subitems.length} 个分项工程</span>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1 text-sm sm:w-[260px]">
+                <button
+                  type="button"
+                  onClick={() => setEntryPanel('monthly')}
+                  className={`h-9 rounded-md px-3 font-medium transition ${
+                    entryPanel === 'monthly'
+                      ? 'bg-white text-[#1A58B3] shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  本月录入
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEntryPanel('ledger')}
+                  className={`h-9 rounded-md px-3 font-medium transition ${
+                    entryPanel === 'ledger'
+                      ? 'bg-white text-[#1A58B3] shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  工程量查看
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -2519,14 +2952,14 @@ function WorkItemsContent() {
       )}
 
       {/* 数据录入区域 */}
-      {selectedProjectId && (
+      {selectedProjectId && entryPanel === 'monthly' && (
         <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 p-4">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
+            <div className="border-b border-slate-100 p-4 sm:p-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0 space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-950">项目录入工作台</h2>
+                    <h2 className="text-lg font-semibold text-slate-950">本月数据录入</h2>
                     <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
                       {selectedProject?.name || '当前项目'}
                     </Badge>
@@ -2536,9 +2969,36 @@ function WorkItemsContent() {
                       </Badge>
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">
-                    先确认当前项目和月份，再进入对上报量、对下结算或内部附加清单，录入前先看到累计、剩余和风险。
-                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="flex h-10 w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600 sm:w-auto">
+                      <Calendar className="h-4 w-4 text-slate-400" />
+                      <Input
+                        type="month"
+                        value={analysisYearMonth}
+                        onChange={(event) => setAnalysisYearMonth(event.target.value)}
+                        className="h-8 w-full border-0 p-0 shadow-none focus-visible:ring-0 sm:w-32"
+                      />
+                    </label>
+                    <Button
+                      onClick={() => {
+                        if (entryWorkbenchMode === 'client') {
+                          openMonthlyReportDialog();
+                        } else if (entryWorkbenchMode === 'internal') {
+                          openMonthlySettlementDialog();
+                        } else {
+                          openProjectAddonDialog();
+                        }
+                      }}
+                      className="h-10 gap-2 bg-slate-950 px-5 hover:bg-slate-800"
+                    >
+                      <Save className="h-4 w-4" />
+                      {entryWorkbenchMode === 'additional' ? '维护附加清单' : `录入${activeEntryMode.label}`}
+                    </Button>
+                    <Button variant="outline" onClick={() => setBatchDialogOpen(true)} className="h-10 gap-2">
+                      <Upload className="h-4 w-4" />
+                      批量导入
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 xl:w-[680px]">
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -2565,8 +3025,8 @@ function WorkItemsContent() {
 
             <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
               <div className="min-w-0 space-y-4">
-                <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap">
                     {ENTRY_WORKBENCH_MODES.map(mode => {
                       const active = entryWorkbenchMode === mode.key;
                       return (
@@ -2584,35 +3044,11 @@ function WorkItemsContent() {
                       );
                     })}
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <label className="flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600">
-                      <Calendar className="h-4 w-4 text-slate-400" />
-                      <Input
-                        type="month"
-                        value={analysisYearMonth}
-                        onChange={(event) => setAnalysisYearMonth(event.target.value)}
-                        className="h-8 w-32 border-0 p-0 shadow-none focus-visible:ring-0"
-                      />
-                    </label>
-                    <Button
-                      onClick={() => {
-                        if (entryWorkbenchMode === 'client') {
-                          openMonthlyReportDialog();
-                        } else if (entryWorkbenchMode === 'internal') {
-                          openMonthlySettlementDialog();
-                        } else {
-                          openProjectAddonDialog();
-                        }
-                      }}
-                      className="gap-2 bg-slate-950 hover:bg-slate-800"
-                    >
-                      <Save className="h-4 w-4" />
-                      {entryWorkbenchMode === 'additional' ? '维护附加清单' : '录入本月数据'}
-                    </Button>
-                    <Button variant="outline" onClick={() => setBatchDialogOpen(true)} className="gap-2">
-                      <Upload className="h-4 w-4" />
-                      批量导入
-                    </Button>
+                  <div className="rounded-md bg-white px-3 py-2 text-sm text-slate-600">
+                    <span className="text-slate-400">当前：</span>
+                    <span className="font-medium text-slate-950">{analysisYearMonth || '-'}</span>
+                    <span className="px-2 text-slate-300">/</span>
+                    <span className="font-medium text-slate-950">{activeEntryMode.label}</span>
                   </div>
                 </div>
 
@@ -2722,9 +3158,9 @@ function WorkItemsContent() {
                   <Button
                     variant="outline"
                     className="mt-3 w-full border-amber-200 bg-white text-amber-800 hover:bg-amber-100"
-                    onClick={() => document.getElementById('quantity-detail-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    onClick={() => setEntryPanel('ledger')}
                   >
-                    查看下方差异分析
+                    查看工程量台账
                   </Button>
                 </div>
               </aside>
@@ -2733,6 +3169,7 @@ function WorkItemsContent() {
         </div>
       )}
 
+      {quantityView === 'entry' && entryPanel === 'ledger' && (
       <div className={`transition-all duration-500 delay-200 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {loading ? (
           // 加载态统一：骨架屏（替代纯文字"加载中..."）
@@ -2754,8 +3191,54 @@ function WorkItemsContent() {
           </Card>
         ) : (
           <Tabs id="quantity-detail-tabs" defaultValue="subitems" className="space-y-4">
-            <div className="overflow-x-auto pb-1">
-              <TabsList className="min-w-max bg-white border">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-slate-950">工程量查看</h2>
+                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                      台账口径
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">预算清单、累计对上、累计对下、附加清单和差异分析集中查看。</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 xl:w-[560px]">
+                  <div className="rounded-md bg-slate-50 px-3 py-2">
+                    <p className="text-xs text-slate-500">清单项</p>
+                    <p className="mt-1 font-semibold text-slate-950">{projectStats.totalItems} 项</p>
+                  </div>
+                  <div className="rounded-md bg-blue-50 px-3 py-2">
+                    <p className="text-xs text-slate-500">预算金额</p>
+                    <p className="mt-1 font-semibold text-[#1A58B3]">{formatCurrency(projectStats.totalBudget)}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 px-3 py-2">
+                    <p className="text-xs text-slate-500">对上剩余</p>
+                    <p className="mt-1 font-semibold text-blue-700">{formatCurrency(projectComparisonSummary.reportRemainingAmount)}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 px-3 py-2">
+                    <p className="text-xs text-slate-500">对下剩余</p>
+                    <p className="mt-1 font-semibold text-amber-700">{formatCurrency(projectComparisonSummary.settlementRemainingAmount)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-slate-500">
+                  当前项目：<span className="font-medium text-slate-900">{selectedProject?.name || '-'}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                  <Button variant="outline" onClick={() => setEntryPanel('monthly')} className="gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    本月录入
+                  </Button>
+                  <Button variant="outline" onClick={refreshSubitems} className="gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    刷新
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="sticky top-16 z-20 overflow-x-auto border-b border-slate-200 bg-[#F0F2F5]/95 pb-2 pt-1 backdrop-blur">
+              <TabsList className="min-w-max bg-white border shadow-sm">
               <TabsTrigger value="subitems" className="gap-2">
                 <ListTree className="w-4 h-4" />
                 预算工程量
@@ -2821,56 +3304,9 @@ function WorkItemsContent() {
                 </div>
               </div>
 
-              {/* 统计卡片 */}
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-                <Card className="border-blue-200 bg-blue-50">
-                  <CardContent className="py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-600">分项工程数</span>
-                      <span className="text-xl font-bold text-blue-700">{projectStats.totalItems}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-green-200 bg-green-50">
-                  <CardContent className="py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-green-600">预算总金额</span>
-                      <span className="text-lg font-bold text-green-700">{formatCurrency(projectStats.totalBudget)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-purple-200 bg-purple-50">
-                  <CardContent className="py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-purple-600">合同单价均值</span>
-                      <span className="text-lg font-bold text-purple-700">
-                        {subitems.length > 0 
-                          ? formatCurrency(subitems.reduce((sum, item) => sum + (parseFloat(item.contract_price || '0') || 0), 0) / subitems.filter(i => parseFloat(i.contract_price || '0') > 0).length || 1)
-                          : '¥0'}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-orange-200 bg-orange-50">
-                  <CardContent className="py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-orange-600">平均完成率</span>
-                      <span className="text-lg font-bold text-orange-700">
-                        {(() => {
-                          const itemsWithBudget = subitems.filter(i => parseFloat(i.budget_quantity) > 0);
-                          if (itemsWithBudget.length === 0) return '0%';
-                          const avgPct = itemsWithBudget.reduce((sum, i) => sum + Math.min((parseFloat(i.completed_quantity) || 0) / parseFloat(i.budget_quantity) * 100, 100), 0) / itemsWithBudget.length;
-                          return avgPct.toFixed(1) + '%';
-                        })()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
               {/* 表格 */}
-              <Card>
-                <CardContent className="p-3 sm:pt-6">
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <div className="p-3 sm:p-4">
                   {filteredSubitems.length > 0 ? (
                     <>
                       <div className="space-y-3 md:hidden">
@@ -2992,8 +3428,8 @@ function WorkItemsContent() {
                       <p className="text-sm mt-2">点击“新增”添加分项工程</p>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </TabsContent>
 
             {/* 对上报量标签页 */}
@@ -3846,6 +4282,7 @@ function WorkItemsContent() {
           </Tabs>
         )}
       </div>
+      )}
         </>
       )}
 
