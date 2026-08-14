@@ -214,7 +214,10 @@ function CostCenterContent() {
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview', 'table', 'warnings']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview', 'table', 'warnings', 'subitemComparison']));
+  // P0-6 分项三层成本对比（合同收入 vs 限价成本 vs 实际成本）
+  const [subitemComparison, setSubitemComparison] = useState<{ rows: any[]; summary: any } | null>(null);
+  const [subitemComparisonLoading, setSubitemComparisonLoading] = useState(false);
 
   // 处理 URL 参数
   useEffect(() => {
@@ -234,6 +237,31 @@ function CostCenterContent() {
       return () => clearTimeout(timer);
     }
   }, [loading]);
+
+  // P0-6 分项三层成本对比：随项目筛选变化重新加载
+  useEffect(() => {
+    fetchSubitemComparison();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
+
+  const fetchSubitemComparison = async () => {
+    setSubitemComparisonLoading(true);
+    try {
+      const res = await fetch(`/api/cost-center/subitem-comparison?project_id=${selectedProjectId}`, { credentials: 'include' });
+      const result = await res.json();
+      if (result && !result.error) {
+        setSubitemComparison({ rows: result.rows || [], summary: result.summary });
+      } else {
+        console.error('API返回错误:', result.error);
+        setSubitemComparison(null);
+      }
+    } catch (error) {
+      console.error('获取分项三层对比失败:', error);
+      setSubitemComparison(null);
+    } finally {
+      setSubitemComparisonLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -1091,6 +1119,164 @@ function CostCenterContent() {
               </div>
             )}
           </CardContent>
+        </Card>
+      </div>
+
+      {/* 分项三层成本对比 (P0-6)：合同收入 vs 限价成本 vs 实际成本 */}
+      <div className={`transition-all duration-500 delay-350 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <Card className="hover:shadow-lg transition-all" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
+          <CardHeader className="py-3 border-b cursor-pointer" style={{ borderColor: 'var(--border)' }} onClick={() => toggleSection('subitemComparison')}>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                <Target className="w-4 h-4" />
+                分项三层成本对比
+                <span className="text-xs font-normal" style={{ color: 'var(--color-text-3)' }}>合同收入（完成量×合同价）· 限价成本（完成量×限价）· 实际成本（对下结算）</span>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {subitemComparisonLoading && <RefreshCw className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-3)' }} />}
+                {expandedSections.has('subitemComparison') ? (
+                  <ChevronUp className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
+                ) : (
+                  <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          {expandedSections.has('subitemComparison') && (
+            <CardContent className="p-4">
+              {subitemComparison && subitemComparison.summary ? (
+                <>
+                  {/* 汇总卡片 */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: '#F0F5FF', border: '1px solid #BEDAFF' }}>
+                      <DollarSign className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>合同收入（完成量口径）</p>
+                        <p className="text-base font-bold truncate" style={{ color: 'var(--color-primary)' }}>{formatAmountSmart(subitemComparison.summary.contract_revenue)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: '#FFF7E8', border: '1px solid #FFCF8B' }}>
+                      <Wallet className="w-5 h-5 flex-shrink-0" style={{ color: '#FF7D00' }} />
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>限价成本（内部成本线）</p>
+                        <p className="text-base font-bold truncate" style={{ color: '#FF7D00' }}>{formatAmountSmart(subitemComparison.summary.limit_cost)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: subitemComparison.summary.actual_cost > subitemComparison.summary.limit_cost ? '#FFECE8' : '#F5F5F5', border: `1px solid ${subitemComparison.summary.actual_cost > subitemComparison.summary.limit_cost ? '#F53F3F' : 'var(--border)'}` }}>
+                      <TrendingDown className="w-5 h-5 flex-shrink-0" style={{ color: subitemComparison.summary.actual_cost > subitemComparison.summary.limit_cost ? '#F53F3F' : 'var(--color-text-3)' }} />
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>实际成本（对下结算）</p>
+                        <p className="text-base font-bold truncate" style={{ color: subitemComparison.summary.actual_cost > subitemComparison.summary.limit_cost ? '#F53F3F' : 'var(--foreground)' }}>{formatAmountSmart(subitemComparison.summary.actual_cost)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: subitemComparison.summary.actual_gross_profit >= 0 ? '#E8FFEA' : '#FFECE8', border: `1px solid ${subitemComparison.summary.actual_gross_profit >= 0 ? '#00B42A' : '#F53F3F'}` }}>
+                      <TrendingUp className="w-5 h-5 flex-shrink-0" style={{ color: subitemComparison.summary.actual_gross_profit >= 0 ? '#00B42A' : '#F53F3F' }} />
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>实际毛利</p>
+                        <p className="text-base font-bold truncate" style={{ color: subitemComparison.summary.actual_gross_profit >= 0 ? '#00B42A' : '#F53F3F' }}>
+                          {subitemComparison.summary.actual_gross_profit < 0 ? '-' : ''}{formatAmountSmart(Math.abs(subitemComparison.summary.actual_gross_profit))}
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
+                          毛利率 {subitemComparison.summary.actual_gross_profit_rate !== null ? `${formatPercent(subitemComparison.summary.actual_gross_profit_rate)}%` : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: subitemComparison.summary.over_limit_count > 0 ? '#FFF7E8' : '#E8FFEA', border: `1px solid ${subitemComparison.summary.over_limit_count > 0 ? '#FF7D00' : '#00B42A'}` }}>
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: subitemComparison.summary.over_limit_count > 0 ? '#FF7D00' : '#00B42A' }} />
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>超限价分项</p>
+                        <p className="text-base font-bold" style={{ color: subitemComparison.summary.over_limit_count > 0 ? '#FF7D00' : '#00B42A' }}>{subitemComparison.summary.over_limit_count} 项</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: subitemComparison.summary.negative_profit_count > 0 ? '#FFECE8' : '#E8FFEA', border: `1px solid ${subitemComparison.summary.negative_profit_count > 0 ? '#F53F3F' : '#00B42A'}` }}>
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: subitemComparison.summary.negative_profit_count > 0 ? '#F53F3F' : '#00B42A' }} />
+                      <div className="min-w-0">
+                        <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>负毛利分项</p>
+                        <p className="text-base font-bold" style={{ color: subitemComparison.summary.negative_profit_count > 0 ? '#F53F3F' : '#00B42A' }}>{subitemComparison.summary.negative_profit_count} 项</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 分项明细表 */}
+                  {subitemComparison.rows.length > 0 ? (
+                    <div className="mt-4 overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr style={{ background: '#F5F7FA' }}>
+                            <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>分项</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>完成量 / 完成率</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>合同单价</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>限价</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>实际单价</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: 'var(--color-primary)' }}>合同收入</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: '#FF7D00' }}>限价成本</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: '#F77234' }}>实际成本</th>
+                            <th className="px-4 py-2.5 text-right font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>实际毛利（率）</th>
+                            <th className="px-4 py-2.5 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>标记</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subitemComparison.rows.map((row: any) => (
+                            <tr key={row.subitem_id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="font-medium" style={{ color: 'var(--foreground)' }}>{row.subitem_name}</span>
+                                <span className="text-xs ml-2" style={{ color: 'var(--color-text-3)' }}>{row.project_name}{row.unit ? ` · ${row.unit}` : ''}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                <span style={{ color: 'var(--foreground)' }}>{formatNumber(row.completed_quantity, 0)}</span>
+                                <span className="text-xs ml-1" style={{ color: row.completion_rate !== null && row.completion_rate < 50 ? '#FF7D00' : 'var(--color-text-3)' }}>
+                                  {row.completion_rate !== null ? `/${formatPercent(row.completion_rate)}%` : ''}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap" style={{ color: 'var(--foreground)' }}>{formatNumber(row.contract_price)} 元</td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap" style={{ color: 'var(--color-text-3)' }}>{row.limit_price !== null ? `${formatNumber(row.limit_price)} 元` : '-'}</td>
+                              <td className={`px-4 py-3 text-right whitespace-nowrap ${row.over_limit ? 'font-medium' : ''}`} style={{ color: row.over_limit ? '#F53F3F' : 'var(--foreground)' }}>
+                                {row.actual_unit_price !== null ? `${formatNumber(row.actual_unit_price)} 元` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap font-medium" style={{ color: 'var(--color-primary)' }}>{formatWanYuan(row.contract_revenue)} 万</td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap" style={{ color: '#FF7D00' }}>{formatWanYuan(row.limit_cost)} 万</td>
+                              <td className={`px-4 py-3 text-right whitespace-nowrap ${row.actual_cost > row.limit_cost ? 'font-medium' : ''}`} style={{ color: row.actual_cost > row.limit_cost ? '#F53F3F' : '#F77234' }}>
+                                {formatWanYuan(row.actual_cost)} 万
+                              </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                <span className="font-medium" style={{ color: row.actual_gross_profit >= 0 ? '#00B42A' : '#F53F3F' }}>
+                                  {row.actual_gross_profit < 0 ? '-' : ''}{formatWanYuan(Math.abs(row.actual_gross_profit))} 万
+                                </span>
+                                <span className="text-xs ml-1" style={{ color: row.actual_gross_profit_rate !== null && row.actual_gross_profit_rate < 0 ? '#F53F3F' : 'var(--color-text-3)' }}>
+                                  {row.actual_gross_profit_rate !== null ? `(${formatPercent(row.actual_gross_profit_rate)}%)` : ''}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap">
+                                <div className="flex flex-wrap items-center justify-center gap-1">
+                                  {row.over_limit && (
+                                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#FFECE8', color: '#F53F3F' }}>超限价</span>
+                                  )}
+                                  {row.negative_profit && (
+                                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#FFECE8', color: '#F53F3F' }}>负毛利</span>
+                                  )}
+                                  {!row.over_limit && !row.negative_profit && (
+                                    <span className="text-xs" style={{ color: '#00B42A' }}>正常</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-sm" style={{ color: 'var(--color-text-3)' }}>暂无分项数据</div>
+                  )}
+
+                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                    口径：合同收入 = 累计对上报量 × 合同单价；限价成本 = 累计对上报量 × 限价（未填退回合同价）；实际成本 = 累计对下结算金额（每笔按实际结算单价，未填退回限价/合同价）；实际毛利 = 合同收入 − 实际成本；超限价 = 加权实际单价 &gt; 限价。
+                  </p>
+                </>
+              ) : (
+                <div className="py-8 text-center text-sm" style={{ color: 'var(--color-text-3)' }}>{subitemComparisonLoading ? '加载中...' : '暂无分项数据'}</div>
+              )}
+            </CardContent>
+          )}
         </Card>
       </div>
 
