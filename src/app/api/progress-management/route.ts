@@ -89,14 +89,6 @@ const FOUNDATION_CATEGORIES: FoundationCategory[] = [
   'responsibility',
 ];
 
-const DEFAULT_FOUNDATIONS: Record<FoundationCategory, string[]> = {
-  area: ['1#楼', '2#楼', '地下室A区', '地下室B区'],
-  floor: ['B2', 'B1', '1F', '2F', '3F', '4F', '屋面层'],
-  phase: ['基础施工', '主体结构', '二次结构', '装饰装修', '机电穿插'],
-  process: ['模板安装', '钢筋绑扎', '混凝土浇筑', '砌体施工', '抹灰施工'],
-  dependency: ['上一道工序完成后开始', '材料到场后开始', '验收通过后开始', '可与上一道工序同步推进'],
-  responsibility: ['项目经理负责协调现场资源', '现场负责人跟进实际完成', '预算员负责工程量匹配'],
-};
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -154,12 +146,6 @@ function groupFoundations(rows: ProjectProgressFoundationRow[]) {
     const category = row.category as FoundationCategory;
     if (FOUNDATION_CATEGORIES.includes(category) && row.name) {
       grouped[category].push(row.name);
-    }
-  }
-
-  for (const category of FOUNDATION_CATEGORIES) {
-    if (grouped[category].length === 0) {
-      grouped[category] = DEFAULT_FOUNDATIONS[category];
     }
   }
 

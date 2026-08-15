@@ -86,6 +86,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/internal-addon-templates': { permission: 'work_items:view' },
   '/api/internal-addon-settlements': { permission: 'work_items:view' },
   '/api/limit-prices': { permission: 'work_items:view' },
+  '/api/progress-management': { permission: 'work_items:progress' },
   '/api/subitem-monthly-progress': { permission: 'work_items:view' },
   '/api/subitem-monthly-reports': { permission: 'work_items:view' },
   '/api/subitem-reconciliation': { permission: 'work_items:view' },
@@ -129,6 +130,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   // === 项目经营模块 ===
   '/projects': { permission: 'projects:view' },
   '/quantity-reporting': { permission: 'work_items:view' },
+  '/progress-management': { permission: 'work_items:progress' },
   '/work-items': { permission: 'work_items:view' },
   '/limit-prices': { permission: 'work_items:view' },
   '/visas': { permission: 'visas:view' },
@@ -232,6 +234,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/internal-addon-templates': 'work_items:edit',
   '/api/internal-addon-settlements': 'work_items:edit',
   '/api/limit-prices': 'work_items:edit',
+  '/api/progress-management': 'work_items:progress',
   '/api/visas': 'visas:edit',
   '/api/evidence-chain': 'evidence_chain:edit',
   '/api/client-reports': 'client_reports:edit',

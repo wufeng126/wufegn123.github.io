@@ -52,6 +52,7 @@ const INTERNAL_APIS = [
   '/api/supplier-payments',
   '/api/settlements',
   '/api/limit-prices',
+  '/api/progress-management',
   '/api/comprehensive-expenses',
   '/api/miscellaneous-materials',
   '/api/visas',

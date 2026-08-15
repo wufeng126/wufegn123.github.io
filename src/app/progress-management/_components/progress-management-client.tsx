@@ -143,258 +143,42 @@ type ProgressApiResponse = {
   subitems: QuantitySubitem[];
 };
 
-const defaultPlanMonths: PlanMonth[] = [
-  { id: '2026-08', label: '2026年8月计划', period: '2026.08.01 - 2026.08.31', range: [0, 35], focus: '主体结构 1-3 层' },
-  { id: '2026-09', label: '2026年9月计划', period: '2026.09.01 - 2026.09.30', range: [35, 70], focus: '主体结构 3-6 层' },
-  { id: '2026-10', label: '2026年10月计划', period: '2026.10.01 - 2026.10.31', range: [70, 100], focus: '二次结构与穿插施工' },
-] ;
+const currentMonthId = new Date().toISOString().slice(0, 7);
+
+const defaultPlanMonths: PlanMonth[] = [0, 1, 2].map((offset, index) => {
+  const id = addMonths(currentMonthId, offset);
+  return {
+    id,
+    label: getMonthLabel(id),
+    period: getMonthPeriod(id),
+    range: [Math.round(index * (100 / 3)), Math.round((index + 1) * (100 / 3))] as [number, number],
+    focus: '编辑计划后自动显示本月安排',
+  };
+});
 
 const defaultProjectBaseInfo: FoundationOptions = {
-  areas: ['1#楼', '2#楼', '地下室A区', '地下室B区', '商业裙房'],
-  floors: ['B2', 'B1', '1F', '2F', '3F', '4F', '5F', '屋面层'],
-  phases: ['基础施工', '主体结构', '二次结构', '装饰装修', '机电穿插'],
-  processes: ['模板安装', '钢筋绑扎', '混凝土浇筑', '砌体施工', '抹灰施工', '管线预留', '样板验收'],
-  responsibilities: ['项目经理负责协调现场资源', '现场负责人跟进实际完成', '预算员负责工程量匹配', '资料员补齐过程资料'],
-  dependencies: ['上一道工序完成后开始', '材料到场后开始', '验收通过后开始', '可与上一道工序同步推进', '甲方确认后开始'],
+  areas: [],
+  floors: [],
+  phases: [],
+  processes: [],
+  responsibilities: [],
+  dependencies: [],
 };
 
-const overallTimeline = ['8月', '9月', '10月', '11月', '12月', '1月', '2月'];
-const monthlyTimeline: Record<string, string[]> = {
-  '2026-08': ['8/1', '8/5', '8/10', '8/15', '8/20', '8/25', '8/31'],
-  '2026-09': ['9/1', '9/5', '9/10', '9/15', '9/20', '9/25', '9/30'],
-  '2026-10': ['10/1', '10/5', '10/10', '10/15', '10/20', '10/25', '10/31'],
+const projects: Project[] = [];
+
+const initialTasks: PlanTask[] = [];
+
+const milestones: Milestone[] = [];
+
+const emptyProject: Project = {
+  id: 0,
+  name: '暂无可用项目',
+  manager: '',
+  budgeter: '',
+  status: mapStatus(),
+  currentPeriod: '',
 };
-
-const projects: Project[] = [
-  {
-    id: 1,
-    name: '南京中交智慧港项目',
-    manager: '赵经理',
-    budgeter: '王预算',
-    status: '轻微滞后',
-    currentPeriod: '2026.08.01 - 2026.08.31',
-  },
-  {
-    id: 2,
-    name: '滨河商业综合体二标',
-    manager: '孙经理',
-    budgeter: '李预算',
-    status: '正常推进',
-    currentPeriod: '2026.08.01 - 2026.08.31',
-  },
-  {
-    id: 3,
-    name: '城东学校改扩建项目',
-    manager: '周经理',
-    budgeter: '张预算',
-    status: '重点关注',
-    currentPeriod: '2026.08.01 - 2026.08.31',
-  },
-];
-
-const initialTasks: PlanTask[] = [
-  {
-    id: 101,
-    projectId: 1,
-    wbs: '1.1.01',
-    phase: '主体结构',
-    area: '1#楼',
-    floor: '1F',
-    process: '模板',
-    ownerRole: '项目经理',
-    dependency: '基础验收完成',
-    logic: 'FS',
-    planStart: 3,
-    planEnd: 16,
-    actualStart: 4,
-    actualEnd: 15,
-    actualProgress: 100,
-    plannedQty: 980,
-    actualQty: 980,
-    reportedQty: 980,
-    unit: 'm2',
-    quantityItem: '主体结构模板工程',
-    issue: '正常完成',
-    nextAction: '沉淀为同类楼层模板标准工期',
-  },
-  {
-    id: 102,
-    projectId: 1,
-    wbs: '1.1.02',
-    phase: '主体结构',
-    area: '1#楼',
-    floor: '2F',
-    process: '模板',
-    ownerRole: '项目经理',
-    dependency: '1F混凝土完成',
-    logic: 'FS',
-    planStart: 16,
-    planEnd: 29,
-    actualStart: 18,
-    actualEnd: 32,
-    actualProgress: 100,
-    plannedQty: 1000,
-    actualQty: 1000,
-    reportedQty: 1000,
-    unit: 'm2',
-    quantityItem: '主体结构模板工程',
-    issue: '晚开工2天，已赶回',
-    nextAction: '后续楼层按实际起算调整排程',
-  },
-  {
-    id: 103,
-    projectId: 1,
-    wbs: '1.1.03',
-    phase: '主体结构',
-    area: '1#楼',
-    floor: '3F',
-    process: '模板',
-    ownerRole: '项目经理',
-    dependency: '2F混凝土完成',
-    logic: 'FS',
-    planStart: 29,
-    planEnd: 42,
-    actualStart: 34,
-    actualEnd: 51,
-    actualProgress: 100,
-    plannedQty: 1000,
-    actualQty: 1000,
-    reportedQty: 0,
-    unit: 'm2',
-    quantityItem: '主体结构模板工程',
-    issue: '现场已完成，月度报量未体现',
-    nextAction: '预算员补充签认资料，月底在报量管理中统一复核',
-    isKey: true,
-  },
-  {
-    id: 104,
-    projectId: 1,
-    wbs: '1.1.04',
-    phase: '主体结构',
-    area: '1#楼',
-    floor: '3F',
-    process: '钢筋',
-    ownerRole: '项目经理',
-    dependency: '3F模板完成',
-    logic: 'SS',
-    planStart: 41,
-    planEnd: 56,
-    actualStart: 47,
-    actualEnd: 61,
-    actualProgress: 64,
-    plannedQty: 49.2,
-    actualQty: 42.4,
-    reportedQty: 35,
-    unit: 't',
-    quantityItem: '主体结构钢筋工程',
-    issue: '隐蔽验收照片不足，报量偏保守',
-    nextAction: '施工日志补齐照片，预算员复核是否追报',
-  },
-  {
-    id: 105,
-    projectId: 1,
-    wbs: '1.1.05',
-    phase: '主体结构',
-    area: '1#楼',
-    floor: '3F',
-    process: '混凝土',
-    ownerRole: '项目经理',
-    dependency: '3F钢筋验收',
-    logic: 'FS',
-    planStart: 58,
-    planEnd: 66,
-    actualStart: 67,
-    actualEnd: 70,
-    actualProgress: 0,
-    plannedQty: 210,
-    actualQty: 0,
-    reportedQty: 0,
-    unit: 'm3',
-    quantityItem: '主体结构混凝土工程',
-    issue: '未到实际浇筑节点',
-    nextAction: '等待钢筋验收后自动进入日志待填',
-  },
-  {
-    id: 201,
-    projectId: 2,
-    wbs: '2.1.01',
-    phase: '地下结构',
-    area: 'B区',
-    floor: 'B1',
-    process: '砌体',
-    ownerRole: '项目经理',
-    dependency: '结构验收',
-    logic: 'FS',
-    planStart: 8,
-    planEnd: 35,
-    actualStart: 9,
-    actualEnd: 34,
-    actualProgress: 76,
-    plannedQty: 288,
-    actualQty: 260,
-    reportedQty: 260,
-    unit: 'm3',
-    quantityItem: '地下室砌筑工程',
-    issue: '尾项修补未完成',
-    nextAction: '下周复核尾项并补齐照片',
-  },
-  {
-    id: 202,
-    projectId: 2,
-    wbs: '2.2.01',
-    phase: '机电穿插',
-    area: 'A区',
-    floor: '1F',
-    process: '预留洞复核',
-    ownerRole: '项目经理',
-    dependency: '砌体完成50%',
-    logic: 'SS',
-    planStart: 36,
-    planEnd: 68,
-    actualStart: 38,
-    actualEnd: 66,
-    actualProgress: 48,
-    plannedQty: 18,
-    actualQty: 16,
-    reportedQty: 16,
-    unit: '项',
-    quantityItem: '机电预留预埋',
-    issue: '局部变更待甲方确认',
-    nextAction: '关联证据链，形成签证提醒',
-  },
-  {
-    id: 301,
-    projectId: 3,
-    wbs: '3.1.01',
-    phase: '二次结构',
-    area: '教学楼',
-    floor: '2F',
-    process: '样板验收',
-    ownerRole: '项目经理',
-    dependency: '材料进场',
-    logic: 'FS',
-    planStart: 14,
-    planEnd: 42,
-    actualStart: 18,
-    actualEnd: 35,
-    actualProgress: 55,
-    plannedQty: 340,
-    actualQty: 300,
-    reportedQty: 410,
-    unit: 'm2',
-    quantityItem: '二次结构样板工程',
-    issue: '报量大于现场确认量',
-    nextAction: '预算员核查是否包含上月遗留',
-    isKey: true,
-  },
-];
-
-const milestones: Milestone[] = [
-  { projectId: 1, label: '3F结构验收', position: 56, status: '进行中' },
-  { projectId: 1, label: '主体封顶', position: 82, status: '预警' },
-  { projectId: 2, label: '地下室移交', position: 50, status: '进行中' },
-  { projectId: 3, label: '样板确认', position: 42, status: '预警' },
-];
 
 // 今日在计划时间轴中的位置（0-100），按真实日期动态计算，替代写死的固定值
 function computeTodayPosition(months: Array<{ period?: string }>): number {
@@ -543,8 +327,12 @@ function buildPlanMonths(tasks: PlanTask[]): PlanMonth[] {
   }));
 }
 
+function getMonthShortLabel(monthId: string) {
+  const month = Number(monthId.slice(5, 7));
+  return `${month}月`;
+}
+
 function getMonthTimeline(monthId: string) {
-  if (monthlyTimeline[monthId]) return monthlyTimeline[monthId];
   const days = getDaysInPlanMonth(monthId);
   const month = Number(monthId.slice(5, 7));
   return [1, 5, 10, 15, 20, 25, days].map((day) => `${month}/${day}`);
@@ -615,10 +403,10 @@ export default function ProgressManagementPreview() {
   const [planTasks, setPlanTasks] = useState<PlanTask[]>(initialTasks);
   const [foundationOptions, setFoundationOptions] = useState<FoundationOptions>(defaultProjectBaseInfo);
   const [quantitySubitems, setQuantitySubitems] = useState<QuantitySubitem[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0].id);
-  const [selectedTaskId, setSelectedTaskId] = useState(103);
+  const [selectedProjectId, setSelectedProjectId] = useState(0);
+  const [selectedTaskId, setSelectedTaskId] = useState(0);
   const [planViewMode, setPlanViewMode] = useState<PlanViewMode>('month');
-  const [selectedMonthId, setSelectedMonthId] = useState('2026-08');
+  const [selectedMonthId, setSelectedMonthId] = useState(currentMonthId);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>('plan');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -667,7 +455,7 @@ export default function ProgressManagementPreview() {
   };
 
   const planMonths = useMemo(() => buildPlanMonths(planTasks), [planTasks]);
-  const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0] || projects[0];
+  const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0] || emptyProject;
   const effectiveSelectedMonthId = planMonths.some((month) => month.id === selectedMonthId)
     ? selectedMonthId
     : planMonths[0]?.id || defaultPlanMonths[0].id;
@@ -680,7 +468,7 @@ export default function ProgressManagementPreview() {
     () => (planViewMode === 'overall' ? projectTasks : projectTasks.filter((task) => taskInMonth(task, selectedMonth))),
     [planViewMode, projectTasks, selectedMonth],
   );
-  const currentTimeline = planViewMode === 'overall' ? overallTimeline : getMonthTimeline(selectedMonth.id);
+  const currentTimeline = planViewMode === 'overall' ? planMonths.map((month) => getMonthShortLabel(month.id)) : getMonthTimeline(selectedMonth.id);
   const projectMilestones = useMemo(
     () => milestones.filter((milestone) => milestone.projectId === selectedProject.id),
     [selectedProject.id],
@@ -792,10 +580,10 @@ export default function ProgressManagementPreview() {
         nextAction: '',
       })));
       const nextTasks = mapApiTasks(baseTasks, nextMonths);
-      const nextSelectedProjectId = data.selectedProjectId || nextProjects[0]?.id || activeProjectId;
+      const nextSelectedProjectId = data.selectedProjectId || nextProjects[0]?.id || activeProjectId || 0;
       const firstTask = nextTasks.find((task) => task.projectId === nextSelectedProjectId);
 
-      if (nextProjects.length > 0) setProjectOptions(nextProjects);
+      setProjectOptions(nextProjects);
       setFoundationOptions(nextFoundations);
       setQuantitySubitems(data.subitems || []);
       setPlanTasks(nextTasks);
@@ -823,6 +611,11 @@ export default function ProgressManagementPreview() {
   }, [loadProgressData]);
 
   async function saveProgressData() {
+    if (!selectedProject.id) {
+      setApiError('Please select a project before saving the progress plan.');
+      return;
+    }
+
     setSaving(true);
     setApiError('');
     try {
@@ -898,6 +691,11 @@ export default function ProgressManagementPreview() {
   }
 
   function addTask() {
+    if (!selectedProject.id) {
+      setApiError('Please select a project before adding a task.');
+      return;
+    }
+
     const nextId = Math.min(-1, ...planTasks.map((task) => task.id)) - 1;
     const monthStart = `${selectedMonth.id}-01`;
     const monthEnd = `${selectedMonth.id}-${String(Math.min(7, getDaysInPlanMonth(selectedMonth.id))).padStart(2, '0')}`;
@@ -1007,11 +805,15 @@ export default function ProgressManagementPreview() {
                   }}
                   className="h-11 w-full appearance-none rounded-lg border border-border bg-white px-3 pr-10 text-sm font-medium text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                 >
-                  {projectOptions.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
+                  {projectOptions.length === 0 ? (
+                    <option value={0}>暂无可用项目</option>
+                  ) : (
+                    projectOptions.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))
+                  )}
                 </select>
                 <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-4 w-4 text-muted-foreground" />
               </label>
@@ -1214,13 +1016,19 @@ export default function ProgressManagementPreview() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (!selectedProject.id) {
+                      setApiError('Please select a project before editing the plan.');
+                      return;
+                    }
                     setEditorMode('plan');
                     setEditorOpen(true);
                   }}
+                  disabled={!selectedProject.id}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition ${
                     editorMode === 'plan'
                       ? 'border-primary bg-primary text-white'
                       : 'border-border bg-white text-foreground hover:border-border'
+                  } ${!selectedProject.id ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
                   <PencilLine className="h-4 w-4" />
@@ -1229,13 +1037,19 @@ export default function ProgressManagementPreview() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (!selectedProject.id) {
+                      setApiError('Please select a project before matching quantities.');
+                      return;
+                    }
                     setEditorMode('quantity');
                     setEditorOpen(true);
                   }}
+                  disabled={!selectedProject.id}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition ${
                     editorMode === 'quantity'
                       ? 'border-primary bg-primary text-white'
                       : 'border-border bg-white text-foreground hover:border-border'
+                  } ${!selectedProject.id ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
                   <FileSpreadsheet className="h-4 w-4" />
@@ -1244,7 +1058,8 @@ export default function ProgressManagementPreview() {
                 <button
                   type="button"
                   onClick={addTask}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-medium text-foreground transition hover:border-border"
+                  disabled={!selectedProject.id}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-medium text-foreground transition hover:border-border disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Plus className="h-4 w-4" />
                   新增工序
@@ -1308,7 +1123,16 @@ export default function ProgressManagementPreview() {
                   />
 
                   <div className="divide-y divide-border/70">
-                    {phaseGroups.map((group) => (
+                    {phaseGroups.length === 0 ? (
+                      <div className="flex min-h-[280px] items-center justify-center px-5 py-10 text-center">
+                        <div>
+                          <div className="text-base font-semibold text-foreground">No progress plan yet</div>
+                          <div className="mt-2 text-sm text-muted-foreground">
+                            Select a real project, then edit the plan to maintain project foundations and monthly tasks.
+                          </div>
+                        </div>
+                      </div>
+                    ) : phaseGroups.map((group) => (
                       <div key={group.phase}>
                         <div className="grid grid-cols-[320px_minmax(720px,1fr)_120px_120px] items-center gap-x-3 bg-muted/50 px-5 py-3 text-xs font-medium text-muted-foreground">
                           <div className="flex items-center gap-2">
