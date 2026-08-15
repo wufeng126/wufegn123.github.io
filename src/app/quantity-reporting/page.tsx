@@ -138,7 +138,7 @@ const DEMO_YEAR_MONTH = '2026-08';
 
 const DEMO_PROJECT: Project = {
   id: DEMO_PROJECT_ID,
-  name: '报量演示项目-观澜商业综合体',
+  name: '已停用演示项目',
   year: 2026,
   status: '在建',
   contract_amount: '186000000',
@@ -320,18 +320,15 @@ const DEMO_PROJECT_ADDONS: ProjectInternalAddon[] = [
 ];
 
 const withDemoProjects = (source: Project[] = []) => {
-  const projects = source.filter(project => project.id !== DEMO_PROJECT_ID);
-  return [DEMO_PROJECT, ...projects];
+  return source.filter(project => project.id !== DEMO_PROJECT_ID);
 };
 
 const withDemoSubitems = (source: WorkItemSubitem[] = []) => {
-  const subitems = source.filter(item => item.project_id !== DEMO_PROJECT_ID);
-  return [...DEMO_SUBITEMS, ...subitems];
+  return source.filter(item => item.project_id !== DEMO_PROJECT_ID);
 };
 
 const withDemoTemplates = (source: InternalAddonTemplate[] = []) => {
-  const templates = source.filter(template => template.id > 0);
-  return [...DEMO_ADDON_TEMPLATES, ...templates];
+  return source.filter(template => template.id > 0);
 };
 
 const demoMonthlyReports = (yearMonth: string) => [
@@ -542,8 +539,6 @@ function WorkItemsContent() {
   const [analysisProgressExpected, setAnalysisProgressExpected] = useState<ProgressExpectedRecord[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [entryWorkbenchMode, setEntryWorkbenchMode] = useState<EntryWorkbenchMode>('client');
-  const demoAutoOpenedRef = useRef(false);
-
   useEffect(() => {
     fetchData();
     fetchAddonTemplates();
@@ -554,18 +549,11 @@ function WorkItemsContent() {
     const projectIdParam = searchParams.get('projectId');
     const warningParam = searchParams.get('warning');
     
-    if (projectIdParam) {
+    const projectId = Number(projectIdParam);
+    if (projectIdParam && Number.isInteger(projectId) && projectId > 0) {
       setSelectedProjectId(projectIdParam);
       setQuantityView('entry');
       setEntryPanel('monthly');
-    } else if (!demoAutoOpenedRef.current && typeof window !== 'undefined') {
-      const host = window.location.hostname;
-      if (host === 'localhost' || host === '127.0.0.1') {
-        demoAutoOpenedRef.current = true;
-        setSelectedProjectId(String(DEMO_PROJECT_ID));
-        setQuantityView('entry');
-        setEntryPanel('monthly');
-      }
     }
     if (warningParam) {
       setWarningFilter(warningParam);
@@ -2782,8 +2770,8 @@ function WorkItemsContent() {
 
   const isDemoProjectSelected = selectedProjectId === String(DEMO_PROJECT_ID);
   const selectedProject = useMemo(
-    () => projects.find(p => p.id.toString() === selectedProjectId) || (isDemoProjectSelected ? DEMO_PROJECT : undefined),
-    [projects, selectedProjectId, isDemoProjectSelected]
+    () => projects.find(p => p.id.toString() === selectedProjectId),
+    [projects, selectedProjectId]
   );
   const demoProjectSnapshot = useMemo(() => {
     if (!isDemoProjectSelected) return null;
