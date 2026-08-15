@@ -6,6 +6,7 @@ import { buildNotificationExtra } from '@/lib/business-notification';
 import { generateConstructionDailyReport } from '@/lib/construction-daily-report';
 import { getDefaultDailyReportDate, getShanghaiHour } from '@/lib/construction-log-deadline';
 import { requirePermission } from '@/lib/api-auth';
+import { PROGRESS_LAG_THRESHOLD_POINTS } from '@/lib/progress-comparison';
 
 function isEnabled(value: unknown, fallback = false) {
   if (value === undefined || value === null) return fallback;
@@ -564,6 +565,63 @@ async function checkCostWarnings(client: any) {
   return results;
 }
 
+// P0-4 检测进度滞后：计划（时间推算）vs 实际（任务字段，服务端已按最新日志同步）
+// 滞后：实际 + 10 < 计划；逾期：今天已过计划结束且未完成（24h 内同任务去重）
+async function checkProgressLag(client: any) {
+  const results = { warnings: 0 };
+
+  const { data: tasks } = await client
+    .from('project_progress_tasks')
+    .select('id, project_id, wbs, phase, area, floor, process, plan_start_date, plan_end_date, actual_progress');
+
+  if (!tasks || tasks.length === 0) return results;
+
+  const { data: projectRows } = await client.from('projects').select('id, name');
+  const projectNameById = new Map<number, string>((projectRows || []).map((p: any) => [p.id, p.name]));
+
+  const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
+
+  for (const task of tasks) {
+    const planStart = Date.parse(`${task.plan_start_date}T00:00:00Z`);
+    const planEnd = Date.parse(`${task.plan_end_date}T00:00:00Z`);
+    if (!Number.isFinite(planStart) || !Number.isFinite(planEnd) || planEnd <= planStart) continue;
+
+    let planPercent: number;
+    if (todayMs <= planStart) planPercent = 0;
+    else if (todayMs >= planEnd) planPercent = 100;
+    else planPercent = ((todayMs - planStart) / (planEnd - planStart)) * 100;
+
+    const actualPercent = Math.max(0, Math.min(100, Number(task.actual_progress || 0)));
+    const overdue = todayMs > planEnd && actualPercent < 100;
+    const lagging = actualPercent + PROGRESS_LAG_THRESHOLD_POINTS < planPercent;
+
+    if (!lagging && !overdue) continue;
+
+    const label = [task.process, task.floor, task.area, task.phase].filter(Boolean).join('·') || `任务#${task.id}`;
+    await createAndPushNotification(
+      client,
+      'progress_lag',
+      overdue ? '进度逾期' : '进度滞后',
+      `项目：${projectNameById.get(task.project_id) || '未知项目'}\n任务：${label}（WBS ${task.wbs || '-'}）\n计划进度：${planPercent.toFixed(1)}%\n实际进度：${actualPercent.toFixed(1)}%\n计划区间：${task.plan_start_date} 至 ${task.plan_end_date}`,
+      overdue ? 'danger' : 'warning',
+      {
+        wbs: task.wbs,
+        taskLabel: label,
+        planPercent: planPercent.toFixed(1),
+        actualPercent: actualPercent.toFixed(1),
+        overdue: Boolean(overdue),
+      },
+      task.project_id,
+      task.id,
+      'progress_task',
+    );
+    results.warnings++;
+  }
+
+  return results;
+}
+
 async function checkConstructionDailyReport(client: any, force = false) {
   const reportDate = getDefaultDailyReportDate();
   const currentHour = getShanghaiHour();
@@ -632,6 +690,7 @@ export async function GET(request: NextRequest) {
     const visaResults = await checkVisaExpiry(client);
     const newRecordResults = await checkNewRecords(client, lastCheckTime);
     const costResults = await checkCostWarnings(client);
+    const progressResults = await checkProgressLag(client);
     const dailyReportResults = await checkConstructionDailyReport(client, forceCheck);
 
     // 更新最后检测时间
@@ -654,13 +713,15 @@ export async function GET(request: NextRequest) {
         visas: visaResults,
         newRecords: newRecordResults,
         costs: costResults,
+        progress: progressResults,
         dailyReport: dailyReportResults,
       },
       totalNotifications: (certificateResults.expired + certificateResults.expiring7 + certificateResults.expiring15 + certificateResults.expiring30) +
         visaResults.expired + visaResults.expiring7 + visaResults.expiring15 + visaResults.expiring30 + visaResults.workflowOverdue +
         newRecordResults.reports + newRecordResults.payments + newRecordResults.workers +
         newRecordResults.settlements + newRecordResults.salaries + newRecordResults.supplierPayments +
-        costResults.warnings,
+        costResults.warnings +
+        progressResults.warnings,
       unreadCount: unreadCount || 0,
     });
   } catch (error: any) {

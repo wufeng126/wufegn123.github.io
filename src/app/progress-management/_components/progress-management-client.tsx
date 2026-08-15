@@ -491,6 +491,15 @@ function getStatusClass(status: ProjectStatus) {
   return 'border-rose-200 bg-rose-50 text-rose-700';
 }
 
+// P0-4 三态对比状态展示（计划 vs 实际 vs 完成量）
+const COMPARISON_STATUS_META: Record<string, { label: string; className: string }> = {
+  completed: { label: '完成', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  overdue: { label: '逾期', className: 'border-rose-200 bg-rose-50 text-rose-700' },
+  lagging: { label: '滞后', className: 'border-rose-200 bg-rose-50 text-rose-700' },
+  on_track: { label: '推进中', className: 'border-primary/20 bg-accent text-primary' },
+  not_started: { label: '未开始', className: 'border-border bg-muted/50 text-muted-foreground' },
+};
+
 function average(values: number[]) {
   if (!values.length) return 0;
   return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
@@ -616,6 +625,10 @@ export default function ProgressManagementPreview() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState('');
+  // P0-4 任务三态对比（计划 vs 实际 vs 完成量）
+  const [comparisonOpen, setComparisonOpen] = useState(true);
+  const [comparisonData, setComparisonData] = useState<{ rows: any[]; summary: any } | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
   const selectedProjectIdRef = useRef(selectedProjectId);
   const selectedMonthIdRef = useRef(selectedMonthId);
 
@@ -626,6 +639,32 @@ export default function ProgressManagementPreview() {
   useEffect(() => {
     selectedMonthIdRef.current = selectedMonthId;
   }, [selectedMonthId]);
+
+  // P0-4 三态对比：随项目变化加载
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    void loadProgressComparison(selectedProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
+
+  const loadProgressComparison = async (projectId: number) => {
+    setComparisonLoading(true);
+    try {
+      const response = await fetch(`/api/progress-management/comparison?project_id=${projectId}`, { credentials: 'include' });
+      const json = await response.json();
+      if (response.ok && json && !json.error) {
+        setComparisonData({ rows: json.rows || [], summary: json.summary });
+      } else {
+        console.error('加载三态对比失败:', json?.error || response.statusText);
+        setComparisonData(null);
+      }
+    } catch (error) {
+      console.error('加载三态对比失败:', error);
+      setComparisonData(null);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
 
   const planMonths = useMemo(() => buildPlanMonths(planTasks), [planTasks]);
   const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0] || projects[0];
@@ -1000,6 +1039,94 @@ export default function ProgressManagementPreview() {
             {apiError || '正在读取真实项目进度数据...'}
           </div>
         )}
+
+        {/* P0-4 任务三态对比：计划（时间推算）vs 实际（施工日志）vs 完成量（工程量匹配） */}
+        <section className="rounded-lg border border-border bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <button
+              type="button"
+              onClick={() => setComparisonOpen(open => !open)}
+              className="flex items-center gap-2 text-left"
+            >
+              <ClipboardList className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">任务三态对比</span>
+              <span className="text-xs text-muted-foreground">计划（时间推算）· 实际（施工日志）· 完成量（工程量匹配）</span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${comparisonOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {comparisonData?.summary && (
+                <>
+                  <span className="rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-muted-foreground">任务 {comparisonData.summary.task_count} 项</span>
+                  <span className={`rounded-lg border px-2.5 py-1 font-medium ${
+                    (comparisonData.summary.lagging_count + comparisonData.summary.overdue_count) > 0
+                      ? 'border-rose-200 bg-rose-50 text-rose-700'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  }`}>
+                    滞后 {comparisonData.summary.lagging_count} · 逾期 {comparisonData.summary.overdue_count}
+                  </span>
+                  <span className="rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-muted-foreground">
+                    平均 {comparisonData.summary.avg_actual_percent}% / 计划 {comparisonData.summary.avg_plan_percent}%
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {comparisonOpen && (
+            <div className="mt-3">
+              {comparisonLoading && !comparisonData ? (
+                <div className="rounded-lg bg-muted/50 px-3 py-6 text-center text-sm text-muted-foreground">正在读取三态对比数据...</div>
+              ) : comparisonData && comparisonData.rows.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[860px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                        <th className="py-2 pr-3 font-medium">任务</th>
+                        <th className="py-2 pr-3 font-medium">计划区间</th>
+                        <th className="py-2 pr-3 text-right font-medium">计划%</th>
+                        <th className="py-2 pr-3 text-right font-medium">实际%</th>
+                        <th className="py-2 pr-3 text-right font-medium">滞后</th>
+                        <th className="py-2 pr-3 text-right font-medium">计划量</th>
+                        <th className="py-2 pr-3 text-right font-medium">完成量</th>
+                        <th className="py-2 text-center font-medium">状态</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonData.rows.map((row: any) => {
+                        const statusMeta = COMPARISON_STATUS_META[row.status] || COMPARISON_STATUS_META.not_started;
+                        return (
+                          <tr key={row.task_id} className="border-b border-border/60 last:border-0">
+                            <td className="py-2 pr-3">
+                              <span className="block font-medium text-foreground">{row.label}</span>
+                              {row.wbs && <span className="block text-xs text-muted-foreground">WBS {row.wbs}</span>}
+                            </td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-muted-foreground">{row.plan_start_date} 至 {row.plan_end_date}</td>
+                            <td className="py-2 pr-3 text-right text-muted-foreground">{row.plan_percent}%</td>
+                            <td className={`py-2 pr-3 text-right font-medium ${row.actual_percent >= 100 ? 'text-emerald-600' : row.lagging ? 'text-rose-600' : 'text-foreground'}`}>
+                              {row.actual_percent}%
+                            </td>
+                            <td className={`py-2 pr-3 text-right ${row.lag_points < 0 ? 'font-medium text-rose-600' : 'text-muted-foreground'}`}>
+                              {row.lag_points > 0 ? `+${row.lag_points}` : row.lag_points}
+                            </td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right text-muted-foreground">{row.planned_qty} {row.unit || ''}</td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right text-emerald-600">{row.actual_qty} {row.unit || ''}</td>
+                            <td className="py-2 text-center">
+                              <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${statusMeta.className}`}>
+                                {statusMeta.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-muted/50 px-3 py-6 text-center text-sm text-muted-foreground">暂无进度任务，可先在下方编排月计划</div>
+              )}
+            </div>
+          )}
+        </section>
 
         <section className="rounded-lg border border-border bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">

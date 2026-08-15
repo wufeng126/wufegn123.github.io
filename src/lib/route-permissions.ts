@@ -89,6 +89,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/subitem-monthly-progress': { permission: 'work_items:view' },
   '/api/subitem-monthly-reports': { permission: 'work_items:view' },
   '/api/subitem-reconciliation': { permission: 'work_items:view' },
+  '/api/progress-management/comparison': { permission: 'projects:view' },
   '/api/backups': { permission: 'system:manage', superAdminOnly: true },
   '/api/maintenance/sequence': { permission: 'system:manage', superAdminOnly: true },
   '/api/fetch-url': { permission: 'system:ai_manage' },
