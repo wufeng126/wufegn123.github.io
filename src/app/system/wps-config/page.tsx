@@ -447,14 +447,40 @@ export default function WpsConfigPage() {
       const result = data.bindingResults?.[0];
       if (!response.ok) throw new Error(data.error || '测试失败');
       toast({
-        title: result?.status === 'success' ? '测试通过' : '测试提醒',
-        description: result?.message || data.message || '测试完成',
+        title: result?.status === 'success' ? '读取测试通过' : '读取测试提醒',
+        description: result?.message || data.message || '测试完成，仅用于读取与解析，不会写入系统',
         variant: result?.status === 'success' ? 'default' : 'warning',
       });
     } catch (error) {
       toast({ title: '测试失败', description: error instanceof Error ? error.message : 'WPS 绑定测试失败', variant: 'error' });
     } finally {
       setTestingBindingId(null);
+    }
+  };
+
+  const syncBinding = async (binding: WpsBinding) => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/integrations/wps/workers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bindingId: binding.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '同步失败');
+      const summary = data.summary || {};
+      toast({
+        title: data.success ? '同步完成' : '同步检查完成',
+        description: data.success
+          ? formatWpsSyncSummary(summary, data.bindingResults)
+          : data.message || '请查看绑定台账中的同步结果说明',
+        variant: data.success ? 'default' : 'warning',
+      });
+      await fetchData();
+    } catch (error) {
+      toast({ title: '同步失败', description: error instanceof Error ? error.message : '同步 WPS 数据失败', variant: 'error' });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -746,6 +772,9 @@ export default function WpsConfigPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => void syncBinding(binding)} disabled={syncing} title="同步此绑定">
+                            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id} title="测试读取">
                             <RefreshCw className={`h-4 w-4 ${testingBindingId === binding.id ? 'animate-spin' : ''}`} />
                           </Button>
@@ -783,7 +812,8 @@ export default function WpsConfigPage() {
                     <span>{binding.last_sync_message || '未同步'}</span>
                   </div>
                   <div className="mt-3 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id}>测试</Button>
+                    <Button variant="outline" size="sm" onClick={() => void syncBinding(binding)} disabled={syncing}>同步</Button>
+                    <Button variant="outline" size="sm" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id}>测试读取</Button>
                     <Button variant="outline" size="sm" onClick={() => openEditDialog(binding)}>编辑</Button>
                     <Button variant="outline" size="sm" onClick={() => void deleteBinding(binding)}>删除</Button>
                   </div>

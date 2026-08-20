@@ -297,8 +297,8 @@ async function runParseTest(
         worksheetName,
         status: records.length > 0 ? 'success' : 'warning',
         message: records.length > 0
-          ? `测试读取成功：读取 ${rows.length} 行，识别 ${records.length} 条花名册记录，未写入系统`
-          : `文档可读取，但 ${rows.length} 行中未识别到有效花名册记录`,
+          ? `测试读取成功：读取 ${rows.length} 行，识别 ${records.length} 条花名册记录，仅完成解析，未写入系统`
+          : `文档可读取，但 ${rows.length} 行中未识别到有效花名册记录，本次未写入系统`,
         totalRows: rows.length,
         ...buildParsePreview(records),
       });
@@ -327,6 +327,7 @@ export async function POST(request: NextRequest) {
   try {
     const client = getSupabaseClient();
     const body = await request.json().catch(() => ({}));
+    const bindingId = Number((body as Record<string, unknown>).bindingId ?? (body as Record<string, unknown>).binding_id);
 
     const hasManualPayload = Array.isArray(body) || Array.isArray(body.records) || Boolean(body.payload);
     const manualRecords = hasManualPayload
@@ -370,16 +371,24 @@ export async function POST(request: NextRequest) {
     }
 
     const integrationConfig = await loadWpsIntegrationConfig(client);
+    const targetBindings =
+      Number.isFinite(bindingId) && bindingId > 0
+        ? (bindings as BindingRow[]).filter((binding) => binding.id === bindingId)
+        : (bindings as BindingRow[]);
+
+    if (targetBindings.length === 0) {
+      return NextResponse.json({ success: false, error: '未找到指定的 WPS 绑定配置' }, { status: 404 });
+    }
 
     if ((body as Record<string, unknown>).testOnly) {
-      return runParseTest(client, bindings as BindingRow[], body as Record<string, unknown>, integrationConfig);
+      return runParseTest(client, targetBindings, body as Record<string, unknown>, integrationConfig);
     }
 
     const allResults: WpsWorkerSyncResult[] = [];
     const bindingResults = [];
     let totalRowsRead = 0;
 
-    for (const binding of bindings as BindingRow[]) {
+    for (const binding of targetBindings) {
       try {
         if (!integrationConfig && !binding.wps_document_url) {
           const message = '未配置 WPS 应用配置，也未配置文档直链；无法自动同步';
