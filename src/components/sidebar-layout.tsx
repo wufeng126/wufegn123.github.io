@@ -123,14 +123,15 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   ],
   '/knowledge': [],
   '/system-management': [
-    { name: '权限中心', href: '/system/permission', icon: 'doc' },
-    { name: '通知中心', href: '/notifications', icon: 'alert' },
-    { name: '钉钉绑定', href: '/system/dingtalk-binding', icon: 'doc' },
+    { name: '权限中心', href: '/system-management?tab=permission', icon: 'doc', permissions: ['system:permission_manage'] },
+    { name: '后台账号', href: '/system-management?tab=admin', icon: 'doc', permissions: ['system:manage'] },
+    { name: '钉钉绑定', href: '/system-management?tab=dingtalk', icon: 'doc', permissions: ['system:dingtalk_manage'] },
+    { name: '审批流程', href: '/system-management?tab=approval', icon: 'doc', permissions: ['system:manage'] },
+    { name: '通知中心', href: '/system-management?tab=notifications', icon: 'alert', permissions: ['notifications:view'] },
     { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: 'doc', permissions: ['system:manage'] },
-    { name: 'AI 助手配置', href: '/system/ai-config', icon: 'doc' },
-    { name: '审批流程', href: '/system/approval-config', icon: 'doc' },
-    { name: '数据备份', href: '/settings/backup', icon: 'doc' },
-    { name: '日志管理', href: '/system/audit-logs', icon: 'doc' },
+    { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: 'doc', permissions: ['system:ai_manage'] },
+    { name: '数据备份', href: '/settings/backup', icon: 'doc', permissions: ['system:manage'] },
+    { name: '日志管理', href: '/system-management?tab=audit-logs', icon: 'doc', permissions: ['audit:view'] },
   ],
 };
 

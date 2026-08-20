@@ -5,8 +5,6 @@ import { useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   BellRing,
-  Bot,
-  ChevronRight,
   DatabaseZap,
   FileClock,
   GitBranch,
@@ -15,7 +13,6 @@ import {
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { usePermission } from '@/contexts/permission-context';
 
 const PermissionPage = dynamic(() => import('@/app/system/permission/page'), { ssr: false });
@@ -189,10 +186,6 @@ export default function SystemManagementPage() {
     }
   }, [activeKey, fallbackKey, isLoading, normalizedTab, router]);
 
-  const handleItemClick = (key: string) => {
-    router.push(`/system-management?tab=${key}`, { scroll: false });
-  };
-
   if (isLoading) {
     return (
       <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500">
@@ -213,78 +206,8 @@ export default function SystemManagementPage() {
 
   return (
     <div className="min-h-full bg-slate-50/70">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 px-3 py-4 sm:px-5 lg:flex-row lg:px-6">
-        <aside className="shrink-0 lg:w-80">
-          <div className="sticky top-4 space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
-                <Bot className="h-4 w-4" />
-                系统管理
-              </div>
-              <h1 className="mt-2 text-xl font-semibold text-slate-950">配置中心</h1>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                按账号、流程、通知、集成和运维归拢入口，先把配置找得到、分得清。
-              </p>
-            </div>
-
-            <nav className="space-y-4">
-              {visibleGroups.map((group) => {
-                const GroupIcon = group.icon;
-                const isGroupActive = group.key === activeGroup?.key;
-
-                return (
-                  <section key={group.key} className="space-y-2">
-                    <div
-                      className={cn(
-                        'flex items-start gap-2 rounded-md px-2 py-1.5',
-                        isGroupActive ? 'bg-blue-50 text-blue-800' : 'text-slate-600',
-                      )}
-                    >
-                      <GroupIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold">{group.title}</div>
-                        <div className="mt-0.5 text-xs leading-5 text-slate-500">{group.summary}</div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      {group.items.map((item) => {
-                        const isActive = item.key === activeKey;
-
-                        return (
-                          <button
-                            key={item.key}
-                            type="button"
-                            onClick={() => handleItemClick(item.key)}
-                            className={cn(
-                              'group flex w-full items-center justify-between rounded-md border px-3 py-2 text-left transition-colors',
-                              isActive
-                                ? 'border-blue-200 bg-blue-50 text-blue-900 shadow-sm'
-                                : 'border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50',
-                            )}
-                          >
-                            <span className="min-w-0">
-                              <span className="block text-sm font-medium">{item.label}</span>
-                              <span className="mt-0.5 block truncate text-xs text-slate-500">{item.description}</span>
-                            </span>
-                            <ChevronRight
-                              className={cn(
-                                'ml-3 h-4 w-4 shrink-0 transition-transform',
-                                isActive ? 'translate-x-0.5 text-blue-600' : 'text-slate-300 group-hover:text-slate-500',
-                              )}
-                            />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </nav>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1">
+      <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 lg:px-6">
+        <main className="min-w-0">
           <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
