@@ -65,6 +65,13 @@ interface SyncLog {
   status?: string | null;
   message?: string | null;
   created_at?: string | null;
+  sanitized_fields?: {
+    syncDetails?: {
+      filledFields?: string[];
+      conflictFields?: string[];
+    } | null;
+    duplicateSkipped?: boolean;
+  } | null;
 }
 
 interface BindingStats {
@@ -197,6 +204,16 @@ function actionText(action?: string | null) {
   return action ? map[action] || action : '-';
 }
 
+function formatLogSyncDetails(log: SyncLog) {
+  const details = log.sanitized_fields?.syncDetails;
+  const parts = [
+    details?.filledFields?.length ? `补齐：${details.filledFields.join('、')}` : null,
+    details?.conflictFields?.length ? `差异：${details.conflictFields.join('、')}` : null,
+    log.sanitized_fields?.duplicateSkipped ? '批次重复：已合并处理' : null,
+  ].filter(Boolean);
+  return parts.join('；');
+}
+
 function normalizeConfig(config?: Partial<WpsConfig>): WpsConfig {
   return {
     ...defaultConfig,
@@ -228,6 +245,9 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
   const skipped = numberOf('skipped');
   const failed = numberOf('failed');
   const changed = numberOf('changed') || created + updated + transferred;
+  const autoFilledFields = numberOf('autoFilledFields');
+  const conflictFields = numberOf('conflictFields');
+  const duplicateSkipped = numberOf('duplicateSkipped');
   const bindingCount = numberOf('bindings') || bindingResults?.length || 0;
   const parts = [
     readRows > 0 ? `读取 ${readRows} 行` : null,
@@ -238,6 +258,9 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
     `跳过 ${skipped} 条`,
     `失败 ${failed} 条`,
     `有效变更 ${changed} 条`,
+    autoFilledFields > 0 ? `自动补齐 ${autoFilledFields} 项` : null,
+    conflictFields > 0 ? `字段差异 ${conflictFields} 项` : null,
+    duplicateSkipped > 0 ? `批次重复 ${duplicateSkipped} 条` : null,
     bindingCount > 0 ? `涉及 ${bindingCount} 个项目` : null,
   ].filter(Boolean);
   return parts.join('，');
@@ -836,20 +859,26 @@ export default function WpsConfigPage() {
             <div className="space-y-3">
               {logs.length === 0 ? (
                 <div className="rounded-md border py-10 text-center text-sm text-gray-500">暂无同步记录</div>
-              ) : logs.map((log) => (
-                <div key={log.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {statusBadge(log.status)}
-                      <span className="font-medium">{log.worker_name || '-'}</span>
-                      <span className="text-sm text-gray-500">{actionText(log.action)}</span>
+              ) : logs.map((log) => {
+                const syncDetails = formatLogSyncDetails(log);
+                return (
+                  <div key={log.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {statusBadge(log.status)}
+                        <span className="font-medium">{log.worker_name || '-'}</span>
+                        <span className="text-sm text-gray-500">{actionText(log.action)}</span>
+                      </div>
+                      <div className="mt-1 text-sm text-gray-600">{log.project_name || '-'} · {log.worksheet_name || '-'}</div>
+                      <div className="mt-1 line-clamp-2 text-xs text-gray-500">{log.message || '-'}</div>
+                      {syncDetails ? (
+                        <div className="mt-1 line-clamp-2 text-xs text-blue-700">{syncDetails}</div>
+                      ) : null}
                     </div>
-                    <div className="mt-1 text-sm text-gray-600">{log.project_name || '-'} · {log.worksheet_name || '-'}</div>
-                    <div className="mt-1 line-clamp-2 text-xs text-gray-500">{log.message || '-'}</div>
+                    <div className="shrink-0 text-xs text-gray-400">{formatDateTime(log.created_at)}</div>
                   </div>
-                  <div className="shrink-0 text-xs text-gray-400">{formatDateTime(log.created_at)}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

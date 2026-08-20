@@ -80,6 +80,107 @@ function buildRecordsFromRows(binding: BindingRow, rows: Record<string, unknown>
   });
 }
 
+function normalizeWorkerSyncText(value?: string | null) {
+  return value?.trim().replace(/\s+/g, '').toLowerCase() || '';
+}
+
+function normalizeWorkerIdentity(value?: string | null) {
+  return value?.trim().replace(/\s+/g, '').toUpperCase() || '';
+}
+
+function normalizePhone(value?: string | null) {
+  return value?.trim().replace(/[^\d]/g, '') || '';
+}
+
+function normalizeBankCard(value?: string | null) {
+  return value?.trim().replace(/\s+/g, '') || '';
+}
+
+function buildBatchRecordKey(record: WpsWorkerInput) {
+  const projectKey = [
+    record.wpsSheetId,
+    record.wpsTableId,
+    record.worksheetName,
+    record.projectName,
+  ].map(normalizeWorkerSyncText).find(Boolean) || 'unknown-project';
+  const idCard = normalizeWorkerIdentity(record.idCard);
+  if (idCard) return `${projectKey}:id:${idCard}`;
+
+  const name = normalizeWorkerSyncText(record.name);
+  if (!name) return '';
+
+  const phone = normalizePhone(record.phone);
+  if (phone) return `${projectKey}:name-phone:${name}:${phone}`;
+
+  const bankCard = normalizeBankCard(record.bankCard);
+  if (bankCard) return `${projectKey}:name-bank:${name}:${bankCard}`;
+
+  return `${projectKey}:name:${name}`;
+}
+
+function recordCompleteness(record: WpsWorkerInput) {
+  return [
+    record.name,
+    record.gender,
+    record.idCard,
+    record.phone,
+    record.bankCard,
+    record.entryDate,
+    record.workType,
+    record.teamName,
+    record.status,
+  ].filter((value) => value && String(value).trim()).length;
+}
+
+function mergeWpsWorkerRecord(base: WpsWorkerInput, incoming: WpsWorkerInput): WpsWorkerInput {
+  const merged = { ...base };
+  (Object.keys(incoming) as Array<keyof WpsWorkerInput>).forEach((key) => {
+    const current = merged[key];
+    const next = incoming[key];
+    if ((!current || !String(current).trim()) && next && String(next).trim()) {
+      merged[key] = next;
+    }
+  });
+  return merged;
+}
+
+function dedupeWpsWorkerRecords(records: WpsWorkerInput[]): { records: WpsWorkerInput[]; duplicateResults: WpsWorkerSyncResult[] } {
+  const byKey = new Map<string, WpsWorkerInput>();
+  const duplicateResults: WpsWorkerSyncResult[] = [];
+
+  records.forEach((record) => {
+    const key = buildBatchRecordKey(record);
+    if (!key) {
+      byKey.set(`row:${byKey.size}:${record.name || ''}`, record);
+      return;
+    }
+
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, record);
+      return;
+    }
+
+    const primary = recordCompleteness(record) > recordCompleteness(existing) ? record : existing;
+    const secondary = primary === record ? existing : record;
+    byKey.set(key, mergeWpsWorkerRecord(primary, secondary));
+    duplicateResults.push({
+      success: false,
+      action: 'skipped',
+      status: 'warning',
+      message: '本次 WPS 读取中与前面记录重复，已合并到同一名工人处理',
+      workerName: record.name || existing.name || undefined,
+      projectName: record.projectName || existing.projectName || record.worksheetName || existing.worksheetName || undefined,
+      duplicateSkipped: true,
+    });
+  });
+
+  return {
+    records: Array.from(byKey.values()),
+    duplicateResults,
+  };
+}
+
 async function fetchDocumentRows(binding: BindingRow): Promise<{ rows: Record<string, unknown>[]; worksheetName?: string }> {
   const url = binding.wps_document_url;
   if (!isHttpUrl(url)) {
@@ -198,6 +299,9 @@ function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.len
   const skipped = results.filter((item) => item.action === 'skipped').length;
   const failed = results.filter((item) => item.status === 'error').length;
   const warnings = results.filter((item) => item.status === 'warning').length;
+  const duplicateSkipped = results.filter((item) => item.duplicateSkipped).length;
+  const autoFilledFields = results.reduce((sum, item) => sum + (item.filledFields?.length || 0), 0);
+  const conflictFields = results.reduce((sum, item) => sum + (item.conflictFields?.length || 0), 0);
   const changed = created + updated + transferred;
   return {
     total: results.length,
@@ -208,13 +312,21 @@ function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.len
     skipped,
     failed,
     warnings,
+    duplicateSkipped,
+    autoFilledFields,
+    conflictFields,
     changed,
     succeeded: results.filter((item) => item.success).length,
   };
 }
 
 function buildSummaryMessage(summary: ReturnType<typeof summarizeResults>) {
-  return `读取 ${summary.readRows} 行，识别 ${summary.total} 条，新增 ${summary.created} 条，更新 ${summary.updated} 条，调入 ${summary.transferred} 条，跳过 ${summary.skipped} 条，失败 ${summary.failed} 条，有效变更 ${summary.changed} 条`;
+  const extra = [
+    summary.autoFilledFields > 0 ? `自动补齐 ${summary.autoFilledFields} 项` : null,
+    summary.conflictFields > 0 ? `字段差异 ${summary.conflictFields} 项` : null,
+    summary.duplicateSkipped > 0 ? `批次重复 ${summary.duplicateSkipped} 条` : null,
+  ].filter(Boolean).join('，');
+  return `读取 ${summary.readRows} 行，识别 ${summary.total} 条，新增 ${summary.created} 条，更新 ${summary.updated} 条，调入 ${summary.transferred} 条，跳过 ${summary.skipped} 条，失败 ${summary.failed} 条，有效变更 ${summary.changed} 条${extra ? `，${extra}` : ''}`;
 }
 
 function maskIdCard(value?: string | null) {
@@ -344,8 +456,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (manualRecords.length > 0) {
-      const results = [];
-      for (const record of manualRecords) {
+      const { records, duplicateResults } = dedupeWpsWorkerRecords(manualRecords);
+      const results = [...duplicateResults];
+      for (const record of records) {
         results.push(await syncWpsWorkerRecord(client, record));
       }
       return NextResponse.json({
@@ -417,8 +530,9 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const records = buildRecordsFromRows(binding, rows, worksheetName);
-        const results = [];
+        const rawRecords = buildRecordsFromRows(binding, rows, worksheetName);
+        const { records, duplicateResults } = dedupeWpsWorkerRecords(rawRecords);
+        const results = [...duplicateResults];
         for (const record of records) {
           results.push(await syncWpsWorkerRecord(client, record));
         }

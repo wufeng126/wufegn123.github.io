@@ -54,6 +54,9 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
   const skipped = numberOf('skipped');
   const failed = numberOf('failed');
   const changed = numberOf('changed') || created + updated + transferred;
+  const autoFilledFields = numberOf('autoFilledFields');
+  const conflictFields = numberOf('conflictFields');
+  const duplicateSkipped = numberOf('duplicateSkipped');
   const bindingCount = numberOf('bindings') || bindingResults?.length || 0;
   const parts = [
     readRows > 0 ? `读取 ${readRows} 行` : null,
@@ -64,6 +67,9 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
     `跳过 ${skipped} 条`,
     `失败 ${failed} 条`,
     `有效变更 ${changed} 条`,
+    autoFilledFields > 0 ? `自动补齐 ${autoFilledFields} 项` : null,
+    conflictFields > 0 ? `字段差异 ${conflictFields} 项` : null,
+    duplicateSkipped > 0 ? `批次重复 ${duplicateSkipped} 条` : null,
     bindingCount > 0 ? `涉及 ${bindingCount} 个项目` : null,
   ].filter(Boolean);
   return parts.join('，');

@@ -3,6 +3,7 @@ import { insertWithSequenceFix } from '@/lib/audit-log';
 
 type SyncAction = 'created' | 'updated' | 'transferred' | 'skipped' | 'error';
 type SyncStatus = 'success' | 'warning' | 'error';
+type FieldSyncDetailType = 'filled' | 'conflict' | 'kept';
 
 export interface WpsWorkerInput {
   wpsFormId?: string | null;
@@ -31,6 +32,18 @@ export interface WpsWorkerSyncResult {
   workerName?: string;
   projectId?: number;
   projectName?: string;
+  filledFields?: string[];
+  conflictFields?: string[];
+  duplicateSkipped?: boolean;
+  details?: WpsWorkerFieldSyncDetail[];
+}
+
+export interface WpsWorkerFieldSyncDetail {
+  field: string;
+  label: string;
+  before: string | null;
+  after: string | null;
+  type: FieldSyncDetailType;
 }
 
 const FIELD_ALIASES: Record<keyof WpsWorkerInput, string[]> = {
@@ -52,6 +65,19 @@ const FIELD_ALIASES: Record<keyof WpsWorkerInput, string[]> = {
 };
 
 const ATTACHMENT_KEYWORDS = ['照片', '图片', '附件', '影像', '扫描件', 'photo', 'image', 'file', 'attachment', 'upload'];
+
+const WORKER_FIELD_LABELS: Record<string, string> = {
+  name: '姓名',
+  work_type: '工种',
+  gender: '性别',
+  age: '年龄',
+  id_card: '身份证号',
+  phone: '联系方式',
+  bank_card: '银行卡号',
+  entry_date: '入场日期',
+  team_name: '班组',
+  status: '人员状态',
+};
 
 function normalizeText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -261,6 +287,52 @@ function stripNullish<T extends Record<string, unknown>>(data: T): T {
   ) as T;
 }
 
+function isBlankValue(value: unknown) {
+  return value === null || value === undefined || String(value).trim() === '';
+}
+
+function normalizeComparableValue(field: string, value: unknown) {
+  if (isBlankValue(value)) return '';
+  const text = String(value).trim();
+  if (field === 'id_card') return sanitizeIdCard(text) || '';
+  if (field === 'entry_date') return normalizeDate(text) || text;
+  if (field === 'status') return normalizeWorkerStatus(text);
+  return text.replace(/\s+/g, '');
+}
+
+function maskDetailValue(field: string, value: unknown): string | null {
+  if (isBlankValue(value)) return null;
+  const text = String(value).trim();
+  if (field === 'id_card') {
+    if (text.length < 8) return text.replace(/.(?=.{2})/g, '*');
+    return `${text.slice(0, 3)}***********${text.slice(-4)}`;
+  }
+  if (field === 'phone') {
+    if (text.length < 7) return text;
+    return `${text.slice(0, 3)}****${text.slice(-4)}`;
+  }
+  if (field === 'bank_card') {
+    if (text.length < 8) return text.replace(/.(?=.{4})/g, '*');
+    return `${text.slice(0, 4)} **** **** ${text.slice(-4)}`;
+  }
+  return text;
+}
+
+function buildFieldDetail(
+  field: string,
+  before: unknown,
+  after: unknown,
+  type: FieldSyncDetailType
+): WpsWorkerFieldSyncDetail {
+  return {
+    field,
+    label: WORKER_FIELD_LABELS[field] || field,
+    before: maskDetailValue(field, before),
+    after: maskDetailValue(field, after),
+    type,
+  };
+}
+
 function buildWorkerData(input: WpsWorkerInput, projectId: number, existingEntryDate?: string | null) {
   const idCard = sanitizeIdCard(input.idCard);
   const age = calculateAge(idCard);
@@ -296,39 +368,51 @@ type ExistingWorkerRow = {
   status?: string | null;
 };
 
-/**
- * 补全优先（v2）：已在册工人信息不全时用花名册补全；
- * 本地已有值则保留本地（防止花名册错误值覆盖正确数据）。
- */
-function preferExisting(inputValue?: string | null, existingValue?: string | number | null) {
-  const existing = existingValue !== null && existingValue !== undefined ? String(existingValue).trim() : '';
-  if (existing) return existingValue; // 本地已有 → 保留
-  const input = inputValue?.trim();
-  return input || null; // 本地缺失 → 用花名册补全
-}
-
 function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existing: ExistingWorkerRow) {
   const idCard = sanitizeIdCard(input.idCard);
   const age = calculateAge(idCard);
   const entryDate = normalizeDate(input.entryDate);
+  const details: WpsWorkerFieldSyncDetail[] = [];
 
-  return stripNullish({
+  const choose = (field: string, inputValue: string | number | null | undefined, existingValue: string | number | null | undefined) => {
+    const value = isBlankValue(existingValue)
+      ? (isBlankValue(inputValue) ? null : inputValue)
+      : existingValue;
+    if (isBlankValue(existingValue) && !isBlankValue(inputValue)) {
+      details.push(buildFieldDetail(field, existingValue, inputValue, 'filled'));
+    } else if (!isBlankValue(existingValue) && !isBlankValue(inputValue)) {
+      const before = normalizeComparableValue(field, existingValue);
+      const after = normalizeComparableValue(field, inputValue);
+      if (before && after && before !== after) {
+        details.push(buildFieldDetail(field, existingValue, inputValue, 'conflict'));
+      }
+    }
+    return value;
+  };
+
+  const normalizedStatus = input.status ? normalizeWorkerStatus(input.status, 'in_service') : null;
+  const data = stripNullish({
     // 信息补全策略：本地缺失才用花名册补全，本地已有则保留（避免花名册缺/错值覆盖）
-    name: preferExisting(input.name, existing.name),
-    work_type: preferExisting(input.workType, existing.work_type),
-    gender: preferExisting(input.gender, existing.gender),
-    age: age ?? existing.age ?? null,
-    id_card: existing.id_card || idCard || null,
-    phone: preferExisting(input.phone, existing.phone),
-    bank_card: preferExisting(input.bankCard, existing.bank_card),
+    name: choose('name', input.name, existing.name),
+    work_type: choose('work_type', input.workType, existing.work_type),
+    gender: choose('gender', input.gender, existing.gender),
+    age: choose('age', age, existing.age),
+    id_card: choose('id_card', idCard, existing.id_card),
+    phone: choose('phone', input.phone, existing.phone),
+    bank_card: choose('bank_card', input.bankCard, existing.bank_card),
     project_id: projectId,
-    entry_date: existing.entry_date || entryDate || null,
-    team_name: preferExisting(input.teamName, existing.team_name),
+    entry_date: choose('entry_date', entryDate, existing.entry_date),
+    team_name: choose('team_name', input.teamName, existing.team_name),
     // 状态补全原则：本地已有状态则保留（花名册状态可能过期/错误），本地缺失时才用花名册
-    status: existing.status
-      ? existing.status
-      : normalizeWorkerStatus(input.status, 'in_service'),
+    status: choose('status', normalizedStatus, existing.status || null) || 'in_service',
   });
+
+  return {
+    data,
+    details,
+    filledFields: details.filter((item) => item.type === 'filled').map((item) => item.label),
+    conflictFields: details.filter((item) => item.type === 'conflict').map((item) => item.label),
+  };
 }
 
 function sanitizeLogFields(input: WpsWorkerInput): Record<string, unknown> {
@@ -358,7 +442,17 @@ async function writeSyncLog(
       action: result.action,
       status: result.status,
       message: result.message,
-      sanitized_fields: sanitizeLogFields(input),
+      sanitized_fields: {
+        ...sanitizeLogFields(input),
+        syncDetails: result.details && result.details.length > 0
+          ? {
+              filledFields: result.filledFields || [],
+              conflictFields: result.conflictFields || [],
+              details: result.details,
+            }
+          : null,
+        duplicateSkipped: result.duplicateSkipped || false,
+      },
     });
   } catch (error) {
     console.warn('[WPS Worker Sync] Failed to write sync log:', error);
@@ -462,9 +556,11 @@ async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInpu
  * 匹配策略（按优先级）：
  * 1. 项目内 + 身份证号       —— 同项目同名同证，直接命中（更新，不重复创建）
  * 2. 项目内 + 姓名 + 电话     —— 同项目同人
- * 3. 项目内 + 纯姓名          —— 系统花名册只有姓名时，命中后由 buildWorkerUpdateData 自动补齐身份证/电话
- * 4. 跨项目 + 身份证号       —— 调岗场景（同一人换项目）
- * 5. 跨项目 + 姓名 + 电话     —— 调岗场景
+ * 3. 项目内 + 姓名 + 银行卡   —— 电话缺失时继续用稳定字段识别
+ * 4. 项目内 + 纯姓名          —— 系统花名册只有姓名时，命中后由 buildWorkerUpdateData 自动补齐身份证/电话
+ * 5. 跨项目 + 身份证号       —— 调岗场景（同一人换项目）
+ * 6. 跨项目 + 姓名 + 电话     —— 调岗场景
+ * 7. 跨项目 + 姓名 + 银行卡   —— 调岗场景
  *
  * 注意：不做"跨项目纯姓名匹配"，避免同名不同人被错误合并。
  */
@@ -472,6 +568,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput,
   const idCard = sanitizeIdCard(input.idCard);
   const name = input.name?.trim();
   const phone = input.phone?.trim();
+  const bankCard = input.bankCard?.trim();
   const selectFields = 'id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status';
 
   // 1. 项目内 + 身份证号
@@ -499,7 +596,20 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput,
     if (data) return data as ExistingWorkerRow;
   }
 
-  // 3. 项目内 + 纯姓名（系统花名册只有姓名时，命中后补齐身份证/电话）
+  // 3. 项目内 + 姓名 + 银行卡
+  if (name && bankCard && projectId) {
+    const { data } = await client
+      .from('workers')
+      .select(selectFields)
+      .eq('project_id', projectId)
+      .eq('name', name)
+      .eq('bank_card', bankCard)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ExistingWorkerRow;
+  }
+
+  // 4. 项目内 + 纯姓名（系统花名册只有姓名时，命中后补齐身份证/电话）
   if (name && projectId) {
     const { data } = await client
       .from('workers')
@@ -511,7 +621,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput,
     if (data) return data as ExistingWorkerRow;
   }
 
-  // 4. 跨项目 + 身份证号（调岗）
+  // 5. 跨项目 + 身份证号（调岗）
   if (isValidChineseIdCard(idCard)) {
     const { data } = await client
       .from('workers')
@@ -522,13 +632,25 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput,
     if (data) return data as ExistingWorkerRow;
   }
 
-  // 5. 跨项目 + 姓名 + 电话（调岗）
+  // 6. 跨项目 + 姓名 + 电话（调岗）
   if (name && phone) {
     const { data } = await client
       .from('workers')
       .select(selectFields)
       .eq('name', name)
       .eq('phone', phone)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ExistingWorkerRow;
+  }
+
+  // 7. 跨项目 + 姓名 + 银行卡（调岗）
+  if (name && bankCard) {
+    const { data } = await client
+      .from('workers')
+      .select(selectFields)
+      .eq('name', name)
+      .eq('bank_card', bankCard)
       .limit(1)
       .maybeSingle();
     if (data) return data as ExistingWorkerRow;
@@ -647,7 +769,7 @@ export async function syncWpsWorkerRecord(
       return result;
     }
 
-    const updateData = buildWorkerUpdateData(input, project.id, existing as ExistingWorkerRow);
+    const updatePayload = buildWorkerUpdateData(input, project.id, existing as ExistingWorkerRow);
     const isTransfer = existing.project_id && existing.project_id !== project.id;
 
     if (isTransfer) {
@@ -658,19 +780,29 @@ export async function syncWpsWorkerRecord(
 
     const { error: updateError } = await client
       .from('workers')
-      .update(updateData)
+      .update(updatePayload.data)
       .eq('id', existing.id);
     if (updateError) throw updateError;
+
+    const filledText = updatePayload.filledFields.length > 0
+      ? `，自动补齐：${updatePayload.filledFields.join('、')}`
+      : '';
+    const conflictText = updatePayload.conflictFields.length > 0
+      ? `；发现字段差异：${updatePayload.conflictFields.join('、')}，已保留系统原值`
+      : '';
 
     result = {
       success: true,
       action: isTransfer ? 'transferred' : 'updated',
       status: 'success',
-      message: isTransfer ? '已更新档案并调入当前项目' : '已更新同项目工人档案',
+      message: `${isTransfer ? '已更新档案并调入当前项目' : '已更新同项目工人档案'}${filledText}${conflictText}`,
       workerId: existing.id,
       workerName: input.name.trim(),
       projectId: project.id,
       projectName: project.name,
+      filledFields: updatePayload.filledFields,
+      conflictFields: updatePayload.conflictFields,
+      details: updatePayload.details,
     };
     return result;
   } catch (error) {
