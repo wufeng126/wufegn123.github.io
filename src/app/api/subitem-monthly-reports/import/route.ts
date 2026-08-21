@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
+import { insertWithSequenceFix } from '@/lib/audit-log';
 import * as XLSX from 'xlsx';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
+function parsePositiveId(value: string | null): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 // GET: Download import template (xlsx format, pre-filled with subitem names)
 export async function GET(request: NextRequest) {
@@ -13,10 +19,14 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('project_id');
+    const projectId = parsePositiveId(searchParams.get('project_id'));
 
     if (!projectId) {
       return NextResponse.json({ error: '请选择项目' }, { status: 400 });
+    }
+    const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
+    if (accessibleProjects && !accessibleProjects.includes(projectId)) {
+      return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
     }
 
     // Fetch subitems for the project from work_item_subitems table
@@ -81,16 +91,14 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || '';
 
     let file: File | null = null;
-    let projectId = '';
+    let rawProjectId = '';
     let yearMonth: string | null = '';
-    let reportType = '对上报量';
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       file = formData.get('file') as File;
-      projectId = (formData.get('project_id') as string) || '';
+      rawProjectId = (formData.get('project_id') as string) || '';
       yearMonth = (formData.get('year_month') as string) || '';
-      reportType = (formData.get('report_type') as string) || '对上报量';
     } else {
       return NextResponse.json({ error: '请使用文件上传方式导入' }, { status: 400 });
     }
@@ -99,11 +107,19 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
     }
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件不能超过 10MB' }, { status: 400 });
+    }
+    const projectId = parsePositiveId(rawProjectId);
     if (!projectId) {
       return NextResponse.json({ error: '请选择项目' }, { status: 400 });
     }
     if (!yearMonth) {
       return NextResponse.json({ error: '请选择年月' }, { status: 400 });
+    }
+    const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
+    if (accessibleProjects && !accessibleProjects.includes(projectId)) {
+      return NextResponse.json({ error: '当前账号无权导入该项目' }, { status: 403 });
     }
 
     // Normalize year_month format
@@ -193,6 +209,9 @@ export async function POST(request: NextRequest) {
 
     if (subitemError) {
       return NextResponse.json({ error: '查询分项工程失败' }, { status: 500 });
+    }
+    if (!subitems || subitems.length === 0) {
+      return NextResponse.json({ error: '当前项目未维护分项工程，无法导入月度报量' }, { status: 400 });
     }
 
     // Build name-to-id map
@@ -367,8 +386,8 @@ function normalizeYearMonth(value: string): string | null {
   const numVal = parseFloat(value);
   if (!isNaN(numVal) && numVal > 30000 && numVal < 100000) {
     const date = new Date((numVal - 25569) * 86400 * 1000);
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
     if (y > 2000 && y < 2100) return `${y}-${m}`;
   }
 

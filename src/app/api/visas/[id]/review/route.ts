@@ -3,6 +3,11 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getUserDisplayName, notifyVisaWorkflow } from '@/lib/visa-workflow';
 
+function parsePositiveId(value: unknown): number | null {
+  const id = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 // 审核签证（通过或驳回）
 export async function POST(
   request: NextRequest,
@@ -13,6 +18,11 @@ export async function POST(
     if (!auth.ok) return auth.response;
 
     const { id } = await params;
+    const visaId = parsePositiveId(id);
+    if (!visaId) {
+      return NextResponse.json({ error: '签证ID格式不正确' }, { status: 400 });
+    }
+
     const body = await request.json();
     const client = getSupabaseClient();
 
@@ -22,7 +32,7 @@ export async function POST(
     const { data: visa, error: visaError } = await client
       .from('visas')
       .select('*')
-      .eq('id', parseInt(id))
+      .eq('id', visaId)
       .single();
 
     if (visaError || !visa) {
@@ -89,7 +99,7 @@ export async function POST(
     const { data, error } = await client
       .from('visas')
       .update(updateData)
-      .eq('id', parseInt(id))
+      .eq('id', visaId)
       .select()
       .single();
 
@@ -103,7 +113,7 @@ export async function POST(
         title: '签证待预算员确认',
         content: `签证 ${visa.visa_number} 已完成甲方商务确认，请确认是否已计入结算。`,
         projectId: visa.project_id,
-        visaId: Number(id),
+        visaId,
         recipientUserId: visa.budget_user_id,
         metadata: {
           visaNumber: visa.visa_number,

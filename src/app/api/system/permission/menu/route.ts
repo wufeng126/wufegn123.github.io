@@ -1,6 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { getCurrentUser } from '@/lib/auth';
+import { requirePermission, requireSuperAdmin } from '@/lib/api-auth';
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '权限菜单处理失败';
+}
+
+type PermissionCodeRow = { code: string };
+type PermissionRecord = {
+  name: string;
+  code: string;
+  resource: string;
+  action: string;
+  category: string;
+  description: string;
+};
+type PermissionIdRow = { id: number; code: string };
+type RolePermissionRow = { permission_id: number };
 
 // 定义完整的权限菜单结构（与前端 PERMISSION_MENU 保持一致，按6大模块分组）
 const PERMISSION_MENU_STRUCTURE = [
@@ -210,14 +226,17 @@ const PERMISSION_MENU_STRUCTURE = [
 ];
 
 // GET: 获取所有权限菜单结构（自动同步缺失的权限到数据库）
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
+
     console.log('[Permission Menu] Fetching permission menu structure...');
     const supabase = getSupabaseClient();
 
     // 1. 收集 PERMISSION_MENU_STRUCTURE 中所有权限码
     const allCodes: string[] = [];
-    const flatPerms: { name: string; code: string; resource: string; action: string; category: string; description: string }[] = [];
+    const flatPerms: PermissionRecord[] = [];
     for (const menuModule of PERMISSION_MENU_STRUCTURE) {
       for (const child of menuModule.children) {
         allCodes.push(child.code);
@@ -241,7 +260,7 @@ export async function GET() {
       .select('code')
       .in('code', allCodes);
 
-    const existingCodes = new Set((existingPerms || []).map((p: any) => p.code));
+    const existingCodes = new Set(((existingPerms || []) as PermissionCodeRow[]).map(p => p.code));
 
     // 3. 插入缺失的权限（使用 upsert 避免唯一约束冲突）
     const missingPerms = flatPerms.filter(p => !existingCodes.has(p.code));
@@ -262,28 +281,20 @@ export async function GET() {
       source: 'default',
       synced: missingPerms.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Permission Menu] Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || '获取权限菜单失败' },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 }
     );
   }
 }
 
 // POST: 同步权限数据（增量插入缺失的权限，不删除已有数据）
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    // 只有超级管理员可以同步权限
-    if (user.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
     
     console.log('[Permission Sync] Syncing permission data...');
     
@@ -291,10 +302,10 @@ export async function POST() {
     
     // 1. 获取现有权限codes
     const { data: existing } = await supabase.from('permissions').select('code');
-    const existingCodes = new Set((existing || []).map((p: any) => p.code));
+    const existingCodes = new Set(((existing || []) as PermissionCodeRow[]).map(p => p.code));
     
     // 2. 构建所有权限记录
-    const permissionRecords: any[] = [];
+    const permissionRecords: PermissionRecord[] = [];
     for (const menuModule of PERMISSION_MENU_STRUCTURE) {
       for (const child of menuModule.children) {
         if (!existingCodes.has(child.code)) {
@@ -338,10 +349,10 @@ export async function POST() {
         .select('permission_id')
         .eq('role_id', existingRole.id);
       
-      const existingPermIds = new Set((existingRolePerms || []).map((rp: any) => rp.permission_id));
-      const newRolePerms = (allPerms || [])
-        .filter((p: any) => !existingPermIds.has(p.id))
-        .map((p: any) => ({ role_id: existingRole.id, permission_id: p.id }));
+      const existingPermIds = new Set(((existingRolePerms || []) as RolePermissionRow[]).map(rp => rp.permission_id));
+      const newRolePerms = ((allPerms || []) as PermissionIdRow[])
+        .filter(p => !existingPermIds.has(p.id))
+        .map(p => ({ role_id: existingRole.id, permission_id: p.id }));
       
       if (newRolePerms.length > 0) {
         await supabase.from('role_permissions').insert(newRolePerms);
@@ -355,26 +366,8 @@ export async function POST() {
       message: `权限数据同步成功，新增 ${insertedCount} 个权限项`,
       count: insertedCount
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Permission Sync] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
-}
-
-// 获取模块名称
-function getModuleName(code: string): string {
-  const names: Record<string, string> = {
-    projects: '项目中心',
-    work_items: '报量管理',
-    visas: '签证管理',
-    evidence_chain: '结算证据链',
-    workers: '人力与证件',
-    salaries: '工资管理',
-    supply: '供应与成本管理',
-    funds: '资金管理',
-    data: '数据与决策',
-    system: '系统配置',
-    permission: '权限管理中心',
-  };
-  return names[code] || code;
 }

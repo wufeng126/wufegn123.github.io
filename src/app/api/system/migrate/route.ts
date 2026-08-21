@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
-import { apiForbidden } from '@/lib/api-utils';
+import { requireSuperAdmin } from '@/lib/api-auth';
 import { getMigrationManualUrl, MIGRATION_SQL, runMigrations } from '@/lib/db-migration';
 
 export const dynamic = 'force-dynamic';
@@ -16,9 +15,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request);
+  const auth = await requireSuperAdmin(request);
   if (!auth.ok) return auth.response;
-  if (!auth.user.is_super_admin) return apiForbidden('只有超级管理员可以执行数据库迁移');
 
   const result = await runMigrations();
   return NextResponse.json({

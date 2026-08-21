@@ -19,6 +19,13 @@ const EXPORT_HEADERS: Record<string, string> = {
   remark: '备注',
 };
 
+type SupplierRelation = { name?: string | null; type?: string | null } | { name?: string | null; type?: string | null }[] | null;
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
+function getFirstRelation<T>(relation: T | T[] | null | undefined): T | null {
+  return Array.isArray(relation) ? relation[0] ?? null : relation ?? null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -51,10 +58,17 @@ export async function GET(request: NextRequest) {
       .order('settlement_date', { ascending: false });
 
     if (supplierId) {
-      query = query.eq('supplier_id', parseInt(supplierId));
+      const sid = Number(supplierId);
+      if (!Number.isInteger(sid)) {
+        return NextResponse.json({ error: '供应商参数不正确' }, { status: 400 });
+      }
+      query = query.eq('supplier_id', sid);
     }
-    if (projectId) {
-      const pid = parseInt(projectId);
+    if (projectId && projectId !== 'all') {
+      const pid = Number(projectId);
+      if (!Number.isInteger(pid)) {
+        return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+      }
       if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
         return NextResponse.json({ error: '无权导出此项目' }, { status: 403 });
       }
@@ -74,8 +88,8 @@ export async function GET(request: NextRequest) {
 
     // 格式化导出数据
     const exportData = (data || []).map((item: {
-      supplier?: { name?: string | null; type?: string | null } | null;
-      project?: { name?: string | null } | null;
+      supplier?: SupplierRelation;
+      project?: ProjectRelation;
       settlement_type?: string | null;
       settlement_content?: string | null;
       settlement_quantity?: string | number | null;
@@ -84,19 +98,24 @@ export async function GET(request: NextRequest) {
       settlement_month?: string | null;
       settlement_date?: string | null;
       remark?: string | null;
-    }) => ({
-      supplier_name: item.supplier?.name || '',
-      supplier_type: item.supplier?.type || '',
-      project_name: item.project?.name || '',
-      settlement_type: item.settlement_type || '',
-      settlement_content: item.settlement_content || '',
-      settlement_quantity: item.settlement_quantity || '',
-      settlement_unit: item.settlement_unit || '',
-      settlement_amount: item.settlement_amount || '0',
-      settlement_month: item.settlement_month || '',
-      settlement_date: item.settlement_date || '',
-      remark: item.remark || '',
-    }));
+    }) => {
+      const supplier = getFirstRelation(item.supplier);
+      const project = getFirstRelation(item.project);
+
+      return {
+        supplier_name: supplier?.name || '',
+        supplier_type: supplier?.type || '',
+        project_name: project?.name || '',
+        settlement_type: item.settlement_type || '',
+        settlement_content: item.settlement_content || '',
+        settlement_quantity: item.settlement_quantity || '',
+        settlement_unit: item.settlement_unit || '',
+        settlement_amount: item.settlement_amount || '0',
+        settlement_month: item.settlement_month || '',
+        settlement_date: item.settlement_date || '',
+        remark: item.remark || '',
+      };
+    });
 
     const buffer = exportToExcel(exportData, EXPORT_HEADERS, '供应商结算');
     

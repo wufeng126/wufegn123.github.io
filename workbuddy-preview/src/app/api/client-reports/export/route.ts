@@ -15,6 +15,13 @@ const EXPORT_HEADERS: Record<string, string> = {
   remark: '备注',
 };
 
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
+function getRelationName(relation: ProjectRelation | undefined): string {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return project?.name || '';
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -45,7 +52,10 @@ export async function GET(request: NextRequest) {
       .order('report_date', { ascending: false });
 
     if (projectId && projectId !== 'all') {
-      const pid = parseInt(projectId);
+      const pid = Number(projectId);
+      if (!Number.isInteger(pid)) {
+        return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+      }
       if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
         return NextResponse.json({ error: '当前账号没有权限导出该项目数据' }, { status: 403 });
       }
@@ -74,7 +84,10 @@ export async function GET(request: NextRequest) {
           .order('report_date', { ascending: false });
 
         if (projectId && projectId !== 'all') {
-          const pid = parseInt(projectId);
+          const pid = Number(projectId);
+          if (!Number.isInteger(pid)) {
+            return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+          }
           if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
             return NextResponse.json({ error: '当前账号没有权限导出该项目数据' }, { status: 403 });
           }
@@ -87,12 +100,12 @@ export async function GET(request: NextRequest) {
         
         if (fallbackResult.data) {
           const formattedData = fallbackResult.data.map((item: {
-            projects?: { name?: string | null } | null;
+            projects?: ProjectRelation;
             report_amount?: string | number | null;
             report_date?: string | null;
             remark?: string | null;
           }) => ({
-            project_name: item.projects?.name || '',
+            project_name: getRelationName(item.projects),
             settlement_amount: item.report_amount || '0',
             invoice_amount: '0',
             deduction_amount: '0',
@@ -116,7 +129,7 @@ export async function GET(request: NextRequest) {
 
     // 格式化导出数据
     const exportData = (data || []).map((item: {
-      projects?: { name?: string | null } | null;
+      projects?: ProjectRelation;
       settlement_amount?: string | number | null;
       invoice_amount?: string | number | null;
       deduction_amount?: string | number | null;
@@ -124,7 +137,7 @@ export async function GET(request: NextRequest) {
       report_date?: string | null;
       remark?: string | null;
     }) => ({
-      project_name: item.projects?.name || '',
+      project_name: getRelationName(item.projects),
       settlement_amount: item.settlement_amount || '0',
       invoice_amount: item.invoice_amount || '0',
       deduction_amount: item.deduction_amount || '0',

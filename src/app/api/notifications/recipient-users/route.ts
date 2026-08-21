@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/api-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getUserDisplayName } from '@/lib/user-display-name';
 
@@ -16,7 +16,7 @@ type UserRow = {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'notifications:settings');
     if (!auth.ok) return auth.response;
 
     const supabase = getSupabaseClient();

@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
 import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireAuth } from '@/lib/api-auth';
-import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { requireAuth, requireSuperAdmin } from '@/lib/api-auth';
+import { apiBadRequest, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { auditLog } from '@/lib/audit-log';
 import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
 
@@ -100,9 +100,8 @@ export async function GET(request: NextRequest, { params }: ArchiveParams) {
 
 export async function POST(request: NextRequest, { params }: ArchiveParams) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
-    if (!auth.user.is_super_admin) return apiForbidden('只有超级管理员可以归档项目');
 
     const { id } = await params;
     const projectId = Number(id);

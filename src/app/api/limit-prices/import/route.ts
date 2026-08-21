@@ -3,8 +3,23 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 type UserPayload = RequestAuthUser;
+
+type LimitPriceImportRecord = {
+  project_id: number;
+  subitem_name: string;
+  unit: string;
+  limit_unit_price: number;
+  plan_quantity: number;
+  work_type: string | null;
+  team_name: string | null;
+  remark: string | null;
+  status: string;
+  created_by: number;
+  created_by_name: string;
+};
 
 async function getAuthUser(request: NextRequest): Promise<UserPayload | null> {
   return getRequestAuthUser(request);
@@ -23,11 +38,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '未授权' }, { status: 401 });
   }
   
-  // 权限检查：所有登录用户都可导入
-  // if (!user.is_super_admin && user.role !== '公司管理员' && user.role !== '商务') {
-  //   return NextResponse.json({ error: '无权限导入' }, { status: 403 });
-  // }
-  
   try {
     const operatorName = getUserDisplayName(user);
     const formData = await request.formData();
@@ -35,6 +45,15 @@ export async function POST(request: NextRequest) {
     
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，请上传 10MB 以内的文件' }, { status: 400 });
+    }
+
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.csv')) {
+      return NextResponse.json({ error: '请上传 CSV 文件' }, { status: 400 });
     }
     
     const text = await file.text();
@@ -69,14 +88,18 @@ export async function POST(request: NextRequest) {
     const { data: projects } = await supabase
       .from('projects')
       .select('id, name');
+
+    const accessibleProjects = await getAccessibleProjectIds(supabase, user);
     
     const projectMap: Record<string, number> = {};
     (projects || []).forEach((p: { id: number; name: string }) => {
-      projectMap[p.name] = p.id;
+      if (!accessibleProjects || accessibleProjects.includes(p.id)) {
+        projectMap[p.name] = p.id;
+      }
     });
     
     const errors: string[] = [];
-    const successData: any[] = [];
+    const successData: LimitPriceImportRecord[] = [];
     let successCount = 0;
     
     // 跳过标题行
@@ -127,7 +150,7 @@ export async function POST(request: NextRequest) {
       
       const projectId = projectMap[projectName];
       if (!projectId) {
-        errors.push(`第${i + 1}行: 项目"${projectName}"不存在`);
+        errors.push(`第${i + 1}行: 项目"${projectName}"不存在或无权限导入`);
         continue;
       }
       
@@ -170,7 +193,8 @@ export async function POST(request: NextRequest) {
       errors: errors.slice(0, 20) // 最多返回20条错误
     });
     
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '导入失败';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

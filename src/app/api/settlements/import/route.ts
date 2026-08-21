@@ -43,6 +43,29 @@ interface ImportRow {
   remark?: string;
 }
 
+type SupplierRow = {
+  id: number;
+  name: string;
+};
+
+type ProjectRow = {
+  id: number;
+  name: string;
+};
+
+type SettlementImportRecord = {
+  supplier_id: number;
+  project_id: number | null;
+  settlement_type: string | null;
+  settlement_content: string | null;
+  settlement_quantity: number | null;
+  settlement_unit: string | null;
+  settlement_amount: number;
+  settlement_month: string;
+  settlement_date: string | null;
+  remark: string | null;
+};
+
 // 验证必填字段（返回中文错误信息）
 function validateRequiredFieldsCN(
   data: Record<string, unknown>[],
@@ -76,6 +99,9 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件不能超过 10MB' }, { status: 400 });
     }
 
     // 检查文件类型
@@ -137,21 +163,21 @@ export async function POST(request: NextRequest) {
 
     // 创建名称到 ID 的映射
     const supplierNameToId = new Map<string, number>();
-    suppliers?.forEach((s: any) => {
+    (suppliers as SupplierRow[] | null)?.forEach((s) => {
       supplierNameToId.set(s.name, s.id);
     });
 
     // 项目归属校验：非超管仅能导入其可访问项目的结算（防止越权写入其他项目）
     const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     const projectNameToId = new Map<string, number>();
-    (projects || []).forEach((p: any) => {
+    ((projects || []) as ProjectRow[]).forEach((p) => {
       if (!accessibleProjects || accessibleProjects.includes(p.id)) {
         projectNameToId.set(p.name, p.id);
       }
     });
 
     // 准备导入数据
-    const records: any[] = [];
+    const records: SettlementImportRecord[] = [];
     const errors: string[] = [];
 
     rows.forEach((row, index) => {
@@ -192,7 +218,11 @@ export async function POST(request: NextRequest) {
       }
 
       // 获取项目 ID（可选）
-      const projectId = row.project_name ? projectNameToId.get(row.project_name) : null;
+      const projectId = row.project_name ? projectNameToId.get(row.project_name) ?? null : null;
+      if (row.project_name && !projectId) {
+        errors.push(`第 ${index + 2} 行：项目「${row.project_name}」不存在或无权限导入`);
+        return;
+      }
 
       // 处理结算数量
       let settlementQuantity = null;
@@ -229,19 +259,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 幂等查重：同一供应商 + 项目 + 结算类型 + 金额 + 月份（+日期）视为重复，跳过（防止重复导入同一 Excel）
-    const dedupeKey = (r: any) =>
+    const dedupeKey = (r: SettlementImportRecord) =>
       `${r.supplier_id}|${r.project_id || ''}|${r.settlement_type || ''}|${Number(r.settlement_amount)}|${r.settlement_month}|${r.settlement_date || ''}`;
-    const months = Array.from(new Set(records.map((r: any) => r.settlement_month)));
+    const months = Array.from(new Set(records.map((r) => r.settlement_month)));
     const { data: existingRows } = await client
       .from('settlements')
       .select('supplier_id, project_id, settlement_type, settlement_amount, settlement_month, settlement_date')
       .in('settlement_month', months);
     const existingSet = new Set(
-      (existingRows || []).map((r: any) =>
+      ((existingRows || []) as Array<Pick<SettlementImportRecord, 'supplier_id' | 'project_id' | 'settlement_type' | 'settlement_amount' | 'settlement_month' | 'settlement_date'>>).map((r) =>
         `${r.supplier_id}|${r.project_id || ''}|${r.settlement_type || ''}|${Number(r.settlement_amount)}|${r.settlement_month}|${r.settlement_date || ''}`
       )
     );
-    const newRecords = records.filter((r: any) => !existingSet.has(dedupeKey(r)));
+    const newRecords = records.filter((r) => !existingSet.has(dedupeKey(r)));
     const skippedCount = records.length - newRecords.length;
 
     if (newRecords.length === 0) {
@@ -265,10 +295,10 @@ export async function POST(request: NextRequest) {
       message: skippedCount > 0 ? `导入 ${data?.length || newRecords.length} 条，跳过已存在的 ${skippedCount} 条` : undefined,
       settlements: data 
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Import Error:', error);
     return NextResponse.json(
-      { error: error.message || '导入失败' },
+      { error: error instanceof Error ? error.message : '导入失败' },
       { status: 500 }
     );
   }

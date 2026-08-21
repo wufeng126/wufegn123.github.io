@@ -17,9 +17,6 @@ const IMPORT_HEADER_MAP: Record<string, string> = {
   '备注': 'remark',
 };
 
-// 必填字段（中文名）
-const REQUIRED_FIELDS_CN = ['项目名称', '结算金额', '报量日期'];
-
 // 必填字段（数据库字段名）
 const REQUIRED_FIELDS_DB = ['project_name', 'settlement_amount', 'report_date'];
 
@@ -39,6 +36,29 @@ interface ImportRow {
   report_date: string;
   remark?: string;
 }
+
+type ProjectRow = {
+  id: number;
+  name: string;
+};
+
+type ClientReportImportRecord = {
+  project_id: number;
+  settlement_amount: string;
+  invoice_amount: string;
+  deduction_amount: string;
+  proportional_payment: string;
+  report_date: string;
+  remark: string;
+  status: string;
+};
+
+type ExistingClientReportRow = {
+  project_id: number;
+  report_date: string;
+  settlement_amount: number | string | null;
+  invoice_amount: number | string | null;
+};
 
 // 验证必填字段（返回中文错误信息）
 function validateRequiredFieldsCN(
@@ -63,6 +83,12 @@ function validateRequiredFieldsCN(
   };
 }
 
+function parseOptionalAmount(value: string | undefined): string {
+  if (!value) return '0';
+  const amount = parseFloat(value);
+  return Number.isFinite(amount) ? amount.toString() : '0';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiWritePermission(request);
@@ -73,6 +99,10 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，请上传 10MB 以内的文件' }, { status: 400 });
     }
 
     // 检查文件类型
@@ -125,27 +155,27 @@ export async function POST(request: NextRequest) {
 
     // 项目归属校验：非超管仅能导入其可访问项目的报量（防止越权写入其他项目）
     const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
-    let matchedProjects = projects || [];
+    let matchedProjects = (projects || []) as ProjectRow[];
     if (accessibleProjects) {
       const allowedIds = new Set(accessibleProjects);
-      matchedProjects = matchedProjects.filter((p: any) => allowedIds.has(p.id));
+      matchedProjects = matchedProjects.filter((p) => allowedIds.has(p.id));
     }
 
     // 创建项目名称到 ID 的映射（仅可访问项目）
     const projectNameToId = new Map<string, number>();
-    matchedProjects.forEach((p: any) => {
+    matchedProjects.forEach((p) => {
       projectNameToId.set(p.name, p.id);
     });
 
     // 准备导入数据
-    const records: any[] = [];
+    const records: ClientReportImportRecord[] = [];
     const errors: string[] = [];
 
     rows.forEach((row, index) => {
       const projectId = projectNameToId.get(row.project_name);
       
       if (!projectId) {
-        errors.push(`第 ${index + 2} 行：项目「${row.project_name}」不存在`);
+        errors.push(`第 ${index + 2} 行：项目「${row.project_name}」不存在或无权限导入`);
         return;
       }
 
@@ -166,9 +196,9 @@ export async function POST(request: NextRequest) {
       records.push({
         project_id: projectId,
         settlement_amount: settlementAmount.toString(),
-        invoice_amount: row.invoice_amount ? parseFloat(row.invoice_amount).toString() : '0',
-        deduction_amount: row.deduction_amount ? parseFloat(row.deduction_amount).toString() : '0',
-        proportional_payment: row.proportional_payment ? parseFloat(row.proportional_payment).toString() : '0',
+        invoice_amount: parseOptionalAmount(row.invoice_amount),
+        deduction_amount: parseOptionalAmount(row.deduction_amount),
+        proportional_payment: parseOptionalAmount(row.proportional_payment),
         report_date: reportDate,
         remark: row.remark || '',
         status: REVIEW_STATUS.DRAFT,
@@ -187,19 +217,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 幂等查重：同一项目 + 报量日期 + 结算金额（+开票金额）视为重复，跳过（防止重复导入同一 Excel）
-    const dedupeKey = (r: any) =>
+    const dedupeKey = (r: Pick<ClientReportImportRecord, 'project_id' | 'report_date' | 'settlement_amount' | 'invoice_amount'>) =>
       `${r.project_id}|${r.report_date}|${Number(r.settlement_amount)}|${Number(r.invoice_amount || 0)}`;
-    const dates = Array.from(new Set(records.map((r: any) => r.report_date)));
+    const dates = Array.from(new Set(records.map((r) => r.report_date)));
     const { data: existingRows } = await client
       .from('client_reports')
       .select('project_id, report_date, settlement_amount, invoice_amount')
       .in('report_date', dates);
     const existingSet = new Set(
-      (existingRows || []).map((r: any) =>
+      ((existingRows || []) as ExistingClientReportRow[]).map((r) =>
         `${r.project_id}|${r.report_date}|${Number(r.settlement_amount)}|${Number(r.invoice_amount || 0)}`
       )
     );
-    const newRecords = records.filter((r: any) => !existingSet.has(dedupeKey(r)));
+    const newRecords = records.filter((r) => !existingSet.has(dedupeKey(r)));
     const skippedCount = records.length - newRecords.length;
 
     if (newRecords.length === 0) {
@@ -247,10 +277,11 @@ export async function POST(request: NextRequest) {
       message: skippedCount > 0 ? `导入 ${data?.length || newRecords.length} 条，跳过已存在的 ${skippedCount} 条` : undefined,
       reports: data 
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Import Error:', error);
+    const message = error instanceof Error ? error.message : '导入失败';
     return NextResponse.json(
-      { error: error.message || '导入失败' },
+      { error: message },
       { status: 500 }
     );
   }

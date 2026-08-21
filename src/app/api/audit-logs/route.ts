@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { requireAnyPermission, requirePermission } from '@/lib/api-auth';
+
+function normalizePageParam(value: string | null, fallback: number, max: number) {
+  const parsed = Number(value || fallback);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
 
 // GET /api/audit-logs - 查询审计日志（分页、筛选）
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireAnyPermission(request, ['system:audit_logs', 'system:manage']);
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '20');
+    const page = normalizePageParam(searchParams.get('page'), 1, 100000);
+    const pageSize = normalizePageParam(searchParams.get('pageSize'), 20, 100);
     const operationType = searchParams.get('operation_type') || '';
     const resourceType = searchParams.get('resource_type') || '';
     const username = searchParams.get('username') || '';
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
 // DELETE /api/audit-logs - 清理审计日志（按日期范围）
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    const auth = await requirePermission(request, 'system:manage');
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);

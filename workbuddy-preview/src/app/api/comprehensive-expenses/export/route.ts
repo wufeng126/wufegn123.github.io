@@ -14,6 +14,13 @@ const EXPORT_HEADERS: Record<string, string> = {
   remark: '备注',
 };
 
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
+function getRelationName(relation: ProjectRelation | undefined): string {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return project?.name || '未关联项目';
+}
+
 // 获取综合费用导出数据
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +54,10 @@ export async function GET(request: NextRequest) {
 
     // 应用筛选条件
     if (projectId && projectId !== 'all') {
-      const pid = parseInt(projectId);
+      const pid = Number(projectId);
+      if (!Number.isInteger(pid)) {
+        return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+      }
       if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
         return NextResponse.json({ error: '无权导出此项目' }, { status: 403 });
       }
@@ -73,16 +83,16 @@ export async function GET(request: NextRequest) {
 
     // 格式化导出数据
     const exportData = (data || []).map((item: {
-      projects?: { name?: string | null } | null;
+      projects?: ProjectRelation;
       expense_type?: string | null;
       amount?: string | number | null;
       expense_date?: string | null;
       handler?: string | null;
       remark?: string | null;
     }) => ({
-      project_name: item.projects?.name || '未关联项目',
+      project_name: getRelationName(item.projects),
       expense_type: item.expense_type,
-      amount: parseFloat(item.amount || '0').toFixed(2),
+      amount: parseFloat(String(item.amount ?? '0')).toFixed(2),
       expense_date: item.expense_date,
       handler: item.handler || '',
       remark: item.remark || '',

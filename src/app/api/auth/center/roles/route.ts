@@ -1,8 +1,30 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { logSecurityEvent } from '@/lib/security-log';
-import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { requireAnyPermission } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+
+const ROLE_MANAGE_PERMISSIONS = ['system:permission_manage', 'roles:edit'];
+
+type RolePermissionRelation = {
+  permissions?: {
+    code?: string | null;
+  } | null;
+};
+
+type RoleWithPermissionCount = {
+  role_permissions?: { permission_id: number }[] | null;
+};
+
+type PermissionIdRow = {
+  id: number;
+  code?: string | null;
+};
+
+function normalizeRoleId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 // 获取单个角色详情（包含权限）
 export async function GET(request: NextRequest) {
@@ -10,7 +32,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     
-    const auth = await requireAuth(request);
+    const auth = await requireAnyPermission(request, ROLE_MANAGE_PERMISSIONS);
     if (!auth.ok) return auth.response;
     const currentUser = auth.user;
     
@@ -18,7 +40,10 @@ export async function GET(request: NextRequest) {
     
     // 如果有 ID，获取单个角色详情
     if (id) {
-      console.log('[roles] GET single role, id:', id);
+      const roleId = normalizeRoleId(id);
+      if (!roleId) return apiBadRequest('角色ID不正确');
+
+      console.log('[roles] GET single role, id:', roleId);
       
       const { data: role, error } = await supabase
         .from('roles')
@@ -31,7 +56,7 @@ export async function GET(request: NextRequest) {
             )
           )
         `)
-        .eq('id', parseInt(id))
+        .eq('id', roleId)
         .single();
       
       if (error) {
@@ -40,9 +65,9 @@ export async function GET(request: NextRequest) {
       }
       
       // 提取权限 code
-      const permissions = (role?.role_permissions || [])
-        .map((rp: any) => rp.permissions?.code)
-        .filter(Boolean);
+      const permissions = ((role?.role_permissions || []) as RolePermissionRelation[])
+        .map((rp) => rp.permissions?.code)
+        .filter((code): code is string => Boolean(code));
       
       const responseRole = {
           ...role,
@@ -75,7 +100,7 @@ export async function GET(request: NextRequest) {
     }
     
     // 处理权限数量
-    const rolesWithCount = (roles || []).map((role: any) => ({
+    const rolesWithCount = ((roles || []) as RoleWithPermissionCount[]).map((role) => ({
       ...role,
       permission_count: role.role_permissions?.length || 0,
       role_permissions: undefined
@@ -95,7 +120,7 @@ export async function GET(request: NextRequest) {
 // 创建/更新角色
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    const auth = await requireAnyPermission(request, ROLE_MANAGE_PERMISSIONS);
     if (!auth.ok) return auth.response;
     const currentUser = auth.user;
     
@@ -108,8 +133,11 @@ export async function POST(request: NextRequest) {
     
     // 更新权限
     if (action === 'update_permissions' && id) {
+      const roleId = normalizeRoleId(id);
+      if (!roleId) return apiBadRequest('角色ID不正确');
+
       // 先删除旧权限
-      await supabase.from('role_permissions').delete().eq('role_id', id);
+      await supabase.from('role_permissions').delete().eq('role_id', roleId);
       
       // 添加新权限
       if (permission_codes.length > 0) {
@@ -120,8 +148,8 @@ export async function POST(request: NextRequest) {
           .in('code', permission_codes);
         
         if (permissions && permissions.length > 0) {
-          const rolePermissions = permissions.map((p: any) => ({
-            role_id: id,
+          const rolePermissions = (permissions as PermissionIdRow[]).map((p) => ({
+            role_id: roleId,
             permission_id: p.id
           }));
           
@@ -133,7 +161,7 @@ export async function POST(request: NextRequest) {
       const { data: updatedRole } = await supabase
         .from('roles')
         .select(`*, role_permissions (permission_id)`)
-        .eq('id', id)
+        .eq('id', roleId)
         .single();
       
       // 记录安全日志
@@ -143,7 +171,7 @@ export async function POST(request: NextRequest) {
         ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
         user_agent: request.headers.get('user-agent') || 'unknown',
         result: 'success',
-        metadata: { target_role_id: id, permission_count: permission_codes.length },
+        metadata: { target_role_id: roleId, permission_count: permission_codes.length },
       });
       
       const responseRole = {
@@ -182,10 +210,13 @@ export async function POST(request: NextRequest) {
     
     // 更新角色
     if (action === 'update' && id) {
+      const roleId = normalizeRoleId(id);
+      if (!roleId) return apiBadRequest('角色ID不正确');
+
       const { data: updatedRole, error } = await supabase
         .from('roles')
         .update({ name, description, level })
-        .eq('id', id)
+        .eq('id', roleId)
         .select()
         .single();
       
@@ -199,13 +230,26 @@ export async function POST(request: NextRequest) {
     
     // 删除角色
     if (action === 'delete' && id) {
+      const roleId = normalizeRoleId(id);
+      if (!roleId) return apiBadRequest('角色ID不正确');
+
+      const { data: existingRole } = await supabase
+        .from('roles')
+        .select('code')
+        .eq('id', roleId)
+        .single();
+
+      if (existingRole?.code === 'super_admin') {
+        return apiBadRequest('超级管理员角色不能删除');
+      }
+
       // 先删除关联的权限
-      await supabase.from('role_permissions').delete().eq('role_id', id);
+      await supabase.from('role_permissions').delete().eq('role_id', roleId);
       
       const { error } = await supabase
         .from('roles')
         .delete()
-        .eq('id', id);
+        .eq('id', roleId);
       
       if (error) {
         console.error('[roles] Delete error:', error);
@@ -219,7 +263,7 @@ export async function POST(request: NextRequest) {
         ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
         user_agent: request.headers.get('user-agent') || 'unknown',
         result: 'success',
-        metadata: { target_role_id: id },
+        metadata: { target_role_id: roleId },
       });
       
       return apiSuccess(null);
@@ -235,22 +279,23 @@ export async function POST(request: NextRequest) {
 // 批量操作（PUT）
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    const auth = await requireAnyPermission(request, ROLE_MANAGE_PERMISSIONS);
     if (!auth.ok) return auth.response;
     
     // 从 URL 获取 ID
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const roleId = normalizeRoleId(id);
     const body = await request.json();
     const { name, description, level, permission_codes = [] } = body;
     
-    console.log('[roles] PUT - id:', id, 'permission_codes:', permission_codes.length);
+    console.log('[roles] PUT - id:', roleId, 'permission_codes:', permission_codes.length);
     
     const supabase = getSupabaseClient();
     
     // 如果有 ID，先更新角色信息
-    if (id) {
-      const updateData: any = {};
+    if (roleId) {
+      const updateData: Record<string, unknown> = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description;
       if (level !== undefined) updateData.level = level;
@@ -259,11 +304,11 @@ export async function PUT(request: NextRequest) {
         await supabase
           .from('roles')
           .update(updateData)
-          .eq('id', parseInt(id));
+          .eq('id', roleId);
       }
       
       // 更新权限
-      await supabase.from('role_permissions').delete().eq('role_id', parseInt(id));
+      await supabase.from('role_permissions').delete().eq('role_id', roleId);
       
       if (permission_codes.length > 0) {
         const { data: permissions } = await supabase
@@ -272,8 +317,8 @@ export async function PUT(request: NextRequest) {
           .in('code', permission_codes);
         
         if (permissions && permissions.length > 0) {
-          const rolePermissions = permissions.map((p: any) => ({
-            role_id: parseInt(id),
+          const rolePermissions = (permissions as PermissionIdRow[]).map((p) => ({
+            role_id: roleId,
             permission_id: p.id
           }));
           
@@ -285,7 +330,7 @@ export async function PUT(request: NextRequest) {
       const { data: updatedRole } = await supabase
         .from('roles')
         .select(`*, role_permissions (permission_id)`)
-        .eq('id', parseInt(id))
+        .eq('id', roleId)
         .single();
       
       const responseRole = {
@@ -308,29 +353,40 @@ export async function PUT(request: NextRequest) {
 // 删除角色（DELETE）
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    const auth = await requireAnyPermission(request, ROLE_MANAGE_PERMISSIONS);
     if (!auth.ok) return auth.response;
     const currentUser = auth.user;
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const roleId = normalizeRoleId(id);
     
-    if (!id) {
+    if (!roleId) {
       return apiBadRequest('角色ID不能为空');
     }
     
-    console.log('[roles] DELETE - id:', id);
+    console.log('[roles] DELETE - id:', roleId);
     
     const supabase = getSupabaseClient();
+
+    const { data: existingRole } = await supabase
+      .from('roles')
+      .select('code')
+      .eq('id', roleId)
+      .single();
+
+    if (existingRole?.code === 'super_admin') {
+      return apiBadRequest('超级管理员角色不能删除');
+    }
     
     // 先删除关联的权限
-    await supabase.from('role_permissions').delete().eq('role_id', parseInt(id));
+    await supabase.from('role_permissions').delete().eq('role_id', roleId);
     
     // 删除角色
     const { error } = await supabase
       .from('roles')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', roleId);
     
     if (error) {
       console.error('[roles] DELETE error:', error);
@@ -344,7 +400,7 @@ export async function DELETE(request: NextRequest) {
       ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
       user_agent: request.headers.get('user-agent') || 'unknown',
       result: 'success',
-      metadata: { target_role_id: parseInt(id) },
+      metadata: { target_role_id: roleId },
     });
     
     return apiSuccess(null);

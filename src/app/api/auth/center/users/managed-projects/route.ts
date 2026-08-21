@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { getCurrentUser } from '@/lib/auth';
+import { hasPermission, requireAuth, requirePermission } from '@/lib/api-auth';
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeProjectIds(value: unknown): number[] | null {
+  if (!Array.isArray(value)) return null;
+  const parsed = value.map((item) => Number(item));
+  if (!parsed.every((item) => Number.isInteger(item) && item > 0)) return null;
+  return Array.from(new Set(parsed));
+}
 
 // 获取用户的负责项目列表
 export async function GET(request: NextRequest) {
@@ -9,17 +25,19 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get("user_id");
     
     const client = getSupabaseClient();
-    const currentUser = await getCurrentUser();
-    
-    if (!currentUser) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+    const currentUser = auth.user;
     
     // 获取指定用户的负责项目
-    const targetUserId = userId ? parseInt(userId) : currentUser.id;
+    const targetUserId = userId ? normalizePositiveInteger(userId) : currentUser.id;
 
-    // 权限校验：本人可查自己的；他人仅超管/管理员可查（防 IDOR 越权读取）
-    if (targetUserId !== currentUser.id && !['super_admin', 'admin'].includes(currentUser.role || '')) {
+    if (!targetUserId) {
+      return NextResponse.json({ error: '用户ID参数不正确' }, { status: 400 });
+    }
+
+    // 本人可查自己的；他人仅权限管理员可查（防 IDOR 越权读取）
+    if (targetUserId !== currentUser.id && !hasPermission(currentUser, 'system:permission_manage')) {
       return NextResponse.json({ error: '无权查看其他用户的负责项目' }, { status: 403 });
     }
     
@@ -41,10 +59,10 @@ export async function GET(request: NextRequest) {
         managed_projects: data.managed_projects || []
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '获取失败' },
+      { error: getErrorMessage(error) || '获取失败' },
       { status: 500 }
     );
   }
@@ -56,30 +74,28 @@ export { PUT as POST };
 // 更新用户的负责项目列表
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { user_id, managed_projects } = body;
+    const targetUserId = normalizePositiveInteger(user_id);
+    const normalizedProjectIds = normalizeProjectIds(managed_projects);
     
     const client = getSupabaseClient();
-    const currentUser = await getCurrentUser();
     
-    if (!currentUser) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    
-    if (!user_id) {
+    if (!targetUserId) {
       return NextResponse.json({ error: '用户ID不能为空' }, { status: 400 });
     }
-
-    // 权限校验：仅本人可改自己的项目；他人仅超管/管理员可改（防 IDOR 越权篡改负责项目）
-    if (user_id !== currentUser.id && !['super_admin', 'admin'].includes(currentUser.role || '')) {
-      return NextResponse.json({ error: '无权修改其他用户的负责项目' }, { status: 403 });
+    if (normalizedProjectIds === null) {
+      return NextResponse.json({ error: '负责项目参数不正确' }, { status: 400 });
     }
     
     // 更新用户的负责项目
     const { data, error } = await client
       .from('users')
-      .update({ managed_projects: managed_projects || [] })
-      .eq('id', user_id)
+      .update({ managed_projects: normalizedProjectIds })
+      .eq('id', targetUserId)
       .select('id, username, name, managed_projects')
       .single();
     
@@ -97,10 +113,10 @@ export async function PUT(request: NextRequest) {
         managed_projects: data.managed_projects || []
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '更新失败' },
+      { error: getErrorMessage(error) || '更新失败' },
       { status: 500 }
     );
   }

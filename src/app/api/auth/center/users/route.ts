@@ -4,6 +4,56 @@ import { logSecurityEvent } from "@/lib/security-log";
 import { hashPassword } from "@/lib/auth-db";
 import { requirePermission } from "@/lib/api-auth";
 
+type RoleRow = {
+  id: number;
+  name: string;
+  level: number | null;
+  is_super_admin?: boolean | null;
+};
+
+function parsePositiveId(value: unknown): number | null {
+  const id = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function normalizeRoleIds(value: unknown): number[] | null {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) return null;
+  if (value.length > 50) return null;
+
+  const ids = value.map(parsePositiveId);
+  if (ids.some((id) => id === null)) return null;
+  return Array.from(new Set(ids as number[]));
+}
+
+async function validateAssignableRoles(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  roleIds: number[],
+  canAssignSuperAdmin: boolean
+): Promise<{ ok: true; roles: RoleRow[] } | { ok: false; response: NextResponse }> {
+  if (roleIds.length === 0) return { ok: true, roles: [] };
+
+  const { data: roles, error } = await supabase
+    .from("roles")
+    .select("id, name, level, is_super_admin")
+    .in("id", roleIds);
+
+  if (error) {
+    return { ok: false, response: NextResponse.json({ error: error.message }, { status: 500 }) };
+  }
+
+  if ((roles || []).length !== roleIds.length) {
+    return { ok: false, response: NextResponse.json({ error: "角色不存在或已被删除" }, { status: 400 }) };
+  }
+
+  const includesSuperAdmin = (roles || []).some((role) => role.is_super_admin || role.level === 1);
+  if (includesSuperAdmin && !canAssignSuperAdmin) {
+    return { ok: false, response: NextResponse.json({ error: "只有超级管理员可以分配超级管理员角色" }, { status: 403 }) };
+  }
+
+  return { ok: true, roles: roles || [] };
+}
+
 // 获取所有用户
 export async function GET(request: NextRequest) {
   const auth = await requirePermission(request, 'system:permission_manage');
@@ -57,6 +107,9 @@ export async function GET(request: NextRequest) {
 
 // 创建用户或分配角色
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission(request, 'system:permission_manage');
+  if (!auth.ok) return auth.response;
+
   const supabase = getSupabaseClient();
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -64,37 +117,50 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action, user_id, role_ids, username, password, name } = body;
-    
-    // 从 cookie 获取操作者信息
-    const authHeader = request.headers.get('x-user-id');
-    const operatorId = authHeader ? parseInt(authHeader) : undefined;
+    const normalizedRoleIds = normalizeRoleIds(role_ids);
+    if (normalizedRoleIds === null) {
+      return NextResponse.json({ error: "角色ID格式不正确" }, { status: 400 });
+    }
+
+    const roleCheck = await validateAssignableRoles(supabase, normalizedRoleIds, auth.user.is_super_admin);
+    if (!roleCheck.ok) return roleCheck.response;
+
+    const operatorId = auth.user.id;
     
     // 创建新用户
     if (action === "create") {
-      if (!username || !password) {
+      const normalizedUsername = typeof username === "string" ? username.trim() : "";
+      const normalizedName = typeof name === "string" ? name.trim() : "";
+      const normalizedPassword = typeof password === "string" ? password : "";
+
+      if (!normalizedUsername || !normalizedPassword) {
         return NextResponse.json({ error: "用户名和密码不能为空" }, { status: 400 });
+      }
+
+      if (normalizedUsername.length > 50 || normalizedPassword.length < 6 || normalizedPassword.length > 128) {
+        return NextResponse.json({ error: "用户名或密码长度不符合要求" }, { status: 400 });
       }
       
       // 检查用户名是否已存在
       const { data: existingUser } = await supabase
         .from("users")
         .select("id")
-        .eq("username", username)
+        .eq("username", normalizedUsername)
         .single();
       
       if (existingUser) {
         return NextResponse.json({ error: "用户名已存在" }, { status: 400 });
       }
       
-      const passwordHash = hashPassword(password);
+      const passwordHash = hashPassword(normalizedPassword);
       
       // 创建用户
       const { data: newUser, error: createError } = await supabase
         .from("users")
         .insert({
-          username,
+          username: normalizedUsername,
           password_hash: passwordHash,
-          name: name || null,
+          name: normalizedName || null,
         })
         .select("id, username, name, dingtalk_name, role, is_disabled, created_at, last_login")
         .single();
@@ -104,8 +170,8 @@ export async function POST(request: NextRequest) {
       }
       
       // 分配角色
-      if (role_ids && Array.isArray(role_ids) && role_ids.length > 0) {
-        const userRoleLinks = role_ids.map((role_id: number) => ({
+      if (normalizedRoleIds.length > 0) {
+        const userRoleLinks = normalizedRoleIds.map((role_id: number) => ({
           user_id: newUser.id,
           role_id,
         }));
@@ -121,24 +187,25 @@ export async function POST(request: NextRequest) {
         user_agent: userAgent,
         result: 'success',
         metadata: { target_user_id: newUser.id },
-        details: { username, name },
+        details: { username: normalizedUsername, name: normalizedName || null },
       });
       
       return NextResponse.json({ success: true, user: newUser });
     }
     
     // 分配角色（原有逻辑）
-    if (!user_id) {
+    const targetUserId = parsePositiveId(user_id);
+    if (!targetUserId) {
       return NextResponse.json({ error: "用户ID不能为空" }, { status: 400 });
     }
     
     // 删除旧的角色关联
-    await supabase.from("user_roles").delete().eq("user_id", user_id);
+    await supabase.from("user_roles").delete().eq("user_id", targetUserId);
     
     // 添加新的角色关联
-    if (role_ids && Array.isArray(role_ids) && role_ids.length > 0) {
-      const userRoleLinks = role_ids.map((role_id: number) => ({
-        user_id,
+    if (normalizedRoleIds.length > 0) {
+      const userRoleLinks = normalizedRoleIds.map((role_id: number) => ({
+        user_id: targetUserId,
         role_id,
       }));
       
@@ -156,8 +223,8 @@ export async function POST(request: NextRequest) {
       ip_address: ip,
       user_agent: userAgent,
       result: 'success',
-      metadata: { target_user_id: user_id },
-      details: { role_ids },
+      metadata: { target_user_id: targetUserId },
+      details: { role_ids: normalizedRoleIds },
     });
     
     return NextResponse.json({ success: true });

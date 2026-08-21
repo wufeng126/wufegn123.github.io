@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { requireAuth } from '@/lib/api-auth';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requirePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { logSecurityEvent } from '@/lib/security-log';
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'reports:monthly_export');
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
@@ -31,15 +32,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
-    if (projectId && projectId !== 'all' && accessibleProjects !== null) {
+    if (projectId && projectId !== 'all') {
       const requestedProjectIds = projectId
         .split(',')
-        .map(id => Number(id))
-        .filter(id => Number.isInteger(id));
-      if (requestedProjectIds.length === 0) {
+        .map(id => Number(id));
+      if (requestedProjectIds.length === 0 || requestedProjectIds.some(id => !Number.isInteger(id))) {
         return NextResponse.json({ success: false, error: '请提供有效的项目参数' }, { status: 400 });
       }
-      if (requestedProjectIds.some(id => !accessibleProjects.includes(id))) {
+      if (accessibleProjects !== null && requestedProjectIds.some(id => !accessibleProjects.includes(id))) {
         return NextResponse.json({ success: false, error: '当前账号没有访问指定项目的权限' }, { status: 403 });
       }
     }

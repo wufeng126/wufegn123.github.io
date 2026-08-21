@@ -3,16 +3,28 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { checkWorkerDeleteGuard } from '@/lib/worker-delete-guard';
 
+function normalizeIdList(value: unknown, maxCount = 200): number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxCount) return null;
+
+  const ids = value.map((item) => {
+    const id = typeof item === 'number' ? item : Number(item);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+
+  if (ids.some((id) => id === null)) return null;
+  return Array.from(new Set(ids as number[]));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { ids } = body;
+    const ids = normalizeIdList(body.ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: '请提供要删除的工人ID' }, { status: 400 });
+    if (!ids) {
+      return NextResponse.json({ error: '请提供有效的工人ID，且单次最多删除200条' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
@@ -43,10 +55,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, count: ids.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
+    const message = error instanceof Error ? error.message : '删除失败';
     return NextResponse.json(
-      { error: error.message || '删除失败' },
+      { error: message },
       { status: 500 }
     );
   }

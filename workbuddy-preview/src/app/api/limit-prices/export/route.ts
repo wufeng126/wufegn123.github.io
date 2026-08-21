@@ -5,8 +5,10 @@ import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 type UserPayload = RequestAuthUser;
 
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
 type LimitPriceExportRow = {
-  project?: { name?: string | null } | null;
+  project?: ProjectRelation;
   subitem_name: string | null;
   work_type?: string | null;
   team_name?: string | null;
@@ -38,6 +40,11 @@ async function getVisibleProjectIds(
   return getAccessibleProjectIds(supabase, user);
 }
 
+function getRelationName(relation: ProjectRelation | undefined): string {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return project?.name || '';
+}
+
 // GET /api/limit-prices/export - 导出限价数据
 export async function GET(request: NextRequest) {
   const supabase = getSupabaseClient();
@@ -61,14 +68,27 @@ export async function GET(request: NextRequest) {
   
   // 项目权限隔离
   const visibleProjectIds = await getVisibleProjectIds(supabase, user);
+
+  let targetProjectId: number | null = null;
+  if (projectId && projectId !== 'all') {
+    targetProjectId = Number(projectId);
+    if (!Number.isInteger(targetProjectId)) {
+      return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+    }
+
+    if (visibleProjectIds && !visibleProjectIds.includes(targetProjectId)) {
+      return NextResponse.json({ error: '无权导出此项目限价' }, { status: 403 });
+    }
+  }
+
   if (visibleProjectIds && visibleProjectIds.length > 0) {
     query = query.in('project_id', visibleProjectIds);
   } else if (visibleProjectIds && visibleProjectIds.length === 0) {
     query = query.in('project_id', [-1]);
   }
   
-  if (projectId && projectId !== 'all') {
-    query = query.eq('project_id', parseInt(projectId));
+  if (targetProjectId !== null) {
+    query = query.eq('project_id', targetProjectId);
   }
   
   if (status && status !== 'all') {
@@ -102,11 +122,11 @@ export async function GET(request: NextRequest) {
   
   const records = (data ?? []) as LimitPriceExportRow[];
   const rows = records.map((item) => [
-    item.project?.name || '',
-    item.subitem_name,
+    getRelationName(item.project),
+    item.subitem_name || '',
     item.work_type || '',
     item.team_name || '',
-    item.unit,
+    item.unit || '',
     item.limit_unit_price,
     item.plan_quantity,
     item.limit_total_price,
@@ -115,13 +135,13 @@ export async function GET(request: NextRequest) {
     item.actual_total_price || '',
     item.price_difference || '',
     item.excess_amount || '',
-    item.status,
-    new Date(item.created_at).toLocaleString('zh-CN')
+    item.status || '',
+    item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''
   ]);
   
   const csvContent = [
     headers.join(','),
-    ...rows.map((row: (string | number)[]) => 
+    ...rows.map((row: (string | number | null)[]) => 
       row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
     )
   ].join('\n');

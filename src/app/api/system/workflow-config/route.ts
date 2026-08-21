@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requirePermission } from '@/lib/api-auth';
 
 const DEFAULT_WORKFLOW_CONFIGS = [
   {
@@ -53,8 +54,11 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '审批流程配置失败';
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:manage');
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { data: existing, error: existingError } = await supabase
       .from('workflow_configs')
@@ -84,6 +88,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:manage');
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { workflow_type, name, steps } = body;
     const normalizedSteps = normalizeSteps(steps);
@@ -116,11 +123,19 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'system:manage');
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: '缺少id' }, { status: 400 });
+    const targetId = Number(id);
+    if (!Number.isInteger(targetId) || targetId <= 0) {
+      return NextResponse.json({ success: false, error: '无效的id' }, { status: 400 });
+    }
     const supabase = getSupabaseClient();
-    await supabase.from('workflow_configs').delete().eq('id', parseInt(id));
+    const { error } = await supabase.from('workflow_configs').delete().eq('id', targetId);
+    if (error) throw new Error(error.message);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     return NextResponse.json({ success: false, error: getErrorMessage(e) }, { status: 500 });

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 type UserPayload = RequestAuthUser;
 
-type LimitPriceImportRow = {
+type LimitPriceImportRecord = {
   project_id: number;
   subitem_name: string;
   unit: string;
@@ -16,29 +16,13 @@ type LimitPriceImportRow = {
   work_type: string | null;
   team_name: string | null;
   remark: string | null;
-  status: '草稿';
+  status: string;
   created_by: number;
-  created_by_name: string | null;
-};
-
-type ProjectOption = {
-  id: number;
-  name: string;
+  created_by_name: string;
 };
 
 async function getAuthUser(request: NextRequest): Promise<UserPayload | null> {
   return getRequestAuthUser(request);
-}
-
-async function getVisibleProjectIds(
-  supabase: Awaited<ReturnType<typeof getSupabaseClient>>,
-  user: RequestAuthUser
-): Promise<number[] | null> {
-  if (user.is_super_admin || user.role === '公司管理员') {
-    return null;
-  }
-
-  return getAccessibleProjectIds(supabase, user);
 }
 
 // POST /api/limit-prices/import - 批量导入限价
@@ -54,11 +38,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '未授权' }, { status: 401 });
   }
   
-  // 权限检查：所有登录用户都可导入
-  // if (!user.is_super_admin && user.role !== '公司管理员' && user.role !== '商务') {
-  //   return NextResponse.json({ error: '无权限导入' }, { status: 403 });
-  // }
-  
   try {
     const operatorName = getUserDisplayName(user);
     const formData = await request.formData();
@@ -66,6 +45,15 @@ export async function POST(request: NextRequest) {
     
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，请上传 10MB 以内的文件' }, { status: 400 });
+    }
+
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.csv')) {
+      return NextResponse.json({ error: '请上传 CSV 文件' }, { status: 400 });
     }
     
     const text = await file.text();
@@ -97,26 +85,21 @@ export async function POST(request: NextRequest) {
     };
     
     // 获取项目映射
-    const visibleProjectIds = await getVisibleProjectIds(supabase, user);
-    let projectQuery = supabase
+    const { data: projects } = await supabase
       .from('projects')
       .select('id, name');
 
-    if (visibleProjectIds && visibleProjectIds.length > 0) {
-      projectQuery = projectQuery.in('id', visibleProjectIds);
-    } else if (visibleProjectIds && visibleProjectIds.length === 0) {
-      return NextResponse.json({ error: '当前账号没有可导入的项目' }, { status: 403 });
-    }
-
-    const { data: projects } = await projectQuery;
+    const accessibleProjects = await getAccessibleProjectIds(supabase, user);
     
     const projectMap: Record<string, number> = {};
-    (projects || []).forEach((p: ProjectOption) => {
-      projectMap[p.name] = p.id;
+    (projects || []).forEach((p: { id: number; name: string }) => {
+      if (!accessibleProjects || accessibleProjects.includes(p.id)) {
+        projectMap[p.name] = p.id;
+      }
     });
     
     const errors: string[] = [];
-    const successData: LimitPriceImportRow[] = [];
+    const successData: LimitPriceImportRecord[] = [];
     let successCount = 0;
     
     // 跳过标题行
@@ -167,7 +150,7 @@ export async function POST(request: NextRequest) {
       
       const projectId = projectMap[projectName];
       if (!projectId) {
-        errors.push(`第${i + 1}行: 项目"${projectName}"不存在`);
+        errors.push(`第${i + 1}行: 项目"${projectName}"不存在或无权限导入`);
         continue;
       }
       

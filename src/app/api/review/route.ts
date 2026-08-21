@@ -1,8 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import type { RequestAuthUser } from '@/lib/auth';
+
+type ReviewUpdateData = {
+  status: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+};
+
+type SupplierPaymentRow = {
+  id: number;
+  payment_amount: number | string | null;
+};
+
+type SupplierSettlementReviewRow = {
+  settlement_type?: string | null;
+  contract_id?: number | null;
+  settlement_no?: string | null;
+  settlement_amount?: number | string | null;
+  payable_amount?: number | string | null;
+};
+
+function parsePositiveId(value: unknown): number | null {
+  const id = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
 
 /**
  * 统一审核/反审核/作废 API
@@ -17,8 +43,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { resource_type, resource_id, action } = body;
+    const resourceId = parsePositiveId(resource_id);
 
-    if (!resource_type || !resource_id || !action) {
+    if (!resource_type || !resourceId || !action) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
     }
 
@@ -55,7 +82,7 @@ export async function POST(request: NextRequest) {
     const { data: record, error: fetchError } = await client
       .from(resource.table)
       .select('*')
-      .eq('id', parseInt(resource_id))
+      .eq('id', resourceId)
       .single();
 
     if (fetchError || !record) {
@@ -73,14 +100,14 @@ export async function POST(request: NextRequest) {
 
     // 作废前检查：如果有关联的下级记录（如已付款），不允许作废
     if (action === 'void') {
-      const voidCheck = await checkVoidConstraints(client, resource_type, parseInt(resource_id));
+      const voidCheck = await checkVoidConstraints(client, resource_type, resourceId);
       if (!voidCheck.canVoid) {
         return NextResponse.json({ error: voidCheck.message }, { status: 400 });
       }
     }
 
     // 构建更新数据
-    const updateData: Record<string, any> = { status: targetStatus };
+    const updateData: ReviewUpdateData = { status: targetStatus };
 
     // 审核时记录审核人和时间
     if (action === 'review') {
@@ -98,7 +125,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await client
       .from(resource.table)
       .update(updateData)
-      .eq('id', parseInt(resource_id))
+      .eq('id', resourceId)
       .select()
       .single();
 
@@ -120,7 +147,7 @@ export async function POST(request: NextRequest) {
     await auditLog({
       operationType: action === 'void' ? 'void' : (action === 'review' ? 'review' : 'unreview'),
       resourceType: resource_type,
-      resourceId: parseInt(resource_id),
+      resourceId,
       details: {
         action: actionNames[action],
         fromStatus: record.status || 'draft',
@@ -134,10 +161,11 @@ export async function POST(request: NextRequest) {
       data,
       message: `${resource.name}${actionNames[action]}成功`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('审核API错误:', error);
+    const message = error instanceof Error ? error.message : '操作失败';
     return NextResponse.json(
-      { error: error.message || '操作失败' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -147,7 +175,7 @@ export async function POST(request: NextRequest) {
  * 检查作废约束：如果已有下级关联记录（付款等），不允许作废
  */
 async function checkVoidConstraints(
-  client: any,
+  client: SupabaseClient,
   resourceType: string,
   resourceId: number
 ): Promise<{ canVoid: boolean; message: string }> {
@@ -159,8 +187,9 @@ async function checkVoidConstraints(
         .select('id, payment_amount')
         .eq('settlement_id', resourceId);
       
-      if (payments && payments.length > 0) {
-        const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.payment_amount || 0), 0);
+      const paymentRows = (payments || []) as SupplierPaymentRow[];
+      if (paymentRows.length > 0) {
+        const totalPaid = paymentRows.reduce((sum, p) => sum + Number(p.payment_amount || 0), 0);
         if (totalPaid > 0) {
           return { canVoid: false, message: `该结算已有付款记录（¥${totalPaid.toLocaleString()}），请先删除付款再作废` };
         }
@@ -177,10 +206,10 @@ async function checkVoidConstraints(
 }
 
 async function syncSupplierSettlementReviewSideEffects(
-  client: any,
-  settlement: any,
+  client: SupabaseClient,
+  settlement: SupplierSettlementReviewRow | null,
   targetStatus: string,
-  user: any
+  user: RequestAuthUser
 ) {
   if (!settlement || settlement.settlement_type !== 'final' || !settlement.contract_id) {
     return;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { getCurrentUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/api-auth';
 
 type PermissionUser = {
   id: number;
@@ -29,8 +29,22 @@ type UserRoleRow = {
   role_id: number;
 };
 
+type UserUpdateBody = {
+  id?: unknown;
+  role_ids?: unknown;
+  allowed_projects?: unknown;
+  name?: unknown;
+};
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeIntegerList(value: unknown): number[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const parsed = value.map((item) => Number(item));
+  return parsed.every(Number.isInteger) ? parsed : null;
 }
 
 function inferUserBaseRole(existingRole: string | null | undefined, assignedRoles: RoleRow[]) {
@@ -59,12 +73,10 @@ function inferUserBaseRole(existingRole: string | null | undefined, assignedRole
 }
 
 // 获取用户列表
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
     
     console.log('[Users API] Fetching users');
     
@@ -152,19 +164,27 @@ export async function GET() {
 // 更新用户角色
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
+
+    const body = (await request.json()) as UserUpdateBody;
     const { id, role_ids, allowed_projects, name } = body;
+    const userId = Number(id);
+    const shouldUpdateRoles = role_ids !== undefined;
+    const normalizedRoleIds = normalizeIntegerList(role_ids);
+    const normalizedAllowedProjects = normalizeIntegerList(allowed_projects);
     
-    if (!id) {
+    if (!Number.isInteger(userId) || userId <= 0) {
       return NextResponse.json({ error: '用户ID不能为空' }, { status: 400 });
     }
+    if (normalizedRoleIds === null) {
+      return NextResponse.json({ error: '角色参数不正确' }, { status: 400 });
+    }
+    if (normalizedAllowedProjects === null) {
+      return NextResponse.json({ error: '项目范围参数不正确' }, { status: 400 });
+    }
     
-    console.log('[Users API] Updating user:', id, 'role_ids:', role_ids);
+    console.log('[Users API] Updating user:', userId, 'role_ids:', normalizedRoleIds);
     
     const supabase = getSupabaseClient();
     
@@ -172,7 +192,7 @@ export async function PUT(request: NextRequest) {
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
-      .eq('id', id)
+      .eq('id', userId)
       .single();
     
     if (!existingUser) {
@@ -181,31 +201,33 @@ export async function PUT(request: NextRequest) {
     
     // 更新用户角色关联
     // 先删除旧关联
-    await supabase.from('user_roles').delete().eq('user_id', id);
-    
-    // 添加新关联
-    if (role_ids && role_ids.length > 0) {
-      const userRoles = role_ids.map((roleId: number) => ({
-        user_id: id,
-        role_id: roleId,
-      }));
-      
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert(userRoles);
-      
-      if (roleError) {
-        console.error('[Users API] Update role error:', roleError);
-        return NextResponse.json({ error: roleError.message }, { status: 500 });
+    if (shouldUpdateRoles) {
+      await supabase.from('user_roles').delete().eq('user_id', userId);
+
+      // 添加新关联
+      if (normalizedRoleIds.length > 0) {
+        const userRoles = normalizedRoleIds.map((roleId) => ({
+          user_id: userId,
+          role_id: roleId,
+        }));
+
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert(userRoles);
+
+        if (roleError) {
+          console.error('[Users API] Update role error:', roleError);
+          return NextResponse.json({ error: roleError.message }, { status: 500 });
+        }
       }
     }
     
     let assignedRoles: RoleRow[] = [];
-    if (Array.isArray(role_ids) && role_ids.length > 0) {
+    if (shouldUpdateRoles && normalizedRoleIds.length > 0) {
       const { data: selectedRoles, error: selectedRoleError } = await supabase
         .from('roles')
         .select('id, name, code, is_super_admin')
-        .in('id', role_ids);
+        .in('id', normalizedRoleIds);
 
       if (selectedRoleError) {
         console.error('[Users API] Fetch selected roles error:', selectedRoleError);
@@ -215,10 +237,11 @@ export async function PUT(request: NextRequest) {
     }
 
     // 更新用户基础状态：待分配账号一旦分配岗位模板，即允许登录
-    const userUpdate: Record<string, unknown> = {
-      role: inferUserBaseRole(existingUser.role, assignedRoles),
-      is_disabled: existingUser.role === 'super_admin' ? false : assignedRoles.length === 0,
-    };
+    const userUpdate: Record<string, unknown> = {};
+    if (shouldUpdateRoles) {
+      userUpdate.role = inferUserBaseRole(existingUser.role, assignedRoles);
+      userUpdate.is_disabled = existingUser.role === 'super_admin' ? false : assignedRoles.length === 0;
+    }
     if (name !== undefined) {
       const displayName = String(name || '').trim();
       if (displayName.length > 50) {
@@ -227,14 +250,14 @@ export async function PUT(request: NextRequest) {
       userUpdate.name = displayName || existingUser.username;
     }
     if (allowed_projects !== undefined) {
-      userUpdate.managed_projects = allowed_projects;
+      userUpdate.managed_projects = normalizedAllowedProjects;
     }
 
     if (Object.keys(userUpdate).length > 0) {
       const { error: projectError } = await supabase
         .from('users')
         .update(userUpdate)
-        .eq('id', id);
+        .eq('id', userId);
       
       if (projectError) {
         console.error('[Users API] Update user base fields error:', projectError);
@@ -242,7 +265,7 @@ export async function PUT(request: NextRequest) {
       }
     }
     
-    console.log('[Users API] User updated successfully:', id);
+    console.log('[Users API] User updated successfully:', userId);
     
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

@@ -16,6 +16,13 @@ const EXPORT_HEADERS: { key: string; label: string }[] = [
   { key: 'remark', label: '备注' },
 ];
 
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
+function getRelationName(relation: ProjectRelation | undefined): string {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return project?.name || '';
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -33,7 +40,10 @@ export async function GET(request: NextRequest) {
       .order('purchase_date', { ascending: false });
 
     if (projectId && projectId !== 'all') {
-      const pid = parseInt(projectId);
+      const pid = Number(projectId);
+      if (!Number.isInteger(pid)) {
+        return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+      }
       if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
         return NextResponse.json({ error: '当前账号没有权限导出该项目数据' }, { status: 403 });
       }
@@ -49,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     const exportData = (data || []).map((item: {
-      project?: { name?: string | null } | null;
+      project?: ProjectRelation;
       material_name?: string | null;
       specification?: string | null;
       unit?: string | null;
@@ -60,13 +70,13 @@ export async function GET(request: NextRequest) {
       purchaser?: string | null;
       remark?: string | null;
     }) => ({
-      project_name: item.project?.name || '',
+      project_name: getRelationName(item.project),
       material_name: item.material_name || '',
       specification: item.specification || '',
       unit: item.unit || '',
-      quantity: parseFloat(item.quantity || '0').toFixed(2),
-      unit_price: parseFloat(item.unit_price || '0').toFixed(2),
-      amount: parseFloat(item.amount || '0').toFixed(2),
+      quantity: parseFloat(String(item.quantity ?? '0')).toFixed(2),
+      unit_price: parseFloat(String(item.unit_price ?? '0')).toFixed(2),
+      amount: parseFloat(String(item.amount ?? '0')).toFixed(2),
       purchase_date: item.purchase_date || '',
       purchaser: item.purchaser || '',
       remark: item.remark || '',

@@ -3,6 +3,36 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
+
+type XlsxModule = {
+  read: (data: Uint8Array, options: { type: 'array' }) => {
+    SheetNames: string[];
+    Sheets: Record<string, unknown>;
+  };
+  utils: {
+    sheet_to_json: (worksheet: unknown, options: { header: 1 }) => unknown[][];
+  };
+};
+
+type ProjectRow = {
+  id: number;
+  name: string;
+};
+
+type MiscellaneousMaterialImportRecord = {
+  project_id: number;
+  material_name: string;
+  specification: string | null;
+  unit: string | null;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+  purchase_date: string;
+  purchaser: string | null;
+  remark: string | null;
+  status: string;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +44,9 @@ export async function POST(request: NextRequest) {
     
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件不能超过 10MB' }, { status: 400 });
     }
 
     const fileName = file.name.toLowerCase();
@@ -30,12 +63,12 @@ export async function POST(request: NextRequest) {
       // Excel 文件：使用 xlsx 库解析
       const buffer = await file.arrayBuffer();
       // eslint-disable-next-line @typescript-eslint/no-require-imports -- 条件加载 xlsx（仅 Excel 文件）
-      const XLSX = require('xlsx');
+      const XLSX = require('xlsx') as XlsxModule;
       const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-      rows = jsonData.map((row: any[]) => row.map((cell: any) => String(cell ?? '').trim()));
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      rows = jsonData.map((row) => row.map((cell) => String(cell ?? '').trim()));
     } else {
       return NextResponse.json({ error: '请上传 Excel 文件（.xlsx, .xls）或 CSV 文件' }, { status: 400 });
     }
@@ -107,12 +140,15 @@ export async function POST(request: NextRequest) {
       throw new Error(`查询项目失败: ${projectError.message}`);
     }
 
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     const projectNameMap: Record<string, number> = {};
-    projects?.forEach((p: any) => {
-      projectNameMap[p.name] = p.id;
+    ((projects || []) as ProjectRow[]).forEach((p) => {
+      if (!accessibleProjects || accessibleProjects.includes(p.id)) {
+        projectNameMap[p.name] = p.id;
+      }
     });
 
-    const records: any[] = [];
+    const records: MiscellaneousMaterialImportRecord[] = [];
     const errors: string[] = [];
     const duplicates: string[] = [];
 
@@ -132,7 +168,7 @@ export async function POST(request: NextRequest) {
 
       const projectId = projectNameMap[projectName.trim()];
       if (!projectId) {
-        errors.push(`第${i + 1}行：项目"${projectName.trim()}"不存在`);
+        errors.push(`第${i + 1}行：项目"${projectName.trim()}"不存在或无权限导入`);
         continue;
       }
 
@@ -153,9 +189,8 @@ export async function POST(request: NextRequest) {
       let purchaseDate = values[dateIdx] || '';
       if (purchaseDate && /^\d{5}$/.test(purchaseDate)) {
         // Excel 日期序列号转换
-        const excelEpoch = new Date(1899, 11, 30);
-        const jsDate = new Date(excelEpoch.getTime() + parseInt(purchaseDate) * 86400000);
-        purchaseDate = jsDate.toISOString().split('T')[0];
+        const excelEpoch = Date.UTC(1899, 11, 30);
+        purchaseDate = new Date(excelEpoch + Number(purchaseDate) * 86400000).toISOString().split('T')[0];
       } else if (purchaseDate) {
         // 尝试解析常见日期格式
         const parsed = new Date(purchaseDate);
@@ -215,10 +250,10 @@ export async function POST(request: NextRequest) {
       count: data?.length || 0,
       errors: errors.length > 0 ? errors : undefined,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Import Error:', error);
     return NextResponse.json(
-      { error: error.message || '导入失败' },
+      { error: error instanceof Error ? error.message : '导入失败' },
       { status: 500 }
     );
   }

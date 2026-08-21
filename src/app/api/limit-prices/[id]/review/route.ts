@@ -27,6 +27,11 @@ function logAction(
   });
 }
 
+function parsePositiveId(value: unknown): number | null {
+  const id = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 // POST /api/limit-prices/[id]/review - 审核限价
 export async function POST(
   request: NextRequest,
@@ -44,6 +49,11 @@ export async function POST(
   }
   
   const { id } = await params;
+  const limitPriceId = parsePositiveId(id);
+  if (!limitPriceId) {
+    return NextResponse.json({ error: '限价ID格式不正确' }, { status: 400 });
+  }
+
   const body = await request.json();
   
   // 权限检查：只有管理员可审核
@@ -55,7 +65,7 @@ export async function POST(
   const { data: current, error: fetchError } = await supabase
     .from('project_limit_prices')
     .select('*')
-    .eq('id', parseInt(id))
+    .eq('id', limitPriceId)
     .single();
   
   if (fetchError || !current) {
@@ -77,9 +87,9 @@ export async function POST(
       reviewed_by: user.id,
       reviewed_by_name: operatorName,
       reviewed_at: new Date().toISOString(),
-      remark: body.remark || current.remark
+      remark: typeof body.remark === 'string' && body.remark.trim() ? body.remark.trim() : current.remark
     })
-    .eq('id', parseInt(id))
+    .eq('id', limitPriceId)
     .select()
     .single();
   

@@ -3,16 +3,28 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
 
+function normalizeIdList(value: unknown, maxCount = 500): number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxCount) return null;
+
+  const ids = value.map((item) => {
+    const id = typeof item === 'number' ? item : Number(item);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+
+  if (ids.some((id) => id === null)) return null;
+  return Array.from(new Set(ids as number[]));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { ids } = body;
+    const ids = normalizeIdList(body.ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: '请提供要删除的记录ID' }, { status: 400 });
+    if (!ids) {
+      return NextResponse.json({ error: '请提供有效的工资发放记录ID，且单次最多删除500条' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
@@ -39,10 +51,11 @@ export async function POST(request: NextRequest) {
     await syncAllSalaryPaymentStatus();
 
     return NextResponse.json({ success: true, count: ids.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
+    const message = error instanceof Error ? error.message : '删除失败';
     return NextResponse.json(
-      { error: error.message || '删除失败' },
+      { error: message },
       { status: 500 }
     );
   }

@@ -72,14 +72,27 @@ export async function GET(request: NextRequest) {
   
   // 项目权限隔离
   const visibleProjectIds = await getVisibleProjectIds(supabase, user);
+
+  let targetProjectId: number | null = null;
+  if (projectId && projectId !== 'all') {
+    targetProjectId = Number(projectId);
+    if (!Number.isInteger(targetProjectId)) {
+      return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+    }
+
+    if (visibleProjectIds && !visibleProjectIds.includes(targetProjectId)) {
+      return NextResponse.json({ error: '无权查看此项目限价' }, { status: 403 });
+    }
+  }
+
   if (visibleProjectIds && visibleProjectIds.length > 0) {
     query = query.in('project_id', visibleProjectIds);
   } else if (visibleProjectIds && visibleProjectIds.length === 0) {
     return NextResponse.json({ data: [], stats: { total: 0, draft: 0, active: 0, invalidated: 0, totalLimitAmount: 0, totalActualAmount: 0, totalExcess: 0 } });
   }
   
-  if (projectId && projectId !== 'all') {
-    query = query.eq('project_id', parseInt(projectId));
+  if (targetProjectId !== null) {
+    query = query.eq('project_id', targetProjectId);
   }
   
   if (status && status !== 'all') {
@@ -137,6 +150,16 @@ export async function POST(request: NextRequest) {
   if (!project_id || !subitem_name || !unit || !limit_unit_price) {
     return NextResponse.json({ error: '缺少必填字段' }, { status: 400 });
   }
+
+  const targetProjectId = Number(project_id);
+  if (!Number.isInteger(targetProjectId)) {
+    return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+  }
+
+  const visibleProjectIds = await getVisibleProjectIds(supabase, user);
+  if (visibleProjectIds && !visibleProjectIds.includes(targetProjectId)) {
+    return NextResponse.json({ error: '无权在此项目创建限价' }, { status: 403 });
+  }
   
   // 权限检查：所有登录用户都可创建
   // if (!user.is_super_admin && user.role !== '公司管理员' && user.role !== '商务' && user.role !== 'admin') {
@@ -146,7 +169,7 @@ export async function POST(request: NextRequest) {
   const operatorName = getUserDisplayName(user);
 
   const { data: lpData, error: lpError } = await insertWithSequenceFix('project_limit_prices', {
-      project_id,
+      project_id: targetProjectId,
       subitem_name,
       work_type,
       team_name,

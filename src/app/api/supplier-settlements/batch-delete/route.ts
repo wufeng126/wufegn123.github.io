@@ -3,6 +3,23 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { isReviewedStatus } from '@/lib/business-logic';
 
+type SupplierSettlementDeleteRow = {
+  id: number;
+  status: string | null;
+};
+
+function normalizeIdList(value: unknown, maxCount = 300): number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxCount) return null;
+
+  const ids = value.map((item) => {
+    const id = typeof item === 'number' ? item : Number(item);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+
+  if (ids.some((id) => id === null)) return null;
+  return Array.from(new Set(ids as number[]));
+}
+
 // POST /api/supplier-settlements/batch-delete - 批量删除结算记录
 export async function POST(request: NextRequest) {
   try {
@@ -10,10 +27,11 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const supabase = getSupabaseClient();
-    const { ids } = await request.json();
+    const body = await request.json();
+    const ids = normalizeIdList(body.ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: '请选择要删除的记录' }, { status: 400 });
+    if (!ids) {
+      return NextResponse.json({ error: '请选择有效的结算记录，且单次最多删除300条' }, { status: 400 });
     }
 
     const { data: settlements, error: fetchError } = await supabase
@@ -23,7 +41,8 @@ export async function POST(request: NextRequest) {
 
     if (fetchError) throw fetchError;
 
-    const reviewedSettlements = (settlements || []).filter((s: any) => isReviewedStatus(s.status));
+    const reviewedSettlements = ((settlements || []) as SupplierSettlementDeleteRow[])
+      .filter((s) => isReviewedStatus(s.status));
     if (reviewedSettlements.length > 0) {
       return NextResponse.json({ error: '已审核结算单不可删除，请先反审核或作废' }, { status: 400 });
     }
@@ -47,7 +66,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({ success: true, deletedCount: ids.length });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '删除失败';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

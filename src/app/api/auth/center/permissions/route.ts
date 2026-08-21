@@ -1,8 +1,13 @@
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { requirePermission } from "@/lib/api-auth";
+import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 // 获取所有权限定义
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requirePermission(request, "system:permission_manage");
+  if (!auth.ok) return auth.response;
+
   console.log("[permissions] Starting to fetch permissions...");
   
   let supabase;

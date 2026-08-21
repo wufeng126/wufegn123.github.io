@@ -265,7 +265,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   // 证件管理
   '/api/certificates': 'certificates:edit',
   '/api/certificates/upload': 'certificates:edit',
-  '/api/certificates/attachment-url': 'certificates:edit',
+  '/api/certificates/attachment-url': 'certificates:view',
   '/api/certificates/attachment': 'certificates:edit',
 
   // 供应商与费用

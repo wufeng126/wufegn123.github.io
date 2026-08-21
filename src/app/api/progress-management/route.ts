@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser } from '@/lib/auth';
+import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 
@@ -185,6 +186,9 @@ function mapTask(row: ProjectProgressTaskRow, quantitiesByTaskId: Map<number, Pr
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
     const requestedProjectId = Number(searchParams.get('project_id') || 0);
@@ -323,6 +327,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const projectId = Number(body.project_id);
     const foundations = body.foundations || {};

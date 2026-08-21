@@ -4,6 +4,7 @@ import { parseExcelFile } from '@/lib/excel-utils';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -59,6 +60,20 @@ interface ImportRow {
   remark?: string;
 }
 
+type ProjectRow = {
+  id: number;
+  name: string;
+};
+
+type ClientPaymentImportRecord = {
+  project_id: number;
+  payment_amount: string;
+  payment_date: string;
+  payment_method: string;
+  status: string;
+  remark: string;
+};
+
 // 验证必填字段（返回中文错误信息）
 function validateRequiredFieldsCN(
   data: Record<string, unknown>[],
@@ -92,6 +107,10 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: '请上传文件' }, { status: 400 });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: '文件过大，请上传 10MB 以内的文件' }, { status: 400 });
     }
 
     // 检查文件类型
@@ -143,20 +162,23 @@ export async function POST(request: NextRequest) {
     }
 
     // 创建项目名称到 ID 的映射
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
     const projectNameToId = new Map<string, number>();
-    projects?.forEach((p: any) => {
-      projectNameToId.set(p.name, p.id);
+    (projects as ProjectRow[] | null)?.forEach((p) => {
+      if (!accessibleProjects || accessibleProjects.includes(p.id)) {
+        projectNameToId.set(p.name, p.id);
+      }
     });
 
     // 准备导入数据
-    const records: any[] = [];
+    const records: ClientPaymentImportRecord[] = [];
     const errors: string[] = [];
 
     rows.forEach((row, index) => {
       const projectId = projectNameToId.get(row.project_name);
       
       if (!projectId) {
-        errors.push(`第 ${index + 2} 行：项目「${row.project_name}」不存在`);
+        errors.push(`第 ${index + 2} 行：项目「${row.project_name}」不存在或无权限导入`);
         return;
       }
 
@@ -211,10 +233,11 @@ export async function POST(request: NextRequest) {
       count: data?.length || records.length,
       payments: data 
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Import Error:', error);
+    const message = error instanceof Error ? error.message : '导入失败';
     return NextResponse.json(
-      { error: error.message || '导入失败' },
+      { error: message },
       { status: 500 }
     );
   }

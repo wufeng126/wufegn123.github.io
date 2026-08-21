@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { getCurrentUser } from '@/lib/auth';
+import { requirePermission } from '@/lib/api-auth';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 
 type PermissionRow = {
@@ -19,6 +19,16 @@ type RoleRow = {
   role_permissions?: RolePermissionRow[];
 };
 
+type RoleWriteBody = {
+  id?: unknown;
+  name?: unknown;
+  code?: unknown;
+  description?: unknown;
+  level?: unknown;
+  permission_codes?: unknown;
+  allowed_projects?: unknown;
+};
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -34,6 +44,27 @@ function normalizePermissionCodes(permissionCodes: unknown): string[] {
         .filter(Boolean)
     )
   );
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeIntegerList(value: unknown): number[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+
+  const parsed = value.map((item) => Number(item));
+  if (!parsed.every((item) => Number.isInteger(item) && item > 0)) return null;
+
+  return Array.from(new Set(parsed));
+}
+
+function normalizeRoleLevel(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return 10;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 async function ensurePermissionIds(supabase: SupabaseClient, permissionCodes: string[]) {
@@ -158,14 +189,12 @@ async function replaceRolePermissions(
 }
 
 // 获取角色列表
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
 
-    console.log('[Roles API] Fetching roles for user:', user.username);
+    console.log('[Roles API] Fetching roles');
     
     const supabase = getSupabaseClient();
     
@@ -213,19 +242,33 @@ export async function GET() {
 // 创建角色
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
     
-    const body = await request.json();
+    const body = (await request.json()) as RoleWriteBody;
     const { name, code, description, level, permission_codes = [], allowed_projects = [] } = body;
+    const roleName = typeof name === 'string' ? name.trim() : '';
+    const roleCode = typeof code === 'string' && code.trim() ? code.trim() : `role_${Date.now()}`;
+    const roleLevel = normalizeRoleLevel(level);
     const normalizedPermissionCodes = normalizePermissionCodes(permission_codes);
+    const normalizedAllowedProjects = normalizeIntegerList(allowed_projects);
     
-    console.log('[Roles API] Creating role:', name, 'permissions:', normalizedPermissionCodes.length);
+    console.log('[Roles API] Creating role:', roleName, 'permissions:', normalizedPermissionCodes.length);
     
-    if (!name || name.trim() === '') {
+    if (!roleName) {
       return NextResponse.json({ error: '角色名称不能为空' }, { status: 400 });
+    }
+    if (roleName.length > 50) {
+      return NextResponse.json({ error: '角色名称不能超过50个字符' }, { status: 400 });
+    }
+    if (roleCode.length > 80) {
+      return NextResponse.json({ error: '角色编码不能超过80个字符' }, { status: 400 });
+    }
+    if (roleLevel === null) {
+      return NextResponse.json({ error: '角色层级参数不正确' }, { status: 400 });
+    }
+    if (normalizedAllowedProjects === null) {
+      return NextResponse.json({ error: '项目范围参数不正确' }, { status: 400 });
     }
     
     const supabase = getSupabaseClient();
@@ -234,25 +277,22 @@ export async function POST(request: NextRequest) {
     const { data: existingRole } = await supabase
       .from('roles')
       .select('id')
-      .eq('name', name.trim())
+      .eq('name', roleName)
       .single();
     
     if (existingRole) {
       return NextResponse.json({ error: '角色名称已存在' }, { status: 400 });
     }
     
-    // 生成 code
-    const roleCode = code || `role_${Date.now()}`;
-    
     // 创建角色
     const { data: newRole, error } = await supabase
       .from('roles')
       .insert({
-        name: name.trim(),
+        name: roleName,
         code: roleCode,
-        description: description || '',
-        level: level || 10,
-        allowed_projects: allowed_projects,
+        description: typeof description === 'string' ? description.trim() : '',
+        level: roleLevel,
+        allowed_projects: normalizedAllowedProjects,
       })
       .select()
       .single();
@@ -283,19 +323,33 @@ export async function POST(request: NextRequest) {
 // 更新角色
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
     
-    const body = await request.json();
-    const { id, name, description, level, permission_codes = [], allowed_projects } = body;
+    const body = (await request.json()) as RoleWriteBody;
+    const { id, name, description, level, permission_codes, allowed_projects } = body;
+    const roleId = normalizePositiveInteger(id);
+    const shouldUpdatePermissions = permission_codes !== undefined;
     const normalizedPermissionCodes = normalizePermissionCodes(permission_codes);
+    const normalizedAllowedProjects = normalizeIntegerList(allowed_projects);
+    const roleLevel = level === undefined ? undefined : normalizeRoleLevel(level);
     
-    console.log('[Roles API] Updating role:', id, 'permissions:', normalizedPermissionCodes.length);
+    console.log('[Roles API] Updating role:', roleId, 'permissions:', normalizedPermissionCodes.length);
     
-    if (!id) {
+    if (!roleId) {
       return NextResponse.json({ error: '角色ID不能为空' }, { status: 400 });
+    }
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      return NextResponse.json({ error: '角色名称不能为空' }, { status: 400 });
+    }
+    if (typeof name === 'string' && name.trim().length > 50) {
+      return NextResponse.json({ error: '角色名称不能超过50个字符' }, { status: 400 });
+    }
+    if (roleLevel === null) {
+      return NextResponse.json({ error: '角色层级参数不正确' }, { status: 400 });
+    }
+    if (normalizedAllowedProjects === null) {
+      return NextResponse.json({ error: '项目范围参数不正确' }, { status: 400 });
     }
     
     const supabase = getSupabaseClient();
@@ -304,7 +358,7 @@ export async function PUT(request: NextRequest) {
     const { data: existingRole } = await supabase
       .from('roles')
       .select('*')
-      .eq('id', id)
+      .eq('id', roleId)
       .single();
     
     if (!existingRole) {
@@ -317,7 +371,7 @@ export async function PUT(request: NextRequest) {
         .from('roles')
         .select('id')
         .eq('name', name.trim())
-        .neq('id', id)
+        .neq('id', roleId)
         .single();
       
       if (duplicateRole) {
@@ -327,16 +381,16 @@ export async function PUT(request: NextRequest) {
     
     // 更新角色基本信息
     const updateData: Record<string, unknown> = {};
-    if (name !== undefined) updateData.name = name.trim();
-    if (description !== undefined) updateData.description = description;
-    if (level !== undefined) updateData.level = level;
-    if (allowed_projects !== undefined) updateData.allowed_projects = allowed_projects;
+    if (typeof name === 'string') updateData.name = name.trim();
+    if (description !== undefined) updateData.description = typeof description === 'string' ? description.trim() : '';
+    if (roleLevel !== undefined) updateData.level = roleLevel;
+    if (allowed_projects !== undefined) updateData.allowed_projects = normalizedAllowedProjects;
     
     if (Object.keys(updateData).length > 0) {
       const { error: updateError } = await supabase
         .from('roles')
         .update(updateData)
-        .eq('id', id);
+        .eq('id', roleId);
       
       if (updateError) {
         console.error('[Roles API] Update error:', updateError);
@@ -345,16 +399,18 @@ export async function PUT(request: NextRequest) {
     }
     
     // 更新权限：按差异新增/移除，避免旧逻辑先删后写失败导致权限丢失。
-    await replaceRolePermissions(supabase, Number(id), normalizedPermissionCodes);
+    if (shouldUpdatePermissions) {
+      await replaceRolePermissions(supabase, roleId, normalizedPermissionCodes);
+    }
     
     // 获取更新后的角色
     const { data: updatedRole } = await supabase
       .from('roles')
       .select(`*, role_permissions (permission_id)`)
-      .eq('id', id)
+      .eq('id', roleId)
       .single();
     
-    console.log('[Roles API] Role updated successfully:', id);
+    console.log('[Roles API] Role updated successfully:', roleId);
     
     return NextResponse.json({
       success: true,
@@ -373,19 +429,18 @@ export async function PUT(request: NextRequest) {
 // 删除角色
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePermission(request, 'system:permission_manage');
+    if (!auth.ok) return auth.response;
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const roleId = normalizePositiveInteger(id);
     
-    if (!id) {
+    if (!roleId) {
       return NextResponse.json({ error: '角色ID不能为空' }, { status: 400 });
     }
     
-    console.log('[Roles API] Deleting role:', id);
+    console.log('[Roles API] Deleting role:', roleId);
     
     const supabase = getSupabaseClient();
     
@@ -393,7 +448,7 @@ export async function DELETE(request: NextRequest) {
     const { data: existingRole } = await supabase
       .from('roles')
       .select('*')
-      .eq('id', parseInt(id))
+      .eq('id', roleId)
       .single();
     
     if (!existingRole) {
@@ -406,20 +461,28 @@ export async function DELETE(request: NextRequest) {
     }
     
     // 删除关联的权限
-    await supabase.from('role_permissions').delete().eq('role_id', parseInt(id));
+    const { error: rolePermissionDeleteError } = await supabase
+      .from('role_permissions')
+      .delete()
+      .eq('role_id', roleId);
+
+    if (rolePermissionDeleteError) {
+      console.error('[Roles API] Delete role permissions error:', rolePermissionDeleteError);
+      return NextResponse.json({ error: rolePermissionDeleteError.message }, { status: 500 });
+    }
     
     // 删除角色
     const { error: deleteError } = await supabase
       .from('roles')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', roleId);
     
     if (deleteError) {
       console.error('[Roles API] Delete error:', deleteError);
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
     
-    console.log('[Roles API] Role deleted successfully:', id);
+    console.log('[Roles API] Role deleted successfully:', roleId);
     
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

@@ -4,6 +4,13 @@ import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import * as XLSX from 'xlsx';
 
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
+function getRelationName(relation: ProjectRelation | undefined): string {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return project?.name || '';
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -20,8 +27,11 @@ export async function GET(request: NextRequest) {
       .select('*, projects(name)')
       .order('created_at', { ascending: false });
 
-    if (projectId) {
-      const pid = parseInt(projectId);
+    if (projectId && projectId !== 'all') {
+      const pid = Number(projectId);
+      if (!Number.isInteger(pid)) {
+        return NextResponse.json({ success: false, error: '项目参数不正确' }, { status: 400 });
+      }
       if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
         return NextResponse.json({ success: false, error: '当前账号没有权限导出该项目数据' }, { status: 403 });
       }
@@ -52,7 +62,7 @@ export async function GET(request: NextRequest) {
       min_price?: string | number | null;
       median_price?: string | number | null;
       max_price?: string | number | null;
-      projects?: { name?: string | null } | null;
+      projects?: ProjectRelation;
       remark?: string | null;
     }) => ({
       '工序名称': p.work_type || '',
@@ -60,7 +70,7 @@ export async function GET(request: NextRequest) {
       '最低价': p.min_price || 0,
       '中位价': p.median_price || 0,
       '最高价': p.max_price || 0,
-      '来源项目': p.projects?.name || '',
+      '来源项目': getRelationName(p.projects),
       '备注': p.remark || '',
     }));
     const ws1 = XLSX.utils.json_to_sheet(priceRows);

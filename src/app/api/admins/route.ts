@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { requireSuperAdmin } from '@/lib/api-auth';
 import { getAllAdmins, createAdmin, updateAdminPassword, deleteAdmin } from '@/lib/auth-db';
 
 // 获取所有管理员
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user) {
-      return NextResponse.json(
-        { error: '登录已失效，请重新登录' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
 
-    if (user.role !== 'super_admin') {
-      return NextResponse.json(
-        { error: '无模块访问权限，仅超级管理员可操作' },
-        { status: 403 }
-      );
-    }
-
-    const admins = await getAllAdmins(user.id);
+    const admins = await getAllAdmins(auth.user.id);
     
     if (admins === null) {
       return NextResponse.json(
@@ -43,14 +30,8 @@ export async function GET() {
 // 创建管理员
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user || user.role !== 'super_admin') {
-      return NextResponse.json(
-        { error: '权限不足，只有超级管理员可以操作' },
-        { status: 403 }
-      );
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
     const { username, password, role } = body;
@@ -77,14 +58,8 @@ export async function POST(request: NextRequest) {
 // 修改密码
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user || user.role !== 'super_admin') {
-      return NextResponse.json(
-        { error: '权限不足，只有超级管理员可以操作' },
-        { status: 403 }
-      );
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
     const { id, newPassword } = body;
@@ -111,26 +86,20 @@ export async function PUT(request: NextRequest) {
 // 删除管理员
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user || user.role !== 'super_admin') {
-      return NextResponse.json(
-        { error: '权限不足，只有超级管理员可以操作' },
-        { status: 403 }
-      );
-    }
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
-    const id = parseInt(searchParams.get('id') || '0');
+    const id = Number(searchParams.get('id') || '0');
 
-    if (!id) {
+    if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json(
         { error: '请指定要删除的管理员ID' },
         { status: 400 }
       );
     }
 
-    const result = await deleteAdmin(id, user.id);
+    const result = await deleteAdmin(id, auth.user.id);
     
     if (!result.success) {
       return NextResponse.json(

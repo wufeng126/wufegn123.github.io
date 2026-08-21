@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireApiReadPermission } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/api-auth';
 
 // 检查 OSS 环境变量配置 + 实际连接测试
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireApiReadPermission(request);
+    const auth = await requirePermission(request, 'system:manage');
     if (!auth.ok) return auth.response;
 
     const config = {
@@ -41,10 +41,10 @@ export async function GET(request: NextRequest) {
           message: `连接成功，当前 Bucket 中有 ${result.keys.length} 个文件（最多检查5个）`,
           fileCount: result.keys.length,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         connectionTest = {
           ok: false,
-          message: `连接失败: ${err.message || String(err)}`,
+          message: `连接失败: ${err instanceof Error ? err.message : String(err)}`,
         };
       }
     }
@@ -56,9 +56,9 @@ export async function GET(request: NextRequest) {
       connectionTest,
       timestamp: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || '诊断失败' },
+      { error: error instanceof Error ? error.message : '诊断失败' },
       { status: 500 }
     );
   }
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 // POST 方法：执行一次测试上传
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireApiReadPermission(request);
+    const auth = await requirePermission(request, 'system:manage');
     if (!auth.ok) return auth.response;
 
     const { OSSStorage } = await import('@/lib/oss-storage');
@@ -92,11 +92,11 @@ export async function POST(request: NextRequest) {
       testKey: key,
       presignedUrl: presignedUrl ? '已生成' : '生成失败',
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || '测试上传失败',
+        error: error instanceof Error ? error.message : '测试上传失败',
         hint: '请检查 OSS_ENDPOINT 格式（应为 https://oss-cn-xxx.aliyuncs.com）和 AccessKey 权限',
       },
       { status: 500 }

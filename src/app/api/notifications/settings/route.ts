@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   cleanupDuplicateNotificationSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
   ensureDefaultNotificationSettings,
   getNotificationSettingsMap,
   upsertNotificationSetting,
@@ -36,13 +37,24 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { key, value, enabled } = body;
 
-    if (!key) {
+    if (typeof key !== 'string' || !key.trim()) {
       return NextResponse.json({ error: '请提供设置键名' }, { status: 400 });
+    }
+    const normalizedKey = key.trim();
+    const allowedKeys = new Set(DEFAULT_NOTIFICATION_SETTINGS.map((item) => item.key));
+    if (!allowedKeys.has(normalizedKey)) {
+      return NextResponse.json({ error: '不支持的通知配置项' }, { status: 400 });
+    }
+    if (value !== undefined && (typeof value !== 'string' || value.length > 20000)) {
+      return NextResponse.json({ error: '通知配置值格式不正确或过长' }, { status: 400 });
+    }
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      return NextResponse.json({ error: '启用状态格式不正确' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
     await ensureDefaultNotificationSettings(client);
-    await upsertNotificationSetting(client, key, { value, enabled });
+    await upsertNotificationSetting(client, normalizedKey, { value, enabled });
 
     return NextResponse.json({ success: true });
   } catch (error) {

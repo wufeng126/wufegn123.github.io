@@ -29,6 +29,13 @@ const STATUS_MAP: Record<string, string> = {
   cancelled: '已取消',
 };
 
+type ProjectRelation = { name?: string | null } | { name?: string | null }[] | null;
+
+function getRelationName(relation: ProjectRelation | undefined): string {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return project?.name || '';
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -58,9 +65,12 @@ export async function GET(request: NextRequest) {
       .order('payment_date', { ascending: false });
 
     if (projectId && projectId !== 'all') {
-      const pid = parseInt(projectId);
+      const pid = Number(projectId);
+      if (!Number.isInteger(pid)) {
+        return NextResponse.json({ error: '项目参数不正确' }, { status: 400 });
+      }
       if (accessibleProjects !== null && !accessibleProjects.includes(pid)) {
-        return NextResponse.json({ payments: [], total: '0', totalPaid: '0', totalPending: '0', chartData: [], trendData: [] });
+        return NextResponse.json({ error: '当前账号没有权限导出该项目数据' }, { status: 403 });
       }
       query = query.eq('project_id', pid);
     } else if (accessibleProjects !== null) {
@@ -75,20 +85,29 @@ export async function GET(request: NextRequest) {
 
     // 格式化导出数据
     const exportData = (data || []).map((item: {
-      projects?: { name?: string | null } | null;
+      projects?: ProjectRelation;
       payment_amount?: string | number | null;
       payment_date?: string | null;
       payment_method?: string | null;
       status?: string | null;
       remark?: string | null;
-    }) => ({
-      project_name: item.projects?.name || '',
-      payment_amount: item.payment_amount || '0',
-      payment_date: item.payment_date?.split('T')[0] || '',
-      payment_method: PAYMENT_METHOD_MAP[item.payment_method] || item.payment_method || '银行转账',
-      status: STATUS_MAP[item.status] || item.status || '已完成',
-      remark: item.remark || '',
-    }));
+    }) => {
+      const paymentMethod = item.payment_method
+        ? PAYMENT_METHOD_MAP[item.payment_method] || item.payment_method
+        : '银行转账';
+      const statusText = item.status
+        ? STATUS_MAP[item.status] || item.status
+        : '已完成';
+
+      return {
+        project_name: getRelationName(item.projects),
+        payment_amount: item.payment_amount || '0',
+        payment_date: item.payment_date?.split('T')[0] || '',
+        payment_method: paymentMethod,
+        status: statusText,
+        remark: item.remark || '',
+      };
+    });
 
     const buffer = exportToExcel(exportData, EXPORT_HEADERS, '甲方付款');
     

@@ -2,14 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 
+function parsePositiveInt(value: string | null, fallback: number, max: number): number {
+  if (!value) return fallback;
+  if (!/^\d+$/.test(value)) return fallback;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function parseRequiredPositiveId(value: string | null): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return null;
+  return parsed;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
 
     const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '20');
+    const page = parsePositiveInt(searchParams.get('page'), 1, 100000);
+    const pageSize = parsePositiveInt(searchParams.get('pageSize'), 20, 100);
 
     const client = getSupabaseClient();
 
@@ -42,10 +57,10 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil((count || 0) / pageSize),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: error instanceof Error ? error.message : '查询失败' },
       { status: 500 }
     );
   }
@@ -59,8 +74,9 @@ export async function DELETE(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
-    if (!id) {
-      return NextResponse.json({ error: '请提供记录ID' }, { status: 400 });
+    const recordId = parseRequiredPositiveId(id);
+    if (!recordId) {
+      return NextResponse.json({ error: '请提供有效的记录ID' }, { status: 400 });
     }
 
     const client = getSupabaseClient();
@@ -68,17 +84,17 @@ export async function DELETE(request: NextRequest) {
     const { error } = await client
       .from('worker_import_history')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', recordId);
 
     if (error) {
       throw new Error(`删除失败: ${error.message}`);
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: error.message || '删除失败' },
+      { error: error instanceof Error ? error.message : '删除失败' },
       { status: 500 }
     );
   }
