@@ -14,12 +14,14 @@
 type AttemptRecord = {
   failures: number;
   lockedUntil: number;
+  updatedAt: number;
 };
 
 const ACCOUNT_MAX_FAILURES = 5;
 const ACCOUNT_LOCK_MS = 15 * 60 * 1000; // 15 分钟
 const IP_MAX_FAILURES = 20;
 const IP_LOCK_MS = 30 * 60 * 1000; // 30 分钟
+const RECORD_TTL_MS = 24 * 60 * 60 * 1000; // 24 小时无活动自动清理
 
 const accountAttempts = new Map<string, AttemptRecord>();
 const ipAttempts = new Map<string, AttemptRecord>();
@@ -28,30 +30,43 @@ const IP_KEY_PREFIX = 'ip:';
 
 /** 清理过期条目，防止内存泄漏（每次操作时顺带清理） */
 function prune(map: Map<string, AttemptRecord>, now: number) {
-  if (map.size < 500) return; // 小规模不清理
   for (const [key, record] of map) {
-    if (record.lockedUntil > 0 && record.lockedUntil < now) {
+    const expiredLock = record.lockedUntil > 0 && record.lockedUntil < now;
+    const staleUnlocked = record.lockedUntil <= now && now - record.updatedAt > RECORD_TTL_MS;
+    if (expiredLock || staleUnlocked) {
       map.delete(key);
     }
   }
 }
 
-function getRecord(map: Map<string, AttemptRecord>, key: string): AttemptRecord {
+function createRecord(now: number): AttemptRecord {
+  return { failures: 0, lockedUntil: 0, updatedAt: now };
+}
+
+function getOrCreateRecord(map: Map<string, AttemptRecord>, key: string, now: number): AttemptRecord {
   let record = map.get(key);
   if (!record) {
-    record = { failures: 0, lockedUntil: 0 };
+    record = createRecord(now);
     map.set(key, record);
   }
+  record.updatedAt = now;
   return record;
+}
+
+function peekRecord(map: Map<string, AttemptRecord>, key: string): AttemptRecord | undefined {
+  return map.get(key);
 }
 
 /** 检查是否被锁定，返回剩余锁定秒数（0 = 未锁定） */
 export function getLoginLockSeconds(ip: string, username: string): number {
   const now = Date.now();
-  const account = getRecord(accountAttempts, ACCOUNT_KEY_PREFIX + username);
-  const ipRecord = getRecord(ipAttempts, IP_KEY_PREFIX + ip);
-  if (account.lockedUntil > now) return Math.ceil((account.lockedUntil - now) / 1000);
-  if (ipRecord.lockedUntil > now) return Math.ceil((ipRecord.lockedUntil - now) / 1000);
+  prune(accountAttempts, now);
+  prune(ipAttempts, now);
+
+  const account = peekRecord(accountAttempts, ACCOUNT_KEY_PREFIX + username);
+  const ipRecord = peekRecord(ipAttempts, IP_KEY_PREFIX + ip);
+  if (account?.lockedUntil && account.lockedUntil > now) return Math.ceil((account.lockedUntil - now) / 1000);
+  if (ipRecord?.lockedUntil && ipRecord.lockedUntil > now) return Math.ceil((ipRecord.lockedUntil - now) / 1000);
   return 0;
 }
 
@@ -64,20 +79,24 @@ export function recordLoginFailure(ip: string, username: string, isAdmin = false
   prune(ipAttempts, now);
 
   if (!isAdmin) {
-    const account = getRecord(accountAttempts, ACCOUNT_KEY_PREFIX + username);
+    const account = getOrCreateRecord(accountAttempts, ACCOUNT_KEY_PREFIX + username, now);
     account.failures += 1;
+    account.updatedAt = now;
     if (account.failures >= ACCOUNT_MAX_FAILURES) {
       account.lockedUntil = now + ACCOUNT_LOCK_MS;
       account.failures = 0;
+      account.updatedAt = now;
       return true;
     }
   }
 
-  const ipRecord = getRecord(ipAttempts, IP_KEY_PREFIX + ip);
+  const ipRecord = getOrCreateRecord(ipAttempts, IP_KEY_PREFIX + ip, now);
   ipRecord.failures += 1;
+  ipRecord.updatedAt = now;
   if (ipRecord.failures >= IP_MAX_FAILURES) {
     ipRecord.lockedUntil = now + IP_LOCK_MS;
     ipRecord.failures = 0;
+    ipRecord.updatedAt = now;
     return true;
   }
 

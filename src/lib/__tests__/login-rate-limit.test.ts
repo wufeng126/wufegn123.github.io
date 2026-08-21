@@ -68,4 +68,17 @@ describe('login-rate-limit', () => {
     vi.advanceTimersByTime(16 * 60 * 1000);
     expect(getLoginLockSeconds('1.2.3.4', 'admin')).toBe(0);
   });
+
+  it('长时间无活动后会重新计数，不会一直累积旧失败', () => {
+    expect(recordLoginFailure('1.2.3.4', 'stale-user')).toBe(false);
+
+    // 先推进 25 小时，让旧记录过期清理
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+
+    // 重新从 1 次失败开始计数，而不是沿用旧记录
+    for (let i = 0; i < 4; i += 1) {
+      expect(recordLoginFailure('1.2.3.4', 'stale-user')).toBe(false);
+    }
+    expect(recordLoginFailure('1.2.3.4', 'stale-user')).toBe(true);
+  });
 });
