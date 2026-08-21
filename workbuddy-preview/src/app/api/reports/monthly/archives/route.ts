@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 const supabase = getSupabaseClient();
 
@@ -9,6 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
 
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');
@@ -20,7 +22,22 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (projectId && projectId !== 'all') {
-      query = query.eq('project_id', Number(projectId));
+      const requestedProjectIds = projectId.split(',').map(Number).filter(n => !isNaN(n));
+      if (requestedProjectIds.length === 0) {
+        return NextResponse.json({ success: false, error: '请提供有效的项目参数' }, { status: 400 });
+      }
+      if (accessibleProjectIds !== null) {
+        const inaccessibleProjectIds = requestedProjectIds.filter(id => !accessibleProjectIds.includes(id));
+        if (inaccessibleProjectIds.length > 0) {
+          return NextResponse.json({ success: false, error: '当前账号没有访问指定项目的权限' }, { status: 403 });
+        }
+      }
+      query = query.in('project_id', requestedProjectIds);
+    } else if (accessibleProjectIds !== null) {
+      if (accessibleProjectIds.length === 0) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+      query = query.in('project_id', accessibleProjectIds);
     }
 
     const { data, error } = await query;
@@ -42,12 +59,20 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
 
     const body = await request.json();
     const { month, projectId, projectName, reportMode, snapshotData, kpiSummary, riskSummary, createdBy, createdByName } = body;
 
     if (!month || !snapshotData) {
       return NextResponse.json({ success: false, error: 'month and snapshotData are required' }, { status: 400 });
+    }
+
+    if (accessibleProjectIds !== null) {
+      const normalizedProjectId = Number(projectId);
+      if (!projectId || projectId === 'all' || !Number.isInteger(normalizedProjectId) || !accessibleProjectIds.includes(normalizedProjectId)) {
+        return NextResponse.json({ success: false, error: '当前账号没有访问指定项目的权限' }, { status: 403 });
+      }
     }
 
     // Upsert: if archive exists for same month+project+mode, update it
@@ -87,12 +112,31 @@ export async function DELETE(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
+    const accessibleProjectIds = await getAccessibleProjectIds(supabase, auth.user);
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
+    }
+
+    const { data: archive, error: fetchError } = await supabase
+      .from('monthly_report_archives')
+      .select('project_id')
+      .eq('id', Number(id))
+      .single();
+
+    if (fetchError) {
+      console.error('[archives] fetch archive error:', fetchError);
+      return NextResponse.json({ success: false, error: fetchError.message }, { status: 500 });
+    }
+
+    if (accessibleProjectIds !== null) {
+      const archiveProjectId = Number(archive?.project_id);
+      if (!Number.isNaN(archiveProjectId) && !accessibleProjectIds.includes(archiveProjectId)) {
+        return NextResponse.json({ success: false, error: '当前账号没有访问指定项目的权限' }, { status: 403 });
+      }
     }
 
     const { error } = await supabase
