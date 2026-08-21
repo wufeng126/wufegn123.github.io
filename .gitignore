@@ -105,6 +105,7 @@ Desktop.ini
 
 # Preview files
 .preview
+workbuddy-preview/
 
 # Codegraph cache
 .codegraph/

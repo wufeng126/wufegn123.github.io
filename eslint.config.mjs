@@ -26,6 +26,7 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
+    '.*/**',
     '.next/**',
     'out/**',
     'build/**',
@@ -35,6 +36,9 @@ const eslintConfig = defineConfig([
     'dist/**',
     // Mobile app bundled code:
     'mobile-app/**',
+    // Local preview/copy artifacts:
+    'workbuddy-preview/**',
+    'wufegn123.github.io/**',
     // Script files (CommonJS):
     'scripts/**/*.js',
   ]),

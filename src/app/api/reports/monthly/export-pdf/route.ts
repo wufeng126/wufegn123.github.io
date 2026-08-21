@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { logSecurityEvent } from '@/lib/security-log';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAuth, requirePermission } from '@/lib/api-auth';
+import { apiBadRequest } from '@/lib/api-utils';
+import { isValidProjectIdParam, isValidReportMonth } from '@/lib/monthly-report-route-validation';
 
 // ─── Helpers ───────────────────────────────────────────────
 const fmt = (v: number): string => {
@@ -65,20 +67,31 @@ export async function GET(request: NextRequest) {
 // ─── POST: Generate HTML for PDF printing ──────────────────
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'reports:monthly_export');
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const reportMonth = searchParams.get('month');
     const projectId = searchParams.get('projectId');
     const templateType = searchParams.get('template') || 'boss';
+    const allowedTemplates = new Set(['summary', 'detail', 'boss', 'financial']);
 
-    if (!reportMonth) {
-      return NextResponse.json({ success: false, error: '缺少月份参数' }, { status: 400 });
+    if (!isValidReportMonth(reportMonth)) {
+      return apiBadRequest('请提供有效的月份参数(YYYY-MM)');
+    }
+
+    if (!isValidProjectIdParam(projectId)) {
+      return apiBadRequest('项目参数格式不正确');
+    }
+
+    if (!allowedTemplates.has(templateType)) {
+      return apiBadRequest('导出模板参数不正确');
     }
 
     // 记录导出安全日志
-    const operatorId = request.headers.get('x-user-id');
     await logSecurityEvent({
       event_type: 'export_pdf',
-      user_id: operatorId ? parseInt(operatorId) : undefined,
+      user_id: auth.user.id,
       ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
       user_agent: request.headers.get('user-agent') || 'unknown',
       result: 'success',
@@ -89,7 +102,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.DEPLOY_RUN_PORT
       ? `http://localhost:${process.env.DEPLOY_RUN_PORT}`
       : 'https://sxshhy.top';
-    const summaryUrl = `${baseUrl}/api/reports/monthly/summary?month=${reportMonth}${projectId && projectId !== 'all' ? `&projectId=${projectId}` : ''}`;
+    const summaryUrl = `${baseUrl}/api/reports/monthly/summary?month=${encodeURIComponent(reportMonth)}${projectId && projectId !== 'all' ? `&projectId=${encodeURIComponent(projectId)}` : ''}`;
 
     const summaryRes = await fetch(summaryUrl, {
       headers: { cookie: request.headers.get('cookie') || '' },

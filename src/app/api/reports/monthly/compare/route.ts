@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requirePermission } from '@/lib/api-auth';
+import { apiBadRequest } from '@/lib/api-utils';
+import { isValidReportMonth, parsePositiveIntParam } from '@/lib/monthly-report-route-validation';
 
 const supabase = getSupabaseClient();
 
@@ -7,13 +10,16 @@ const supabase = getSupabaseClient();
 // ?month1=2026-06&month2=2026-05&project_id=all
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, 'reports:monthly_view');
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const month1 = searchParams.get('month1');
     const month2 = searchParams.get('month2');
     const projectId = searchParams.get('project_id');
 
-    if (!month1 || !month2) {
-      return NextResponse.json({ success: false, error: 'month1 and month2 are required' }, { status: 400 });
+    if (!isValidReportMonth(month1) || !isValidReportMonth(month2)) {
+      return apiBadRequest('请提供有效的对比月份参数(YYYY-MM)');
     }
 
     let query = supabase
@@ -23,7 +29,9 @@ export async function GET(request: NextRequest) {
       .order('month', { ascending: false });
 
     if (projectId && projectId !== 'all') {
-      query = query.eq('project_id', Number(projectId));
+      const parsedProjectId = parsePositiveIntParam(projectId);
+      if (!parsedProjectId) return apiBadRequest('项目参数格式不正确');
+      query = query.eq('project_id', parsedProjectId);
     }
 
     const { data, error } = await query;
