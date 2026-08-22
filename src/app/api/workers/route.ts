@@ -5,6 +5,7 @@ import { requireApiWritePermission } from '@/lib/api-auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
 import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
+import { canAccessSensitiveData } from '@/lib/ai-service';
 
 type WorkerProjectEntity = {
   name?: string | null;
@@ -129,14 +130,30 @@ export async function GET(request: NextRequest) {
       workers = workers.filter((w) => w.project_id === null || accessibleProjects.includes(Number(w.project_id)));
     }
 
+    // 敏感字段脱敏：身份证号、银行卡号仅对 super_admin/管理员/财务/预算商务/老板 角色可见完整值，
+    // 其他角色（项目经理、班组长、现场人员等）返回脱敏值，防止越权批量拉取工人 PII。
+    const canViewSensitive = canAccessSensitiveData(user?.role || '');
+    const maskIdCard = (v?: string | null): string => {
+      if (!v) return '';
+      const s = String(v);
+      if (s.length < 8) return s;
+      return `${s.slice(0, 3)}***********${s.slice(-4)}`;
+    };
+    const maskBankCard = (v?: string | null): string => {
+      if (!v) return '';
+      const s = String(v).replace(/\s+/g, '');
+      if (s.length < 8) return s;
+      return `${s.slice(0, 4)} **** **** ${s.slice(-4)}`;
+    };
+
     // 格式化返回数据
     const formattedWorkers = workers.map(worker => ({
       id: worker.id,
       name: worker.name,
       work_type: worker.work_type,
-      id_card: worker.id_card,
+      id_card: canViewSensitive ? (worker.id_card || '') : maskIdCard(worker.id_card),
       phone: worker.phone,
-      bank_card: worker.bank_card,
+      bank_card: canViewSensitive ? (worker.bank_card || '') : maskBankCard(worker.bank_card),
       project_id: worker.project_id,
       project_name: getProjectName(worker.projects),
       status: worker.status || 'in_service',

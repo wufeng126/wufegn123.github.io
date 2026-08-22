@@ -3,11 +3,37 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getUserDisplayName } from '@/lib/user-display-name';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 type UserPayload = RequestAuthUser;
 
 async function getAuthUser(request: NextRequest): Promise<UserPayload | null> {
   return getRequestAuthUser(request);
+}
+
+/**
+ * 校验当前用户是否有权访问指定限价记录所在项目。
+ * super_admin / 公司管理员 放行；其他角色必须命中可访问项目列表。
+ * 返回 true=放行，false=已写入 403 响应（调用方直接 return response）。
+ */
+async function assertLimitPriceProjectAccess(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  user: UserPayload,
+  projectId: number | null | undefined,
+): Promise<{ allowed: true } | { allowed: false; response: NextResponse }> {
+  if (user.is_super_admin || user.role === '公司管理员') {
+    return { allowed: true };
+  }
+  if (!projectId) {
+    return { allowed: false, response: NextResponse.json({ error: '记录未关联项目，无权操作' }, { status: 403 }) };
+  }
+  const accessibleProjects = await getAccessibleProjectIds(supabase, user);
+  // accessibleProjects === null 理论上不会出现（非 super_admin 已在上方拦截），做防御性处理
+  if (accessibleProjects === null) return { allowed: true };
+  if (!accessibleProjects.includes(Number(projectId))) {
+    return { allowed: false, response: NextResponse.json({ error: '无权操作此项目的限价记录' }, { status: 403 }) };
+  }
+  return { allowed: true };
 }
 
 function logAction(
@@ -59,20 +85,10 @@ export async function GET(
     return NextResponse.json({ error: '记录不存在' }, { status: 404 });
   }
   
-  // 检查权限
-  if (!user.is_super_admin && user.role !== '公司管理员') {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('managed_projects')
-      .eq('id', user.id)
-      .single();
-    
-    const userProjects = userData?.managed_projects || [];
-    if (!userProjects.includes(data.project_id)) {
-      return NextResponse.json({ error: '无权查看此记录' }, { status: 403 });
-    }
-  }
-  
+  // 检查权限（统一走 getAccessibleProjectIds，合并 managed_projects + user_project_roles）
+  const access = await assertLimitPriceProjectAccess(supabase, user, data.project_id);
+  if (!access.allowed) return access.response;
+
   return NextResponse.json({ data });
 }
 
@@ -95,22 +111,26 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
   
-  // 权限检查
+  // 权限检查（写权限：super_admin / 公司管理员 / 商务 / admin）
   if (!user.is_super_admin && user.role !== '公司管理员' && user.role !== '商务' && user.role !== 'admin') {
     return NextResponse.json({ error: '无权限修改' }, { status: 403 });
   }
-  
+
   // 获取当前记录
   const { data: current, error: fetchError } = await supabase
     .from('project_limit_prices')
     .select('*')
     .eq('id', parseInt(id))
     .single();
-  
+
   if (fetchError || !current) {
     return NextResponse.json({ error: '记录不存在' }, { status: 404 });
   }
-  
+
+  // 项目级权限校验（IDOR 防护：商务/管理员只能操作自己被授权项目的记录）
+  const access = await assertLimitPriceProjectAccess(supabase, user, current.project_id);
+  if (!access.allowed) return access.response;
+
   // 审核生效后，只有管理员可修改
   if (current.status === '审核生效' && !user.is_super_admin && user.role !== '公司管理员') {
     return NextResponse.json({ error: '已审核的限价只有管理员可修改' }, { status: 403 });
@@ -168,22 +188,26 @@ export async function DELETE(
   
   const { id } = await params;
   
-  // 权限检查
+  // 权限检查（写权限：super_admin / 公司管理员 / 商务 / admin）
   if (!user.is_super_admin && user.role !== '公司管理员' && user.role !== '商务' && user.role !== 'admin') {
     return NextResponse.json({ error: '无权限删除' }, { status: 403 });
   }
-  
+
   // 获取当前记录
   const { data: current } = await supabase
     .from('project_limit_prices')
     .select('*')
     .eq('id', parseInt(id))
     .single();
-  
+
   if (!current) {
     return NextResponse.json({ error: '记录不存在' }, { status: 404 });
   }
-  
+
+  // 项目级权限校验（IDOR 防护：商务/管理员只能删除自己被授权项目的记录）
+  const access = await assertLimitPriceProjectAccess(supabase, user, current.project_id);
+  if (!access.allowed) return access.response;
+
   // 已审核的不能删除
   if (current.status === '审核生效') {
     return NextResponse.json({ error: '已审核的限价不能删除，请先作废' }, { status: 403 });
