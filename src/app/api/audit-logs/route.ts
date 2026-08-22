@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAnyPermission, requirePermission } from '@/lib/api-auth';
+import { getErrorMessage } from '@/lib/api-utils';
 
 function normalizePageParam(value: string | null, fallback: number, max: number) {
   const parsed = Number(value || fallback);
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: getErrorMessage(error, '获取审计日志失败') }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -91,7 +92,7 @@ export async function DELETE(request: NextRequest) {
       .lt('created_at', beforeDate + ' 00:00:00');
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: getErrorMessage(error, '清理审计日志失败') }, { status: 500 });
     }
 
     return NextResponse.json({

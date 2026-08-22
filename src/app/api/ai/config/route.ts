@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getAIConfig, clearAIConfigCache } from '@/lib/ai-service';
 import { requirePermission } from '@/lib/api-auth';
+import { getErrorMessage } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,7 +87,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (result.error) {
-      return NextResponse.json({ success: false, error: result.error.message }, { status: 500 });
+      return NextResponse.json({ success: false, error: getErrorMessage(result.error, '保存AI配置失败') }, { status: 500 });
     }
 
     clearAIConfigCache();
@@ -99,7 +100,7 @@ export async function PUT(request: NextRequest) {
     for (const f of numFields) { safeResult[f] = safeResult[f] ?? 0; }
     safeResult.model_id = safeResult.model_id || '';
     return NextResponse.json({ success: true, data: safeResult });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: getErrorMessage(e, '保存AI配置失败') }, { status: 500 });
   }
 }

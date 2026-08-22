@@ -55,7 +55,12 @@ type DingTalkUserDetailResponse = DingTalkUserDetailResult & {
 };
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  const raw = error instanceof Error ? error.message : String(error);
+  // 不把 DB / 网络 / JWT 内部错误透传给前端
+  if (/sqlstate|postgrest|relation .* does not exist|column .* does not exist|duplicate key|constraint .* failed|connection (refused|timed out)|invalid (jwt|token|signature)|AccessKeyId|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|\.(?:js|ts|tsx):\d+/i.test(raw)) {
+    return '登录服务暂时不可用，请稍后重试';
+  }
+  return raw;
 }
 
 /** 从请求中提取客户端IP */

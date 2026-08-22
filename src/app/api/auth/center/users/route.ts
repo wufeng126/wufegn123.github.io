@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logSecurityEvent } from "@/lib/security-log";
 import { hashPassword } from "@/lib/auth-db";
 import { requirePermission } from "@/lib/api-auth";
+import { getErrorMessage } from "@/lib/api-utils";
 
 type RoleRow = {
   id: number;
@@ -39,7 +40,7 @@ async function validateAssignableRoles(
     .in("id", roleIds);
 
   if (error) {
-    return { ok: false, response: NextResponse.json({ error: error.message }, { status: 500 }) };
+    return { ok: false, response: NextResponse.json({ error: getErrorMessage(error, "操作失败") }, { status: 500 }) };
   }
 
   if ((roles || []).length !== roleIds.length) {
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     .order("id", { ascending: true });
   
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error, "操作失败") }, { status: 500 });
   }
   
   // 获取所有用户角色关联
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
       const { error } = await supabase.from("user_roles").insert(userRoleLinks);
       
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: getErrorMessage(error, "操作失败") }, { status: 500 });
       }
     }
     

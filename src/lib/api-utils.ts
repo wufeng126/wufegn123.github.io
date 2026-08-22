@@ -107,20 +107,58 @@ export function apiServerError(message = '服务器内部错误') {
   return apiError(message, 500, 'INTERNAL_ERROR');
 }
 
-/** L1 修复：数据库/SQL 内部错误模式（回显会泄露表结构/连接信息，改为通用文案） */
-const DB_ERROR_PATTERNS: RegExp[] = [
+/** L1 修复：数据库/SQL/鉴权内部错误模式（回显会泄露表结构、连接信息、密钥或堆栈），改为通用文案 */
+const SENSITIVE_ERROR_PATTERNS: RegExp[] = [
+  // 数据库 / SQL
   /relation\s+"?[a-z_]+"?\s+does not exist/i,
   /column\s+"?[a-z_.]+"?\s+does not exist/i,
   /duplicate key value violates/i,
   /syntax error at or near/i,
   /invalid input syntax/i,
-  /could not (open|read|connect|resolve)/i,
+  /could not (open|read|connect|resolve|translate|send|receive)/i,
   /sqlstate/i,
   /pq:\s/i,
   /postgrest/i,
   /connection refused/i,
   /connection timed out/i,
+  /database .* does not exist/i,
+  /schema .* does not exist/i,
+  /constraint .* failed/i,
+  /foreign key .* violates/i,
+  /violates (not-null|foreign key|unique|check) constraint/i,
+  /permission denied for (table|relation|sequence|schema)/i,
+  /deadlock detected/i,
+  /too many connections/i,
+  // 认证 / 密钥
+  /invalid (jwt|token|signature|algorithm)/i,
+  /jwt (malformed|expired|signature)/i,
+  /malformed token/i,
+  /secretOrPublicKey/i,
+  /private (key|secret)/i,
+  /api[_-]?key/i,
+  /password (authentication|for user)/i,
+  // 存储 / 网络
+  /AccessKeyId/i,
+  /SignatureDoesNotMatch/i,
+  /InvalidAccessKeyId/i,
+  /NoSuchBucket/i,
+  /RequestTimeTooSkewed/i,
+  /EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i,
+  // 语言运行时（避免泄露堆栈/路径）
+  /^\s*at\s+[\w.<>]+\s*\(/m,
+  /TypeError:.*\n/m,
+  /ReferenceError:.*\n/m,
+  /SyntaxError:.*\n/m,
+  /Cannot read propert(?:y|ies) of (?:undefined|null)/i,
+  /Cannot set propert(?:y|ies) of (?:undefined|null)/i,
+  /(?:is|are) not a function/i,
+  /\.(?:js|ts|tsx|mjs|cjs):\d+/i,
 ];
+
+/** 判断一条错误消息是否包含内部细节，调用方应将其替换为通用文案。 */
+export function isSensitiveErrorMessage(message: string): boolean {
+  return SENSITIVE_ERROR_PATTERNS.some((re) => re.test(message));
+}
 
 export function getErrorMessage(error: unknown, fallback = '服务器内部错误'): string {
   let message: string;
@@ -128,8 +166,14 @@ export function getErrorMessage(error: unknown, fallback = '服务器内部错�
   else if (typeof error === 'string' && error) message = error;
   else return fallback;
 
-  // 数据库内部错误不直接回显（业务错误如"合同不存在"仍正常返回）
-  if (DB_ERROR_PATTERNS.some((re) => re.test(message))) return fallback;
+  // 内部错误不直接回显（业务错误如"合同不存在"仍正常返回）
+  if (isSensitiveErrorMessage(message)) {
+    if (process.env.NODE_ENV !== 'production') {
+      // 开发环境仍然通过 console 暴露细节，便于排查
+      console.warn('[api-utils] sensitive error masked:', message);
+    }
+    return fallback;
+  }
   return message;
 }
 

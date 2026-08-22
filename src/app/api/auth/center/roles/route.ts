@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Query single error:', error);
-        return apiServerError(error.message);
+        return apiServerError(getErrorMessage(error, '角色查询失败'));
       }
       
       // 提取权限 code
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     
     if (error) {
       console.error('[roles] Query error:', error);
-      return apiServerError(error.message);
+      return apiServerError(getErrorMessage(error, "服务器内部错误"));
     }
     
     // 处理权限数量
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Create error:', error);
-        return apiServerError(error.message);
+        return apiServerError(getErrorMessage(error, "服务器内部错误"));
       }
       
       return apiSuccess({ role: newRole }, { meta: { role: newRole } });
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Update error:', error);
-        return apiServerError(error.message);
+        return apiServerError(getErrorMessage(error, "服务器内部错误"));
       }
       
       return apiSuccess({ role: updatedRole }, { meta: { role: updatedRole } });
@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
       
       if (error) {
         console.error('[roles] Delete error:', error);
-        return apiServerError(error.message);
+        return apiServerError(getErrorMessage(error, "服务器内部错误"));
       }
       
       // 记录安全日志
@@ -390,7 +390,7 @@ export async function DELETE(request: NextRequest) {
     
     if (error) {
       console.error('[roles] DELETE error:', error);
-      return apiServerError(error.message);
+      return apiServerError(getErrorMessage(error, "服务器内部错误"));
     }
     
     // 记录安全日志

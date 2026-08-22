@@ -155,17 +155,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 7. 获取 token（优先 Cookie，兜底 URL 临时 token / Authorization header —— 兼容钉钉 webview/iframe Cookie 被拦截场景）
+  // 7. 获取 token（优先 Cookie → Authorization header；URL ?token= 仅作为页面/免登中转兜底，
+  // API 接口禁止通过 URL 传 token，避免 token 出现在 access_log/Referer/历史记录中）
   let token = request.cookies.get('auth_token')?.value;
   let tokenFromUrl = false;
   let tokenSource = 'cookie';
+  const isApi = isApiRequest(pathname);
   const urlTokenParam = request.nextUrl.searchParams.get('token');
-  if (!token) {
-    token = urlTokenParam || '';
-    if (token) {
-      tokenFromUrl = true;
-      tokenSource = 'url';
-    }
+  if (!token && urlTokenParam && !isApi) {
+    token = urlTokenParam;
+    tokenFromUrl = true;
+    tokenSource = 'url';
   }
   if (!token) {
     // Authorization: Bearer <token> 兜底（前端 fetch 可主动携带）
@@ -174,6 +174,12 @@ export async function proxy(request: NextRequest) {
       token = authHeader.slice(7);
       tokenSource = 'header';
     }
+  }
+
+  // 7.1 API 请求若试图通过 URL ?token= 传参，直接拒绝（防止 token 泄漏到日志/Referer）
+  if (isApi && urlTokenParam && !request.cookies.get('auth_token')?.value) {
+    const errResp = jsonError('禁止通过 URL 传递 token，请使用 Cookie 或 Authorization header', 401);
+    return addCorsHeaders(errResp, request);
   }
 
   // 8. 未登录处理
@@ -217,14 +223,24 @@ export async function proxy(request: NextRequest) {
     response.headers.set('x-user-role', userRole);
     response.headers.set('x-is-super-admin', isSuperAdmin ? 'true' : 'false');
     // URL token 兜底成功后，补设 Cookie 以便后续请求无需 URL 传参
-    // 同时设置两个版本：Lax（同站 webview）和 None（跨站 iframe），确保至少一个被浏览器存储
+    // 生产环境（HTTPS，含钉钉 iframe）：SameSite=None + Secure；开发环境：Lax + Secure=false
     if (tokenFromUrl) {
-      const cookieOptions = {
-        httpOnly: true,
-        sameSite: 'lax' as const,
-        maxAge: 7 * 24 * 60 * 60,
-        path: '/',
-      };
+      const isProd = process.env.NODE_ENV === 'production' || process.env.COZE_PROJECT_ENV === 'PROD';
+      const cookieOptions = isProd
+        ? {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none' as const,
+            maxAge: 7 * 24 * 60 * 60,
+            path: '/',
+          }
+        : {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax' as const,
+            maxAge: 7 * 24 * 60 * 60,
+            path: '/',
+          };
       response.cookies.set('auth_token', token!, cookieOptions);
     }
     return addCorsHeaders(response, request);

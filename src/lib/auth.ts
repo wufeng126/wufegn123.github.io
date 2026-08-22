@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { isSuperAdminUser } from './route-permissions';
 import { getUserDisplayName } from './user-display-name';
+import { isJtiRevoked, revokeJti } from './token-revocation';
 
 // JWT 密钥完全来自环境变量。生产环境必须配置 JWT_SECRET（≥32 位随机字符串），
 // 开发环境未配置时使用进程内随机密钥（重启后会话失效）。
@@ -25,6 +26,11 @@ export interface UserPayload {
   role_id?: number;
   permissions?: string[]; // 权限码列表
   jti?: string; // JWT ID，用于 token 注销
+  // JWT 标准字段（verifyToken 解码后会带上）
+  iat?: number;
+  exp?: number;
+  iss?: string;
+  sub?: string;
 }
 
 export interface RequestAuthUser {
@@ -95,16 +101,10 @@ export function getSecretKey() {
   return new TextEncoder().encode(secret);
 }
 
-// 已注销 token 黑名单（内存实现，单实例有效；配合 jti 使 logout 后 token 立即失效）
-// 说明：重启后黑名单清空（与 login-rate-limit 同级别取舍），生产多实例可换 Redis
-const revokedJtis = new Set<string>();
-
-export function revokeToken(jti: string) {
-  if (jti) revokedJtis.add(jti);
-}
-
-function isTokenRevoked(jti?: string) {
-  return jti ? revokedJtis.has(jti) : false;
+// 已注销 token 黑名单已迁移到 DB 持久化（src/lib/token-revocation.ts），
+// 多实例部署也可在 60s 内同步；此处保留 revokeToken 包装以维持旧调用点兼容。
+export async function revokeToken(jti: string, expMs?: number, userId?: number) {
+  await revokeJti(jti, expMs, userId);
 }
 
 // 生成 JWT Token
@@ -124,8 +124,8 @@ export async function verifyToken(token: string): Promise<UserPayload | null> {
   try {
     const secretKey = getSecretKey();
     const { payload } = await jwtVerify(token, secretKey);
-    // 已注销的 token 立即失效
-    if (isTokenRevoked(payload.jti)) return null;
+    // 已注销的 token 立即失效（DB + 内存缓存）
+    if (await isJtiRevoked(payload.jti as string | undefined)) return null;
     return payload as unknown as UserPayload;
   } catch {
     return null;
@@ -157,15 +157,25 @@ export function normalizeAuthUser(payload: UserPayload | null): RequestAuthUser 
 
 // 设置认证 Cookie
 // 钉钉 H5 微应用运行在 iframe 中，浏览器视为第三方上下文
-// 必须 SameSite=None + Secure=true 才能让 cookie 在 iframe 中被存储和发送
+// 生产环境必须 SameSite=None + Secure=true 才能让 cookie 在 iframe 中被存储和发送；
+// 开发环境（HTTP）保留 Lax + Secure=false，兼容本地调试。
 export async function setAuthCookie(token: string, response?: NextResponse) {
-  const cookieOptions = {
-    httpOnly: true,
-    secure: false,          // 兼容钉钉 webview 和 HTTP 代理场景
-    sameSite: 'lax' as const, // 同站请求携带 cookie，兼容钉钉全屏 webview
-    maxAge: 7 * 24 * 60 * 60, // 7天
-    path: '/',
-  };
+  const isProd = process.env.NODE_ENV === 'production' || process.env.COZE_PROJECT_ENV === 'PROD';
+  const cookieOptions = isProd
+    ? {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none' as const,
+        maxAge: 7 * 24 * 60 * 60,
+        path: '/',
+      }
+    : {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax' as const,
+        maxAge: 7 * 24 * 60 * 60,
+        path: '/',
+      };
 
   if (response) {
     response.cookies.set('auth_token', token, cookieOptions);

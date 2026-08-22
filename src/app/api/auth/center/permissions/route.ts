@@ -2,6 +2,7 @@ import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { requirePermission } from "@/lib/api-auth";
 import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/api-utils";
 
 // 获取所有权限定义
 export async function GET(request: NextRequest) {
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   
   if (error) {
     console.error("[permissions] Query error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error, '获取权限列表失败') }, { status: 500 });
   }
   
   // 按模块分组 - 匹配数据库实际 resource 值

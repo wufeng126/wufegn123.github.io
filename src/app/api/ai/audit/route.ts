@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requirePermission } from '@/lib/api-auth';
+import { getErrorMessage } from '@/lib/api-utils';
 
 type AiAuditLogRow = {
   created_at?: string | null;
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: false, error: getErrorMessage(error, '查询AI审计日志失败') }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: false, error: getErrorMessage(error, '导出AI审计日志失败') }, { status: 500 });
     }
 
     // 生成CSV
