@@ -59,7 +59,6 @@ const INTERNAL_APIS = [
   '/api/system',
   '/api/upload',
   '/api/review',
-  '/api/salary-payments',
   '/api/worker-payments',
   '/api/audit-logs',
   '/api/cost-center',

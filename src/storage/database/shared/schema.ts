@@ -115,6 +115,7 @@ export const workerSalaries = pgTable("worker_salaries", {
 	index("worker_salaries_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
 	index("worker_salaries_year_month_idx").using("btree", table.yearMonth.asc().nullsLast().op("text_ops")),
 	index("worker_salaries_payment_status_idx").using("btree", table.paymentStatus.asc().nullsLast().op("text_ops")),
+	unique("worker_salaries_worker_project_month_unique").on(table.workerId, table.projectId, table.yearMonth),
 	foreignKey({
 			columns: [table.workerId],
 			foreignColumns: [workers.id],

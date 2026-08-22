@@ -25,9 +25,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. 获取项目对应的合同数据
+    // 注：supplier_contracts 表无 cumulative_amount/cumulative_paid 列（此前 select 报错），
+    // 应付/已付分别由下方 supplier_settlements.payable_amount 与 supplier_payments.payment_amount 聚合
     let contractQuery = client
       .from('supplier_contracts')
-      .select('id, supplier_id, project_id, contract_name, total_amount, cumulative_amount, cumulative_paid');
+      .select('id, supplier_id, project_id, contract_name, total_amount');
 
     if (projectId) {
       contractQuery = contractQuery.eq('project_id', parseInt(projectId));

@@ -5,11 +5,13 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import {
   buildSupplierSettlementCumulativeMap,
+  calculatePayableAmount,
   isEffectiveSupplierPaymentStatus,
   isVoidedStatus,
   REVIEW_STATUS,
   summarizeSupplierSettlementRows,
 } from '@/lib/business-logic';
+import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
 
 function toNumber(value: unknown) {
   const num = Number(value || 0);
@@ -228,16 +230,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let paymentRatio = 0;
+    // 应付金额统一走 business-logic 的 calculatePayableAmount（支持 progress/milestone/final 三种类型）
     const paymentRatioFinal = Number(contract.payment_ratio_final) || 0;
-    let payableAmount = 0;
-
-    if (settlement_type === 'progress') {
-      paymentRatio = Number(contract.payment_ratio_active) || 80;
-      payableAmount = settlementAmount * (paymentRatio / 100);
+    const payableAmount = calculatePayableAmount(settlementAmount, settlement_type, contract);
+    // paymentRatio 记录所用比例（milestone 按 complete 比例，与 calculatePayableAmount 保持一致）
+    let paymentRatio = Number(contract.payment_ratio_active) || DEFAULT_PAYMENT_RATIOS.active;
+    if (settlement_type === 'milestone') {
+      paymentRatio = Number(contract.payment_ratio_complete) || DEFAULT_PAYMENT_RATIOS.complete;
     } else if (settlement_type === 'final') {
-      paymentRatio = paymentRatioFinal > 0 ? paymentRatioFinal : 100;
-      payableAmount = settlementAmount * (paymentRatio / 100);
+      paymentRatio = paymentRatioFinal > 0 ? paymentRatioFinal : DEFAULT_PAYMENT_RATIOS.final;
     }
 
     const now = new Date();

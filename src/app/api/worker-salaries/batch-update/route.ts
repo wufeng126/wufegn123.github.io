@@ -15,6 +15,8 @@ const ALLOWED_BATCH_UPDATE_FIELDS = [
   'advance_pay',
   'labor_insurance',
   'fine',
+  'gross_pay',
+  'net_pay',
 ] as const;
 
 export async function POST(request: NextRequest) {
@@ -60,6 +62,18 @@ export async function POST(request: NextRequest) {
     const updatePromises = (existingRecords || []).map(async (record) => {
       const nextValue = value ?? '0';
       const updateData: Record<string, string> = { [field]: nextValue };
+
+      // 直接修正应发/实发金额：不重算，仅更新目标字段
+      if (field === 'gross_pay' || field === 'net_pay') {
+        const { error: directUpdateError } = await client
+          .from('worker_salaries')
+          .update(updateData)
+          .eq('id', record.id);
+        if (directUpdateError) {
+          throw new Error(`Failed to update salary record ${record.id}: ${directUpdateError.message}`);
+        }
+        return;
+      }
 
       const workHours = field === 'work_hours' ? parseFloat(nextValue) : parseFloat(record.work_hours || '0');
       const hourlyRate = field === 'hourly_rate' ? parseFloat(nextValue) : parseFloat(record.hourly_rate || '0');

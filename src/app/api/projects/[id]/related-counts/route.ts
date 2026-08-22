@@ -27,9 +27,9 @@ export async function GET(
       .eq('project_id', projectId);
     counts['工资记录'] = salaryCount || 0;
 
-    // Worker payments
+    // Worker payments（发放记录表实际名为 salary_payments，worker_payments 不存在）
     const { count: workerPaymentCount } = await client
-      .from('worker_payments')
+      .from('salary_payments')
       .select('*', { count: 'exact', head: true })
       .eq('project_id', projectId);
     counts['工资发放'] = workerPaymentCount || 0;

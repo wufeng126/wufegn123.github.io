@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
+import { calculatePayableAmount, isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
+import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
+import { insertWithSequenceFix } from '@/lib/audit-log';
 
 // GET /api/supplier-settlements - 获取供应商结算记录（简化版）
 export async function GET(request: NextRequest) {
@@ -97,6 +99,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/supplier-settlements - 新增结算记录
+// 对齐 /api/supplier-contracts/settlements 语义：计算 payable_amount / payment_ratio / settlement_no，并校验合同状态
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiWritePermission(request);
@@ -105,6 +108,20 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const body = await request.json();
     const { supplier_id, project_id, settlement_date, settlement_type, amount, remark } = body;
+
+    if (!supplier_id) {
+      return NextResponse.json({ error: '请选择供应商' }, { status: 400 });
+    }
+    if (!amount || Number(amount) <= 0) {
+      return NextResponse.json({ error: '请输入有效的结算金额' }, { status: 400 });
+    }
+
+    // 归一化结算类型：progress/milestone/final（兼容历史值如"月度结算"按 progress 处理）
+    let normalizedType = settlement_type || 'progress';
+    if (!['progress', 'milestone', 'final'].includes(normalizedType)) {
+      normalizedType = 'progress';
+    }
+    const settlementAmount = Number(amount);
 
     // 查找或创建该供应商+项目的合同
     const { data: contracts } = await supabase
@@ -115,8 +132,15 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     let contractId: number;
+    let contract: any = null;
     if (contracts && contracts.length > 0) {
       contractId = contracts[0].id;
+      const { data: contractData } = await supabase
+        .from('supplier_contracts')
+        .select('payment_ratio_active, payment_ratio_complete, payment_ratio_final, locked, contract_status')
+        .eq('id', contractId)
+        .single();
+      contract = contractData;
     } else {
       // 自动创建合同
       const { data: newContract, error: contractError } = await supabase
@@ -128,29 +152,47 @@ export async function POST(request: NextRequest) {
           contract_status: 'active',
           total_amount: 0,
         })
-        .select('id')
+        .select('id, payment_ratio_active, payment_ratio_complete, payment_ratio_final, locked, contract_status')
         .single();
       if (contractError) throw contractError;
       contractId = newContract.id;
+      contract = newContract;
     }
 
-    // 插入结算记录
-    const { data: settlement, error } = await supabase
-      .from('supplier_settlements')
-      .insert({
-        contract_id: contractId,
-        settlement_date,
-        settlement_type: settlement_type || '月度结算',
-        settlement_amount: amount,
-        status: REVIEW_STATUS.DRAFT,
-        remark: remark || null,
-        created_by: auth.user.id,
-        created_by_name: auth.user.name || auth.user.username,
-      })
-      .select()
-      .single();
+    if (contract?.locked || contract?.contract_status === '已完结') {
+      return NextResponse.json({ error: '该合同已完结，无法新增结算单' }, { status: 400 });
+    }
+
+    // 计算应付金额（与 supplier-contracts/settlements 完全一致）
+    const payableAmount = calculatePayableAmount(settlementAmount, normalizedType, contract || {});
+    let paymentRatio = Number(contract?.payment_ratio_active) || DEFAULT_PAYMENT_RATIOS.active;
+    if (normalizedType === 'milestone') {
+      paymentRatio = Number(contract?.payment_ratio_complete) || DEFAULT_PAYMENT_RATIOS.complete;
+    } else if (normalizedType === 'final') {
+      paymentRatio = Number(contract?.payment_ratio_final) || DEFAULT_PAYMENT_RATIOS.final;
+    }
+
+    const now = new Date();
+    const settlementNo = `JS${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getTime()).slice(-6)}`;
+
+    // 插入结算记录（含 payable_amount / payment_ratio / settlement_no）
+    const { data: settlementArr, error } = await insertWithSequenceFix('supplier_settlements', {
+      contract_id: contractId,
+      settlement_no: settlementNo,
+      settlement_date: settlement_date || null,
+      settlement_type: normalizedType,
+      settlement_amount: settlementAmount,
+      payment_ratio: paymentRatio,
+      payment_ratio_final: Number(contract?.payment_ratio_final) || DEFAULT_PAYMENT_RATIOS.final,
+      payable_amount: payableAmount.toFixed(2),
+      status: REVIEW_STATUS.DRAFT,
+      remark: remark || null,
+      created_by: auth.user.id,
+      created_by_name: auth.user.name || auth.user.username,
+    }, supabase);
 
     if (error) throw error;
+    const settlement = Array.isArray(settlementArr) ? settlementArr[0] : settlementArr;
 
     return NextResponse.json({ settlement });
   } catch (error: any) {

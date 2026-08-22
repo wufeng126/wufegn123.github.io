@@ -1,8 +1,31 @@
+/**
+ * ⚠️ 历史数据接口（老表 settlements/payments）
+ *
+ * 本接口操作的是「老表结算体系」（settlements/payments，无状态机、无 payable_amount）。
+ * 新业务统一走「新表体系」：supplier_contracts → supplier_settlements → supplier_payments
+ * （入口 /api/supplier-contracts/settlements，含审核流转 + 应付计算）。
+ *
+ * 处理方式：
+ * - GET：保留（供历史数据查看）
+ * - POST/PUT/DELETE：保留但拦截写操作并提示改用新入口，避免继续污染老表数据口径
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+
+/** 老表写操作统一拦截响应：引导使用新结算体系 */
+function legacyWriteBlocked() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: '该接口为历史数据（老表 settlements），已冻结写入。请使用供应商合同下的结算入口：供应商管理 → 合同管理 → 结算（支持审核与应付计算）。',
+      code: 'LEGACY_WRITE_BLOCKED',
+    },
+    { status: 400 }
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -106,6 +129,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // 老表历史数据：冻结写入
+    const block = legacyWriteBlocked();
+    if (block) return block;
+
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
@@ -163,6 +190,10 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // 老表历史数据：冻结写入
+    const block = legacyWriteBlocked();
+    if (block) return block;
+
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
@@ -222,6 +253,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // 老表历史数据：冻结写入
+    const block = legacyWriteBlocked();
+    if (block) return block;
+
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 

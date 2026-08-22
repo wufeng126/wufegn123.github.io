@@ -250,7 +250,6 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/worker-salaries/batch-update': 'salaries:edit',
   '/api/worker-salaries/batch-delete': 'salaries:edit',
   '/api/worker-salaries': 'salaries:edit',
-  '/api/salary-payments': 'salaries:pay',
   '/api/worker-payments': 'salaries:pay',
   '/api/worker-payments/batch': 'salaries:pay',
 

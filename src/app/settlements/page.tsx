@@ -390,6 +390,9 @@ export default function SettlementsPage() {
 
   return (
     <div className="space-y-6">
+      <div className="w-full rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        ⚠️ 本页为历史结算数据（老表 settlements），已冻结新增/编辑/删除，仅供查看。新增结算请使用：供应商管理 → 合同管理 → 结算。
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-gray-900">结算管理</h1>
