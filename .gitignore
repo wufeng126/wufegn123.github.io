@@ -117,3 +117,22 @@ yarn.lock
 
 # Impeccable review artifacts (local only)
 .impeccable/
+
+# Local workspace / agent artifacts
+/.*/
+!.gitignore
+!.github/
+!.github/**
+/agent/
+/data/
+/image_work/
+/output/
+/tmp/
+/skills/
+/skills-lock.json
+/make_workbench_preview.py
+/nail-house-defense-h5/
+/wufegn123.github.io/
+/*.docx
+/*.pdf
+/*GDD_H5*.md
