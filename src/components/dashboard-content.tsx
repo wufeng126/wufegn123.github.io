@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useAutoRefresh } from '@/hooks/use-auto-refresh';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -25,7 +26,12 @@ import {
   PenSquare, 
   FileCheck, ListTodo, Timer, CircleDot, Kanban, Gauge,
 } from 'lucide-react';
-import EChartsWrapper, { CHART_COLORS } from '@/components/charts/echarts-wrapper';
+import { CHART_COLORS } from '@/components/charts/chart-theme';
+// ECharts 体积较大，首页首屏懒加载图表，避免进入主包
+const EChartsWrapper = dynamic(() => import('@/components/charts/echarts-wrapper'), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full animate-pulse rounded-md bg-muted/40" />,
+});
 import { AmountDisplay, StatusTag, KpiCard, formatAmountSmart, formatPercent, formatAmount } from '@/components/business/common';
 
 interface ProjectDetail {

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, resolveReportedIncome, VISA_DONE_STATUSES } from '@/lib/business-logic';
-import { getGlobalSummary, getProjectFinancialSummary, getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
+import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
+import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries, getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { requireAuth } from '@/lib/api-auth';
+import { logger } from '@/lib/logger';
+import { getErrorMessage } from '@/lib/api-utils';
 
 // 获取当前月份
 function getCurrentYearMonth() {
@@ -662,79 +664,34 @@ export async function GET(request: Request) {
       { name: '零星材料', value: totalMiscMaterialCost, color: '#722ED1' },
     ].filter(c => c.value > 0);
 
-    // ========== 各项目收入/成本对比数据 ==========
-    const projectCostData = await Promise.all(
-      allProjects?.map(async (project) => {
-        const projectFinancialSummary = await getProjectFinancialSummary(project.id, dashboardDateRange);
-        if (projectFinancialSummary) {
-          return {
-            id: project.id,
-            name: project.name,
-            income: projectFinancialSummary.taxableIncome,
-            cost: projectFinancialSummary.totalCost,
-            profit: projectFinancialSummary.profit,
-            profitRate: projectFinancialSummary.profitRate,
-            receivableAmount: projectFinancialSummary.receivableAmount,
-            totalPayableAmount: projectFinancialSummary.totalPayableAmount,
-            cashOutAmount: projectFinancialSummary.cashOutAmount,
-            netCashFlow: projectFinancialSummary.netCashFlow,
-            fundingGapAmount: projectFinancialSummary.fundingGapAmount,
-            paymentRate: projectFinancialSummary.paymentRate,
-            payablePaymentRate: projectFinancialSummary.payablePaymentRate,
-            costIncomeRate: projectFinancialSummary.costIncomeRate,
-          };
-        }
-
-        let projReportsQuery = client
-          .from('client_reports')
-          .select('report_amount, settlement_amount, invoice_amount, report_date, status')
-          .eq('project_id', project.id);
-        if (timeRange !== 'year') {
-          projReportsQuery = projReportsQuery.gte('report_date', rangeStartDate);
-        }
-        const { data: projReports } = await projReportsQuery;
-        // L3 修复：项目收入与主口径统一（invoice → settlement → report 兜底），此前缺 invoice 优先
-        const projIncome = projReports?.filter((r: any) => r.status !== 'voided').reduce((sum: number, r: any) => sum + resolveReportedIncome(r.invoice_amount, r.settlement_amount, r.report_amount), 0) || 0;
-
-        // D2 修复：与 KPI 同口径（新表+老表按指纹去重），避免项目对比图与汇总数字不一致
-        const projSupplierCost = await getSupplierSettlementTotal(client, {
-          projectId: project.id,
-          startDate: timeRange !== 'year' ? rangeStartDate : undefined,
-        });
-
-        let projSalariesQuery = client
-          .from('worker_salaries')
-          .select('gross_pay, year_month')
-          .eq('project_id', project.id);
-        if (timeRange !== 'year') {
-          const rangeStartMonth = rangeStartDate.substring(0, 7);
-          projSalariesQuery = projSalariesQuery.gte('year_month', rangeStartMonth);
-        }
-        const { data: projSalaries } = await projSalariesQuery;
-        const projWorkerSalaryCost = projSalaries?.reduce((sum: number, s: any) => sum + (parseFloat(s.gross_pay || '0') || 0), 0) || 0;
-        const projTeamSettlementCost = await getTeamSettlementCostAmount(client, {
-          projectId: project.id,
-          startDate: timeRange !== 'year' ? rangeStartDate : undefined,
-        });
-        const projSalaryCost = projWorkerSalaryCost + projTeamSettlementCost;
-
-        let projExpensesQuery = client
-          .from('comprehensive_expenses')
-          .select('amount, expense_date')
-          .eq('project_id', project.id);
-        if (timeRange !== 'year') {
-          projExpensesQuery = projExpensesQuery.gte('expense_date', rangeStartDate);
-        }
-        const { data: projExpenses } = await projExpensesQuery;
-        const projExpenseCost = projExpenses?.reduce((sum: number, e: any) => sum + (parseFloat(e.amount || '0') || 0), 0) || 0;
-
-        const projCost = projSupplierCost + projSalaryCost + projExpenseCost;
-        const projProfit = projIncome - projCost;
-        const projProfitRate = projIncome > 0 ? (projProfit / projIncome * 100) : 0;
-
-        return { id: project.id, name: project.name, income: projIncome, cost: projCost, profit: projProfit, profitRate: projProfitRate };
-      }) || []
+    // ========== 各项目收入/成本对比数据（批量汇总，消除 N+1） ==========
+    const allProjectIds = (allProjects || []).map(p => p.id).filter(Boolean) as number[];
+    const projectSummaryMap = new Map(
+      (await getMultiProjectFinancialSummaries(allProjectIds, dashboardDateRange))
+        .map(s => [s.projectId, s] as const)
     );
+    const projectCostData = (allProjects || []).map(project => {
+      const s = projectSummaryMap.get(project.id);
+      if (s) {
+        return {
+          id: project.id,
+          name: project.name,
+          income: s.taxableIncome,
+          cost: s.totalCost,
+          profit: s.profit,
+          profitRate: s.profitRate,
+          receivableAmount: s.receivableAmount,
+          totalPayableAmount: s.totalPayableAmount,
+          cashOutAmount: s.cashOutAmount,
+          netCashFlow: s.netCashFlow,
+          fundingGapAmount: s.fundingGapAmount,
+          paymentRate: s.paymentRate,
+          payablePaymentRate: s.payablePaymentRate,
+          costIncomeRate: s.costIncomeRate,
+        };
+      }
+      return { id: project.id, name: project.name, income: 0, cost: 0, profit: 0, profitRate: 0 };
+    });
 
     // ========== 月度趋势数据（12个月） ==========
     const trendMonths = getRecentMonths(trendMonthCount);
@@ -783,13 +740,47 @@ export async function GET(request: Request) {
       }
     });
 
-    for (const month of trendMonths) {
-      if (monthlyCostMap[month] === undefined) continue;
-      monthlyCostMap[month] += await getTeamSettlementCostAmount(client, {
-        projectId: projectId ? parseInt(projectId) : undefined,
-        yearMonthStart: month,
-        yearMonthEnd: month,
+    // 班组结算成本：一次性拉取趋势区间全部数据，按 settlement_month 本地分组，避免逐月查询
+    const trendStartMonth = trendMonths[0];
+    const trendEndMonth = trendMonths[trendMonths.length - 1];
+    try {
+      let tsQuery = client
+        .from('team_settlements')
+        .select('id, status, project_id, settlement_month')
+        .gte('settlement_month', trendStartMonth)
+        .lte('settlement_month', trendEndMonth);
+      if (projectId) {
+        tsQuery = tsQuery.eq('project_id', parseInt(projectId));
+      }
+      const { data: tsSettlements, error: tsErr } = await tsQuery;
+      if (tsErr && !String(tsErr.message || '').toLowerCase().includes('team_settlements')) {
+        throw tsErr;
+      }
+      const activeTs = (tsSettlements || []).filter((r: { status?: string | null }) =>
+        r.status !== 'voided' && r.status !== 'cancelled'
+      );
+      const tsIds = activeTs.map((r: { id?: unknown }) => Number(r.id)).filter(Boolean);
+      const tsMonthMap = new Map<number, string>();
+      activeTs.forEach((r: { id?: unknown; settlement_month?: unknown }) => {
+        if (r.settlement_month) tsMonthMap.set(Number(r.id), String(r.settlement_month));
       });
+      if (tsIds.length > 0) {
+        const { data: tsItems, error: tsItemsErr } = await client
+          .from('team_settlement_items')
+          .select('amount, settlement_id')
+          .in('settlement_id', tsIds);
+        if (tsItemsErr && !String(tsItemsErr.message || '').toLowerCase().includes('team_settlement_items')) {
+          throw tsItemsErr;
+        }
+        (tsItems || []).forEach((item: { amount?: unknown; settlement_id?: unknown }) => {
+          const m = tsMonthMap.get(Number(item.settlement_id));
+          if (m && monthlyCostMap[m] !== undefined) {
+            monthlyCostMap[m] += parseFloat(String(item.amount || '0')) || 0;
+          }
+        });
+      }
+    } catch (e) {
+      // 表缺失等异常静默降级，保持趋势可用
     }
 
     const monthlyTrend = trendMonths.map(month => ({
@@ -979,10 +970,10 @@ export async function GET(request: Request) {
       // 更新时间
       lastUpdated: new Date().toISOString(),
     });
-  } catch (error: any) {
-    console.error('API Error:', error);
+  } catch (error) {
+    logger.error('Dashboard query failed:', error);
     return NextResponse.json(
-      { error: error.message || '查询失败' },
+      { error: getErrorMessage(error, '查询失败') },
       { status: 500 }
     );
   }

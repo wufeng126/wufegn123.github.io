@@ -4,6 +4,7 @@ import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -71,6 +72,9 @@ export async function POST(request: NextRequest) {
     }
 
     const paymentData = Array.isArray(result.data) ? result.data[0] : result.data;
+
+    // 写入后失效聚合缓存，确保看板/月报统计即时更新
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'create',

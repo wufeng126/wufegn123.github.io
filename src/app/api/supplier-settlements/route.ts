@@ -4,6 +4,7 @@ import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { calculatePayableAmount, isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 // GET /api/supplier-settlements - 获取供应商结算记录（简化版）
 export async function GET(request: NextRequest) {
@@ -192,6 +193,8 @@ export async function POST(request: NextRequest) {
     }, supabase);
 
     if (error) throw error;
+    // 写入后失效聚合缓存
+    invalidateAggregationCache();
     const settlement = Array.isArray(settlementArr) ? settlementArr[0] : settlementArr;
 
     return NextResponse.json({ settlement });

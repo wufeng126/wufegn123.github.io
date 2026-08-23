@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import EChartsWrapper, { CHART_COLORS } from '@/components/charts/echarts-wrapper';
+import { CHART_COLORS } from '@/components/charts/chart-theme';
+// ECharts 体积较大，客户端懒加载，避免进入首屏包
+const EChartsWrapper = dynamic(() => import('@/components/charts/echarts-wrapper'), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full animate-pulse rounded-md bg-muted/40" />,
+});
 import { StatusTag, AmountDisplay } from '@/components/business/common';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Upload, Download, Pencil, Trash2, FileSpreadsheet, Printer } from 'lucide-react';
 

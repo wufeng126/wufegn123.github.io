@@ -4,6 +4,7 @@ import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 function parseAmount(value: any): number {
   const parsed = Number(value);
@@ -312,6 +313,9 @@ export async function POST(request: NextRequest) {
     if (result.error) {
       throw new Error(`创建发放记录失败: ${result.error.message}`);
     }
+
+    // 写入后失效聚合缓存
+    invalidateAggregationCache();
 
     const payment = Array.isArray(result.data) ? result.data[0] : result.data;
 

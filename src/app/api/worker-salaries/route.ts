@@ -5,6 +5,7 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { SALARY_PAYMENT_TOLERANCE, calculateSalaryPaymentStatus, calculateSalaryUnpaidAmount, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import type { RequestAuthUser } from '@/lib/auth';
 
 type RelatedNameEntity = {
@@ -439,6 +440,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw new Error(`创建工资记录失败: ${error.message}`);
     }
+
+    // 写入后失效聚合缓存
+    invalidateAggregationCache();
 
     if (salaryData?.id) {
       await syncSalaryPaymentStatus(Number(salaryData.id));

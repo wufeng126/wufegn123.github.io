@@ -4,6 +4,7 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 // 安全解析 numeric 类型（PostgreSQL numeric 返回对象格式）
 function parseNumeric(value: any): number {
@@ -249,6 +250,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw new Error(`创建结算记录失败: ${error.message}`);
     }
+
+    // 写入后失效聚合缓存，确保看板/月报统计即时更新
+    invalidateAggregationCache();
 
     // 记录审计日志
     await auditLog({

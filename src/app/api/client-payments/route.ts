@@ -5,6 +5,7 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { logSecurityEvent } from '@/lib/security-log';
 import { requireApiWritePermission, requireAuth, requirePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import {
   isEffectiveClientPaymentStatus,
   isAllowedReviewStatus,
@@ -172,6 +173,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw new Error(`创建付款记录失败: ${error.message}`);
     }
+
+    // 写入后失效聚合缓存，确保看板/月报统计即时更新
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'create',

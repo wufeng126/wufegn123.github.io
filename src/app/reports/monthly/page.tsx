@@ -14,7 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { KpiCard, ChartCard, RiskBadge, formatAmountSmart, formatPercent } from '@/components/business/common';
-import EChartsWrapper from '@/components/charts/echarts-wrapper';
+import dynamic from 'next/dynamic';
+// ECharts 体积较大，仅在客户端懒加载，避免进入首屏 JS 包
+const EChartsWrapper = dynamic(() => import('@/components/charts/echarts-wrapper'), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full animate-pulse rounded-md bg-muted/40" />,
+});
 import { StandardDashboardLayout } from '@/components/dashboard/standard-layout';
 import { CollapsibleSection } from '@/components/dashboard/collapsible-section';
 import { HistoryArchiveDialog } from '@/components/dashboard/history-archive-dialog';

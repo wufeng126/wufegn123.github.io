@@ -13,6 +13,10 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+// 常量从轻量模块导入并重新导出，保持既有引用路径兼容
+import { CHART_COLORS, THEME } from './chart-theme';
+
+export { CHART_COLORS, THEME } from './chart-theme';
 
 echarts.use([
   BarChart, LineChart, PieChart,
@@ -20,50 +24,11 @@ echarts.use([
   DataZoomComponent, ToolboxComponent, GraphicComponent, CanvasRenderer,
 ]);
 
-// 统一配色方案
-export const CHART_COLORS = {
-  primary: '#165DFF',
-  success: '#00B42A',
-  danger: '#F53F3F',
-  warning: '#FF7D00',
-  purple: '#722ED1',
-  gray: '#86909C',
-  series: ['#165DFF', '#00B42A', '#F53F3F', '#FF7D00', '#722ED1', '#13C2C2', '#F7BA1E', '#EB2F96'],
-};
-
-// 全局 ECharts 主题
-export const THEME = {
-  color: CHART_COLORS.series,
-  backgroundColor: 'transparent',
-  textStyle: { color: '#4E5969', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-  title: { textStyle: { color: '#1D2129', fontWeight: 600, fontSize: 14 } },
-  legend: { textStyle: { color: '#86909C', fontSize: 12 } },
-  tooltip: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderColor: '#E5E6EB',
-    borderWidth: 1,
-    textStyle: { color: '#1D2129', fontSize: 12 },
-    extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-radius: 8px;',
-  },
-  categoryAxis: {
-    axisLine: { lineStyle: { color: '#E5E6EB' } },
-    axisTick: { show: false },
-    axisLabel: { color: '#86909C', fontSize: 11 },
-    splitLine: { show: false },
-  },
-  valueAxis: {
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: '#86909C', fontSize: 11 },
-    splitLine: { lineStyle: { color: '#F2F3F5', type: 'dashed' } },
-  },
-};
-
 interface EChartsWrapperProps {
   option: Record<string, unknown>;
   style?: React.CSSProperties;
   className?: string;
-  onChartClick?: (params: Record<string, unknown>) => void;
+  onChartClick?: (params: echarts.ECElementEvent) => void;
 }
 
 export default function EChartsWrapper({ option, style, className, onChartClick }: EChartsWrapperProps) {
@@ -79,7 +44,7 @@ export default function EChartsWrapper({ option, style, className, onChartClick 
 
     if (onChartClick) {
       instance.off('click');
-      instance.on('click', onChartClick as any);
+      instance.on('click', onChartClick);
     }
 
     const handleResize = () => instance.resize();

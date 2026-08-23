@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 
 // 费用类型
@@ -218,6 +219,9 @@ export async function POST(request: NextRequest) {
       client
     );
     if (expError) throw expError;
+
+    // 写入后失效聚合缓存
+    invalidateAggregationCache();
 
     const expense = Array.isArray(expData) ? expData[0] : expData;
 

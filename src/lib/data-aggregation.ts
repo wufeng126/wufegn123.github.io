@@ -20,6 +20,23 @@ import {
 } from '@/lib/business-logic';
 import { parseNumeric, round2, yearMonthToRange } from './format';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
+import { cached, invalidateByPrefix } from './simple-cache';
+
+// 聚合数据缓存有效期（毫秒）：统计读多写少，30 秒窗口内复用结果，显著降低 DB 查询压力。
+const AGG_CACHE_TTL_MS = 30 * 1000;
+const AGG_CACHE_PREFIX = 'agg';
+
+/** 失效聚合缓存：在写操作（结算/付款/工资/费用等新增、审核、作废）后调用。 */
+export function invalidateAggregationCache(): void {
+  invalidateByPrefix(AGG_CACHE_PREFIX);
+}
+
+function buildAggCacheKey(parts: Array<string | number | undefined>): string {
+  return parts.map(p => (p === undefined || p === null ? '_' : String(p))).join('|');
+}
+
+/** 聚合模块使用的最小 Supabase Client 结构（避免在工具函数中使用 any） */
+type AggDbClient = ReturnType<typeof getSupabaseClient>;
 
 // ========== D2/D4 供应商结算/付款 口径统一工具 ==========
 
@@ -65,10 +82,10 @@ export function addSupplierFingerprints(
  *   + 老表 settlements（历史遗留，按 project_id 直连），两表同笔按指纹去重（保留新表）
  */
 export async function getSupplierSettlementTotal(
-  client: unknown,
+  client: AggDbClient,
   options: { projectId?: number; startDate?: string; endDate?: string } = {},
 ): Promise<number> {
-  const db = client as { from: (table: string) => any };
+  const db = client;
   const { projectId, startDate, endDate } = options;
 
   // 1. 新表：合同 → 项目 + 供应商
@@ -642,6 +659,394 @@ export async function getProjectFinancialSummary(
   };
 }
 
+// ========== 批量项目汇总（消除 N+1） ==========
+
+/**
+ * 批量获取多个项目的财务汇总 — 与单项目 getProjectFinancialSummary 口径完全一致，
+ * 但无论多少个项目都只发起常量级（~12）查询，消除逐项目 ~10 次查询的 N+1 问题。
+ *
+ * 用于 getGlobalSummary / getProjectListSummary / dashboard 项目循环等热点路径。
+ * 注意：不读取公共日志项目（PUBLIC_LOG_PROJECT_NAME），与单项目口径一致。
+ */
+export async function getMultiProjectFinancialSummaries(
+  projectIds: number[],
+  dateRange?: DateRange
+): Promise<ProjectFinancialSummary[]> {
+  if (!projectIds || projectIds.length === 0) return [];
+  const sortedIds = [...projectIds].sort((a, b) => a - b);
+  return cached(
+    buildAggCacheKey(['mps', sortedIds.join(','), dateRange?.start, dateRange?.end]),
+    { ttlMs: AGG_CACHE_TTL_MS, prefix: AGG_CACHE_PREFIX },
+    () => getMultiProjectFinancialSummariesImpl(sortedIds, dateRange)
+  );
+}
+
+async function getMultiProjectFinancialSummariesImpl(
+  projectIds: number[],
+  dateRange?: DateRange
+): Promise<ProjectFinancialSummary[]> {
+  const client = getSupabaseClient();
+
+  if (!projectIds || projectIds.length === 0) return [];
+
+  // 1. 项目基础信息（批量）
+  const { data: projects } = await client
+    .from('projects')
+    .select('id, name, contract_amount, tax_rate')
+    .in('id', projectIds);
+
+  if (!projects || projects.length === 0) return [];
+
+  const validProjects = projects.filter(
+    (p: { id?: unknown; name?: string | null }) =>
+      p.name !== PUBLIC_LOG_PROJECT_NAME
+  );
+  const validProjectIds = validProjects
+    .map((p: { id?: unknown }) => Number(p.id))
+    .filter(Boolean);
+  if (validProjectIds.length === 0) return [];
+
+  // 2. 合同（批量，用于供应商结算/付款经合同关联项目）
+  const { data: contracts } = await client
+    .from('supplier_contracts')
+    .select('id, project_id')
+    .in('project_id', validProjectIds);
+
+  const contractRows = (contracts || []) as Array<{ id: unknown; project_id: unknown }>;
+  const contractIds = contractRows.map(c => Number(c.id)).filter(Boolean);
+  const contractProjectMap = new Map<number, number>();
+  contractRows.forEach(c => {
+    contractProjectMap.set(Number(c.id), Number(c.project_id));
+  });
+
+  // 3. 其余明细全部并行批量拉取
+  const [
+    clientReportsResult,
+    visasResult,
+    supplierSettlementsResult,
+    salariesResult,
+    expensesResult,
+    miscMaterialsResult,
+    clientPaymentsResult,
+    supplierPaymentsResult,
+    salaryPaymentsResult,
+  ] = await Promise.all([
+    buildDateFilter(
+      client
+        .from('client_reports')
+        .select('project_id, invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
+        .in('project_id', validProjectIds)
+        .neq('status', 'voided'),
+      'report_date',
+      dateRange
+    ),
+    buildDateFilter(
+      client
+        .from('visas')
+        .select('project_id, visa_amount, created_at')
+        .in('project_id', validProjectIds)
+        .in('status', [...VISA_DONE_STATUSES]),
+      'created_at',
+      dateRange
+    ),
+    contractIds.length > 0
+      ? buildDateFilter(
+          client
+            .from('supplier_settlements')
+            .select('contract_id, settlement_amount, payable_amount, settlement_date, status')
+            .in('contract_id', contractIds),
+          'settlement_date',
+          dateRange
+        )
+      : Promise.resolve({ data: [] }),
+    (() => {
+      let q = client
+        .from('worker_salaries')
+        .select('project_id, gross_pay, net_pay, year_month')
+        .in('project_id', validProjectIds);
+      if (dateRange) {
+        q = q
+          .gte('year_month', dateRange.start.substring(0, 7))
+          .lte('year_month', dateRange.end.substring(0, 7));
+      }
+      return q;
+    })(),
+    buildDateFilter(
+      client
+        .from('comprehensive_expenses')
+        .select('project_id, amount, expense_date')
+        .in('project_id', validProjectIds)
+        .neq('status', 'voided'),
+      'expense_date',
+      dateRange
+    ),
+    buildDateFilter(
+      client
+        .from('miscellaneous_materials')
+        .select('project_id, amount, purchase_date')
+        .in('project_id', validProjectIds)
+        .neq('status', 'voided'),
+      'purchase_date',
+      dateRange
+    ),
+    buildDateFilter(
+      client
+        .from('client_payments')
+        .select('project_id, payment_amount, payment_date, status')
+        .in('project_id', validProjectIds),
+      'payment_date',
+      dateRange
+    ),
+    contractIds.length > 0
+      ? buildDateFilter(
+          client
+            .from('supplier_payments')
+            .select('contract_id, payment_amount, payment_date, status')
+            .in('contract_id', contractIds),
+          'payment_date',
+          dateRange
+        )
+      : Promise.resolve({ data: [] }),
+    buildDateFilter(
+      client
+      .from('salary_payments')
+      .select('project_id, payment_amount, payment_date')
+      .in('project_id', validProjectIds),
+      'payment_date',
+      dateRange
+    ),
+  ]);
+
+  // 班组结算成本（批量：一次取结算单 + 一次取明细，按项目分组）
+  const teamCostByProject = await getTeamSettlementCostByProjects(client, validProjectIds, dateRange);
+
+  // 按项目分组的累加器
+  const acc = new Map<number, {
+    invoiceAmount: number; taxFromInvoice: number; untaxedIncome: number;
+    visaAmount: number; settlementAmount: number; supplierPayableBaseAmount: number;
+    workerSalaryGross: number; workerSalaryNet: number; expenseAmount: number;
+    miscMaterialAmount: number; clientPaidAmount: number; supplierPaidAmount: number;
+    workerPaidAmount: number;
+  }>();
+  const emptyAcc = () => ({
+    invoiceAmount: 0, taxFromInvoice: 0, untaxedIncome: 0,
+    visaAmount: 0, settlementAmount: 0, supplierPayableBaseAmount: 0,
+    workerSalaryGross: 0, workerSalaryNet: 0, expenseAmount: 0,
+    miscMaterialAmount: 0, clientPaidAmount: 0, supplierPaidAmount: 0,
+    workerPaidAmount: 0,
+  });
+  const getAcc = (pid: number) => {
+    let a = acc.get(pid);
+    if (!a) { a = emptyAcc(); acc.set(pid, a); }
+    return a;
+  };
+
+  // 甲方报量
+  (clientReportsResult.data || []).forEach((r: {
+    project_id?: unknown; invoice_amount?: unknown; settlement_amount?: unknown;
+    report_amount?: unknown; tax_rate?: unknown;
+  }) => {
+    const pid = Number(r.project_id);
+    if (!pid) return;
+    const project = validProjects.find((p: { id?: unknown }) => Number(p.id) === pid) as
+      | { tax_rate?: unknown }
+      | undefined;
+    const projectTaxRate = parseNumeric(project?.tax_rate || '9');
+    const a = getAcc(pid);
+    const inv = parseNumeric(r.invoice_amount) || parseNumeric(r.settlement_amount) || parseNumeric(r.report_amount);
+    const tr = parseNumeric(r.tax_rate) || projectTaxRate;
+    a.invoiceAmount += inv;
+    const untaxed = inv / (1 + tr / 100);
+    a.taxFromInvoice += inv - untaxed;
+    a.untaxedIncome += untaxed;
+  });
+
+  // 签证
+  (visasResult.data || []).forEach((v: { project_id?: unknown; visa_amount?: unknown }) => {
+    const pid = Number(v.project_id);
+    if (!pid) return;
+    getAcc(pid).visaAmount += parseNumeric(v.visa_amount);
+  });
+
+  // 供应商结算（经合同关联项目）
+  (supplierSettlementsResult.data || []).forEach((s: {
+    contract_id?: unknown; settlement_amount?: unknown; payable_amount?: unknown; status?: string | null;
+  }) => {
+    if (isVoidedStatus(s.status)) return;
+    const pid = contractProjectMap.get(Number(s.contract_id));
+    if (!pid) return;
+    const a = getAcc(pid);
+    a.settlementAmount += parseNumeric(s.settlement_amount);
+    a.supplierPayableBaseAmount += parseNumeric(s.payable_amount);
+  });
+
+  // 工人工资
+  (salariesResult.data || []).forEach((s: { project_id?: unknown; gross_pay?: unknown; net_pay?: unknown }) => {
+    const pid = Number(s.project_id);
+    if (!pid) return;
+    const a = getAcc(pid);
+    a.workerSalaryGross += parseNumeric(s.gross_pay);
+    a.workerSalaryNet += parseNumeric(s.net_pay);
+  });
+
+  // 综合费用
+  (expensesResult.data || []).forEach((e: { project_id?: unknown; amount?: unknown }) => {
+    const pid = Number(e.project_id);
+    if (!pid) return;
+    getAcc(pid).expenseAmount += parseNumeric(e.amount);
+  });
+
+  // 零星材料
+  (miscMaterialsResult.data || []).forEach((m: { project_id?: unknown; amount?: unknown }) => {
+    const pid = Number(m.project_id);
+    if (!pid) return;
+    getAcc(pid).miscMaterialAmount += parseNumeric(m.amount);
+  });
+
+  // 甲方已回款
+  (clientPaymentsResult.data || []).forEach((p: { project_id?: unknown; payment_amount?: unknown; status?: string | null }) => {
+    const pid = Number(p.project_id);
+    if (!pid || !isEffectiveClientPaymentStatus(p.status)) return;
+    getAcc(pid).clientPaidAmount += parseNumeric(p.payment_amount);
+  });
+
+  // 供应商已付款（经合同关联项目）
+  (supplierPaymentsResult.data || []).forEach((p: {
+    contract_id?: unknown; payment_amount?: unknown; status?: string | null;
+  }) => {
+    if (!isEffectiveSupplierPaymentStatus(p.status)) return;
+    const pid = contractProjectMap.get(Number(p.contract_id));
+    if (!pid) return;
+    getAcc(pid).supplierPaidAmount += parseNumeric(p.payment_amount);
+  });
+
+  // 工人已发工资
+  (salaryPaymentsResult.data || []).forEach((p: { project_id?: unknown; payment_amount?: unknown }) => {
+    const pid = Number(p.project_id);
+    if (!pid) return;
+    getAcc(pid).workerPaidAmount += parseNumeric(p.payment_amount);
+  });
+
+  return validProjects.map((projectRaw: {
+    id?: unknown; name?: string | null; contract_amount?: unknown; tax_rate?: unknown;
+  }) => {
+    const pid = Number(projectRaw.id);
+    const a = acc.get(pid) || emptyAcc();
+    const teamSettlementAmount = teamCostByProject.get(pid) || 0;
+    const salaryAmount = a.workerSalaryGross + teamSettlementAmount;
+
+    const taxableIncome = a.invoiceAmount + a.visaAmount;
+    const totalCost = a.settlementAmount + salaryAmount + a.expenseAmount + a.taxFromInvoice + a.miscMaterialAmount;
+    const profit = taxableIncome - totalCost;
+    const profitRate = taxableIncome > 0 ? (profit / taxableIncome) * 100 : 0;
+    const paymentRate = taxableIncome > 0 ? (a.clientPaidAmount / taxableIncome) * 100 : 0;
+    const receivableAmount = Math.max(taxableIncome - a.clientPaidAmount, 0);
+    const supplierPayableAmount = Math.max(a.supplierPayableBaseAmount - a.supplierPaidAmount, 0);
+    const workerPayableAmount = Math.max(a.workerSalaryNet - a.workerPaidAmount, 0);
+    const totalPayableAmount = supplierPayableAmount + workerPayableAmount;
+    const cashOutAmount = a.supplierPaidAmount + a.workerPaidAmount;
+    const netCashFlow = a.clientPaidAmount - cashOutAmount;
+    const fundingGapAmount = Math.max(totalPayableAmount - receivableAmount, 0);
+    const costIncomeRate = taxableIncome > 0 ? (totalCost / taxableIncome) * 100 : 0;
+    const payableBaseAmount = a.supplierPayableBaseAmount + a.workerSalaryGross;
+    const payablePaymentRate = payableBaseAmount > 0 ? (cashOutAmount / payableBaseAmount) * 100 : 0;
+
+    return {
+      projectId: pid,
+      projectName: projectRaw.name || '',
+      contractAmount: parseNumeric(projectRaw.contract_amount),
+      invoiceAmount: round2(a.invoiceAmount),
+      visaAmount: round2(a.visaAmount),
+      taxableIncome: round2(taxableIncome),
+      untaxedIncome: round2(a.untaxedIncome),
+      taxAmount: round2(a.taxFromInvoice),
+      settlementAmount: round2(a.settlementAmount),
+      salaryAmount: round2(salaryAmount),
+      expenseAmount: round2(a.expenseAmount),
+      miscMaterialAmount: round2(a.miscMaterialAmount),
+      totalCost: round2(totalCost),
+      profit: round2(profit),
+      profitRate: round2(profitRate),
+      laborCostRate: totalCost > 0 ? round2((salaryAmount / totalCost) * 100) : 0,
+      expenseRate: totalCost > 0 ? round2((a.expenseAmount / totalCost) * 100) : 0,
+      taxRate: totalCost > 0 ? round2((a.taxFromInvoice / totalCost) * 100) : 0,
+      miscMaterialRate: totalCost > 0 ? round2((a.miscMaterialAmount / totalCost) * 100) : 0,
+      clientPaidAmount: round2(a.clientPaidAmount),
+      supplierPaidAmount: round2(a.supplierPaidAmount),
+      workerPaidAmount: round2(a.workerPaidAmount),
+      paymentRate: round2(paymentRate),
+      receivableAmount: round2(receivableAmount),
+      supplierPayableBaseAmount: round2(a.supplierPayableBaseAmount),
+      supplierPayableAmount: round2(supplierPayableAmount),
+      workerPayableAmount: round2(workerPayableAmount),
+      totalPayableAmount: round2(totalPayableAmount),
+      cashOutAmount: round2(cashOutAmount),
+      netCashFlow: round2(netCashFlow),
+      fundingGapAmount: round2(fundingGapAmount),
+      costIncomeRate: round2(costIncomeRate),
+      payablePaymentRate: round2(payablePaymentRate),
+    } satisfies ProjectFinancialSummary;
+  });
+}
+
+/**
+ * 批量按项目汇总班组结算成本（2 次查询，替代逐项目查询）。
+ * team_settlement_items.amount 经 settlement_id 关联到 team_settlements.project_id。
+ */
+export async function getTeamSettlementCostByProjects(
+  client: ReturnType<typeof getSupabaseClient>,
+  projectIds: number[],
+  dateRange?: DateRange
+): Promise<Map<number, number>> {
+  const result = new Map<number, number>();
+  if (!projectIds || projectIds.length === 0) return result;
+  try {
+    let settlementsQuery = client
+      .from('team_settlements')
+      .select('id, project_id, status, period_end')
+      .in('project_id', projectIds);
+    if (dateRange) {
+      if (dateRange.start) settlementsQuery = settlementsQuery.gte('period_end', dateRange.start);
+      if (dateRange.end) settlementsQuery = settlementsQuery.lte('period_end', dateRange.end);
+    }
+    const { data: settlements, error } = await settlementsQuery;
+    if (error) {
+      if (isMissingTeamSettlementSchemaError(error)) return result;
+      throw error;
+    }
+    const activeSettlements = (settlements || []).filter(
+      (s: { id?: unknown; project_id?: unknown; status?: string | null }) => !isVoidedStatus(s.status)
+    );
+    const settlementIds = activeSettlements
+      .map(s => Number(s.id))
+      .filter(Boolean);
+    if (settlementIds.length === 0) return result;
+
+    const settlementProjectMap = new Map<number, number>();
+    activeSettlements.forEach((s: { id?: unknown; project_id?: unknown }) => {
+      settlementProjectMap.set(Number(s.id), Number(s.project_id));
+    });
+
+    const { data: items, error: itemsError } = await client
+      .from('team_settlement_items')
+      .select('amount, settlement_id')
+      .in('settlement_id', settlementIds);
+    if (itemsError) {
+      if (isMissingTeamSettlementSchemaError(itemsError)) return result;
+      throw itemsError;
+    }
+    (items || []).forEach((item: { amount?: unknown; settlement_id?: unknown }) => {
+      const pid = settlementProjectMap.get(Number(item.settlement_id));
+      if (!pid) return;
+      result.set(pid, (result.get(pid) || 0) + parseNumeric(item.amount));
+    });
+  } catch (error) {
+    if (isMissingTeamSettlementSchemaError(error)) return result;
+    throw error;
+  }
+  return result;
+}
+
 // ========== 全局汇总 ==========
 
 /**
@@ -650,6 +1055,18 @@ export async function getProjectFinancialSummary(
  * @param projectIds 可选项目ID列表（权限过滤）
  */
 export async function getGlobalSummary(
+  dateRange?: DateRange,
+  projectIds?: number[]
+): Promise<GlobalSummary> {
+  const sortedIds = projectIds && projectIds.length > 0 ? [...projectIds].sort((a, b) => a - b) : [];
+  return cached(
+    buildAggCacheKey(['gs', sortedIds.join(','), dateRange?.start, dateRange?.end]),
+    { ttlMs: AGG_CACHE_TTL_MS, prefix: AGG_CACHE_PREFIX },
+    () => getGlobalSummaryImpl(dateRange, projectIds)
+  );
+}
+
+async function getGlobalSummaryImpl(
   dateRange?: DateRange,
   projectIds?: number[]
 ): Promise<GlobalSummary> {
@@ -678,7 +1095,8 @@ export async function getGlobalSummary(
   const inServiceWorkers = workersData?.filter(w => !w.status || w.status === 'in_service').length || 0;
   const leftWorkers = workersData?.filter(w => w.status === 'left').length || 0;
 
-  // 逐项目汇总（使用统一函数）
+  // 批量汇总所有项目（单次常量查询，消除逐项目 N+1）
+  const summaries = await getMultiProjectFinancialSummaries(allProjectIds, dateRange);
   const totals = {
     totalInvoice: 0, totalVisa: 0, totalTaxableIncome: 0, totalUntaxedIncome: 0,
     totalTax: 0, totalSettlement: 0, totalSalary: 0, totalExpense: 0,
@@ -687,9 +1105,7 @@ export async function getGlobalSummary(
     totalSupplierPayableBase: 0, totalWorkerPayable: 0,
   };
 
-  for (const pid of allProjectIds) {
-    const summary = await getProjectFinancialSummary(pid, dateRange);
-    if (!summary) continue;
+  for (const summary of summaries) {
     totals.totalInvoice += summary.invoiceAmount;
     totals.totalVisa += summary.visaAmount;
     totals.totalTaxableIncome += summary.taxableIncome;
@@ -789,10 +1205,17 @@ export async function getProjectListSummary(
     else entry.inService++;
   });
 
+  // 批量获取所有项目财务汇总（消除逐项目 N+1）
+  const summaries = await getMultiProjectFinancialSummaries(
+    projects.map((p: { id?: unknown }) => Number(p.id)).filter(Boolean)
+  );
+  const summaryMap = new Map<number, ProjectFinancialSummary>();
+  summaries.forEach(s => summaryMap.set(s.projectId, s));
+
   // 逐项目获取财务汇总（无日期范围 = 全部）
   const results: ProjectListItem[] = [];
   for (const p of projects) {
-    const summary = await getProjectFinancialSummary(p.id);
+    const summary = summaryMap.get(Number(p.id)) || null;
     results.push({
       id: p.id,
       name: p.name,

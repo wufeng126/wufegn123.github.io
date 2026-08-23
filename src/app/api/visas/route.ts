@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { getUserById, getUserDisplayName, isVisaActive, isVisaDone, notifyVisaWorkflow } from '@/lib/visa-workflow';
 
 // 获取近6个月的年月列表
@@ -419,6 +420,8 @@ export async function POST(request: NextRequest) {
         workflow_step_updated_at: finalStatus === '已提交' ? now : null,
       }, client);
     if (visaError) throw visaError;
+    // 写入后失效聚合缓存
+    invalidateAggregationCache();
     const visa = Array.isArray(visaData) ? visaData[0] : visaData;
 
     await auditLog({

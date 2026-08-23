@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 
 interface MiscMaterialStatsRow {
@@ -254,6 +255,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw new Error(`创建零星材料记录失败: ${error.message}`);
     }
+
+    // 写入后失效聚合缓存
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'create',

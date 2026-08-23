@@ -6,7 +6,7 @@ import {
   isVisaActiveStatus,
   isVisaDoneStatus,
 } from '@/lib/business-logic';
-import { getGlobalSummary, getProjectFinancialSummary, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
+import { getGlobalSummary, getProjectFinancialSummary, getTeamSettlementCostAmount, getTeamSettlementCostByProjects } from '@/lib/data-aggregation';
 import {
   ProjectData,
   calculateAging,
@@ -20,6 +20,7 @@ import {
   toNumber,
 } from '@/services/monthly-report-summary';
 import { requireAuth } from '@/lib/api-auth';
+import { logger } from '@/lib/logger';
 
 const supabase = getSupabaseClient();
 
@@ -352,10 +353,11 @@ export async function GET(request: NextRequest) {
     );
 
     const teamSettlementCostByProject = new Map<number, { month: number }>();
-    await Promise.all(targetProjectIds.map(async (pid) => {
-      const monthAmount = await getTeamSettlementCostAmount(supabase, { projectId: pid, dateRange: reportDateRange });
-      teamSettlementCostByProject.set(pid, { month: monthAmount });
-    }));
+    // 批量查询各项目班组结算成本（2 次查询，替代逐项目 N+1）
+    const teamCostMap = await getTeamSettlementCostByProjects(supabase, targetProjectIds, reportDateRange);
+    teamCostMap.forEach((amount, pid) => {
+      teamSettlementCostByProject.set(pid, { month: amount });
+    });
 
     // Build per-project data
     const projectDataList: ProjectData[] = projects.map((projectRaw: Record<string, unknown>) => {
@@ -1206,7 +1208,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[Monthly Summary] Error:', error);
+    logger.error('[Monthly Summary] Error:', error);
     return NextResponse.json({ success: false, error: '月报汇总失败' }, { status: 500 });
   }
 }
