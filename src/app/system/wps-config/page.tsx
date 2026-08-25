@@ -74,6 +74,12 @@ interface SyncLog {
   } | null;
 }
 
+interface WpsFailureSample {
+  workerName?: string | null;
+  projectName?: string | null;
+  message?: string | null;
+}
+
 interface BindingStats {
   totalBindings: number;
   activeBindings: number;
@@ -214,6 +220,44 @@ function formatLogSyncDetails(log: SyncLog) {
   return parts.join('；');
 }
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function collectFailureSamples(summary: Record<string, unknown>, bindingResults?: unknown[]): WpsFailureSample[] {
+  const samples: WpsFailureSample[] = [];
+
+  const collect = (value: unknown) => {
+    if (!Array.isArray(value)) return;
+    value.forEach((item) => {
+      const record = asObject(item);
+      const message = stringValue(record?.message);
+      if (!message) return;
+      samples.push({
+        workerName: stringValue(record?.workerName),
+        projectName: stringValue(record?.projectName),
+        message,
+      });
+    });
+  };
+
+  collect(summary.failureSamples);
+  bindingResults?.forEach((item) => {
+    const record = asObject(item);
+    collect(record?.failureSamples);
+    const nestedSummary = asObject(record?.summary);
+    collect(nestedSummary?.failureSamples);
+  });
+
+  return samples.slice(0, 3);
+}
+
 function normalizeConfig(config?: Partial<WpsConfig>): WpsConfig {
   return {
     ...defaultConfig,
@@ -249,6 +293,7 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
   const conflictFields = numberOf('conflictFields');
   const duplicateSkipped = numberOf('duplicateSkipped');
   const bindingCount = numberOf('bindings') || bindingResults?.length || 0;
+  const failureSamples = collectFailureSamples(summary, bindingResults);
   const parts = [
     readRows > 0 ? `读取 ${readRows} 行` : null,
     total > 0 ? `识别 ${total} 条` : null,
@@ -263,7 +308,14 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
     duplicateSkipped > 0 ? `批次重复 ${duplicateSkipped} 条` : null,
     bindingCount > 0 ? `涉及 ${bindingCount} 个项目` : null,
   ].filter(Boolean);
-  return parts.join('，');
+  const base = parts.join('，');
+  if (failed > 0 && failureSamples.length > 0) {
+    return `${base}；失败原因示例：${failureSamples
+      .map((sample) => `${sample.workerName || '未命名工人'}-${sample.message}`)
+      .join('；')}`;
+  }
+  if (failed > 0) return `${base}；请查看下方“最近同步结果”的失败记录`;
+  return base;
 }
 
 export default function WpsConfigPage() {
@@ -300,7 +352,7 @@ export default function WpsConfigPage() {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetch('/api/integrations/wps/workers/logs?pageSize=8');
+      const response = await fetch('/api/integrations/wps/workers/logs?pageSize=30');
       const data = await response.json();
       if (response.ok && data.success) setLogs(data.logs || []);
     } catch {
@@ -443,12 +495,14 @@ export default function WpsConfigPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '同步失败');
       const summary = data.summary || {};
+      const failed = Number(summary.failed || 0);
+      const hasSummary = Object.keys(summary).length > 0;
       toast({
-        title: data.success ? '同步完成' : '同步检查完成',
-        description: data.success
+        title: failed > 0 ? '同步完成，有失败记录' : (data.success ? '同步完成' : '同步检查完成'),
+        description: hasSummary
           ? formatWpsSyncSummary(summary, data.bindingResults)
           : data.message || '请查看绑定台账中的同步结果说明',
-        variant: data.success ? 'default' : 'warning',
+        variant: failed > 0 ? 'warning' : (data.success ? 'default' : 'warning'),
       });
       await fetchData();
     } catch (error) {
@@ -492,12 +546,14 @@ export default function WpsConfigPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '同步失败');
       const summary = data.summary || {};
+      const failed = Number(summary.failed || 0);
+      const hasSummary = Object.keys(summary).length > 0;
       toast({
-        title: data.success ? '同步完成' : '同步检查完成',
-        description: data.success
+        title: failed > 0 ? '同步完成，有失败记录' : (data.success ? '同步完成' : '同步检查完成'),
+        description: hasSummary
           ? formatWpsSyncSummary(summary, data.bindingResults)
           : data.message || '请查看绑定台账中的同步结果说明',
-        variant: data.success ? 'default' : 'warning',
+        variant: failed > 0 ? 'warning' : (data.success ? 'default' : 'warning'),
       });
       await fetchData();
     } catch (error) {
@@ -790,15 +846,15 @@ export default function WpsConfigPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {statusBadge(binding.last_sync_status)}
-                          <span className="line-clamp-2 text-sm text-gray-600">{binding.last_sync_message || '-'}</span>
+                          <span className="break-words text-sm text-gray-600">{binding.last_sync_message || '-'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => void syncBinding(binding)} disabled={syncing} title="同步此绑定">
+                          <Button variant="ghost" size="icon" onClick={() => void syncBinding(binding)} disabled={syncing} title="同步到系统">
                             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id} title="测试读取">
+                          <Button variant="ghost" size="icon" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id} title="测试读取（不写入）">
                             <RefreshCw className={`h-4 w-4 ${testingBindingId === binding.id ? 'animate-spin' : ''}`} />
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => openEditDialog(binding)} title="编辑">
@@ -835,8 +891,8 @@ export default function WpsConfigPage() {
                     <span>{binding.last_sync_message || '未同步'}</span>
                   </div>
                   <div className="mt-3 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => void syncBinding(binding)} disabled={syncing}>同步</Button>
-                    <Button variant="outline" size="sm" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id}>测试读取</Button>
+                    <Button variant="outline" size="sm" onClick={() => void syncBinding(binding)} disabled={syncing}>同步到系统</Button>
+                    <Button variant="outline" size="sm" onClick={() => void testBinding(binding)} disabled={testingBindingId === binding.id}>测试读取（不写入）</Button>
                     <Button variant="outline" size="sm" onClick={() => openEditDialog(binding)}>编辑</Button>
                     <Button variant="outline" size="sm" onClick={() => void deleteBinding(binding)}>删除</Button>
                   </div>
@@ -870,9 +926,9 @@ export default function WpsConfigPage() {
                         <span className="text-sm text-gray-500">{actionText(log.action)}</span>
                       </div>
                       <div className="mt-1 text-sm text-gray-600">{log.project_name || '-'} · {log.worksheet_name || '-'}</div>
-                      <div className="mt-1 line-clamp-2 text-xs text-gray-500">{log.message || '-'}</div>
+                      <div className="mt-1 break-words text-xs text-gray-500">{log.message || '-'}</div>
                       {syncDetails ? (
-                        <div className="mt-1 line-clamp-2 text-xs text-blue-700">{syncDetails}</div>
+                        <div className="mt-1 break-words text-xs text-blue-700">{syncDetails}</div>
                       ) : null}
                     </div>
                     <div className="shrink-0 text-xs text-gray-400">{formatDateTime(log.created_at)}</div>

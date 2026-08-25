@@ -320,13 +320,33 @@ function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.len
   };
 }
 
-function buildSummaryMessage(summary: ReturnType<typeof summarizeResults>) {
+function buildFailureSamples(results: WpsWorkerSyncResult[], limit = 5) {
+  return results
+    .filter((item) => item.status === 'error')
+    .slice(0, limit)
+    .map((item) => ({
+      workerName: item.workerName || null,
+      projectName: item.projectName || null,
+      message: item.message,
+    }));
+}
+
+function formatFailureSamples(results: WpsWorkerSyncResult[], limit = 3) {
+  const samples = buildFailureSamples(results, limit);
+  if (samples.length === 0) return '';
+  return samples
+    .map((item) => `${item.workerName || '未命名工人'}：${item.message}`)
+    .join('；');
+}
+
+function buildSummaryMessage(summary: ReturnType<typeof summarizeResults>, results?: WpsWorkerSyncResult[]) {
   const extra = [
     summary.autoFilledFields > 0 ? `自动补齐 ${summary.autoFilledFields} 项` : null,
     summary.conflictFields > 0 ? `字段差异 ${summary.conflictFields} 项` : null,
     summary.duplicateSkipped > 0 ? `批次重复 ${summary.duplicateSkipped} 条` : null,
   ].filter(Boolean).join('，');
-  return `读取 ${summary.readRows} 行，识别 ${summary.total} 条，新增 ${summary.created} 条，更新 ${summary.updated} 条，调入 ${summary.transferred} 条，跳过 ${summary.skipped} 条，失败 ${summary.failed} 条，有效变更 ${summary.changed} 条${extra ? `，${extra}` : ''}`;
+  const failureSamples = results ? formatFailureSamples(results) : '';
+  return `读取 ${summary.readRows} 行，识别 ${summary.total} 条，新增 ${summary.created} 条，更新 ${summary.updated} 条，调入 ${summary.transferred} 条，跳过 ${summary.skipped} 条，失败 ${summary.failed} 条，有效变更 ${summary.changed} 条${extra ? `，${extra}` : ''}${failureSamples ? `；失败样例：${failureSamples}` : ''}`;
 }
 
 function maskIdCard(value?: string | null) {
@@ -465,7 +485,10 @@ export async function POST(request: NextRequest) {
         success: results.some((item) => item.success),
         mode: 'payload',
         message: '测试数据已处理',
-        summary: summarizeResults(results, manualRecords.length),
+        summary: {
+          ...summarizeResults(results, manualRecords.length),
+          failureSamples: buildFailureSamples(results),
+        },
         results,
       });
     }
@@ -540,7 +563,8 @@ export async function POST(request: NextRequest) {
 
         const summary = summarizeResults(results, rows.length);
         const failed = summary.failed > 0;
-        const message = buildSummaryMessage(summary);
+        const failureSamples = buildFailureSamples(results);
+        const message = buildSummaryMessage(summary, results);
         await updateBindingStatus(client, binding.id, failed ? 'warning' : 'success', message);
         bindingResults.push({
           bindingId: binding.id,
@@ -549,7 +573,11 @@ export async function POST(request: NextRequest) {
           status: failed ? 'warning' : 'success',
           message,
           totalRows: rows.length,
-          summary,
+          summary: {
+            ...summary,
+            failureSamples,
+          },
+          failureSamples,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : '同步失败';
@@ -565,6 +593,7 @@ export async function POST(request: NextRequest) {
 
     const summary = {
       ...summarizeResults(allResults, totalRowsRead),
+      failureSamples: buildFailureSamples(allResults, 8),
       bindings: bindingResults.length,
       successBindings: bindingResults.filter((item) => item.status === 'success').length,
       warningBindings: bindingResults.filter((item) => item.status === 'warning').length,

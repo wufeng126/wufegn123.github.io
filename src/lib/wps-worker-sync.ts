@@ -208,9 +208,54 @@ export function extractWpsWorkerRecords(payload: unknown): WpsWorkerInput[] {
   }).filter(hasMeaningfulWorkerSignal);
 }
 
+function compactText(value?: string | null): string | null {
+  const text = value?.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+  return text || null;
+}
+
 function sanitizeIdCard(idCard?: string | null): string | null {
-  const value = idCard?.trim().toUpperCase().replace(/\s+/g, '');
-  return value || null;
+  const text = compactText(idCard)?.toUpperCase();
+  if (!text) return null;
+
+  const compact = text.replace(/\s+/g, '');
+  const validCandidate = compact.match(/\d{17}[\dX]/);
+  if (validCandidate) return validCandidate[0];
+
+  const loose = compact.replace(/[^0-9X]/g, '');
+  if (/^\d{15}$/.test(loose) || /^\d{17}[\dX]$/.test(loose)) return loose;
+
+  return compact.length <= 18 ? compact : null;
+}
+
+function sanitizePhone(phone?: string | null): string | null {
+  const text = compactText(phone);
+  if (!text) return null;
+
+  const mobile = text.match(/(?:\+?86[-\s]?)?(1[3-9]\d{9})/);
+  if (mobile?.[1]) return mobile[1];
+
+  const digits = text.replace(/[^\d]/g, '');
+  if (digits.length >= 7 && digits.length <= 20) return digits;
+
+  const compact = text.replace(/\s+/g, '');
+  return compact.length <= 20 ? compact : null;
+}
+
+function sanitizeBankCard(bankCard?: string | null): string | null {
+  const text = compactText(bankCard);
+  if (!text) return null;
+
+  const digits = text.replace(/[^\d]/g, '');
+  if (digits.length >= 8 && digits.length <= 30) return digits;
+
+  const compact = text.replace(/\s+/g, '').replace(/-/g, '');
+  return compact.length <= 30 ? compact : null;
+}
+
+function sanitizeLimitedText(value: string | null | undefined, maxLength: number): string | null {
+  const text = compactText(value);
+  if (!text) return null;
+  return text.length <= maxLength ? text : text.slice(0, maxLength);
 }
 
 function isValidChineseIdCard(idCard?: string | null): boolean {
@@ -295,6 +340,8 @@ function normalizeComparableValue(field: string, value: unknown) {
   if (isBlankValue(value)) return '';
   const text = String(value).trim();
   if (field === 'id_card') return sanitizeIdCard(text) || '';
+  if (field === 'phone') return sanitizePhone(text) || '';
+  if (field === 'bank_card') return sanitizeBankCard(text) || '';
   if (field === 'entry_date') return normalizeDate(text) || text;
   if (field === 'status') return normalizeWorkerStatus(text);
   return text.replace(/\s+/g, '');
@@ -335,20 +382,22 @@ function buildFieldDetail(
 
 function buildWorkerData(input: WpsWorkerInput, projectId: number, existingEntryDate?: string | null) {
   const idCard = sanitizeIdCard(input.idCard);
+  const phone = sanitizePhone(input.phone);
+  const bankCard = sanitizeBankCard(input.bankCard);
   const age = calculateAge(idCard);
   const entryDate = normalizeDate(input.entryDate);
 
   return stripNullish({
-    name: input.name?.trim(),
-    work_type: input.workType?.trim() || null,
-    gender: input.gender?.trim() || null,
+    name: sanitizeLimitedText(input.name, 100),
+    work_type: sanitizeLimitedText(input.workType, 50),
+    gender: sanitizeLimitedText(input.gender, 10),
     age,
     id_card: idCard,
-    phone: input.phone?.trim() || null,
-    bank_card: input.bankCard?.trim() || null,
+    phone,
+    bank_card: bankCard,
     project_id: projectId,
     entry_date: existingEntryDate || entryDate || null,
-    team_name: input.teamName?.trim() || null,
+    team_name: sanitizeLimitedText(input.teamName, 100),
     status: normalizeWorkerStatus(input.status),
   });
 }
@@ -370,6 +419,8 @@ type ExistingWorkerRow = {
 
 function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existing: ExistingWorkerRow) {
   const idCard = sanitizeIdCard(input.idCard);
+  const phone = sanitizePhone(input.phone);
+  const bankCard = sanitizeBankCard(input.bankCard);
   const age = calculateAge(idCard);
   const entryDate = normalizeDate(input.entryDate);
   const details: WpsWorkerFieldSyncDetail[] = [];
@@ -393,16 +444,16 @@ function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existin
   const normalizedStatus = input.status ? normalizeWorkerStatus(input.status, 'in_service') : null;
   const data = stripNullish({
     // 信息补全策略：本地缺失才用花名册补全，本地已有则保留（避免花名册缺/错值覆盖）
-    name: choose('name', input.name, existing.name),
-    work_type: choose('work_type', input.workType, existing.work_type),
-    gender: choose('gender', input.gender, existing.gender),
+    name: choose('name', sanitizeLimitedText(input.name, 100), existing.name),
+    work_type: choose('work_type', sanitizeLimitedText(input.workType, 50), existing.work_type),
+    gender: choose('gender', sanitizeLimitedText(input.gender, 10), existing.gender),
     age: choose('age', age, existing.age),
     id_card: choose('id_card', idCard, existing.id_card),
-    phone: choose('phone', input.phone, existing.phone),
-    bank_card: choose('bank_card', input.bankCard, existing.bank_card),
+    phone: choose('phone', phone, existing.phone),
+    bank_card: choose('bank_card', bankCard, existing.bank_card),
     project_id: projectId,
     entry_date: choose('entry_date', entryDate, existing.entry_date),
-    team_name: choose('team_name', input.teamName, existing.team_name),
+    team_name: choose('team_name', sanitizeLimitedText(input.teamName, 100), existing.team_name),
     // 状态补全原则：本地已有状态则保留（花名册状态可能过期/错误），本地缺失时才用花名册
     status: choose('status', normalizedStatus, existing.status || null) || 'in_service',
   });
@@ -419,9 +470,46 @@ function sanitizeLogFields(input: WpsWorkerInput): Record<string, unknown> {
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
     if (ATTACHMENT_KEYWORDS.some((word) => key.toLowerCase().includes(word))) continue;
-    safe[key] = value || null;
+    if (key === 'idCard') {
+      safe[key] = sanitizeIdCard(value as string | null) || null;
+    } else if (key === 'phone') {
+      safe[key] = sanitizePhone(value as string | null) || null;
+    } else if (key === 'bankCard') {
+      safe[key] = sanitizeBankCard(value as string | null) || null;
+    } else {
+      safe[key] = value || null;
+    }
   }
   return safe;
+}
+
+function friendlySyncError(error: unknown): string {
+  const fallback = '同步失败';
+  if (!error || typeof error !== 'object') return error instanceof Error ? error.message : fallback;
+
+  const err = error as { message?: string; details?: string; hint?: string; code?: string };
+  const raw = [err.message, err.details, err.hint, err.code].filter(Boolean).join(' ');
+
+  if (/character varying\(18\)|varchar\(18\)/i.test(raw)) {
+    return '身份证号字段超过 18 位或映射到了错误字段，请检查 WPS 字段映射中的“身份证号”';
+  }
+  if (/character varying\(20\)|varchar\(20\)/i.test(raw)) {
+    return '手机号、入场日期或人员状态字段长度异常，请检查 WPS 字段映射是否选到了备注/附件/图片等字段';
+  }
+  if (/character varying\(30\)|varchar\(30\)/i.test(raw)) {
+    return '银行卡号或联系方式字段长度异常，请检查 WPS 字段映射是否选到了附件/图片等字段';
+  }
+  if (/workers_project_id_card_unique_idx/i.test(raw)) {
+    return '项目内已存在相同身份证号的工人，系统未自动新增；请核对是否重复或先修正花名册档案';
+  }
+  if (/workers_project_id_name_unique_idx/i.test(raw)) {
+    return '项目内已存在同名工人，系统未自动新增；请核对姓名是否重复或补全身份证号后再同步';
+  }
+  if (/worker_assignments_worker_project_key/i.test(raw)) {
+    return '该工人的项目调入记录已存在，系统未重复写入；请刷新后查看工人项目归属';
+  }
+
+  return err.message || fallback;
 }
 
 async function writeSyncLog(
@@ -438,7 +526,7 @@ async function writeSyncLog(
       worker_id: result.workerId || null,
       worker_name: result.workerName || input.name || null,
       id_card: sanitizeIdCard(input.idCard),
-      phone: input.phone?.trim() || null,
+      phone: sanitizePhone(input.phone),
       action: result.action,
       status: result.status,
       message: result.message,
@@ -508,6 +596,19 @@ function getBindingProject(binding: WpsProjectBindingRow | null) {
   return Array.isArray(binding.projects) ? binding.projects[0] : binding.projects;
 }
 
+async function resolveBindingProject(client: SupabaseClient, binding: WpsProjectBindingRow | null) {
+  const relatedProject = getBindingProject(binding);
+  if (relatedProject?.id && relatedProject.name) return relatedProject;
+  if (!binding?.project_id) return null;
+
+  const { data } = await client
+    .from('projects')
+    .select('id, name')
+    .eq('id', binding.project_id)
+    .maybeSingle();
+  return data || null;
+}
+
 async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInput): Promise<WpsProjectBindingRow | null> {
   const clean = (value?: string | null) => value?.trim() || null;
   const selectFields = 'id, project_id, wps_project_name, worksheet_name, wps_document_url, wps_form_id, wps_sheet_id, wps_table_id, projects(id, name)';
@@ -526,7 +627,7 @@ async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInpu
       .eq(column, value)
       .limit(1)
       .maybeSingle();
-    if (getBindingProject(data as WpsProjectBindingRow | null)) return data as WpsProjectBindingRow;
+    if (data) return data as WpsProjectBindingRow;
   }
 
   const names = [clean(input.projectName), clean(input.worksheetName)].filter(Boolean) as string[];
@@ -544,7 +645,7 @@ async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInpu
       const sheetName = binding.worksheet_name?.replace(/\s+/g, '').toLowerCase();
       return wpsName === normalizedName || sheetName === normalizedName;
     });
-    if (getBindingProject(matched || null)) return matched || null;
+    if (matched) return matched;
   }
 
   return null;
@@ -567,8 +668,8 @@ async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInpu
 async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput, projectId?: number | null) {
   const idCard = sanitizeIdCard(input.idCard);
   const name = input.name?.trim();
-  const phone = input.phone?.trim();
-  const bankCard = input.bankCard?.trim();
+  const phone = sanitizePhone(input.phone);
+  const bankCard = sanitizeBankCard(input.bankCard);
   const selectFields = 'id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status';
 
   // 1. 项目内 + 身份证号
@@ -719,7 +820,7 @@ export async function syncWpsWorkerRecord(
 
     const binding = await findProjectByBinding(client, input);
     bindingId = binding?.id || null;
-    const project = getBindingProject(binding) || await findProject(client, input.projectName || input.worksheetName);
+    const project = await resolveBindingProject(client, binding) || await findProject(client, input.projectName || input.worksheetName);
     if (!project) {
       result = {
         success: false,
@@ -806,7 +907,7 @@ export async function syncWpsWorkerRecord(
     };
     return result;
   } catch (error) {
-    const message = error instanceof Error ? error.message : '同步失败';
+    const message = friendlySyncError(error);
     result = {
       success: false,
       action: 'error',
