@@ -5,6 +5,7 @@ import { apiForbidden } from '@/lib/api-utils';
 import { extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
 import { applyWpsFieldMapping, extractWpsFileId, getWpsDbsheetSchema, listWpsDbsheetRecords, type WpsFieldMapping, type WpsIntegrationConfig, type WpsSheetSchema } from '@/lib/wps-openapi';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 type BindingRow = {
   id: number;
@@ -303,6 +304,21 @@ function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.len
   const autoFilledFields = results.reduce((sum, item) => sum + (item.filledFields?.length || 0), 0);
   const conflictFields = results.reduce((sum, item) => sum + (item.conflictFields?.length || 0), 0);
   const changed = created + updated + transferred;
+
+  // 失败原因聚合：把相同 message 归类，附带样例工人姓名，便于一次性定位问题
+  const failureReasonMap = new Map<string, { count: number; samples: string[] }>();
+  for (const item of results) {
+    if (item.status !== 'error' || !item.message) continue;
+    const key = item.message;
+    const entry = failureReasonMap.get(key) || { count: 0, samples: [] };
+    entry.count += 1;
+    if (item.workerName && entry.samples.length < 5) entry.samples.push(item.workerName);
+    failureReasonMap.set(key, entry);
+  }
+  const failureReasons = Array.from(failureReasonMap.entries())
+    .map(([message, info]) => ({ message, count: info.count, samples: info.samples }))
+    .sort((a, b) => b.count - a.count);
+
   return {
     total: results.length,
     readRows,
@@ -317,6 +333,7 @@ function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.len
     conflictFields,
     changed,
     succeeded: results.filter((item) => item.success).length,
+    failureReasons,
   };
 }
 
@@ -599,6 +616,12 @@ export async function POST(request: NextRequest) {
       warningBindings: bindingResults.filter((item) => item.status === 'warning').length,
       errorBindings: bindingResults.filter((item) => item.status === 'error').length,
     };
+
+    // WPS 同步会写入/更新 workers，失效聚合缓存以保证看板/月报统计即时更新
+    if (summary.changed > 0) {
+      invalidateAggregationCache();
+    }
+
     return NextResponse.json({
       success: bindingResults.some((item) => item.status === 'success'),
       mode: 'document',
