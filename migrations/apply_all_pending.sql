@@ -196,4 +196,25 @@ CREATE TABLE IF NOT EXISTS supplier_contract_logs (
 );
 CREATE INDEX IF NOT EXISTS supplier_contract_logs_contract_id_idx ON supplier_contract_logs(contract_id);
 
+-- ############ 修复：team_groups 缺少 name 列（与代码 schema 对齐） ############
+-- 现象：班组档案页报 "Could not find the 'name' column of 'team_groups' in the schema cache"
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_groups' AND column_name='name') THEN
+    ALTER TABLE team_groups ADD COLUMN name VARCHAR(200);
+    UPDATE team_groups SET name = group_name WHERE name IS NULL AND group_name IS NOT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_groups' AND column_name='phone') THEN
+    ALTER TABLE team_groups ADD COLUMN phone VARCHAR(30);
+    UPDATE team_groups SET phone = team_leader_phone WHERE phone IS NULL AND team_leader_phone IS NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='team_groups' AND column_name='team_leader') THEN
+    UPDATE team_groups SET leader_name = team_leader WHERE (leader_name IS NULL OR leader_name = '') AND team_leader IS NOT NULL AND team_leader <> '';
+  END IF;
+  ALTER TABLE team_groups ALTER COLUMN group_name DROP NOT NULL;
+  UPDATE team_groups SET name = '未命名班组' WHERE name IS NULL OR name = '';
+  ALTER TABLE team_groups ALTER COLUMN name SET NOT NULL;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS team_groups_project_name_key ON team_groups(project_id, name);
+
 NOTIFY pgrst, 'reload schema';
