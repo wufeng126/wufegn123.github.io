@@ -4,6 +4,7 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 function parseId(value: unknown) {
   const id = Number(value);
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
       request,
     });
 
+    invalidateAggregationCache();
     return apiSuccess({ group });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '班组档案保存失败'));
@@ -177,8 +179,61 @@ export async function PUT(request: NextRequest) {
       request,
     });
 
+    invalidateAggregationCache();
     return apiSuccess({ group: data });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '班组档案更新失败'));
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
+    const id = parseId(request.nextUrl.searchParams.get('id'));
+    if (!id) return apiBadRequest('缺少班组ID');
+
+    const supabase = getSupabaseClient();
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('team_groups')
+      .select('id, project_id, name')
+      .eq('id', id)
+      .maybeSingle();
+    if (fetchError) throw new Error(fetchError.message);
+    if (!existing) return apiBadRequest('班组不存在或已被删除');
+
+    const hasAccess = await assertProjectAccess(supabase, auth.user, Number(existing.project_id));
+    if (!hasAccess) return apiForbidden('无权维护该项目班组');
+
+    // 删除前检查是否有关联结算单，存在则禁止删除（避免结算数据成为孤儿）
+    const { count: settlementCount, error: countError } = await supabase
+      .from('team_settlements')
+      .select('id', { count: 'exact', head: true })
+      .eq('team_id', id);
+    if (countError) throw new Error(countError.message);
+    if (settlementCount && settlementCount > 0) {
+      return apiBadRequest(`该班组已有 ${settlementCount} 条结算单，请先删除关联结算单后再删除班组`);
+    }
+
+    const { error: deleteError } = await supabase
+      .from('team_groups')
+      .delete()
+      .eq('id', id);
+    if (deleteError) throw new Error(deleteError.message);
+
+    await auditLog({
+      operationType: 'delete',
+      resourceType: 'team_group',
+      resourceId: id,
+      details: { project_id: existing.project_id, name: existing.name },
+      request,
+    });
+
+    invalidateAggregationCache();
+    return apiSuccess({ id });
+  } catch (error: unknown) {
+    return apiServerError(getErrorMessage(error, '班组档案删除失败'));
   }
 }

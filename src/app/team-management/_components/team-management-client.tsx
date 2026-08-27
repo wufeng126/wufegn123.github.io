@@ -9,6 +9,7 @@ import {
   Download,
   FileSpreadsheet,
   Loader2,
+  Pencil,
   Plus,
   Printer,
   RefreshCw,
@@ -253,8 +254,11 @@ export function TeamGroupsPageClient() {
   const [projectId, setProjectId] = useState('');
   const [keyword, setKeyword] = useState('');
   const [teamForm, setTeamForm] = useState({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
+  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -296,7 +300,27 @@ export function TeamGroupsPageClient() {
     });
   }, [groups, keyword]);
 
-  async function createTeam() {
+  function startEdit(group: TeamGroup) {
+    setEditingGroupId(group.id);
+    setConfirmDeleteId(null);
+    setProjectId(String(group.project_id));
+    setTeamForm({
+      name: group.name || '',
+      leader_name: group.leader_name || '',
+      phone: group.phone || '',
+      work_type: group.work_type || '',
+      remark: group.remark || '',
+    });
+    setMessage('');
+  }
+
+  function cancelEdit() {
+    setEditingGroupId(null);
+    setTeamForm({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
+    setMessage('');
+  }
+
+  async function saveTeam() {
     if (!selectedProjectId) {
       setMessage('请先选择项目');
       return;
@@ -308,19 +332,49 @@ export function TeamGroupsPageClient() {
     setSaving(true);
     setMessage('');
     try {
-      await readJson(await fetch('/api/team-groups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ...teamForm, project_id: selectedProjectId }),
-      }));
+      if (editingGroupId) {
+        await readJson(await fetch('/api/team-groups', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...teamForm, id: editingGroupId, project_id: selectedProjectId }),
+        }));
+        setMessage('班组档案已更新');
+      } else {
+        await readJson(await fetch('/api/team-groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...teamForm, project_id: selectedProjectId }),
+        }));
+        setMessage('班组档案已保存');
+      }
+      setEditingGroupId(null);
       setTeamForm({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
       await loadGroups();
-      setMessage('班组档案已保存');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '班组档案保存失败');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function confirmDelete(group: TeamGroup) {
+    setDeleting(true);
+    setMessage('');
+    try {
+      await readJson(await fetch(`/api/team-groups?id=${group.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      }));
+      setConfirmDeleteId(null);
+      if (editingGroupId === group.id) cancelEdit();
+      await loadGroups();
+      setMessage('班组档案已删除');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '班组档案删除失败');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -342,7 +396,7 @@ export function TeamGroupsPageClient() {
       <section className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
           <div className="border-b border-[#EEF0F5] p-4">
-            <h2 className="font-semibold">新增班组</h2>
+            <h2 className="font-semibold">{editingGroupId ? '编辑班组' : '新增班组'}</h2>
             <p className="mt-1 text-xs text-[#86909C]">每个班组必须归属一个项目。</p>
           </div>
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-1">
@@ -358,10 +412,15 @@ export function TeamGroupsPageClient() {
             <input value={teamForm.phone} onChange={(event) => setTeamForm((form) => ({ ...form, phone: event.target.value }))} placeholder="联系电话" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
             <input value={teamForm.work_type} onChange={(event) => setTeamForm((form) => ({ ...form, work_type: event.target.value }))} placeholder="工种" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
             <textarea value={teamForm.remark} onChange={(event) => setTeamForm((form) => ({ ...form, remark: event.target.value }))} placeholder="备注" className="min-h-20 rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[#165DFF] sm:col-span-2 xl:col-span-1" />
-            <button onClick={() => void createTeam()} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:col-span-2 xl:col-span-1">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              新增班组
+            <button onClick={() => void saveTeam()} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:col-span-2 xl:col-span-1">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {editingGroupId ? '保存修改' : '新增班组'}
             </button>
+            {editingGroupId ? (
+              <button onClick={cancelEdit} disabled={saving} className="inline-flex h-10 items-center justify-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-60 sm:col-span-2 xl:col-span-1">
+                取消编辑
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -386,13 +445,14 @@ export function TeamGroupsPageClient() {
                   <th className="px-4 py-3 text-left">联系电话</th>
                   <th className="px-4 py-3 text-left">工种</th>
                   <th className="px-4 py-3 text-center">状态</th>
+                  <th className="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EEF0F5]">
                 {loading ? (
-                  <tr><td colSpan={6} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
+                  <tr><td colSpan={7} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
                 ) : filteredGroups.length === 0 ? (
-                  <tr><td colSpan={6} className="py-10 text-center text-[#86909C]">暂无班组档案</td></tr>
+                  <tr><td colSpan={7} className="py-10 text-center text-[#86909C]">暂无班组档案</td></tr>
                 ) : filteredGroups.map((group) => (
                   <tr key={group.id} className="hover:bg-[#FAFBFF]">
                     <td className="px-4 py-3 font-medium">{group.name}</td>
@@ -401,6 +461,29 @@ export function TeamGroupsPageClient() {
                     <td className="px-4 py-3 text-[#4E5969]">{group.phone || '-'}</td>
                     <td className="px-4 py-3 text-[#4E5969]">{group.work_type || '-'}</td>
                     <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {confirmDeleteId === group.id ? (
+                          <>
+                            <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-white bg-[#F53F3F] hover:bg-[#D92D20] disabled:opacity-60">
+                              {deleting ? '删除中' : '确认删除'}
+                            </button>
+                            <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-[#4E5969] hover:bg-[#F2F3F5]">
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => startEdit(group)} className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs text-[#4E5969] hover:bg-[#E8F3FF] hover:text-[#165DFF]" title="编辑班组">
+                              <Pencil className="h-3.5 w-3.5" />编辑
+                            </button>
+                            <button onClick={() => setConfirmDeleteId(group.id)} className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs text-[#4E5969] hover:bg-[#FFF1F0] hover:text-[#F53F3F]" title="删除班组">
+                              <Trash2 className="h-3.5 w-3.5" />删除
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -421,6 +504,25 @@ export function TeamGroupsPageClient() {
                   <span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span>
                 </div>
                 <div className="mt-2 text-sm text-[#4E5969]">{group.leader_name || '未填负责人'} {group.phone ? ` · ${group.phone}` : ''}</div>
+                {confirmDeleteId === group.id ? (
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-8 items-center rounded-md bg-[#F53F3F] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
+                      {deleting ? '删除中' : '确认删除'}
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969]">
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={() => startEdit(group)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969] hover:border-[#165DFF] hover:text-[#165DFF]">
+                      <Pencil className="h-3.5 w-3.5" />编辑
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(group.id)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969] hover:border-[#F53F3F] hover:text-[#F53F3F]">
+                      <Trash2 className="h-3.5 w-3.5" />删除
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
