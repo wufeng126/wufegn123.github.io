@@ -59,7 +59,24 @@ export async function POST(request: Request) {
       throw err;
     }
 
-    if (!result) {
+    // 数据库查询本身失败（schema cache/连接等），明确返回服务不可用，而非"账号或密码错误"
+    if (result && 'dbError' in result && result.dbError) {
+      await logSecurityEvent({
+        event_type: 'login_failed',
+        username: username?.trim(),
+        ip_address: ip,
+        user_agent: userAgent,
+        result: 'failed',
+        error_message: '登录时查询用户信息失败（数据库异常）',
+      });
+      return NextResponse.json(
+        { success: false, data: null, error: '登录服务暂不可用，数据库连接异常，请稍后重试', code: 'DB_UNAVAILABLE' },
+        { status: 503 }
+      );
+    }
+
+    // 账号不存在或密码错误
+    if (!result || 'invalid' in result) {
       // 记录登录失败日志 + 限流计数（管理员账号不受账号维度锁定，防恶意锁死管理员）
       let isAdminTarget = false;
       try {
@@ -110,14 +127,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // 到这里只可能是登录成功分支
+    if (!result || !('user' in result) || !('token' in result)) {
+      return NextResponse.json(
+        { success: false, data: null, error: '登录失败，请稍后重试', code: 'LOGIN_FAILED' },
+        { status: 500 }
+      );
+    }
+    const { user, token } = result;
+
     // 登录成功：清除限流计数
     clearLoginFailures(ip, String(username).trim().toLowerCase());
 
     // 记录登录成功日志
     await logSecurityEvent({
       event_type: 'login_success',
-      user_id: result.user.id,
-      username: result.user.username,
+      user_id: user.id,
+      username: user.username,
       ip_address: ip,
       user_agent: userAgent,
       result: 'success',
@@ -127,15 +153,15 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       success: true,
       data: {
-        token: result.token,
-        user: result.user,
+        token,
+        user,
       },
       error: null,
       code: 'SUCCESS',
     });
 
     // 设置认证 Cookie（SameSite=lax 兼容钉钉 webview）
-    response.cookies.set('auth_token', result.token, {
+    response.cookies.set('auth_token', token, {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',

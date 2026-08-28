@@ -52,36 +52,48 @@ export function verifyPassword(password: string, hash: string): boolean {
 export type LoginBlockedReason = 'disabled' | 'pending';
 
 // 验证账号密码（从数据库）
-// 返回：UserPayload（成功）| { blocked: 'disabled'|'pending' }（账号存在但被禁用/待分配）| null（用户不存在或密码错误）
+// 返回：
+//   { user: UserPayload }                                         登录成功
+//   { blocked: 'disabled' | 'pending' }                           账号存在但被禁用/待分配
+//   { invalid: true }                                            账号不存在或密码错误
+//   { dbError: true }                                            查询数据库本身失败（schema cache/连接等），不应被当成密码错误
+export type VerifyCredentialsResult =
+  | { user: UserPayload }
+  | { blocked: LoginBlockedReason }
+  | { invalid: true }
+  | { dbError: true };
+
 export async function verifyCredentials(
   username: string,
   password: string
-): Promise<UserPayload | { blocked: LoginBlockedReason } | null> {
+): Promise<VerifyCredentialsResult> {
   try {
     // 去除前后空格并转小写（用户名不区分大小写）
     const normalizedUsername = username.trim().toLowerCase();
     console.log('[Auth] Verifying credentials for user:', normalizedUsername);
     const client = getSupabaseClient();
-    
+
     const { data, error } = await client
       .from('users')
       .select('*')
       .ilike('username', normalizedUsername)  // 使用 ilike 进行不区分大小写的匹配
-      .single();
+      .maybeSingle();
 
     if (error) {
+      // 数据库自身错误（如 PostgREST schema cache 异常 PGRST002、连接失败等），
+      // 不能伪装成"账号或密码错误"，否则会误导用户。
       console.error('[Auth] Query user error:', error);
-      return null;
+      return { dbError: true };
     }
-    
+
     if (!data) {
       console.log('[Auth] User not found:', normalizedUsername);
-      return null;
+      return { invalid: true };
     }
 
     const user = data as { id: number; username: string; name?: string | null; dingtalk_name?: string | null; password_hash: string; role: string; is_disabled: boolean };
     console.log('[Auth] User found, role:', user.role);
-    
+
     // 账号存在但状态不允许登录：明确区分禁用/待分配，避免与"密码错误"混淆
     if (user.is_disabled) {
       console.log('[Auth] User is disabled:', normalizedUsername);
@@ -93,10 +105,10 @@ export async function verifyCredentials(
     }
 
     const passwordValid = verifyPassword(password.trim(), user.password_hash);
-    
+
     if (!passwordValid) {
       console.log('[Auth] Password verification failed for user:', normalizedUsername);
-      return null;
+      return { invalid: true };
     }
 
     if (!user.password_hash.startsWith('scrypt$')) {
@@ -114,20 +126,22 @@ export async function verifyCredentials(
 
     // 确保 role 有有效值
     const userRole: UserRole = (user.role && ['super_admin', 'admin', 'pending'].includes(user.role))
-      ? user.role as UserRole 
+      ? user.role as UserRole
       : 'admin';
-    
+
     console.log('[Auth] Login successful for user:', username, ', role:', userRole);
     return {
-      id: user.id,
-      username: user.username,
-      name: getUserDisplayName(user),
-      dingtalk_name: user.dingtalk_name || undefined,
-      role: userRole,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: getUserDisplayName(user),
+        dingtalk_name: user.dingtalk_name || undefined,
+        role: userRole,
+      },
     };
   } catch (error) {
     console.error('Verify credentials error:', error);
-    return null;
+    return { dbError: true };
   }
 }
 
@@ -222,19 +236,22 @@ export async function fetchUserPermissions(userId: number, userRole: string): Pr
 export async function login(
   username: string,
   password: string
-): Promise<{ user: UserPayload; token: string } | { blocked: LoginBlockedReason } | null> {
-  const user = await verifyCredentials(username, password);
-  if (!user) {
+): Promise<{ user: UserPayload; token: string } | { blocked: LoginBlockedReason } | { dbError: true } | null> {
+  const result = await verifyCredentials(username, password);
+  if ('dbError' in result) {
+    return { dbError: true };
+  }
+  if ('invalid' in result) {
     return null;
   }
-  if ('blocked' in user) {
-    return user;
+  if ('blocked' in result) {
+    return result;
   }
-  
+
   // 获取用户权限码并嵌入token
-  const permissions = await fetchUserPermissions(user.id, user.role);
-  const token = await generateToken({ ...user, permissions });
-  return { user, token };
+  const permissions = await fetchUserPermissions(result.user.id, result.user.role);
+  const token = await generateToken({ ...result.user, permissions });
+  return { user: result.user, token };
 }
 
 // 获取所有管理员
