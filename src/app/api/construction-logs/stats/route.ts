@@ -191,24 +191,36 @@ export async function GET(request: NextRequest) {
     const { data: projectRows, error: projectError } = await projectsQuery;
     if (projectError) throw new Error(projectError.message);
 
-    let query = supabase
-      .from('construction_logs')
-      .select('project_id, user_id, user_name, log_date, content, issues')
-      .neq('status', 'pending')
-      .neq('status', 'cancelled');
-    if (parsedProjectId) query = query.eq('project_id', parsedProjectId);
-    else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
-    if (dateFrom) query = query.gte('log_date', dateFrom);
-    if (dateTo) query = query.lte('log_date', dateTo);
-    if (month) {
-      const range = getMonthRange(month);
-      query = query.gte('log_date', range.start).lte('log_date', range.end);
+    // 跨项目整月日志可能超过 PostgREST 单次请求默认上限（1000 行），
+    // 必须分页拉取全部行，否则下旬数据被截断会被误判为"未提交"。
+    const PAGE_SIZE = 1000;
+    const buildLogsPage = (from: number, to: number) => {
+      let pageQuery = supabase
+        .from('construction_logs')
+        .select('project_id, user_id, user_name, log_date, content, issues')
+        .neq('status', 'pending')
+        .neq('status', 'cancelled')
+        .order('id', { ascending: true })
+        .range(from, to);
+      if (parsedProjectId) pageQuery = pageQuery.eq('project_id', parsedProjectId);
+      else if (Array.isArray(accessibleProjectIds)) pageQuery = pageQuery.in('project_id', accessibleProjectIds);
+      if (dateFrom) pageQuery = pageQuery.gte('log_date', dateFrom);
+      if (dateTo) pageQuery = pageQuery.lte('log_date', dateTo);
+      if (month) {
+        const range = getMonthRange(month);
+        pageQuery = pageQuery.gte('log_date', range.start).lte('log_date', range.end);
+      }
+      return pageQuery;
+    };
+
+    const rows: LogStatRow[] = [];
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      const { data: page, error: pageError } = await buildLogsPage(offset, offset + PAGE_SIZE - 1);
+      if (pageError) throw new Error(pageError.message);
+      if (!page || page.length === 0) break;
+      rows.push(...(page as LogStatRow[]));
+      if (page.length < PAGE_SIZE) break;
     }
-
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-
-    const rows = (data || []) as LogStatRow[];
     const userIds = Array.from(new Set(rows.map(row => Number(row.user_id)).filter(Boolean)));
     const userNameMap = await fetchUserNameMap(supabase, userIds);
     const stats: Record<string, UserLogStats> = {};

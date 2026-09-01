@@ -75,18 +75,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let logQuery = supabase
-      .from('construction_logs')
-      .select('id,project_id,log_date')
-      .gte('log_date', start)
-      .lte('log_date', end);
-    if (parsedProjectId) logQuery = logQuery.eq('project_id', parsedProjectId);
-    else if (Array.isArray(accessibleProjectIds)) logQuery = logQuery.in('project_id', accessibleProjectIds);
+    // 跨项目整月日志可能超过 PostgREST 单次请求默认上限（1000 行），分页拉取，
+    // 否则下旬日志被截断会导致考勤汇总缺数。
+    const LOG_PAGE_SIZE = 1000;
+    const logRows: LogRow[] = [];
+    for (let offset = 0; ; offset += LOG_PAGE_SIZE) {
+      let pageQuery = supabase
+        .from('construction_logs')
+        .select('id,project_id,log_date')
+        .gte('log_date', start)
+        .lte('log_date', end)
+        .order('id', { ascending: true })
+        .range(offset, offset + LOG_PAGE_SIZE - 1);
+      if (parsedProjectId) pageQuery = pageQuery.eq('project_id', parsedProjectId);
+      else if (Array.isArray(accessibleProjectIds)) pageQuery = pageQuery.in('project_id', accessibleProjectIds);
 
-    const { data: logs, error: logError } = await logQuery;
-    if (logError) throw new Error(logError.message);
-
-    const logRows = (logs || []) as LogRow[];
+      const { data: logs, error: logError } = await pageQuery;
+      if (logError) throw new Error(logError.message);
+      if (!logs || logs.length === 0) break;
+      logRows.push(...(logs as LogRow[]));
+      if (logs.length < LOG_PAGE_SIZE) break;
+    }
     const logIds = logRows.map(log => Number(log.id)).filter(Boolean);
     if (logIds.length === 0) {
       return apiSuccess([], {
