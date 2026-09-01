@@ -60,13 +60,17 @@ export async function GET(request: NextRequest) {
 
     if (error) throw new Error(error.message);
 
-    // 按日期分组
+    // 按日期分组（归一化为 YYYY-MM-DD，避免 date 列返回值带时间分量/历史 varchar 脏数据
+    // 导致与日历格子的 dateStr 匹配失败，整天误显示"未提交"）
+    const normalizeDay = (value: unknown) => String(value ?? '').slice(0, 10);
     const logsByDate: Record<string, CalendarLogRow[]> = {};
     (logs || []).forEach((log) => {
-      if (!logsByDate[log.log_date]) {
-        logsByDate[log.log_date] = [];
+      const day = normalizeDay(log.log_date);
+      if (!day) return;
+      if (!logsByDate[day]) {
+        logsByDate[day] = [];
       }
-      logsByDate[log.log_date].push(log);
+      logsByDate[day].push(log);
     });
 
     // 生成日历数据

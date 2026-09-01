@@ -15,6 +15,16 @@ type LogStatRow = {
   issues?: string | null;
 };
 
+/**
+ * 归一化日期为 YYYY-MM-DD。
+ * log_date 可能来自 date 列（返回 'YYYY-MM-DD'）或历史 varchar 脏数据/带时间分量的值，
+ * 统一截取前 10 位，避免与 getDateRangeList 生成的纯日期 key 比较时失配，
+ * 导致月末等日期被误判为"未提交"。
+ */
+function normalizeDay(value: unknown): string {
+  return String(value ?? '').slice(0, 10);
+}
+
 type UserLogStats = {
   name: string;
   count: number;
@@ -255,12 +265,13 @@ export async function GET(request: NextRequest) {
           highRiskCount: 0,
         };
       }
+      const day = normalizeDay(row.log_date);
       stats[key].count++;
-      stats[key].submittedDays.add(row.log_date);
-      if (row.log_date > stats[key].lastDate) stats[key].lastDate = row.log_date;
+      stats[key].submittedDays.add(day);
+      if (day > stats[key].lastDate) stats[key].lastDate = day;
       projectStats[projectKey].count++;
-      projectStats[projectKey].submittedDays.add(row.log_date);
-      if (row.log_date > projectStats[projectKey].lastDate) projectStats[projectKey].lastDate = row.log_date;
+      projectStats[projectKey].submittedDays.add(day);
+      if (day > projectStats[projectKey].lastDate) projectStats[projectKey].lastDate = day;
 
       const risk = detectConstructionLogRisk(row);
       if (!risk.hasRisk) return;
