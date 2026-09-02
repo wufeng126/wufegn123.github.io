@@ -239,9 +239,14 @@ async function analyzeRows(rows: any[][]) {
     client.from('projects').select('id, name'),
   ]);
 
-  const workerMap = new Map((workersData || [])
+  const allWorkers = (workersData || []) as Array<{ id: number; name: string | null; id_card: string | null }>;
+  const workerMap = new Map(allWorkers
     .filter((worker: any) => normalizeIdCard(worker.id_card))
     .map((worker: any) => [normalizeIdCard(worker.id_card), worker]));
+  // 工人 id -> 归一化姓名，用于工资核算单按姓名回退匹配（如调离人员、Excel 缺身份证）
+  const workerNameById = new Map<number, string>(
+    allWorkers.map((w: any) => [Number(w.id), normalizeText(w.name)]),
+  );
   const projectMap = new Map((projectsData || []).map((project: any) => [normalizeText(project.name), project]));
   const batchDuplicateKeys = new Set<string>();
   const parsedRows: ParsedPaymentRow[] = [];
@@ -345,27 +350,37 @@ async function analyzeRows(rows: any[][]) {
     });
   }
 
-  const salaryWorkerIds = [...new Set(parsedRows.map(row => row.worker_id).filter(Boolean))];
+  // 按项目+月份全量拉取工资核算单（不只局限于身份证匹配到的 worker_id），
+  // 这样调离人员、Excel 缺身份证等场景也能按 项目+月份+姓名 回退匹配到历史工资单。
   const salaryProjectIds = [...new Set(parsedRows.map(row => row.project_id).filter(Boolean))];
   const salaryYearMonths = [...new Set(parsedRows.map(row => row.year_month).filter(Boolean))];
   const salaryMap = new Map<string, any>();
+  // 回退索引：`项目:月份:归一化姓名` -> 工资核算单；同名多条时标记歧义
+  const salaryByNameMap = new Map<string, any>();
+  const ambiguousNameKeys = new Set<string>();
   const duplicateSalaryKeys = new Set<string>();
   const paidMap = new Map<number, number>();
 
-  if (salaryWorkerIds.length > 0 && salaryProjectIds.length > 0 && salaryYearMonths.length > 0) {
+  if (salaryProjectIds.length > 0 && salaryYearMonths.length > 0) {
     const { data: salaries, error } = await client
       .from('worker_salaries')
       .select('id, worker_id, project_id, year_month, net_pay')
-      .in('worker_id', salaryWorkerIds)
       .in('project_id', salaryProjectIds)
       .in('year_month', salaryYearMonths);
 
     if (error) throw new Error(`匹配工资核算单失败：${error.message}`);
 
     (salaries || []).forEach((salary: any) => {
-      const key = `${salary.worker_id}:${salary.project_id}:${salary.year_month}`;
-      if (salaryMap.has(key)) duplicateSalaryKeys.add(key);
-      salaryMap.set(key, salary);
+      const idKey = `${salary.worker_id}:${salary.project_id}:${salary.year_month}`;
+      if (salaryMap.has(idKey)) duplicateSalaryKeys.add(idKey);
+      salaryMap.set(idKey, salary);
+
+      const workerName = workerNameById.get(Number(salary.worker_id)) || '';
+      if (workerName) {
+        const nameKey = `${salary.project_id}:${salary.year_month}:${workerName}`;
+        if (salaryByNameMap.has(nameKey)) ambiguousNameKeys.add(nameKey);
+        salaryByNameMap.set(nameKey, salary);
+      }
     });
 
     const salaryIds = (salaries || []).map((salary: any) => salary.id);
@@ -383,6 +398,7 @@ async function analyzeRows(rows: any[][]) {
   }
 
   const importPaidMap = new Map<number, number>();
+  const nameMatchedRows = new Set<number>();
   const readyRows = parsedRows.filter(row => {
     const duplicateKey = duplicatePaymentKey({
       workerName: row.worker_name,
@@ -401,10 +417,43 @@ async function analyzeRows(rows: any[][]) {
       return false;
     }
 
-    if (!row.worker_id) return true;
+    // 1) 精确匹配：工人(身份证) + 项目 + 月份
+    let salary = row.worker_id
+      ? salaryMap.get(`${row.worker_id}:${row.project_id}:${row.year_month}`)
+      : null;
 
-    const salaryKey = `${row.worker_id}:${row.project_id}:${row.year_month}`;
-    if (duplicateSalaryKeys.has(salaryKey)) {
+    // 2) 回退匹配：项目 + 月份 + 姓名。
+    //    覆盖工人已调离（档案不在当前项目）、Excel 缺身份证/识别到空档案等场景，
+    //    确保“某月在某项目有工资”的人员，导入该项目当月发放时能匹配到对应工资单。
+    if (!salary) {
+      const nameKey = `${row.project_id}:${row.year_month}:${normalizeText(row.worker_name)}`;
+      if (ambiguousNameKeys.has(nameKey)) {
+        issues.push({
+          row: row.row,
+          type: 'blocked',
+          code: 'duplicate_salary',
+          message: `当前项目该月份存在多名“${row.worker_name}”的工资核算单，无法按姓名匹配，请补充身份证号后重试`,
+        });
+        return false;
+      }
+      const fallback = salaryByNameMap.get(nameKey);
+      if (fallback) {
+        salary = fallback;
+        // 以工资单上的工人为准，避免把发放记录挂到空档案或误建工人
+        if (row.worker_id !== fallback.worker_id) {
+          // 原本未识别到有效工人（缺身份证/命中空档案），按姓名匹配到了老工人
+          nameMatchedRows.add(row.row);
+          row.worker_id = fallback.worker_id;
+          row.create_worker = false;
+        }
+        issues.push({
+          row: row.row,
+          type: 'confirm',
+          code: 'salary_matched_by_name',
+          message: `已按“${row.worker_name} + 当前项目 + 工资月份”匹配到工资核算单（该人员可能已调离当前项目）`,
+        });
+      }
+    } else if (duplicateSalaryKeys.has(`${row.worker_id}:${row.project_id}:${row.year_month}`)) {
       issues.push({
         row: row.row,
         type: 'blocked',
@@ -414,7 +463,6 @@ async function analyzeRows(rows: any[][]) {
       return false;
     }
 
-    const salary = salaryMap.get(salaryKey);
     if (!salary) {
       issues.push({
         row: row.row,
@@ -444,9 +492,14 @@ async function analyzeRows(rows: any[][]) {
     return true;
   });
 
+  // 按姓名回退匹配到老工人的行，剔除早先“不在花名册”的误报（实际已定位到工人）
+  const finalIssues = nameMatchedRows.size > 0
+    ? issues.filter(issue => !(nameMatchedRows.has(issue.row) && issue.code === 'worker_not_in_roster'))
+    : issues;
+
   return {
     readyRows,
-    issues,
+    issues: finalIssues,
     summary: {
       totalRows: dataRowCount,
       importable: readyRows.length,
