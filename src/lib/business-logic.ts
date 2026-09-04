@@ -661,14 +661,15 @@ export function resolveReportedIncome(invoice?: unknown, settlement?: unknown, r
 }
 
 export async function getProjectReportedAmount(projectId: number): Promise<{
-  totalSettlement: number;  // 结算金额
+  totalSettlement: number;  // 结算金额（甲方已确认结算）
   totalInvoice: number;     // 开票金额
   totalReported: number;    // 收入口径（invoice → settlement fallback）
+  totalReceivable: number;  // 应收口径（invoice → settlement → report），含已报量未结算的进度款
 }> {
   const client = getSupabaseClient();
   const { data: reports } = await client
     .from('client_reports')
-    .select('settlement_amount, invoice_amount, status')
+    .select('report_amount, settlement_amount, invoice_amount, status')
     .eq('project_id', projectId);
 
   const activeReports = (reports || []).filter((r: ClientReportLikeRow) => !isVoidedStatus(r.status));
@@ -677,6 +678,12 @@ export async function getProjectReportedAmount(projectId: number): Promise<{
     totalSettlement: activeReports.reduce((sum: number, r: ClientReportLikeRow) => sum + parseNumeric(r.settlement_amount), 0),
     totalInvoice: activeReports.reduce((sum: number, r: ClientReportLikeRow) => sum + parseNumeric(r.invoice_amount), 0),
     totalReported: activeReports.reduce((sum: number, r: ClientReportLikeRow) => sum + resolveReportedIncome(r.invoice_amount, r.settlement_amount), 0),
+    // 每笔报量按“开票 → 结算 → 报量”取实际应收额合计；已报量但甲方尚未确认结算的进度款同样计入可回款额度
+    totalReceivable: activeReports.reduce(
+      (sum: number, r: ClientReportLikeRow) =>
+        sum + resolveReportedIncome(r.invoice_amount, r.settlement_amount, r.report_amount),
+      0,
+    ),
   };
 }
 
@@ -723,15 +730,18 @@ export async function validateClientPayment(params: {
   payment_amount: number;
   exclude_payment_id?: number;
 }): Promise<{ valid: boolean; unpaidBalance: number; message: string }> {
-  const { totalSettlement } = await getProjectReportedAmount(params.project_id);
+  const reported = await getProjectReportedAmount(params.project_id);
   const totalPaid = await getProjectPaidAmount(params.project_id, params.exclude_payment_id);
-  const unpaidBalance = totalSettlement - totalPaid;
+  // 回款上限用“应收口径”（开票→结算→报量），把已报量但甲方尚未确认结算的进度款也算进去，
+  // 避免对正常进度款回款误拦截；已结算金额仅作为提示信息。
+  const totalReceivable = Math.max(reported.totalReceivable, reported.totalSettlement);
+  const unpaidBalance = totalReceivable - totalPaid;
 
-  if (params.payment_amount > unpaidBalance && totalSettlement > 0) {
+  if (params.payment_amount > unpaidBalance && totalReceivable > 0) {
     return {
       valid: false,
       unpaidBalance,
-      message: `付款金额超过未回款余额。结算金额: ¥${totalSettlement.toLocaleString()}, 已回款: ¥${totalPaid.toLocaleString()}, 未回款: ¥${unpaidBalance.toLocaleString()}`,
+      message: `付款金额超过未回款余额。应收（含已报量未结算）: ¥${totalReceivable.toLocaleString()}, 已结算: ¥${reported.totalSettlement.toLocaleString()}, 已回款: ¥${totalPaid.toLocaleString()}, 未回款: ¥${unpaidBalance.toLocaleString()}`,
     };
   }
 
