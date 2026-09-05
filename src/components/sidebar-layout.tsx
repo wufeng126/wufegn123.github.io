@@ -100,7 +100,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   '/supplier-expense': [
     { name: '供应商库', href: '/supplier-expense?tab=suppliers', icon: 'building' },
     { name: '合同管理', href: '/supplier-contracts', icon: 'doc' },
-    { name: '结算管理', href: '/settlements', icon: 'chart' },
+    { name: '结算管理', href: '/supplier-expense?tab=settlements', icon: 'chart' },
     { name: '付款记录', href: '/payments', icon: 'money' },
     { name: '综合费用', href: '/comprehensive-expenses', icon: 'wrench' },
     { name: '零星材料', href: '/miscellaneous-materials', icon: 'wrench' },
