@@ -301,9 +301,10 @@ export default function PaymentsPage() {
   useEffect(() => {
     if (newPaymentQueryAppliedRef.current || searchParams.get('new') !== '1') return;
     const contractId = searchParams.get('contract_id');
-    if (!contractId || contracts.length === 0) return;
-    const contract = contracts.find((item) => Number(item.id) === Number(contractId));
-    if (!contract) return;
+    const supplierId = searchParams.get('supplier_id');
+    if (!contractId && !supplierId) return;
+    if (contracts.length === 0) return;
+    const contract = contractId ? contracts.find((item) => Number(item.id) === Number(contractId)) : null;
 
     const settlementId = searchParams.get('settlement_id') || '';
     const settlement = settlementId
@@ -313,13 +314,13 @@ export default function PaymentsPage() {
     newPaymentQueryAppliedRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormData({
-      supplier_id: String(contract.supplier_id),
-      contract_id: String(contract.id),
+      supplier_id: contract ? String(contract.supplier_id) : String(supplierId || ''),
+      contract_id: contract ? String(contract.id) : '',
       settlement_id: settlementId,
       amount: '',
       payment_date: new Date().toISOString().split('T')[0],
       payment_type: settlement?.settlement_type || 'progress',
-      payment_method: '閾惰杞处',
+      payment_method: '银行转账',
       remark: settlement?.settlement_no ? `关联结算单：${settlement.settlement_no}` : '',
     });
     setDialogOpen(true);

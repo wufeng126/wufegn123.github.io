@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -24,7 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Search, Plus, Edit, Trash2, FileText } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, FileText, Wallet } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
 
 interface Supplier {
@@ -119,6 +120,16 @@ export default function SupplierRosterPage() {
   }, []);
 
   const confirm = useConfirm();
+  const router = useRouter();
+
+  // 跳转到付款记录页并预选该供应商、直接打开新增付款弹窗
+  const goAddPayment = (supplier: Supplier) => {
+    const params = new URLSearchParams();
+    params.set('tab', 'payments');
+    params.set('supplier_id', String(supplier.id));
+    params.set('new', '1');
+    router.push(`/supplier-expense?${params.toString()}`);
+  };
 
   const loadProjects = async () => {
     try {
@@ -515,6 +526,9 @@ export default function SupplierRosterPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => goAddPayment(supplier)} title="新增付款" className="text-green-700">
+                              <Wallet className="w-4 h-4" />
+                            </Button>
                             <Button size="sm" variant="ghost" onClick={() => openEditDialog(supplier)} aria-label="编辑">
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -555,7 +569,10 @@ export default function SupplierRosterPage() {
                         <Badge className="border-orange-200 bg-orange-100 text-orange-700">待签合同</Badge>
                       )}
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
+                    <div className="mt-3 grid grid-cols-4 gap-2 border-t border-gray-100 pt-3">
+                      <Button size="sm" variant="outline" onClick={() => goAddPayment(supplier)} className="px-0 text-green-700" title="新增付款">
+                        <Wallet className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => openEditDialog(supplier)} className="px-0" aria-label="编辑">
                         <Edit className="h-4 w-4" />
                       </Button>

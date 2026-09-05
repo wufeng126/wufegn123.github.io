@@ -44,6 +44,20 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const body = await request.json();
 
+    // 与 supplier-contracts/payments 入口对齐：补齐付款单号与有效状态默认值，
+    // 避免落成 status='pending'、payment_no 为 '-' 的“待确认”记录而不计入结算台账已付。
+    const paymentDate: string = body.payment_date || new Date().toISOString().slice(0, 10);
+    if (!body.payment_no || String(body.payment_no).trim() === '' || String(body.payment_no).trim() === '-') {
+      const now = new Date();
+      body.payment_no = `FK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getTime()).slice(-6)}`;
+    }
+    if (!body.status || body.status === 'pending') {
+      body.status = 'completed';
+    }
+    if (!body.payment_date) {
+      body.payment_date = paymentDate;
+    }
+
     // D5 修复：与 supplier-contracts/payments 入口一致的校验——合同余额/结算单未付余额/作废状态
     const paymentAmount = Number(body.payment_amount || 0);
     if (body.contract_id && Number(body.contract_id) > 0) {
