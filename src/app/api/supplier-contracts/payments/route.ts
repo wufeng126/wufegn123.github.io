@@ -153,6 +153,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '合同不存在' }, { status: 400 });
     }
 
+    // 收集软警告（超额付款等），随成功响应返回，由前端提示但不阻断保存
+    const warnings: string[] = [];
+    if (contractValidation.warning) warnings.push(contractValidation.warning);
+
     if (settlementId) {
       const settlementValidation = await validateSupplierSettlementPayment({
         settlement_id: settlementId,
@@ -161,6 +165,7 @@ export async function POST(request: NextRequest) {
       if (!settlementValidation.valid) {
         return NextResponse.json({ error: settlementValidation.message }, { status: 400 });
       }
+      if (settlementValidation.warning) warnings.push(settlementValidation.warning);
     }
 
     const now = new Date();
@@ -214,7 +219,7 @@ export async function POST(request: NextRequest) {
       details: { payment_id: paymentData?.id, contract_id: contractId, payment_amount: paymentAmount, payment_type: finalPaymentType },
     });
 
-    return NextResponse.json({ payment: paymentData });
+    return NextResponse.json({ payment: paymentData, warnings: warnings.length ? warnings : undefined });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -421,7 +421,13 @@ export default function PaymentsPage() {
       });
 
       if (res.ok) {
-        toast.success('付款记录保存成功');
+        const data = await res.json().catch(() => null);
+        const warnings: string[] = data?.warnings || [];
+        if (warnings.length) {
+          toast.success(`付款已保存。${warnings.join('；')}`);
+        } else {
+          toast.success('付款记录保存成功');
+        }
         setDialogOpen(false);
         resetForm();
         fetchPayments();

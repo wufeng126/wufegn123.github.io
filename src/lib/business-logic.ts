@@ -555,7 +555,7 @@ export async function validateSupplierPayment(params: {
   contract_id: number;
   payment_amount: number;
   exclude_payment_id?: number; // 编辑场景排除自身
-}): Promise<{ valid: boolean; unpaidBalance: number; message: string }> {
+}): Promise<{ valid: boolean; unpaidBalance: number; message: string; warning?: string }> {
   const client = getSupabaseClient();
 
   // 获取合同
@@ -588,11 +588,13 @@ export async function validateSupplierPayment(params: {
 
   const unpaidBalance = totalPayable - totalPaid;
 
+  // 软校验：付款超过未付余额时不再硬阻断（支持预付/借款/结算单尚未录入等场景），仅给出警告
   if (params.payment_amount > unpaidBalance) {
     return {
-      valid: false,
+      valid: true,
       unpaidBalance,
-      message: `付款金额超过未付余额。履约应付: ¥${totalPayable.toLocaleString()}, 已付: ¥${totalPaid.toLocaleString()}, 未付: ¥${unpaidBalance.toLocaleString()}`,
+      message: '',
+      warning: `付款金额超过未付余额（履约应付: ¥${totalPayable.toLocaleString()}, 已付: ¥${totalPaid.toLocaleString()}, 未付: ¥${unpaidBalance.toLocaleString()}）。请确认是预付、借款或结算单尚未录入。`,
     };
   }
 
@@ -611,7 +613,7 @@ export async function validateSupplierSettlementPayment(params: {
   settlement_id: number;
   payment_amount: number;
   exclude_payment_id?: number;
-}): Promise<{ valid: boolean; unpaidBalance: number; message: string }> {
+}): Promise<{ valid: boolean; unpaidBalance: number; message: string; warning?: string }> {
   const client = getSupabaseClient();
 
   const { data: settlement } = await client
@@ -644,11 +646,13 @@ export async function validateSupplierSettlementPayment(params: {
   const payableAmount = parseNumeric(settlement.payable_amount);
   const unpaidBalance = payableAmount - totalPaid;
 
+  // 软校验：超过单张结算单未付余额不再硬阻断，仅警告（可能为跨结算单付款/预付）
   if (params.payment_amount > unpaidBalance) {
     return {
-      valid: false,
+      valid: true,
       unpaidBalance,
-      message: `付款金额超过结算单未付余额。应付: ¥${payableAmount.toLocaleString()}, 已付: ¥${totalPaid.toLocaleString()}, 未付: ¥${unpaidBalance.toLocaleString()}`,
+      message: '',
+      warning: `付款金额超过该结算单未付余额（应付: ¥${payableAmount.toLocaleString()}, 已付: ¥${totalPaid.toLocaleString()}, 未付: ¥${unpaidBalance.toLocaleString()}）。`,
     };
   }
 
