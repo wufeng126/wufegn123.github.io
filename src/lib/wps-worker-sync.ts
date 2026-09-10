@@ -70,7 +70,6 @@ const WORKER_FIELD_LABELS: Record<string, string> = {
   name: '姓名',
   work_type: '工种',
   gender: '性别',
-  age: '年龄',
   id_card: '身份证号',
   phone: '联系方式',
   bank_card: '银行卡号',
@@ -276,17 +275,6 @@ function isValidChineseIdCard(idCard?: string | null): boolean {
   return checks[sum % 11] === idCard[17];
 }
 
-function calculateAge(idCard?: string | null): number | null {
-  if (!isValidChineseIdCard(idCard)) return null;
-  const birth = idCard!.slice(6, 14);
-  const birthDate = new Date(Number(birth.slice(0, 4)), Number(birth.slice(4, 6)) - 1, Number(birth.slice(6, 8)));
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age >= 0 && age <= 120 ? age : null;
-}
-
 function normalizeDate(value?: string | null): string | null {
   if (!value) return null;
   const text = value.trim();
@@ -384,14 +372,12 @@ function buildWorkerData(input: WpsWorkerInput, projectId: number, existingEntry
   const idCard = sanitizeIdCard(input.idCard);
   const phone = sanitizePhone(input.phone);
   const bankCard = sanitizeBankCard(input.bankCard);
-  const age = calculateAge(idCard);
   const entryDate = normalizeDate(input.entryDate);
 
   return stripNullish({
     name: sanitizeLimitedText(input.name, 100),
     work_type: sanitizeLimitedText(input.workType, 50),
     gender: sanitizeLimitedText(input.gender, 10),
-    age,
     id_card: idCard,
     phone,
     bank_card: bankCard,
@@ -407,7 +393,6 @@ type ExistingWorkerRow = {
   name?: string | null;
   work_type?: string | null;
   gender?: string | null;
-  age?: number | null;
   id_card?: string | null;
   phone?: string | null;
   bank_card?: string | null;
@@ -421,7 +406,6 @@ function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existin
   const idCard = sanitizeIdCard(input.idCard);
   const phone = sanitizePhone(input.phone);
   const bankCard = sanitizeBankCard(input.bankCard);
-  const age = calculateAge(idCard);
   const entryDate = normalizeDate(input.entryDate);
   const details: WpsWorkerFieldSyncDetail[] = [];
 
@@ -447,7 +431,6 @@ function buildWorkerUpdateData(input: WpsWorkerInput, projectId: number, existin
     name: choose('name', sanitizeLimitedText(input.name, 100), existing.name),
     work_type: choose('work_type', sanitizeLimitedText(input.workType, 50), existing.work_type),
     gender: choose('gender', sanitizeLimitedText(input.gender, 10), existing.gender),
-    age: choose('age', age, existing.age),
     id_card: choose('id_card', idCard, existing.id_card),
     phone: choose('phone', phone, existing.phone),
     bank_card: choose('bank_card', bankCard, existing.bank_card),
@@ -670,7 +653,7 @@ async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput,
   const name = input.name?.trim();
   const phone = sanitizePhone(input.phone);
   const bankCard = sanitizeBankCard(input.bankCard);
-  const selectFields = 'id, name, work_type, gender, age, id_card, phone, bank_card, project_id, entry_date, team_name, status';
+  const selectFields = 'id, name, work_type, gender, id_card, phone, bank_card, project_id, entry_date, team_name, status';
 
   // 1. 项目内 + 身份证号
   if (idCard && projectId) {

@@ -56,13 +56,12 @@ export async function PUT(
     const paymentId = Number(id);
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const { payment_amount, payment_date, payment_method, payment_account, remark } = body;
+    const { payment_amount, payment_date, payment_method, remark } = body;
 
     const updateData: any = {};
     if (payment_amount !== undefined) updateData.payment_amount = Number(payment_amount);
     if (payment_date !== undefined) updateData.payment_date = payment_date;
     if (payment_method !== undefined) updateData.payment_method = payment_method;
-    if (payment_account !== undefined) updateData.payment_account = payment_account;
     if (remark !== undefined) updateData.remark = remark;
 
     if (payment_amount !== undefined) {
