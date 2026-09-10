@@ -5,11 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   AlertCircle,
   CheckCircle2,
+  Clock3,
   ClipboardList,
   Copy,
   ExternalLink,
   FileSpreadsheet,
   KeyRound,
+  ListChecks,
   Link2,
   Pencil,
   Plus,
@@ -58,6 +60,7 @@ interface WpsBinding {
 
 interface SyncLog {
   id: number;
+  project_id?: number | null;
   project_name?: string | null;
   worksheet_name?: string | null;
   worker_name?: string | null;
@@ -74,11 +77,45 @@ interface SyncLog {
   } | null;
 }
 
+interface SyncLogPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 interface WpsFailureSample {
   workerName?: string | null;
   projectName?: string | null;
   message?: string | null;
 }
+
+interface WpsBindingSyncResult {
+  bindingId?: number | null;
+  projectName?: string | null;
+  worksheetName?: string | null;
+  status?: string | null;
+  message?: string | null;
+  totalRows?: number | null;
+  parsed?: number | null;
+  withName?: number | null;
+  withIdCard?: number | null;
+  withPhone?: number | null;
+  withEntryDate?: number | null;
+  summary?: Record<string, unknown> | null;
+  failureSamples?: WpsFailureSample[];
+}
+
+interface LastSyncResult {
+  title: string;
+  mode?: string | null;
+  message?: string | null;
+  summary?: Record<string, unknown> | null;
+  bindingResults: WpsBindingSyncResult[];
+  createdAt: string;
+}
+
+type LogStatusFilter = 'all' | 'success' | 'warning' | 'error';
 
 interface BindingStats {
   totalBindings: number;
@@ -230,6 +267,53 @@ function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function numberValue(value: unknown): number {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function summaryNumber(summary: Record<string, unknown> | null | undefined, key: string): number {
+  return numberValue(summary?.[key]);
+}
+
+function collectFailureSampleList(value: unknown): WpsFailureSample[] {
+  if (!Array.isArray(value)) return [];
+  const samples: WpsFailureSample[] = [];
+  value.forEach((item) => {
+    const record = asObject(item);
+    const message = stringValue(record?.message);
+    if (!message) return;
+    samples.push({
+      workerName: stringValue(record?.workerName),
+      projectName: stringValue(record?.projectName),
+      message,
+    });
+  });
+  return samples;
+}
+
+function normalizeBindingResults(value: unknown): WpsBindingSyncResult[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const record = asObject(item) || {};
+    return {
+      bindingId: numberValue(record.bindingId) || null,
+      projectName: stringValue(record.projectName),
+      worksheetName: stringValue(record.worksheetName),
+      status: stringValue(record.status),
+      message: stringValue(record.message),
+      totalRows: numberValue(record.totalRows) || null,
+      parsed: numberValue(record.parsed) || null,
+      withName: numberValue(record.withName) || null,
+      withIdCard: numberValue(record.withIdCard) || null,
+      withPhone: numberValue(record.withPhone) || null,
+      withEntryDate: numberValue(record.withEntryDate) || null,
+      summary: asObject(record.summary),
+      failureSamples: collectFailureSampleList(record.failureSamples),
+    };
+  });
+}
+
 function collectFailureSamples(summary: Record<string, unknown>, bindingResults?: unknown[]): WpsFailureSample[] {
   const samples: WpsFailureSample[] = [];
 
@@ -255,7 +339,7 @@ function collectFailureSamples(summary: Record<string, unknown>, bindingResults?
     collect(nestedSummary?.failureSamples);
   });
 
-  return samples.slice(0, 3);
+  return samples;
 }
 
 function normalizeConfig(config?: Partial<WpsConfig>): WpsConfig {
@@ -293,7 +377,7 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
   const conflictFields = numberOf('conflictFields');
   const duplicateSkipped = numberOf('duplicateSkipped');
   const bindingCount = numberOf('bindings') || bindingResults?.length || 0;
-  const failureSamples = collectFailureSamples(summary, bindingResults);
+  const failureSamples = collectFailureSamples(summary, bindingResults).slice(0, 3);
   const parts = [
     readRows > 0 ? `读取 ${readRows} 行` : null,
     total > 0 ? `识别 ${total} 条` : null,
@@ -318,6 +402,84 @@ function formatWpsSyncSummary(summary: Record<string, unknown>, bindingResults?:
   return base;
 }
 
+function getSummaryMetrics(summary?: Record<string, unknown> | null) {
+  if (!summary) return [];
+  const created = summaryNumber(summary, 'created');
+  const updated = summaryNumber(summary, 'updated');
+  const transferred = summaryNumber(summary, 'transferred');
+  const changed = summaryNumber(summary, 'changed') || created + updated + transferred;
+  return [
+    { label: '读取行数', value: summaryNumber(summary, 'readRows') },
+    { label: '识别记录', value: summaryNumber(summary, 'total') },
+    { label: '新增', value: created, className: 'text-green-700' },
+    { label: '更新', value: updated, className: 'text-blue-700' },
+    { label: '调入', value: transferred, className: 'text-indigo-700' },
+    { label: '跳过', value: summaryNumber(summary, 'skipped'), className: 'text-amber-700' },
+    { label: '失败', value: summaryNumber(summary, 'failed'), className: 'text-red-700' },
+    { label: '有效变更', value: changed, className: 'text-gray-900' },
+    { label: '自动补齐', value: summaryNumber(summary, 'autoFilledFields'), className: 'text-emerald-700' },
+    { label: '字段差异', value: summaryNumber(summary, 'conflictFields'), className: 'text-orange-700' },
+    { label: '批次重复', value: summaryNumber(summary, 'duplicateSkipped'), className: 'text-amber-700' },
+    { label: '涉及项目', value: summaryNumber(summary, 'bindings') },
+  ];
+}
+
+function getLastSyncStatus(result: LastSyncResult | null): 'success' | 'warning' | 'error' | null {
+  if (!result) return null;
+  const failed = summaryNumber(result.summary, 'failed');
+  const errorBindings = summaryNumber(result.summary, 'errorBindings');
+  const successBindings = summaryNumber(result.summary, 'successBindings');
+  if (errorBindings > 0 && successBindings === 0) return 'error';
+  if (failed > 0 || errorBindings > 0 || result.bindingResults.some((item) => item.status === 'warning' || item.status === 'error')) {
+    return 'warning';
+  }
+  return 'success';
+}
+
+function getBindingResultSummary(result: WpsBindingSyncResult) {
+  const summary = result.summary;
+  if (summary) {
+    return [
+      `读取 ${summaryNumber(summary, 'readRows')} 行`,
+      `识别 ${summaryNumber(summary, 'total')} 条`,
+      `新增 ${summaryNumber(summary, 'created')} 条`,
+      `更新 ${summaryNumber(summary, 'updated')} 条`,
+      `跳过 ${summaryNumber(summary, 'skipped')} 条`,
+      `失败 ${summaryNumber(summary, 'failed')} 条`,
+    ];
+  }
+  return [
+    result.totalRows !== null && result.totalRows !== undefined ? `读取 ${result.totalRows} 行` : null,
+    result.parsed !== null && result.parsed !== undefined ? `识别 ${result.parsed} 条` : null,
+    result.withName !== null && result.withName !== undefined ? `姓名 ${result.withName} 条` : null,
+    result.withIdCard !== null && result.withIdCard !== undefined ? `身份证 ${result.withIdCard} 条` : null,
+  ].filter((item): item is string => Boolean(item));
+}
+
+function getLogSearchText(log: SyncLog) {
+  return [
+    log.project_name,
+    log.worksheet_name,
+    log.worker_name,
+    log.action,
+    log.status,
+    log.message,
+    formatLogSyncDetails(log),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function buildLastSyncResult(title: string, data: Record<string, unknown>): LastSyncResult {
+  const summary = asObject(data.summary);
+  return {
+    title,
+    mode: stringValue(data.mode),
+    message: stringValue(data.message),
+    summary,
+    bindingResults: normalizeBindingResults(data.bindingResults),
+    createdAt: new Date().toISOString(),
+  };
+}
+
 export default function WpsConfigPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -325,6 +487,12 @@ export default function WpsConfigPage() {
   const [bindings, setBindings] = useState<WpsBinding[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [logs, setLogs] = useState<SyncLog[]>([]);
+  const [logPagination, setLogPagination] = useState<SyncLogPagination | null>(null);
+  const [logStatusFilter, setLogStatusFilter] = useState<LogStatusFilter>('all');
+  const [logProjectFilter, setLogProjectFilter] = useState('all');
+  const [logSearch, setLogSearch] = useState('');
+  const [logLimit, setLogLimit] = useState(50);
+  const [lastSyncResult, setLastSyncResult] = useState<LastSyncResult | null>(null);
   const [stats, setStats] = useState<BindingStats>({ totalBindings: 0, activeBindings: 0, configuredProjects: 0, unconfiguredProjects: 0 });
   const [integration, setIntegration] = useState<IntegrationInfo>({ webhookPath: '/api/integrations/wps/workers/webhook', tokenConfigured: false, pullCredentialConfigured: false });
   const [config, setConfig] = useState<WpsConfig>(defaultConfig);
@@ -352,13 +520,17 @@ export default function WpsConfigPage() {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetch('/api/integrations/wps/workers/logs?pageSize=30');
+      const response = await fetch(`/api/integrations/wps/workers/logs?pageSize=${logLimit}`);
       const data = await response.json();
-      if (response.ok && data.success) setLogs(data.logs || []);
+      if (response.ok && data.success) {
+        setLogs(data.logs || []);
+        setLogPagination(data.pagination || null);
+      }
     } catch {
       setLogs([]);
+      setLogPagination(null);
     }
-  }, []);
+  }, [logLimit]);
 
   const fetchConfig = useCallback(async () => {
     const response = await fetch('/api/integrations/wps/workers/config');
@@ -414,6 +586,46 @@ export default function WpsConfigPage() {
       ].some((value) => value?.toLowerCase().includes(keyword));
     });
   }, [bindings, search]);
+
+  const recentBindingResults = useMemo(() => {
+    return [...bindings]
+      .filter((binding) => binding.last_sync_at || binding.last_sync_message)
+      .sort((a, b) => new Date(b.last_sync_at || 0).getTime() - new Date(a.last_sync_at || 0).getTime())
+      .slice(0, 6);
+  }, [bindings]);
+
+  const logStatusCounts = useMemo(() => ({
+    all: logs.length,
+    success: logs.filter((log) => log.status === 'success').length,
+    warning: logs.filter((log) => log.status === 'warning').length,
+    error: logs.filter((log) => log.status === 'error').length,
+  }), [logs]);
+
+  const logProjectOptions = useMemo(() => {
+    const options = new Map<number, string>();
+    projects.forEach((project) => options.set(project.id, project.name));
+    logs.forEach((log) => {
+      if (log.project_id && log.project_name) options.set(log.project_id, log.project_name);
+    });
+    return Array.from(options.entries()).map(([id, name]) => ({ id, name }));
+  }, [logs, projects]);
+
+  const filteredLogs = useMemo(() => {
+    const keyword = logSearch.trim().toLowerCase();
+    return logs.filter((log) => {
+      const statusMatched = logStatusFilter === 'all' || log.status === logStatusFilter;
+      const projectMatched = logProjectFilter === 'all' || String(log.project_id || '') === logProjectFilter;
+      const keywordMatched = !keyword || getLogSearchText(log).includes(keyword);
+      return statusMatched && projectMatched && keywordMatched;
+    });
+  }, [logProjectFilter, logSearch, logStatusFilter, logs]);
+
+  const lastSyncMetrics = useMemo(() => getSummaryMetrics(lastSyncResult?.summary), [lastSyncResult]);
+  const lastSyncStatus = getLastSyncStatus(lastSyncResult);
+  const lastSyncFailureSamples = useMemo(() => {
+    if (!lastSyncResult?.summary) return [];
+    return collectFailureSamples(lastSyncResult.summary, lastSyncResult.bindingResults).slice(0, 5);
+  }, [lastSyncResult]);
 
   const openCreateDialog = () => {
     setForm(emptyForm);
@@ -494,13 +706,15 @@ export default function WpsConfigPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '同步失败');
-      const summary = data.summary || {};
+      const summary = asObject(data.summary) || {};
+      const bindingResults = normalizeBindingResults(data.bindingResults);
       const failed = Number(summary.failed || 0);
       const hasSummary = Object.keys(summary).length > 0;
+      setLastSyncResult(buildLastSyncResult('全量同步结果', data));
       toast({
         title: failed > 0 ? '同步完成，有失败记录' : (data.success ? '同步完成' : '同步检查完成'),
         description: hasSummary
-          ? formatWpsSyncSummary(summary, data.bindingResults)
+          ? formatWpsSyncSummary(summary, bindingResults)
           : data.message || '请查看绑定台账中的同步结果说明',
         variant: failed > 0 ? 'warning' : (data.success ? 'default' : 'warning'),
       });
@@ -521,8 +735,10 @@ export default function WpsConfigPage() {
         body: JSON.stringify({ testOnly: true, bindingId: binding.id }),
       });
       const data = await response.json();
-      const result = data.bindingResults?.[0];
+      const bindingResults = normalizeBindingResults(data.bindingResults);
+      const result = bindingResults[0];
       if (!response.ok) throw new Error(data.error || '测试失败');
+      setLastSyncResult(buildLastSyncResult(`${getProject(binding)?.name || binding.wps_project_name || '单项目'}读取测试`, data));
       toast({
         title: result?.status === 'success' ? '读取测试通过' : '读取测试提醒',
         description: result?.message || data.message || '测试完成，仅用于读取与解析，不会写入系统',
@@ -545,13 +761,15 @@ export default function WpsConfigPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '同步失败');
-      const summary = data.summary || {};
+      const summary = asObject(data.summary) || {};
+      const bindingResults = normalizeBindingResults(data.bindingResults);
       const failed = Number(summary.failed || 0);
       const hasSummary = Object.keys(summary).length > 0;
+      setLastSyncResult(buildLastSyncResult(`${getProject(binding)?.name || binding.wps_project_name || '单项目'}同步结果`, data));
       toast({
         title: failed > 0 ? '同步完成，有失败记录' : (data.success ? '同步完成' : '同步检查完成'),
         description: hasSummary
-          ? formatWpsSyncSummary(summary, data.bindingResults)
+          ? formatWpsSyncSummary(summary, bindingResults)
           : data.message || '请查看绑定台账中的同步结果说明',
         variant: failed > 0 ? 'warning' : (data.success ? 'default' : 'warning'),
       });
@@ -678,6 +896,84 @@ export default function WpsConfigPage() {
           </CardContent>
         </Card>
       </div>
+
+      {lastSyncResult ? (
+        <Card className="border-blue-100 bg-blue-50/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex flex-col gap-2 text-base sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4 text-blue-600" />
+                本次同步结果
+              </span>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-normal text-gray-500">
+                {statusBadge(lastSyncStatus)}
+                <Clock3 className="h-4 w-4" />
+                {formatDateTime(lastSyncResult.createdAt)}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-md border border-blue-100 bg-white px-3 py-2 text-sm text-gray-700">
+              <div className="font-medium text-gray-900">{lastSyncResult.title}</div>
+              <div className="mt-1 break-words">{lastSyncResult.message || '同步请求已完成，请查看下方项目结果说明。'}</div>
+            </div>
+
+            {lastSyncMetrics.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                {lastSyncMetrics.map((metric) => (
+                  <div key={metric.label} className="rounded-md border border-blue-100 bg-white px-3 py-2">
+                    <div className="text-xs text-gray-500">{metric.label}</div>
+                    <div className={`mt-1 text-xl font-semibold ${metric.className || 'text-gray-900'}`}>{metric.value}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {lastSyncFailureSamples.length > 0 ? (
+              <div className="rounded-md border border-red-100 bg-red-50 px-3 py-2">
+                <div className="text-sm font-medium text-red-800">失败原因示例</div>
+                <div className="mt-2 space-y-1">
+                  {lastSyncFailureSamples.map((sample, index) => (
+                    <div key={`${sample.workerName || 'worker'}-${index}`} className="break-words text-xs text-red-700">
+                      {sample.projectName ? `${sample.projectName} · ` : ''}{sample.workerName || '未命名工人'}：{sample.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {lastSyncResult.bindingResults.length > 0 ? (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-gray-900">项目结果说明列表</div>
+                <div className="grid gap-2 lg:grid-cols-2">
+                  {lastSyncResult.bindingResults.map((result, index) => {
+                    const resultSummary = getBindingResultSummary(result);
+                    return (
+                      <div key={`${result.bindingId || 'binding'}-${index}`} className="rounded-md border bg-white p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-gray-900">{result.projectName || '未匹配项目'}</div>
+                            <div className="mt-0.5 text-xs text-gray-500">{result.worksheetName || '未返回工作表名称'}</div>
+                          </div>
+                          {statusBadge(result.status)}
+                        </div>
+                        <div className="mt-2 break-words text-sm text-gray-600">{result.message || '暂无说明'}</div>
+                        {resultSummary.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {resultSummary.map((item) => (
+                              <Badge key={item} variant="outline" className="bg-gray-50 text-gray-600">{item}</Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="pb-3">
@@ -905,17 +1201,86 @@ export default function WpsConfigPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileSpreadsheet className="h-4 w-4 text-blue-600" />
-              最近同步结果
-            </CardTitle>
+          <CardHeader className="flex flex-col gap-3 pb-3 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileSpreadsheet className="h-4 w-4 text-blue-600" />
+                最近同步结果
+              </CardTitle>
+              <div className="mt-1 text-xs text-gray-500">
+                {logPagination
+                  ? `已读取最近 ${logs.length} / ${logPagination.total} 条记录，当前筛选 ${filteredLogs.length} 条`
+                  : `当前筛选 ${filteredLogs.length} 条记录`}
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void fetchLogs()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              刷新日志
+            </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 rounded-md border bg-gray-50 p-3">
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: 'all', label: '全部', count: logStatusCounts.all },
+                  { value: 'success', label: '成功', count: logStatusCounts.success },
+                  { value: 'warning', label: '提醒', count: logStatusCounts.warning },
+                  { value: 'error', label: '失败', count: logStatusCounts.error },
+                ] as Array<{ value: LogStatusFilter; label: string; count: number }>).map((item) => (
+                  <Button
+                    key={item.value}
+                    type="button"
+                    variant={logStatusFilter === item.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setLogStatusFilter(item.value)}
+                  >
+                    {item.label}
+                    <span className="text-xs opacity-80">{item.count}</span>
+                  </Button>
+                ))}
+              </div>
+              <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
+                <Select value={logProjectFilter} onValueChange={setLogProjectFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="筛选项目" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部项目</SelectItem>
+                    {logProjectOptions.map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>{project.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    className="pl-9"
+                    placeholder="搜索工人、项目、工作表、失败原因"
+                    value={logSearch}
+                    onChange={(event) => setLogSearch(event.target.value)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setLogStatusFilter('all');
+                    setLogProjectFilter('all');
+                    setLogSearch('');
+                  }}
+                  disabled={logStatusFilter === 'all' && logProjectFilter === 'all' && !logSearch}
+                >
+                  重置
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-3">
               {logs.length === 0 ? (
                 <div className="rounded-md border py-10 text-center text-sm text-gray-500">暂无同步记录</div>
-              ) : logs.map((log) => {
+              ) : filteredLogs.length === 0 ? (
+                <div className="rounded-md border py-10 text-center text-sm text-gray-500">当前筛选条件下暂无同步记录</div>
+              ) : filteredLogs.map((log) => {
                 const syncDetails = formatLogSyncDetails(log);
                 return (
                   <div key={log.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
@@ -936,17 +1301,53 @@ export default function WpsConfigPage() {
                 );
               })}
             </div>
+
+            {logPagination && logPagination.total > logLimit && logLimit < 100 ? (
+              <div className="flex justify-center">
+                <Button variant="outline" onClick={() => setLogLimit((prev) => Math.min(prev + 50, 100))}>
+                  查看更多同步记录
+                </Button>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Link2 className="h-4 w-4 text-blue-600" />
-              高级 Webhook 备用
+              <ListChecks className="h-4 w-4 text-blue-600" />
+              项目最近结果
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-gray-600">
+            {recentBindingResults.length > 0 ? (
+              <div className="space-y-2">
+                {recentBindingResults.map((binding) => {
+                  const project = getProject(binding);
+                  return (
+                    <div key={binding.id} className="rounded-md border bg-gray-50 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-gray-900">{project?.name || binding.wps_project_name || '-'}</div>
+                          <div className="mt-0.5 text-xs text-gray-500">{formatDateTime(binding.last_sync_at)}</div>
+                        </div>
+                        {statusBadge(binding.last_sync_status)}
+                      </div>
+                      <div className="mt-2 break-words text-xs text-gray-600">{binding.last_sync_message || '暂无结果说明'}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-md border py-8 text-center text-sm text-gray-500">暂无项目同步结果</div>
+            )}
+
+            <div className="pt-2">
+              <div className="mb-2 flex items-center gap-2 font-medium text-gray-900">
+                <Link2 className="h-4 w-4 text-blue-600" />
+                高级 Webhook 备用
+              </div>
+            </div>
             <div className="rounded-md border bg-gray-50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="font-medium text-gray-900">统一推送地址</span>

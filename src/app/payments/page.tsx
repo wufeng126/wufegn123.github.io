@@ -122,6 +122,7 @@ export default function PaymentsPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
   const [settlements, setSettlements] = useState<SettlementOption[]>([]);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
@@ -232,6 +233,7 @@ export default function PaymentsPage() {
   }, []);
 
   const fetchContracts = useCallback(async () => {
+    setContractsLoaded(false);
     try {
       const res = await fetch('/api/supplier-contracts', { credentials: 'include' });
       if (res.ok) {
@@ -240,6 +242,8 @@ export default function PaymentsPage() {
       }
     } catch (error) {
       console.error(error);
+    } finally {
+      setContractsLoaded(true);
     }
   }, []);
 
@@ -303,20 +307,37 @@ export default function PaymentsPage() {
     const contractId = searchParams.get('contract_id');
     const supplierId = searchParams.get('supplier_id');
     if (!contractId && !supplierId) return;
-    if (contracts.length === 0) return;
-    const contract = contractId ? contracts.find((item) => Number(item.id) === Number(contractId)) : null;
+    if (!contractsLoaded) return;
 
     const settlementId = searchParams.get('settlement_id') || '';
     const settlement = settlementId
       ? settlements.find((item) => Number(item.id) === Number(settlementId))
       : null;
+    const contractFromParam = contractId ? contracts.find((item) => Number(item.id) === Number(contractId)) : null;
+    const contractFromSettlement = settlement
+      ? contracts.find((item) => Number(item.id) === Number(settlement.contract_id))
+      : null;
+    const supplierContracts = supplierId
+      ? contracts.filter((item) => Number(item.supplier_id) === Number(supplierId))
+      : [];
+    const autoSelectedContract = contractFromParam || contractFromSettlement || (supplierContracts.length === 1 ? supplierContracts[0] : null);
+
+    if (contractId && !contractFromParam) {
+      toast.error('未找到对应合同，请重新选择本次付款合同');
+    } else if (supplierId && !autoSelectedContract) {
+      if (supplierContracts.length > 1) {
+        toast.info('该供应商有多个合同，请选择本次付款对应合同');
+      } else {
+        toast.error('该供应商暂无合同，请先维护合同后再新增付款');
+      }
+    }
 
     newPaymentQueryAppliedRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormData({
-      supplier_id: contract ? String(contract.supplier_id) : String(supplierId || ''),
-      contract_id: contract ? String(contract.id) : '',
-      settlement_id: settlementId,
+      supplier_id: autoSelectedContract ? String(autoSelectedContract.supplier_id) : String(supplierId || ''),
+      contract_id: autoSelectedContract ? String(autoSelectedContract.id) : '',
+      settlement_id: settlement ? String(settlement.id) : settlementId,
       amount: '',
       payment_date: new Date().toISOString().split('T')[0],
       payment_type: settlement?.settlement_type || 'progress',
@@ -324,7 +345,7 @@ export default function PaymentsPage() {
       remark: settlement?.settlement_no ? `关联结算单：${settlement.settlement_no}` : '',
     });
     setDialogOpen(true);
-  }, [contracts, searchParams, settlements]);
+  }, [contracts, contractsLoaded, searchParams, settlements]);
 
   const confirm = useConfirm();
 
@@ -379,6 +400,17 @@ export default function PaymentsPage() {
     });
   };
 
+  const handleSupplierChange = (supplierId: string) => {
+    const supplierContracts = contracts.filter((contract) => Number(contract.supplier_id) === Number(supplierId));
+    const onlyContract = supplierContracts.length === 1 ? supplierContracts[0] : null;
+    setFormData((prev) => ({
+      ...prev,
+      supplier_id: supplierId,
+      contract_id: onlyContract ? String(onlyContract.id) : '',
+      settlement_id: '',
+    }));
+  };
+
   const handleContractChange = (contractId: string) => {
     const contract = contracts.find((item) => Number(item.id) === Number(contractId));
     setFormData((prev) => ({
@@ -400,8 +432,20 @@ export default function PaymentsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.contract_id || !formData.amount) {
-      toast.error('请填写合同和付款金额');
+    if (!formData.supplier_id) {
+      toast.error('请选择供应商');
+      return;
+    }
+    if (formContracts.length === 0) {
+      toast.error('该供应商暂无合同，请先维护合同后再新增付款');
+      return;
+    }
+    if (!formData.contract_id) {
+      toast.error('请选择本次付款对应合同');
+      return;
+    }
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      toast.error('请输入有效的付款金额');
       return;
     }
 
@@ -409,6 +453,7 @@ export default function PaymentsPage() {
       const res = await fetch('/api/supplier-contracts/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           contract_id: Number(formData.contract_id),
           settlement_id: formData.settlement_id ? Number(formData.settlement_id) : null,
@@ -447,7 +492,7 @@ export default function PaymentsPage() {
       variant: 'destructive',
     }))) return;
     try {
-      const res = await fetch(`/api/supplier-contracts/payments/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/supplier-contracts/payments/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         toast.success('删除成功');
         fetchPayments();
@@ -779,7 +824,7 @@ export default function PaymentsPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>供应商 <span className="text-red-500">*</span></Label>
-              <Select value={formData.supplier_id} onValueChange={(value) => setFormData((prev) => ({ ...prev, supplier_id: value, contract_id: '', settlement_id: '' }))}>
+              <Select value={formData.supplier_id} onValueChange={handleSupplierChange}>
                 <SelectTrigger><SelectValue placeholder="请选择供应商" /></SelectTrigger>
                 <SelectContent>
                   {suppliers.map((supplier) => <SelectItem key={supplier.id} value={String(supplier.id)}>{supplier.name}</SelectItem>)}
@@ -799,6 +844,12 @@ export default function PaymentsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {formData.supplier_id && formContracts.length === 0 && (
+                <p className="text-xs text-orange-600">该供应商暂无合同，请先到合同台账维护合同后再新增付款。</p>
+              )}
+              {formData.supplier_id && formContracts.length > 1 && !formData.contract_id && (
+                <p className="text-xs text-muted-foreground">该供应商存在多个合同，请选择本次付款对应合同。</p>
+              )}
               {selectedFormSettlement && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm">
                   <div className="grid grid-cols-3 gap-2">

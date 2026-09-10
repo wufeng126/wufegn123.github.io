@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const { contract_id, settlement_id, payment_amount, payment_date, payment_method, payment_account, remark, payment_type } = body;
+    const { contract_id, settlement_id, payment_amount, payment_date, payment_method, remark, payment_type } = body;
 
     if (!contract_id) {
       return NextResponse.json({ error: '请选择合同' }, { status: 400 });
@@ -192,11 +192,8 @@ export async function POST(request: NextRequest) {
       payment_amount: paymentAmount,
       payment_date: payment_date || null,
       payment_method: payment_method || '银行转账',
-      payment_account: payment_account || null,
       remark: remark || null,
       payment_type: finalPaymentType,
-      created_by: auth.user.id,
-      created_by_name: auth.user.name || auth.user.username,
     }, supabase);
 
     const paymentData = Array.isArray(paymentArr) ? paymentArr[0] : paymentArr;
