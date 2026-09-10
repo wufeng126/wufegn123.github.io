@@ -327,6 +327,16 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
  */
 const SORTED_API_WRITE_KEYS = Object.keys(API_WRITE_PERMISSIONS).sort((a, b) => b.length - a.length);
 
+const SUPPLIER_PAYMENT_API_ROUTES = [
+  '/api/supplier-contracts/payments',
+  '/api/supplier-payments',
+  '/api/payments',
+];
+
+function isSupplierPaymentApiRoute(pathname: string): boolean {
+  return SUPPLIER_PAYMENT_API_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
+}
+
 /**
  * 检查 API 写操作权限
  * @param pathname API 路径
@@ -369,6 +379,18 @@ export function checkApiWritePermission(
 
   if (pathname === '/api/client-payments' && method === 'DELETE') {
     return userPermissions.includes('client_payments:delete');
+  }
+
+  if (isSupplierPaymentApiRoute(pathname)) {
+    if (method === 'POST') {
+      return userPermissions.includes('supplier_payments:create') || userPermissions.includes('supplier_payments:edit');
+    }
+    if (method === 'DELETE') {
+      return userPermissions.includes('supplier_payments:delete') || userPermissions.includes('supplier_payments:edit');
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      return userPermissions.includes('supplier_payments:edit');
+    }
   }
 
   if (pathname === '/api/team-groups' && method === 'POST') {
