@@ -5,6 +5,8 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { logSecurityEvent } from '@/lib/security-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { isEffectiveSupplierPaymentStatus, validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import { normalizeSupplierPaymentType } from '@/lib/supplier-payment-types';
 
 // GET /api/supplier-contracts/payments - 获取付款记录列表
 export async function GET(request: NextRequest) {
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const paymentNo = `FK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getTime()).slice(-6)}`;
 
-    let finalPaymentType = payment_type || 'progress';
+    let finalPaymentType = normalizeSupplierPaymentType(payment_type);
     if (!payment_type && settlementId) {
       const { data: settlement } = await supabase
         .from('supplier_settlements')
@@ -179,9 +181,11 @@ export async function POST(request: NextRequest) {
         .eq('id', settlementId)
         .single();
       if (settlement?.settlement_type) {
-        finalPaymentType = settlement.settlement_type;
+        finalPaymentType = normalizeSupplierPaymentType(settlement.settlement_type);
       }
     }
+
+    const finalPaymentDate = payment_date || now.toISOString().slice(0, 10);
 
     const { data: paymentArr, error } = await insertWithSequenceFix('supplier_payments', {
       supplier_id: contract.supplier_id,
@@ -190,15 +194,18 @@ export async function POST(request: NextRequest) {
       settlement_id: settlementId,
       payment_no: paymentNo,
       payment_amount: paymentAmount,
-      payment_date: payment_date || null,
+      payment_date: finalPaymentDate,
       payment_method: payment_method || '银行转账',
       remark: remark || null,
       payment_type: finalPaymentType,
+      status: 'completed',
     }, supabase);
 
     const paymentData = Array.isArray(paymentArr) ? paymentArr[0] : paymentArr;
 
     if (error) throw error;
+
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'create',
