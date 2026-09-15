@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
 import { 
   Search, RefreshCw, Download, User, Calendar, DollarSign,
   TrendingUp, FileSpreadsheet, ChevronDown, ChevronRight,
@@ -75,8 +76,6 @@ interface WorkerSummary {
   monthly_count: number;
   records: SalaryRecord[];
 }
-
-const SALARY_PAYMENT_TOLERANCE = 1;
 
 export default function WorkerSalaryQueryPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);

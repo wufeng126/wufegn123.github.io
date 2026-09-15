@@ -103,6 +103,10 @@ describe('calculateSalary（工资自动计算）', () => {
 });
 
 describe('calculateSalaryPaymentStatus（发放状态）', () => {
+  it('统一使用 3 元容差', () => {
+    expect(SALARY_PAYMENT_TOLERANCE).toBe(3);
+  });
+
   it('未发放 unpaid', () => {
     expect(calculateSalaryPaymentStatus(5000, 0)).toBe('unpaid');
     expect(calculateSalaryPaymentStatus(5000, -1)).toBe('unpaid');
@@ -112,6 +116,11 @@ describe('calculateSalaryPaymentStatus（发放状态）', () => {
     expect(calculateSalaryPaymentStatus(5000, 5000)).toBe('paid');
     expect(calculateSalaryPaymentStatus(5000, 5000 - SALARY_PAYMENT_TOLERANCE)).toBe('paid');
     expect(calculateSalaryPaymentStatus(5000, 5000 + SALARY_PAYMENT_TOLERANCE)).toBe('paid');
+  });
+
+  it('差值超过 3 元才判定为未发清或超额', () => {
+    expect(calculateSalaryPaymentStatus(5000, 4996.99)).toBe('partial');
+    expect(calculateSalaryPaymentStatus(5000, 5003.01)).toBe('overpaid');
   });
 
   it('部分发放 partial', () => {
@@ -131,10 +140,13 @@ describe('calculateSalaryUnpaidAmount（未发余额）', () => {
   it('容差内视为结清', () => {
     expect(calculateSalaryUnpaidAmount(5000, 5000)).toBe(0);
     expect(calculateSalaryUnpaidAmount(5000, 4999.5)).toBe(0);
+    expect(calculateSalaryUnpaidAmount(5000, 4997)).toBe(0);
+    expect(calculateSalaryUnpaidAmount(5000, 5003)).toBe(0);
   });
 
   it('未发余额 = 应发 - 已发（不为负）', () => {
     expect(calculateSalaryUnpaidAmount(5000, 3000)).toBe(2000);
+    expect(calculateSalaryUnpaidAmount(5000, 4996.99)).toBe(3.01);
     expect(calculateSalaryUnpaidAmount(5000, 6000)).toBe(0);
   });
 });

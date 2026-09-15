@@ -3,6 +3,8 @@
  * 集中管理各业务链路的金额计算、状态流转和余额校验
  */
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
+export { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
 
 type SupplierPaymentAmountRow = {
   id?: number | null;
@@ -155,7 +157,6 @@ export function calculateSalary(params: {
  * 根据 salary_payments 汇总已付金额，更新 worker_salaries.payment_status
  */
 export type SalaryPaymentStatus = 'unpaid' | 'partial' | 'paid' | 'overpaid';
-export const SALARY_PAYMENT_TOLERANCE = 1;
 export const LOCKED_SALARY_PAYMENT_STATUSES: SalaryPaymentStatus[] = ['partial', 'paid', 'overpaid'];
 
 export function isSalaryPaymentLocked(status?: string | null): boolean {
@@ -174,7 +175,7 @@ export function calculateSalaryUnpaidAmount(netPay: number, paidAmount: number):
   const difference = Math.round((paidAmount - netPay) * 100) / 100;
   return Math.abs(difference) <= SALARY_PAYMENT_TOLERANCE
     ? 0
-    : Math.max(0, netPay - paidAmount);
+    : Math.max(0, -difference);
 }
 
 export async function syncSalaryPaymentStatus(salaryId: number): Promise<SalaryPaymentStatus> {

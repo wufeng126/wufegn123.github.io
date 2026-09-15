@@ -14,6 +14,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Download, Plus, Trash2, FileText } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
+import { usePermission } from '@/contexts/permission-context';
+import { authFetch } from '@/lib/auth-client';
+import {
+  SUPPLIER_PAYMENT_TYPES,
+  getSupplierPaymentTypeLabel as getPaymentTypeLabel,
+  normalizeSupplierPaymentType,
+} from '@/lib/supplier-payment-types';
 
 interface Supplier {
   id: number;
@@ -66,12 +73,6 @@ interface Payment {
   settlement?: SettlementOption | null;
 }
 
-const PAYMENT_TYPES = [
-  { value: 'progress', label: '进度付款' },
-  { value: 'final', label: '决算付款' },
-  { value: 'warranty', label: '质保金返还' },
-];
-
 const PAYMENT_METHODS = [
   { value: '银行转账', label: '银行转账' },
   { value: '现金', label: '现金' },
@@ -96,10 +97,6 @@ const formatDate = (value?: string | null) => {
   return value.split('T')[0];
 };
 
-const getPaymentTypeLabel = (value?: string | null) => {
-  return PAYMENT_TYPES.find((item) => item.value === value)?.label || value || '-';
-};
-
 const getStatusLabel = (value?: string | null) => {
   if (!value || value === 'completed') return '有效';
   if (value === 'voided') return '已作废';
@@ -116,6 +113,9 @@ const csvCell = (value: string | number | null | undefined) => {
 export default function PaymentsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { hasAnyPermission, isLoading: permissionLoading } = usePermission();
+  const canCreatePayment = hasAnyPermission(['supplier_payments:create', 'supplier_payments:edit']);
+  const canDeletePayment = hasAnyPermission(['supplier_payments:delete', 'supplier_payments:edit']);
   const newPaymentQueryAppliedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -134,6 +134,7 @@ export default function PaymentsPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     supplier_id: '',
     contract_id: '',
@@ -210,7 +211,7 @@ export default function PaymentsPage() {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const res = await fetch('/api/projects', { credentials: 'include' });
+      const res = await authFetch('/api/projects');
       if (res.ok) {
         const data = await res.json();
         setProjects(data.projects || []);
@@ -222,7 +223,7 @@ export default function PaymentsPage() {
 
   const fetchSuppliers = useCallback(async () => {
     try {
-      const res = await fetch('/api/suppliers', { credentials: 'include' });
+      const res = await authFetch('/api/suppliers');
       if (res.ok) {
         const data = await res.json();
         setSuppliers(data.suppliers || []);
@@ -235,7 +236,7 @@ export default function PaymentsPage() {
   const fetchContracts = useCallback(async () => {
     setContractsLoaded(false);
     try {
-      const res = await fetch('/api/supplier-contracts', { credentials: 'include' });
+      const res = await authFetch('/api/supplier-contracts');
       if (res.ok) {
         const data = await res.json();
         setContracts(data.contracts || []);
@@ -249,7 +250,7 @@ export default function PaymentsPage() {
 
   const fetchSettlements = useCallback(async () => {
     try {
-      const res = await fetch('/api/supplier-contracts/settlements', { credentials: 'include' });
+      const res = await authFetch('/api/supplier-contracts/settlements');
       if (res.ok) {
         const data = await res.json();
         setSettlements(data.settlements || []);
@@ -267,7 +268,7 @@ export default function PaymentsPage() {
       if (filterSupplier !== 'all') params.set('supplier_id', filterSupplier);
       if (filterContract !== 'all') params.set('contract_id', filterContract);
       if (filterSettlement !== 'all') params.set('settlement_id', filterSettlement);
-      const res = await fetch(`/api/supplier-contracts/payments?${params}`, { credentials: 'include' });
+      const res = await authFetch(`/api/supplier-contracts/payments?${params}`);
       if (res.ok) {
         const data = await res.json();
         setPayments(data.payments || []);
@@ -307,6 +308,12 @@ export default function PaymentsPage() {
     const contractId = searchParams.get('contract_id');
     const supplierId = searchParams.get('supplier_id');
     if (!contractId && !supplierId) return;
+    if (permissionLoading) return;
+    if (!canCreatePayment) {
+      newPaymentQueryAppliedRef.current = true;
+      toast.error('当前账号没有新增付款权限，请联系管理员开通供应商付款新增权限');
+      return;
+    }
     if (!contractsLoaded) return;
 
     const settlementId = searchParams.get('settlement_id') || '';
@@ -340,12 +347,12 @@ export default function PaymentsPage() {
       settlement_id: settlement ? String(settlement.id) : settlementId,
       amount: '',
       payment_date: new Date().toISOString().split('T')[0],
-      payment_type: settlement?.settlement_type || 'progress',
+      payment_type: normalizeSupplierPaymentType(settlement?.settlement_type),
       payment_method: '银行转账',
       remark: settlement?.settlement_no ? `关联结算单：${settlement.settlement_no}` : '',
     });
     setDialogOpen(true);
-  }, [contracts, contractsLoaded, searchParams, settlements]);
+  }, [canCreatePayment, contracts, contractsLoaded, permissionLoading, searchParams, settlements]);
 
   const confirm = useConfirm();
 
@@ -400,6 +407,18 @@ export default function PaymentsPage() {
     });
   };
 
+  const openCreateDialog = () => {
+    if (permissionLoading) {
+      toast.info('权限加载中，请稍后再试');
+      return;
+    }
+    if (!canCreatePayment) {
+      toast.error('当前账号没有新增付款权限，请联系管理员开通供应商付款新增权限');
+      return;
+    }
+    setDialogOpen(true);
+  };
+
   const handleSupplierChange = (supplierId: string) => {
     const supplierContracts = contracts.filter((contract) => Number(contract.supplier_id) === Number(supplierId));
     const onlyContract = supplierContracts.length === 1 ? supplierContracts[0] : null;
@@ -426,12 +445,17 @@ export default function PaymentsPage() {
     setFormData((prev) => ({
       ...prev,
       settlement_id: settlementId,
-      payment_type: settlement?.settlement_type || prev.payment_type,
+      payment_type: settlement ? normalizeSupplierPaymentType(settlement.settlement_type) : prev.payment_type,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    if (!canCreatePayment) {
+      toast.error('当前账号没有新增付款权限，请联系管理员开通供应商付款新增权限');
+      return;
+    }
     if (!formData.supplier_id) {
       toast.error('请选择供应商');
       return;
@@ -449,11 +473,11 @@ export default function PaymentsPage() {
       return;
     }
 
+    setSubmitting(true);
     try {
-      const res = await fetch('/api/supplier-contracts/payments', {
+      const res = await authFetch('/api/supplier-contracts/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           contract_id: Number(formData.contract_id),
           settlement_id: formData.settlement_id ? Number(formData.settlement_id) : null,
@@ -465,8 +489,8 @@ export default function PaymentsPage() {
         }),
       });
 
+      const data = await res.json().catch(() => null);
       if (res.ok) {
-        const data = await res.json().catch(() => null);
         const warnings: string[] = data?.warnings || [];
         if (warnings.length) {
           toast.success(`付款已保存。${warnings.join('；')}`);
@@ -477,22 +501,29 @@ export default function PaymentsPage() {
         resetForm();
         fetchPayments();
       } else {
-        const data = await res.json();
-        toast.error(data.error || '保存失败');
+        const message = data?.error || `保存失败（接口状态 ${res.status}）`;
+        toast.error(message);
       }
-    } catch {
-      toast.error('保存失败');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存失败';
+      toast.error(`保存失败：${message}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
+    if (!canDeletePayment) {
+      toast.error('当前账号没有删除付款权限');
+      return;
+    }
     if (!(await confirm({
       title: '确定要删除此付款记录吗？',
       description: '删除后会影响供应商成本与未付金额统计。',
       variant: 'destructive',
     }))) return;
     try {
-      const res = await fetch(`/api/supplier-contracts/payments/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await authFetch(`/api/supplier-contracts/payments/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success('删除成功');
         fetchPayments();
@@ -554,7 +585,7 @@ export default function PaymentsPage() {
           <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
             <Download className="mr-1 h-4 w-4" /> 导出
           </Button>
-          <Button onClick={() => setDialogOpen(true)} className="w-full sm:w-auto">
+          <Button onClick={openCreateDialog} className="w-full sm:w-auto">
             <Plus className="mr-1 h-4 w-4" /> 新增付款
           </Button>
         </div>
@@ -624,7 +655,7 @@ export default function PaymentsPage() {
               <SelectTrigger className="w-full sm:w-[130px]"><SelectValue placeholder="付款类型" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类型</SelectItem>
-                {PAYMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}
+                {SUPPLIER_PAYMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Input
@@ -679,16 +710,18 @@ export default function PaymentsPage() {
                     </div>
                   </div>
                   {payment.remark && <p className="line-clamp-2 text-xs text-muted-foreground">{payment.remark}</p>}
-                  <div className="flex justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {canDeletePayment && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -739,9 +772,11 @@ export default function PaymentsPage() {
                         <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedPayment(payment); }}>
                           <FileText className="h-4 w-4 text-blue-600" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }} className="text-red-600 hover:text-red-700" aria-label="删除">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {canDeletePayment && (
+                          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }} className="text-red-600 hover:text-red-700" aria-label="删除">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -921,7 +956,7 @@ export default function PaymentsPage() {
                 <Select value={formData.payment_type} onValueChange={(value) => setFormData((prev) => ({ ...prev, payment_type: value }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PAYMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}
+                    {SUPPLIER_PAYMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -946,8 +981,8 @@ export default function PaymentsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
-              <Button type="submit">保存</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>取消</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? '保存中...' : '保存'}</Button>
             </div>
           </form>
         </DialogContent>
