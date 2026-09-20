@@ -7,6 +7,7 @@ import {
   isInactiveClientPaymentStatus,
 } from '@/lib/business-logic';
 import { buildSubitemMonthlyReconciliation } from '@/lib/subitem-reconciliation';
+import { isMissingSubitemProgressPriceColumn } from '@/lib/subitem-monthly-progress-compat';
 
 /**
  * P0-1 报量-结算-回款月度勾稽聚合 API（GET）
@@ -70,13 +71,25 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询月度对上报量失败: ${reportsError.message}`);
     }
 
-    // 3. 月度对下结算（含实际结算单价）
-    const { data: settlements, error: settlementsError } = subitemIds.length > 0
-      ? await client
+    // 3. 月度对下结算（优先读取实际结算单价；旧库未补字段时退回限价/合同价口径）
+    let settlements: any[] | null = [];
+    let settlementsError: any = null;
+    if (subitemIds.length > 0) {
+      let settlementsResult = await client
           .from('subitem_monthly_progress')
           .select('subitem_id, year_month, completed_quantity, unit_price')
-          .in('subitem_id', subitemIds)
-      : { data: [], error: null };
+          .in('subitem_id', subitemIds);
+
+      if (settlementsResult.error && isMissingSubitemProgressPriceColumn(settlementsResult.error)) {
+        settlementsResult = await client
+          .from('subitem_monthly_progress')
+          .select('subitem_id, year_month, completed_quantity')
+          .in('subitem_id', subitemIds) as any;
+      }
+
+      settlements = settlementsResult.data as any[] | null;
+      settlementsError = settlementsResult.error;
+    }
 
     if (settlementsError) {
       throw new Error(`查询月度对下结算失败: ${settlementsError.message}`);
