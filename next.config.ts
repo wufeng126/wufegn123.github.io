@@ -11,6 +11,21 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
+
+  // 页面 HTML 与接口响应不缓存，避免发布新构建后旧 HTML 引用已失效的 JS chunk。
+  // _next/static 中的带 hash 静态资源仍保持 Next.js 默认缓存策略。
+  async headers() {
+    return [
+      {
+        source: '/((?!_next/static|_next/image|favicon.ico).*)',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
+          { key: 'Vercel-CDN-Cache-Control', value: 'no-store' },
+        ],
+      },
+    ];
+  },
   
   // 生产环境移除开发工具
   devIndicators: isProd ? false : undefined,
