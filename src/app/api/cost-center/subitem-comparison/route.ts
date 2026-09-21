@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { buildSubitemCostComparison } from '@/lib/subitem-cost-comparison';
+import { isMissingSubitemProgressPriceColumn } from '@/lib/subitem-monthly-progress-compat';
 
 /**
  * P0-6 成本三层对比 API（GET）
@@ -65,13 +66,25 @@ export async function GET(request: NextRequest) {
 
     const subitemIds = (subitems || []).map((s: any) => s.id);
 
-    // 2. 月度对下结算（全部月份，用于实际成本）
-    const { data: settlements, error: settlementsError } = subitemIds.length > 0
-      ? await client
+    // 2. 月度对下结算（全部月份，用于实际成本；旧库未补单价字段时按限价/合同价兜底）
+    let settlements: any[] | null = [];
+    let settlementsError: any = null;
+    if (subitemIds.length > 0) {
+      let settlementsResult = await client
           .from('subitem_monthly_progress')
           .select('subitem_id, completed_quantity, unit_price')
-          .in('subitem_id', subitemIds)
-      : { data: [], error: null };
+          .in('subitem_id', subitemIds);
+
+      if (settlementsResult.error && isMissingSubitemProgressPriceColumn(settlementsResult.error)) {
+        settlementsResult = await client
+          .from('subitem_monthly_progress')
+          .select('subitem_id, completed_quantity')
+          .in('subitem_id', subitemIds) as any;
+      }
+
+      settlements = settlementsResult.data as any[] | null;
+      settlementsError = settlementsResult.error;
+    }
 
     if (settlementsError) {
       throw new Error(`查询月度对下结算失败: ${settlementsError.message}`);

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { parseNumeric, validateSettlementLimitPrice } from '@/lib/business-logic';
+import {
+  isMissingSubitemProgressPriceColumn,
+  withoutSubitemProgressPriceFields,
+} from '@/lib/subitem-monthly-progress-compat';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,35 +19,71 @@ export async function GET(request: NextRequest) {
 
     const client = getSupabaseClient();
     
+    const fullSelect = `
+      id,
+      subitem_id,
+      year_month,
+      completed_quantity,
+      unit_price,
+      over_limit,
+      over_limit_reason,
+      remark,
+      created_at,
+      work_item_subitems (
+        id,
+        subitem_name,
+        unit,
+        budget_quantity,
+        contract_price,
+        limit_price,
+        project_id
+      )
+    `;
+    const legacySelect = `
+      id,
+      subitem_id,
+      year_month,
+      completed_quantity,
+      remark,
+      created_at,
+      work_item_subitems (
+        id,
+        subitem_name,
+        unit,
+        budget_quantity,
+        contract_price,
+        limit_price,
+        project_id
+      )
+    `;
+
     let query = client
       .from('subitem_monthly_progress')
-      .select(`
-        id,
-        subitem_id,
-        year_month,
-        completed_quantity,
-        unit_price,
-        over_limit,
-        over_limit_reason,
-        remark,
-        created_at,
-        work_item_subitems (
-          id,
-          subitem_name,
-          unit,
-          budget_quantity,
-          contract_price,
-          limit_price,
-          project_id
-        )
-      `)
+      .select(fullSelect)
       .order('year_month', { ascending: false });
 
     if (subitemId) {
       query = query.eq('subitem_id', parseInt(subitemId));
     }
 
-    const { data, error } = await query;
+    const queryResult = await query;
+    let data = queryResult.data as any[] | null;
+    let error: any = queryResult.error;
+
+    if (error && isMissingSubitemProgressPriceColumn(error)) {
+      let legacyQuery = client
+        .from('subitem_monthly_progress')
+        .select(legacySelect)
+        .order('year_month', { ascending: false });
+
+      if (subitemId) {
+        legacyQuery = legacyQuery.eq('subitem_id', parseInt(subitemId));
+      }
+
+      const legacyResult = await legacyQuery;
+      data = legacyResult.data as any[] | null;
+      error = legacyResult.error;
+    }
 
     if (error) {
       throw new Error(`查询月度报量失败: ${error.message}`);
@@ -76,9 +116,9 @@ export async function GET(request: NextRequest) {
       project_id: record.work_item_subitems?.project_id || null,
       year_month: record.year_month,
       completed_quantity: record.completed_quantity,
-      unit_price: record.unit_price,
-      over_limit: record.over_limit,
-      over_limit_reason: record.over_limit_reason,
+      unit_price: record.unit_price ?? null,
+      over_limit: Boolean(record.over_limit),
+      over_limit_reason: record.over_limit_reason ?? null,
       remark: record.remark,
       created_at: record.created_at,
     }));
@@ -154,22 +194,33 @@ export async function POST(request: NextRequest) {
       if (settleUnitPrice !== null) saveFields.unit_price = settleUnitPrice;
       saveFields.over_limit = overLimit;
       saveFields.over_limit_reason = overLimit ? String(over_limit_reason).trim() : null;
+      const legacySaveFields = withoutSubitemProgressPriceFields(saveFields);
 
       if (existing) {
         // 更新已有记录
-        const { data, error } = await client
+        let { data, error } = await client
           .from('subitem_monthly_progress')
           .update(saveFields)
           .eq('id', existing.id)
           .select()
           .single();
 
-        if (!error && data) {
-          results.push(data);
+        if (error && isMissingSubitemProgressPriceColumn(error)) {
+          const legacyResult = await client
+            .from('subitem_monthly_progress')
+            .update(legacySaveFields)
+            .eq('id', existing.id)
+            .select()
+            .single();
+          data = legacyResult.data;
+          error = legacyResult.error;
         }
+
+        if (error) throw new Error(`更新月度对下结算失败: ${error.message}`);
+        if (data) results.push(data);
       } else {
         // 创建新记录
-        const { data, error } = await client
+        let { data, error } = await client
           .from('subitem_monthly_progress')
           .insert({
             subitem_id: parseInt(subitem_id),
@@ -179,9 +230,22 @@ export async function POST(request: NextRequest) {
           .select()
           .single();
 
-        if (!error && data) {
-          results.push(data);
+        if (error && isMissingSubitemProgressPriceColumn(error)) {
+          const legacyResult = await client
+            .from('subitem_monthly_progress')
+            .insert({
+              subitem_id: parseInt(subitem_id),
+              year_month,
+              ...legacySaveFields,
+            })
+            .select()
+            .single();
+          data = legacyResult.data;
+          error = legacyResult.error;
         }
+
+        if (error) throw new Error(`创建月度对下结算失败: ${error.message}`);
+        if (data) results.push(data);
       }
     }
 
