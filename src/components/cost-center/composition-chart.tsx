@@ -17,7 +17,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Wallet } from 'luc
 interface CompositionData {
   viewType: string;
   year: number;
-  quarter: number;
+  month: number;
   periodLabel: string;
   prevPeriodLabel: string;
   income: {
@@ -186,30 +186,31 @@ export function IncomeCompositionChart({ projectId }: CompositionChartProps) {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            {viewType === 'monthly' && (
-              <div className="flex items-center gap-1">
-                <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
-                  <SelectTrigger className="w-20 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {generateYearOptions().map(y => (
-                      <SelectItem key={y} value={y.toString()} className="text-xs">{y}年</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v))}>
-                  <SelectTrigger className="w-16 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthOptions.map(m => (
-                      <SelectItem key={m.value} value={m.value.toString()} className="text-xs">{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              {viewType === 'cumulative' && (
+                <span className="text-xs font-medium" style={{ color: '#86909C' }}>截至</span>
+              )}
+              <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+                <SelectTrigger className="w-20 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {generateYearOptions().map(y => (
+                    <SelectItem key={y} value={y.toString()} className="text-xs">{y}年</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v))}>
+                <SelectTrigger className="w-16 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(m => (
+                    <SelectItem key={m.value} value={m.value.toString()} className="text-xs">{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -411,30 +412,31 @@ export function CostCompositionChart({ projectId }: CompositionChartProps) {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            {viewType === 'monthly' && (
-              <div className="flex items-center gap-1">
-                <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
-                  <SelectTrigger className="w-20 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {generateYearOptions().map(y => (
-                      <SelectItem key={y} value={y.toString()} className="text-xs">{y}年</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v))}>
-                  <SelectTrigger className="w-16 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthOptions.map(m => (
-                      <SelectItem key={m.value} value={m.value.toString()} className="text-xs">{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              {viewType === 'cumulative' && (
+                <span className="text-xs font-medium" style={{ color: '#86909C' }}>截至</span>
+              )}
+              <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+                <SelectTrigger className="w-20 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {generateYearOptions().map(y => (
+                    <SelectItem key={y} value={y.toString()} className="text-xs">{y}年</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v))}>
+                <SelectTrigger className="w-16 h-7 text-xs" style={{ background: '#F7F8FA', border: '1px solid #E5E6EB' }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(m => (
+                    <SelectItem key={m.value} value={m.value.toString()} className="text-xs">{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </CardHeader>
