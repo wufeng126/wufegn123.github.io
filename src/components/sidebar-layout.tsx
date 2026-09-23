@@ -93,6 +93,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   '/hr-salary': [
     { name: '花名册', href: '/workers/roster', icon: 'worker' },
     { name: '月度工资', href: '/workers/salaries', icon: 'money' },
+    { name: '生活费台账', href: '/workers/living-allowances', icon: 'money', permissions: ['salaries:pay'] },
     { name: '工资发放', href: '/workers/payments', icon: 'money' },
     { name: '工资查询', href: '/workers/query', icon: 'doc' },
     { name: '证件管理', href: '/certificates', icon: 'doc' },
@@ -160,6 +161,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   '/visas': '签证管理',
   '/workers/roster': '花名册',
   '/workers/salaries': '月度工资',
+  '/workers/living-allowances': '生活费台账',
   '/workers/query': '工资查询',
   '/workers/payments': '工资发放',
   '/certificates': '证件管理',
@@ -378,6 +380,7 @@ export default function SidebarLayout({
         workers: '/workers/roster',
         certificates: '/certificates',
         salaries: '/workers/salaries',
+        'living-allowances': '/workers/living-allowances',
         payments: '/workers/payments',
         query: '/workers/query',
       };

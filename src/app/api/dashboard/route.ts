@@ -470,7 +470,7 @@ export async function GET(request: Request) {
     // ========== 成本数据 ==========
     
     // 供应商结算金额（材料机械成本）- 支持项目筛选
-    // D2 修复：统一走 data-aggregation 口径（新表 supplier_settlements 排除作废 +
+    // D2 修复：统一走 data-aggregation 口径（新表 supplier_settlements 仅统计已审核 +
     // 老表 settlements 按指纹去重），与成本利润中心/月报一致，不再单独查老表
     const totalSupplierCost = await getSupplierSettlementTotal(client, {
       projectId: projectId ? parseInt(projectId) : undefined,
@@ -505,7 +505,8 @@ export async function GET(request: Request) {
     // 综合费用 - 支持项目筛选和时间范围筛选
     let expensesQuery = client
       .from('comprehensive_expenses')
-      .select('amount, expense_date');
+      .select('amount, expense_date')
+      .eq('status', 'reviewed');
     
     if (projectId) {
       expensesQuery = expensesQuery.eq('project_id', parseInt(projectId));
@@ -523,7 +524,8 @@ export async function GET(request: Request) {
     // 零星材料 - 支持项目筛选和时间范围筛选
     let miscMaterialsQuery = client
       .from('miscellaneous_materials')
-      .select('amount, purchase_date');
+      .select('amount, purchase_date')
+      .eq('status', 'reviewed');
     
     if (projectId) {
       miscMaterialsQuery = miscMaterialsQuery.eq('project_id', parseInt(projectId));

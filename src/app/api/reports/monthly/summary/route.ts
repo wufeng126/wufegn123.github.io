@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import {
   isEffectiveClientPaymentStatus,
+  isEffectiveSupplierPaymentStatus,
   isInactiveClientPaymentStatus,
+  isReviewedStatus,
   isVisaActiveStatus,
   isVisaDoneStatus,
 } from '@/lib/business-logic';
@@ -20,6 +22,7 @@ import {
   toNumber,
 } from '@/services/monthly-report-summary';
 import { requireAuth } from '@/lib/api-auth';
+import { getProjectAccessScope } from '@/lib/api-project-scope';
 import { logger } from '@/lib/logger';
 
 const supabase = getSupabaseClient();
@@ -97,10 +100,20 @@ export async function GET(request: NextRequest) {
       end: `${reportMonth}-${String(monthEndDay).padStart(2, '0')}`,
     };
 
+    const projectScope = await getProjectAccessScope(supabase, auth.user);
+
     // Get target project IDs
     let targetProjectIds: number[] = [];
     if (projectId && projectId !== 'all') {
       targetProjectIds = projectId.split(',').map(Number).filter(n => !isNaN(n));
+      if (projectScope !== null) {
+        const forbiddenProjectId = targetProjectIds.find((id) => !projectScope.includes(id));
+        if (forbiddenProjectId) {
+          return NextResponse.json({ success: false, error: '当前账号无权访问该项目' }, { status: 403 });
+        }
+      }
+    } else if (projectScope !== null) {
+      targetProjectIds = projectScope;
     } else {
       const { data: allProjects } = await supabase.from('projects').select('id');
       targetProjectIds = (allProjects || []).map((p: Record<string, unknown>) => p.id as number);
@@ -161,7 +174,7 @@ export async function GET(request: NextRequest) {
       supabase.from('projects').select('*').in('id', targetProjectIds),
       supabase.from('client_reports').select('*').in('project_id', targetProjectIds).neq('status', 'voided'),
       supabase.from('client_payments').select('*').in('project_id', targetProjectIds),
-      supabase.from('supplier_settlements').select('*').neq('status', 'voided'),
+      supabase.from('supplier_settlements').select('*').eq('status', 'reviewed'),
       supabase.from('settlements').select('*').in('project_id', targetProjectIds),
       supabase.from('supplier_payments').select('*'),
       supabase.from('payments').select('*').in('project_id', targetProjectIds),
@@ -170,8 +183,8 @@ export async function GET(request: NextRequest) {
       supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', lastYearMonth),
       supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).gte('year_month', sixMonthsAgoStr),
       supabase.from('salary_payments').select('*').in('project_id', targetProjectIds),
-      supabase.from('comprehensive_expenses').select('*').in('project_id', targetProjectIds).neq('status', 'voided'),
-      supabase.from('miscellaneous_materials').select('*').in('project_id', targetProjectIds).neq('status', 'voided'),
+      supabase.from('comprehensive_expenses').select('*').in('project_id', targetProjectIds).eq('status', 'reviewed'),
+      supabase.from('miscellaneous_materials').select('*').in('project_id', targetProjectIds).eq('status', 'reviewed'),
       supabase.from('visas').select('*').in('project_id', targetProjectIds),
       supabase.from('workers').select('project_id, status').in('project_id', targetProjectIds),
       supabase.from('certificates').select('*').lt('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
@@ -259,6 +272,7 @@ export async function GET(request: NextRequest) {
 
     // New settlements (via contract_id → supplier_id + project_id)
     for (const s of newSettlements as Record<string, unknown>[]) {
+      if (!isReviewedStatus(s.status as string | null)) continue;
       const contractId = toNumber(s.contract_id);
       const info = getContractInfo(contractId || null);
       if (!info.projectId || !targetProjectIds.includes(info.projectId)) continue;
@@ -306,6 +320,7 @@ export async function GET(request: NextRequest) {
 
     // New supplier payments (via contract_id → supplier_id + project_id)
     for (const p of newSupplierPayments as Record<string, unknown>[]) {
+      if (!isEffectiveSupplierPaymentStatus(p.status as string | null)) continue;
       const contractId = toNumber(p.contract_id);
       const info = getContractInfo(contractId || null);
       // Also check for direct supplier_id / project_id fields

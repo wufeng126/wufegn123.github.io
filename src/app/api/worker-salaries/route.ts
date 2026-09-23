@@ -6,6 +6,7 @@ import { SALARY_PAYMENT_TOLERANCE, calculateSalaryPaymentStatus, calculateSalary
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import { syncLivingAllowancesToSalary } from '@/lib/living-allowance';
 import type { RequestAuthUser } from '@/lib/auth';
 
 type RelatedNameEntity = {
@@ -445,6 +446,38 @@ export async function POST(request: NextRequest) {
     invalidateAggregationCache();
 
     if (salaryData?.id) {
+      try {
+        const livingAllowanceSync = await syncLivingAllowancesToSalary(client, {
+          id: Number(salaryData.id),
+          worker_id: Number(salaryData.worker_id),
+          project_id: salaryData.project_id == null ? null : Number(salaryData.project_id),
+          year_month: String(salaryData.year_month || year_month),
+          gross_pay: salaryData.gross_pay ?? calculatedGrossPay,
+          income_tax: salaryData.income_tax ?? income_tax,
+          advance_pay: salaryData.advance_pay ?? advance_pay,
+          labor_insurance: salaryData.labor_insurance ?? labor_insurance,
+          fine: salaryData.fine ?? fine,
+        });
+
+        if (livingAllowanceSync.synced) {
+          const { data: syncedSalary } = await client
+            .from('worker_salaries')
+            .select('*')
+            .eq('id', Number(salaryData.id))
+            .maybeSingle();
+          if (syncedSalary) {
+            Object.assign(salaryData, syncedSalary);
+          }
+          (salaryData as any).livingAllowanceSync = livingAllowanceSync;
+        }
+      } catch (syncError) {
+        console.warn('[WorkerSalaries] 生活费自动同步失败，不阻断工资录入:', syncError);
+        (salaryData as any).livingAllowanceSync = {
+          synced: false,
+          error: getErrorMessage(syncError, '生活费自动同步失败'),
+        };
+      }
+
       await syncSalaryPaymentStatus(Number(salaryData.id));
     }
 
@@ -464,7 +497,7 @@ export async function POST(request: NextRequest) {
     await pushBusinessNotification({
       type: 'new_worker_salary',
       title: '新增月度工资',
-      content: `新增月度工资记录，核算周期: ${year_month}，应发: ¥${Number(gross_pay).toLocaleString()}，实发: ¥${Number(net_pay).toLocaleString()}`,
+      content: `新增月度工资记录，核算周期: ${year_month}，应发: ¥${Number(salaryData?.gross_pay || calculatedGrossPay || 0).toLocaleString()}，实发: ¥${Number(salaryData?.net_pay || calculatedNetPay || 0).toLocaleString()}`,
       severity: 'info',
       projectId: project_id ? parseInt(String(project_id)) : undefined,
       relatedId: salaryData?.id,
@@ -476,11 +509,13 @@ export async function POST(request: NextRequest) {
         project_id,
         year_month,
         yearMonth: year_month,
-        gross_pay,
-        net_pay,
-        amount: Number(net_pay || gross_pay || 0),
+        gross_pay: salaryData?.gross_pay ?? calculatedGrossPay,
+        net_pay: salaryData?.net_pay ?? calculatedNetPay,
+        advance_pay: salaryData?.advance_pay ?? advance_pay,
+        livingAllowanceSync: (salaryData as any)?.livingAllowanceSync,
+        amount: Number(salaryData?.net_pay || salaryData?.gross_pay || calculatedNetPay || calculatedGrossPay || 0),
         workerName: worker?.name,
-        businessSummary: `${worker?.name || '工人'} ${year_month} 工资核算，实发 ¥${Number(net_pay || 0).toLocaleString()}，应发 ¥${Number(gross_pay || 0).toLocaleString()}`,
+        businessSummary: `${worker?.name || '工人'} ${year_month} 工资核算，实发 ¥${Number(salaryData?.net_pay || calculatedNetPay || 0).toLocaleString()}，应发 ¥${Number(salaryData?.gross_pay || calculatedGrossPay || 0).toLocaleString()}`,
       },
     });
 

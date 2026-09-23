@@ -4,6 +4,17 @@ import { auditLog } from '@/lib/audit-log';
 import { logSecurityEvent } from '@/lib/security-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
+import { assertProjectAccess } from '@/lib/api-project-scope';
+
+type SupplierContractRelation = {
+  project_id?: number | string | null;
+  supplier_id?: number | string | null;
+};
+
+function getSingleRelation<T>(relation: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(relation)) return relation[0];
+  return relation || undefined;
+}
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +31,7 @@ export async function GET(
       .from('supplier_payments')
       .select(`
         *,
-        contract:contract_id(id, contract_name, contract_no, supplier_id),
+        contract:contract_id(id, contract_name, contract_no, supplier_id, project_id),
         settlement:settlement_id(id, settlement_no, settlement_type)
       `)
       .eq('id', id)
@@ -28,11 +39,15 @@ export async function GET(
 
     if (error) throw error;
 
-    if (data?.contract?.supplier_id) {
+    const contract = getSingleRelation<SupplierContractRelation>(data?.contract);
+    const access = await assertProjectAccess(supabase, auth.user, contract?.project_id || data?.project_id);
+    if (!access.ok) return access.response;
+
+    if (contract?.supplier_id) {
       const { data: supplier } = await supabase
         .from('suppliers')
         .select('id, name')
-        .eq('id', data.contract.supplier_id)
+        .eq('id', contract.supplier_id)
         .single();
 
       data.supplier_name = supplier?.name || '';
@@ -58,6 +73,24 @@ export async function PUT(
     const body = await request.json();
     const { payment_amount, payment_date, payment_method, remark } = body;
 
+    const { data: currentPayment, error: currentError } = await supabase
+      .from('supplier_payments')
+      .select('id, contract_id, settlement_id, project_id, contract:contract_id(project_id)')
+      .eq('id', paymentId)
+      .single();
+
+    if (currentError || !currentPayment) {
+      return NextResponse.json({ error: '付款记录不存在' }, { status: 404 });
+    }
+
+    const currentContract = getSingleRelation<SupplierContractRelation>(currentPayment.contract);
+    const access = await assertProjectAccess(
+      supabase,
+      auth.user,
+      currentPayment.project_id || currentContract?.project_id
+    );
+    if (!access.ok) return access.response;
+
     const updateData: any = {};
     if (payment_amount !== undefined) updateData.payment_amount = Number(payment_amount);
     if (payment_date !== undefined) updateData.payment_date = payment_date;
@@ -69,23 +102,15 @@ export async function PUT(
         return NextResponse.json({ error: '请输入有效的付款金额' }, { status: 400 });
       }
 
-      const { data: currentPayment, error: currentError } = await supabase
-        .from('supplier_payments')
-        .select('id, contract_id, settlement_id')
-        .eq('id', paymentId)
-        .single();
-
-      if (currentError || !currentPayment) {
-        return NextResponse.json({ error: '付款记录不存在' }, { status: 404 });
-      }
-
-      const contractValidation = await validateSupplierPayment({
-        contract_id: Number(currentPayment.contract_id),
-        payment_amount: Number(payment_amount),
-        exclude_payment_id: paymentId,
-      });
-      if (!contractValidation.valid) {
-        return NextResponse.json({ error: contractValidation.message }, { status: 400 });
+      if (currentPayment.contract_id) {
+        const contractValidation = await validateSupplierPayment({
+          contract_id: Number(currentPayment.contract_id),
+          payment_amount: Number(payment_amount),
+          exclude_payment_id: paymentId,
+        });
+        if (!contractValidation.valid) {
+          return NextResponse.json({ error: contractValidation.message }, { status: 400 });
+        }
       }
 
       if (currentPayment.settlement_id) {
@@ -142,6 +167,24 @@ export async function DELETE(
     const { id } = await params;
     const paymentId = Number(id);
     const supabase = getSupabaseClient();
+
+    const { data: currentPayment, error: currentError } = await supabase
+      .from('supplier_payments')
+      .select('id, project_id, contract:contract_id(project_id)')
+      .eq('id', paymentId)
+      .single();
+
+    if (currentError || !currentPayment) {
+      return NextResponse.json({ error: '付款记录不存在' }, { status: 404 });
+    }
+
+    const currentContract = getSingleRelation<SupplierContractRelation>(currentPayment.contract);
+    const access = await assertProjectAccess(
+      supabase,
+      auth.user,
+      currentPayment.project_id || currentContract?.project_id
+    );
+    if (!access.ok) return access.response;
 
     const { error } = await supabase
       .from('supplier_payments')

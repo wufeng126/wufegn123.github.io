@@ -159,7 +159,7 @@ export async function GET(
         .from('supplier_settlements')
         .select('settlement_amount')
         .in('contract_id', projectContractIds)
-        .neq('status', 'voided');
+        .eq('status', 'reviewed');
       totalSettlement = settlementsData?.reduce((sum, r) => sum + parseFloat(String(r.settlement_amount || '0')), 0) || 0;
     }
 

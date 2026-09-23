@@ -33,6 +33,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   // === 人力工资模块 ===
   '/workers/roster': ['workers:view'],
   '/workers/salaries': ['salaries:view'],
+  '/workers/living-allowances': ['salaries:pay'],
   '/workers/query': ['salaries:query'],
   '/workers/payments': ['salaries:pay'],
   '/certificates': ['certificates:view'],

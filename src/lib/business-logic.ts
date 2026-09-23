@@ -405,6 +405,16 @@ function compareSettlementRowsAsc(a: SupplierSettlementLikeRow, b: SupplierSettl
   return parseNumeric(a.id) - parseNumeric(b.id);
 }
 
+function isBlankAmount(value: unknown): boolean {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+}
+
+function getSupplierSettlementPayableBase(settlement: Pick<SupplierSettlementLikeRow, 'payable_amount' | 'settlement_amount'>): number {
+  return isBlankAmount(settlement.payable_amount)
+    ? parseNumeric(settlement.settlement_amount)
+    : parseNumeric(settlement.payable_amount);
+}
+
 function comparePaymentRowsAsc(
   a: { dateKey: string; createdAt: string; id: number },
   b: { dateKey: string; createdAt: string; id: number }
@@ -433,10 +443,10 @@ export function summarizeSupplierSettlementRows(
   settlements: SupplierSettlementLikeRow[],
   payments: SupplierPaymentLikeRow[] = []
 ): SupplierSettlementSummary {
-  const activeSettlements = (settlements || []).filter((settlement) => !isVoidedStatus(settlement.status));
+  const activeSettlements = (settlements || []).filter((settlement) => isReviewedStatus(settlement.status));
   const effectivePayments = (payments || []).filter((payment) => isEffectiveSupplierPaymentStatus(payment.status));
   const totalAmount = roundMoney(activeSettlements.reduce((sum, settlement) => sum + parseNumeric(settlement.settlement_amount), 0));
-  const totalPayable = roundMoney(activeSettlements.reduce((sum, settlement) => sum + parseNumeric(settlement.payable_amount), 0));
+  const totalPayable = roundMoney(activeSettlements.reduce((sum, settlement) => sum + getSupplierSettlementPayableBase(settlement), 0));
   const totalPaid = roundMoney(effectivePayments.reduce((sum, payment) => sum + parseNumeric(payment.payment_amount), 0));
 
   return {
@@ -477,7 +487,7 @@ export function buildSupplierSettlementCumulativeMap(
   paymentsByContract.forEach((rows) => rows.sort(comparePaymentRowsAsc));
 
   (settlements || [])
-    .filter((settlement) => !isVoidedStatus(settlement.status))
+    .filter((settlement) => isReviewedStatus(settlement.status))
     .forEach((settlement) => {
       const contractId = Number(settlement.contract_id || 0);
       if (!contractId) return;
@@ -496,7 +506,7 @@ export function buildSupplierSettlementCumulativeMap(
 
     sortedRows.forEach((settlement) => {
       totalAmount = roundMoney(totalAmount + parseNumeric(settlement.settlement_amount));
-      totalPayable = roundMoney(totalPayable + parseNumeric(settlement.payable_amount));
+      totalPayable = roundMoney(totalPayable + getSupplierSettlementPayableBase(settlement));
       const settlementDateKey = getDateKey(settlement.settlement_date, settlement.created_at);
 
       while (paymentIndex < contractPayments.length && contractPayments[paymentIndex].dateKey <= settlementDateKey) {
@@ -619,7 +629,7 @@ export async function validateSupplierSettlementPayment(params: {
 
   const { data: settlement } = await client
     .from('supplier_settlements')
-    .select('id, payable_amount, status')
+    .select('id, settlement_amount, payable_amount, status')
     .eq('id', params.settlement_id)
     .single();
 
@@ -629,6 +639,9 @@ export async function validateSupplierSettlementPayment(params: {
 
   if (isVoidedStatus(settlement.status)) {
     return { valid: false, unpaidBalance: 0, message: '结算单已作废，不能付款' };
+  }
+  if (!isReviewedStatus(settlement.status)) {
+    return { valid: false, unpaidBalance: 0, message: '结算单尚未审核通过，不能直接关联付款。可先审核结算单，或改为合同级预付款记录。' };
   }
 
   let paymentQuery = client
@@ -644,7 +657,7 @@ export async function validateSupplierSettlementPayment(params: {
   const totalPaid = ((payments || []) as SupplierPaymentAmountRow[])
     .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
     .reduce((sum, p) => sum + parseNumeric(p.payment_amount), 0);
-  const payableAmount = parseNumeric(settlement.payable_amount);
+  const payableAmount = getSupplierSettlementPayableBase(settlement as SupplierSettlementLikeRow);
   const unpaidBalance = payableAmount - totalPaid;
 
   // 软校验：超过单张结算单未付余额不再硬阻断，仅警告（可能为跨结算单付款/预付）
@@ -921,7 +934,7 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
 
   const visaAmount = (visas || []).reduce((sum: number, v: VisaLikeRow) => sum + parseNumeric(v.visa_amount), 0);
 
-  // 3. 供应商结算（仅已审核）
+  // 3. 供应商结算（正式成本仅统计已审核）
   const { data: contracts } = await client
     .from('supplier_contracts')
     .select('id')
@@ -937,7 +950,7 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
       .in('contract_id', contractIds);
 
     settlementAmount = (settlements || [])
-      .filter((s: SupplierSettlementLikeRow2) => !isVoidedStatus(s.status))
+      .filter((s: SupplierSettlementLikeRow2) => isReviewedStatus(s.status))
       .reduce((sum: number, s: SupplierSettlementLikeRow2) => sum + parseNumeric(s.settlement_amount), 0);
   }
 
@@ -978,21 +991,21 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
   }
   const salaryAmount = workerSalaryAmount + teamSettlementAmount;
 
-  // 5. 综合费用（仅已审核）
+  // 5. 综合费用（正式成本仅统计已审核）
   const { data: expenses } = await client
     .from('comprehensive_expenses')
     .select('amount')
     .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .eq('status', REVIEW_STATUS.REVIEWED);
 
   const expenseAmount = (expenses || []).reduce((sum: number, e: ExpenseLikeRow) => sum + parseNumeric(e.amount), 0);
 
-  // 6. 零星材料（仅已审核）
+  // 6. 零星材料（正式成本仅统计已审核）
   const { data: miscMaterials } = await client
     .from('miscellaneous_materials')
     .select('amount')
     .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .eq('status', REVIEW_STATUS.REVIEWED);
 
   const miscMaterialAmount = (miscMaterials || []).reduce((sum: number, m: MiscMaterialLikeRow) => sum + parseNumeric(m.amount), 0);
 
@@ -1006,13 +1019,36 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
   const clientPaidAmount = await getProjectPaidAmount(projectId);
   
   let supplierPaidAmount = 0;
+  const supplierPaymentMapById = new Map<number, SupplierPaymentAmountRow>();
   if (contractIds.length > 0) {
     const { data: supplierPayments } = await client
       .from('supplier_payments')
-      .select('payment_amount')
+      .select('id, payment_amount, status')
       .in('contract_id', contractIds);
-    supplierPaidAmount = (supplierPayments || []).reduce((sum: number, p: SupplierPaymentAmountRow) => sum + parseNumeric(p.payment_amount), 0);
+    (supplierPayments || [])
+      .filter((p: SupplierPaymentAmountRow) => isEffectiveSupplierPaymentStatus(p.status))
+      .forEach((payment: SupplierPaymentAmountRow) => {
+        const id = Number(payment.id);
+        if (Number.isFinite(id) && id > 0) {
+          supplierPaymentMapById.set(id, payment);
+        }
+      });
   }
+
+  const { data: projectSupplierPayments } = await client
+    .from('supplier_payments')
+    .select('id, payment_amount, status')
+    .eq('project_id', projectId);
+  (projectSupplierPayments || [])
+    .filter((p: SupplierPaymentAmountRow) => isEffectiveSupplierPaymentStatus(p.status))
+    .forEach((payment: SupplierPaymentAmountRow) => {
+      const id = Number(payment.id);
+      if (Number.isFinite(id) && id > 0) {
+        supplierPaymentMapById.set(id, payment);
+      }
+    });
+  supplierPaidAmount = Array.from(supplierPaymentMapById.values())
+    .reduce((sum: number, p: SupplierPaymentAmountRow) => sum + parseNumeric(p.payment_amount), 0);
 
   const { data: salaryPayments } = await client
     .from('salary_payments')

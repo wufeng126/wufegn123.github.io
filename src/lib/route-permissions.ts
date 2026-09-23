@@ -81,6 +81,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/bid-estimations': { permission: 'projects:view' },
   '/api/bid-estimations/items': { permission: 'cost_estimation:bid' },
   '/api/worker-salary-summary': { permission: 'salaries:query' },
+  '/api/living-allowances': { permission: 'salaries:pay' },
   '/api/project-contracts': { permission: 'projects:view' },
   '/api/project-internal-addons': { permission: 'work_items:view' },
   '/api/internal-addon-templates': { permission: 'work_items:view' },
@@ -169,6 +170,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   // === 工资模块子路由 ===
   '/workers/roster': { permission: 'workers:view' },
   '/workers/salaries': { permission: 'salaries:view' },
+  '/workers/living-allowances': { permission: 'salaries:pay' },
   '/workers/payments': { permission: 'salaries:pay' },
   '/workers/query': { permission: 'salaries:query' },
   '/workers/import-history': { permission: 'workers:import' },
@@ -250,6 +252,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/worker-salaries/batch-update': 'salaries:edit',
   '/api/worker-salaries/batch-delete': 'salaries:edit',
   '/api/worker-salaries': 'salaries:edit',
+  '/api/living-allowances': 'salaries:pay',
   '/api/worker-payments': 'salaries:pay',
   '/api/worker-payments/batch': 'salaries:pay',
 

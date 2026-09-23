@@ -2,9 +2,14 @@ import { NextRequest } from 'next/server';
 import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth, requireSuperAdmin } from '@/lib/api-auth';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { apiBadRequest, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { auditLog } from '@/lib/audit-log';
-import { isEffectiveClientPaymentStatus } from '@/lib/business-logic';
+import {
+  isEffectiveClientPaymentStatus,
+  isEffectiveSupplierPaymentStatus,
+  isReviewedStatus,
+} from '@/lib/business-logic';
 
 type ArchiveParams = { params: Promise<{ id: string }> };
 
@@ -85,6 +90,9 @@ export async function GET(request: NextRequest, { params }: ArchiveParams) {
     if (!Number.isInteger(projectId) || projectId <= 0) return apiBadRequest('项目ID无效');
 
     const supabase = getSupabaseClient();
+    const access = await assertProjectAccess(supabase, auth.user, projectId);
+    if (!access.ok) return access.response;
+
     const { data, error } = await supabase
       .from('project_archives')
       .select('*')
@@ -161,6 +169,7 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
 
     const contractIds = (supplierContractsResult.data || []).map((row: { id: number }) => row.id);
     let supplierSettlements: Record<string, unknown>[] = [];
+    let supplierPayments: Record<string, unknown>[] = (supplierPaymentsResult.data || []) as Record<string, unknown>[];
     if (contractIds.length > 0) {
       const { data, error } = await supabase
         .from('supplier_settlements')
@@ -168,6 +177,13 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
         .in('contract_id', contractIds);
       if (error) throw new Error(error.message);
       supplierSettlements = data || [];
+
+      const { data: paymentsByContract, error: supplierPaymentsError } = await supabase
+        .from('supplier_payments')
+        .select('payment_amount,status')
+        .or(`project_id.eq.${projectId},contract_id.in.(${contractIds.join(',')})`);
+      if (supplierPaymentsError) throw new Error(supplierPaymentsError.message);
+      supplierPayments = paymentsByContract || [];
     }
 
     const logs = (logsResult.data || []) as ConstructionLogRow[];
@@ -208,9 +224,9 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
       isEffectiveClientPaymentStatus(row.status)
     ));
     const effectiveClientReports = (clientReportsResult.data || []).filter((row: { status?: string | null }) => row.status !== 'voided');
-    const effectiveSupplierSettlements = supplierSettlements.filter((row) => row.status !== 'voided');
-    const effectiveSupplierPayments = (supplierPaymentsResult.data || []).filter((row: { status?: string | null }) => row.status !== 'voided');
-    const effectiveMiscMaterials = (miscMaterialsResult.data || []).filter((row: { status?: string | null }) => row.status !== 'voided');
+    const effectiveSupplierSettlements = supplierSettlements.filter((row) => isReviewedStatus(row.status as string | null));
+    const effectiveSupplierPayments = supplierPayments.filter((row) => isEffectiveSupplierPaymentStatus(row.status as string | null));
+    const effectiveMiscMaterials = (miscMaterialsResult.data || []).filter((row: { status?: string | null }) => isReviewedStatus(row.status));
 
     const snapshot = {
       basics: {

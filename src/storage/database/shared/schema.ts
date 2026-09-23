@@ -268,7 +268,117 @@ export const salaryPayments = pgTable("salary_payments", {
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
 			name: "salary_payments_project_id_fkey"
+	}).onDelete("cascade"),
+]);
+
+export const livingAllowanceReceipts = pgTable("living_allowance_receipts", {
+	id: serial().primaryKey().notNull(),
+	projectId: integer("project_id"),
+	receiptDate: varchar("receipt_date", { length: 20 }).notNull(),
+	fileKey: text("file_key").notNull(),
+	fileName: varchar("file_name", { length: 255 }),
+	fileSize: integer("file_size"),
+	fileType: varchar("file_type", { length: 100 }),
+	fileHash: varchar("file_hash", { length: 128 }),
+	payerAccount: varchar("payer_account", { length: 100 }),
+	splitStatus: varchar("split_status", { length: 20 }).default('pending').notNull(),
+	remark: text(),
+	createdBy: integer("created_by"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("living_allowance_receipts_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_receipts_receipt_date_idx").using("btree", table.receiptDate.asc().nullsLast().op("text_ops")),
+	index("living_allowance_receipts_split_status_idx").using("btree", table.splitStatus.asc().nullsLast().op("text_ops")),
+	index("living_allowance_receipts_file_hash_idx").using("btree", table.fileHash.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "living_allowance_receipts_project_id_fkey"
+		}).onDelete("set null"),
+]);
+
+export const livingAllowanceReceiptItems = pgTable("living_allowance_receipt_items", {
+	id: serial().primaryKey().notNull(),
+	receiptId: integer("receipt_id").notNull(),
+	workerId: integer("worker_id"),
+	projectId: integer("project_id"),
+	recipientName: varchar("recipient_name", { length: 100 }).notNull(),
+	bankCardTail: varchar("bank_card_tail", { length: 12 }),
+	amount: numeric("amount", { precision: 12, scale:  2 }).notNull(),
+	paymentDate: varchar("payment_date", { length: 20 }),
+	transactionNo: varchar("transaction_no", { length: 100 }),
+	cropBox: jsonb("crop_box"),
+	matchStatus: varchar("match_status", { length: 20 }).default('unmatched').notNull(),
+	matchedRecordId: integer("matched_record_id"),
+	matchScore: integer("match_score").default(0),
+	remark: text(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("living_allowance_receipt_items_receipt_id_idx").using("btree", table.receiptId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_receipt_items_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_receipt_items_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_receipt_items_match_status_idx").using("btree", table.matchStatus.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.receiptId],
+			foreignColumns: [livingAllowanceReceipts.id],
+			name: "living_allowance_receipt_items_receipt_id_fkey"
 		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "living_allowance_receipt_items_worker_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "living_allowance_receipt_items_project_id_fkey"
+		}).onDelete("set null"),
+]);
+
+export const livingAllowanceRecords = pgTable("living_allowance_records", {
+	id: serial().primaryKey().notNull(),
+	workerId: integer("worker_id").notNull(),
+	projectId: integer("project_id"),
+	yearMonth: varchar("year_month", { length: 7 }).notNull(),
+	allowanceDate: varchar("allowance_date", { length: 20 }).notNull(),
+	amount: numeric("amount", { precision: 12, scale:  2 }).notNull(),
+	paymentMethod: varchar("payment_method", { length: 50 }).default('银行转账'),
+	status: varchar("status", { length: 20 }).default('pending_deduction').notNull(),
+	receiptItemId: integer("receipt_item_id"),
+	deductedSalaryId: integer("deducted_salary_id"),
+	deductedAmount: numeric("deducted_amount", { precision: 12, scale:  2 }).default('0'),
+	remark: text(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("living_allowance_records_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_records_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_records_year_month_idx").using("btree", table.yearMonth.asc().nullsLast().op("text_ops")),
+	index("living_allowance_records_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("living_allowance_records_receipt_item_id_idx").using("btree", table.receiptItemId.asc().nullsLast().op("int4_ops")),
+	index("living_allowance_records_deducted_salary_id_idx").using("btree", table.deductedSalaryId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.workerId],
+			foreignColumns: [workers.id],
+			name: "living_allowance_records_worker_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "living_allowance_records_project_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.receiptItemId],
+			foreignColumns: [livingAllowanceReceiptItems.id],
+			name: "living_allowance_records_receipt_item_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.deductedSalaryId],
+			foreignColumns: [workerSalaries.id],
+			name: "living_allowance_records_deducted_salary_id_fkey"
+		}).onDelete("set null"),
 ]);
 
 export const workItemSubitems = pgTable("work_item_subitems", {

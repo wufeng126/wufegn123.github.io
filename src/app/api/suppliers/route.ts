@@ -2,6 +2,89 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { isEffectiveSupplierPaymentStatus, isReviewedStatus } from '@/lib/business-logic';
+import { getProjectAccessScope } from '@/lib/api-project-scope';
+
+type SupabaseClient = ReturnType<typeof getSupabaseClient>;
+type ProjectAccessScope = number[] | null;
+
+async function getSupplierVisibleStats(
+  client: SupabaseClient,
+  supplierId: number,
+  projectScope: ProjectAccessScope,
+) {
+  let contractQuery = client
+    .from('supplier_contracts')
+    .select('id, project_id')
+    .eq('supplier_id', supplierId);
+
+  if (projectScope !== null) {
+    if (projectScope.length === 0) {
+      return {
+        contract_count: 0,
+        has_contract: false,
+        total_settlement: 0,
+        total_payment: 0,
+        unpaid_amount: 0,
+      };
+    }
+    contractQuery = contractQuery.in('project_id', projectScope);
+  }
+
+  const { data: contracts } = await contractQuery;
+  const contractIds = (contracts || []).map((c: any) => Number(c.id)).filter(Boolean);
+  const paymentMapById = new Map<number, any>();
+  const addPaymentRows = (rows?: any[] | null) => {
+    (rows || []).forEach((payment) => {
+      const id = Number(payment.id);
+      if (Number.isFinite(id) && id > 0) {
+        paymentMapById.set(id, payment);
+      }
+    });
+  };
+
+  let settlementSum: any[] = [];
+  if (contractIds.length > 0) {
+    const { data } = await client
+      .from('supplier_settlements')
+      .select('settlement_amount, status')
+      .in('contract_id', contractIds);
+    settlementSum = data || [];
+
+    const { data: contractPayments } = await client
+      .from('supplier_payments')
+      .select('id, payment_amount, status')
+      .in('contract_id', contractIds);
+    addPaymentRows(contractPayments);
+  }
+
+  let projectPaymentQuery = client
+    .from('supplier_payments')
+    .select('id, payment_amount, status')
+    .eq('supplier_id', supplierId);
+
+  if (projectScope !== null) {
+    projectPaymentQuery = projectPaymentQuery.in('project_id', projectScope);
+  }
+
+  const { data: projectPayments } = await projectPaymentQuery;
+  addPaymentRows(projectPayments);
+
+  const totalSettlement = (settlementSum || [])
+    .filter((s: any) => isReviewedStatus(s.status))
+    .reduce((sum: number, s: any) => sum + (parseFloat(s.settlement_amount) || 0), 0);
+  const totalPayment = Array.from(paymentMapById.values())
+    .filter((p: any) => isEffectiveSupplierPaymentStatus(p.status))
+    .reduce((sum: number, p: any) => sum + (parseFloat(p.payment_amount) || 0), 0);
+
+  return {
+    contract_count: contractIds.length,
+    has_contract: contractIds.length > 0,
+    total_settlement: totalSettlement,
+    total_payment: totalPayment,
+    unpaid_amount: totalSettlement - totalPayment,
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +96,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
 
     const client = getSupabaseClient();
+    const projectScope = await getProjectAccessScope(client, auth.user);
     
     if (id) {
       // 获取单个供应商，附带结算和付款统计
@@ -30,39 +114,15 @@ export async function GET(request: NextRequest) {
         throw new Error(`查询供应商失败: ${error.message}`);
       }
 
-      // 计算累计结算金额和已付款金额（通过合同关联）
-      const { data: contracts } = await client
-        .from('supplier_contracts')
-        .select('id')
-        .eq('supplier_id', parseInt(id));
-
-      const contractIds = (contracts || []).map((c: any) => c.id);
-
-      let totalSettlement = 0;
-      let totalPayment = 0;
-
-      if (contractIds.length > 0) {
-        const { data: settlementSum } = await client
-          .from('supplier_settlements')
-          .select('settlement_amount')
-          .in('contract_id', contractIds);
-
-        const { data: paymentSum } = await client
-          .from('supplier_payments')
-          .select('payment_amount')
-          .in('contract_id', contractIds);
-
-        totalSettlement = (settlementSum || []).reduce((sum, s: any) => sum + (parseFloat(s.settlement_amount) || 0), 0);
-        totalPayment = (paymentSum || []).reduce((sum, p: any) => sum + (parseFloat(p.payment_amount) || 0), 0);
-      }
+      const stats = await getSupplierVisibleStats(client, parseInt(id), projectScope);
 
       return NextResponse.json({ 
         success: true,
         supplier: {
           ...supplier,
-          total_settlement: totalSettlement,
-          total_payment: totalPayment,
-          unpaid_amount: totalSettlement - totalPayment,
+          total_settlement: stats.total_settlement,
+          total_payment: stats.total_payment,
+          unpaid_amount: stats.unpaid_amount,
         }
       });
     }
@@ -86,39 +146,15 @@ export async function GET(request: NextRequest) {
     // 为每个供应商计算统计数据
     const suppliersWithStats = await Promise.all(
       (data || []).map(async (supplier) => {
-        // 获取供应商的合同列表（不限制状态，只要有合同就算已签订）
-        const { data: contracts } = await client
-          .from('supplier_contracts')
-          .select('id')
-          .eq('supplier_id', supplier.id);
-
-        const contractIds = (contracts || []).map((c: any) => c.id);
-        const has_contract = contractIds.length > 0;
-        let totalSettlement = 0;
-        let totalPayment = 0;
-
-        if (contractIds.length > 0) {
-          const { data: settlementSum } = await client
-            .from('supplier_settlements')
-            .select('settlement_amount')
-            .in('contract_id', contractIds);
-
-          const { data: paymentSum } = await client
-            .from('supplier_payments')
-            .select('payment_amount')
-            .in('contract_id', contractIds);
-
-          totalSettlement = (settlementSum || []).reduce((sum, s: any) => sum + (parseFloat(s.settlement_amount) || 0), 0);
-          totalPayment = (paymentSum || []).reduce((sum, p: any) => sum + (parseFloat(p.payment_amount) || 0), 0);
-        }
+        const stats = await getSupplierVisibleStats(client, supplier.id, projectScope);
 
         return {
           ...supplier,
-          has_contract,
-          contract_count: contractIds.length,
-          total_settlement: totalSettlement,
-          total_payment: totalPayment,
-          unpaid_amount: totalSettlement - totalPayment,
+          has_contract: stats.has_contract,
+          contract_count: stats.contract_count,
+          total_settlement: stats.total_settlement,
+          total_payment: stats.total_payment,
+          unpaid_amount: stats.unpaid_amount,
         };
       })
     );

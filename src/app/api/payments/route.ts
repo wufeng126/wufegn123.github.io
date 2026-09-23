@@ -4,6 +4,18 @@ import { insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
+/** 老表付款写操作统一拦截：新业务应走 supplier_contracts → supplier_payments。 */
+function legacyPaymentWriteBlocked() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: '该接口为历史付款数据（老表 payments），已冻结写入。请使用供应商合同下的付款入口：供应商管理 → 付款记录（支持合同关联、结算单关联与超付校验）。',
+      code: 'LEGACY_PAYMENT_WRITE_BLOCKED',
+    },
+    { status: 400 }
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -101,6 +113,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const block = legacyPaymentWriteBlocked();
+    if (block) return block;
+
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
@@ -144,6 +159,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const block = legacyPaymentWriteBlocked();
+    if (block) return block;
+
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
@@ -197,6 +215,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const block = legacyPaymentWriteBlocked();
+    if (block) return block;
+
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 

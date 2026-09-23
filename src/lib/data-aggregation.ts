@@ -5,7 +5,7 @@
  * 1. 看板、月报、台账全部从此模块取数，禁止各自独立查询计算
  * 2. 所有金额使用 parseNumeric 处理，确保类型一致
  * 3. 日期统一使用 YYYY-MM-DD 完整日期，年月查询用 yearMonthToRange 转换
- * 4. 状态过滤统一：已作废记录排除（neq 'voided'），已完成签证才计入收入
+ * 4. 状态过滤统一：正式成本只统计已审核记录，已完成签证才计入收入
  *
  * 使用方式：
  *   import { getProjectFinancialSummary, getGlobalSummary } from '@/lib/data-aggregation';
@@ -15,6 +15,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import {
   isEffectiveClientPaymentStatus,
   isEffectiveSupplierPaymentStatus,
+  isReviewedStatus,
   isVoidedStatus,
   VISA_DONE_STATUSES,
 } from '@/lib/business-logic';
@@ -76,9 +77,19 @@ export function addSupplierFingerprints(
   for (const r of records) set.add(fingerprint(r));
 }
 
+function isBlankAmount(value: unknown): boolean {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+}
+
+function getSupplierSettlementPayableBase(settlement: SupplierSettlementRow | { payable_amount?: unknown; settlement_amount?: unknown }): number {
+  return isBlankAmount(settlement.payable_amount)
+    ? parseNumeric(settlement.settlement_amount)
+    : parseNumeric(settlement.payable_amount);
+}
+
 /**
  * 供应商结算总金额（D2 统一口径：dashboard/月报/台账共用）
- * = 新表 supplier_settlements（排除作废，经合同关联项目）
+ * = 新表 supplier_settlements（仅已审核，经合同关联项目）
  *   + 老表 settlements（历史遗留，按 project_id 直连），两表同笔按指纹去重（保留新表）
  */
 export async function getSupplierSettlementTotal(
@@ -115,7 +126,7 @@ export async function getSupplierSettlementTotal(
     if (endDate) settleQuery = settleQuery.lte('settlement_date', endDate);
     const { data: newSettlements } = await settleQuery;
     for (const s of (newSettlements || []) as SupplierSettlementRow[]) {
-      if (isVoidedStatus(s.status)) continue;
+      if (!isReviewedStatus(s.status)) continue;
       const pid = contractToProject.get(Number(s.contract_id));
       if (!pid || (projectId && pid !== projectId)) continue;
       if (startDate && s.settlement_date && String(s.settlement_date) < startDate) continue;
@@ -284,7 +295,9 @@ type SupplierSettlementRow = {
   status?: string | null;
 };
 type SupplierPaymentRow = {
+  id?: unknown;
   supplier_id?: unknown;
+  project_id?: unknown;
   contract_id?: unknown;
   payment_amount?: unknown;
   payment_date?: unknown;
@@ -486,7 +499,7 @@ export async function getProjectFinancialSummary(
     .select('id')
     .eq('project_id', projectId);
 
-  const contractIds = (contracts || []).map((c: ContractRow) => c.id);
+  const contractIds = (contracts || []).map((c: ContractRow) => Number(c.id)).filter(Boolean);
 
   let settlementAmount = 0;
   let supplierPayableBaseAmount = 0;
@@ -502,10 +515,10 @@ export async function getProjectFinancialSummary(
 
     const { data: settlements } = await settlementsQuery;
 
-    const activeSettlements = (settlements || []).filter((s: SupplierSettlementRow) => !isVoidedStatus(s.status));
+    const activeSettlements = (settlements || []).filter((s: SupplierSettlementRow) => isReviewedStatus(s.status));
     settlementAmount = activeSettlements.reduce((sum: number, s: SupplierSettlementRow) => sum + parseNumeric(s.settlement_amount), 0);
     supplierPayableBaseAmount = activeSettlements.reduce(
-      (sum: number, s: SupplierSettlementRow) => sum + parseNumeric(s.payable_amount),
+      (sum: number, s: SupplierSettlementRow) => sum + getSupplierSettlementPayableBase(s),
       0
     );
   }
@@ -535,7 +548,7 @@ export async function getProjectFinancialSummary(
     .from('comprehensive_expenses')
     .select('amount, expense_date')
     .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .eq('status', 'reviewed');
 
   if (dateRange) {
     expensesQuery = buildDateFilter(expensesQuery, 'expense_date', dateRange);
@@ -549,7 +562,7 @@ export async function getProjectFinancialSummary(
     .from('miscellaneous_materials')
     .select('amount, purchase_date')
     .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .eq('status', 'reviewed');
 
   if (dateRange) {
     miscMaterialsQuery = buildDateFilter(miscMaterialsQuery, 'purchase_date', dateRange);
@@ -574,11 +587,20 @@ export async function getProjectFinancialSummary(
     .reduce((sum: number, p: ClientPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
 
   // 8. 供应商已付款
-  let supplierPaidAmount = 0;
+  const supplierPaymentMapById = new Map<number, SupplierPaymentRow>();
+  const addSupplierPaymentRows = (rows?: SupplierPaymentRow[] | null) => {
+    (rows || []).forEach((payment) => {
+      const id = Number(payment.id);
+      if (Number.isFinite(id) && id > 0) {
+        supplierPaymentMapById.set(id, payment);
+      }
+    });
+  };
+
   if (contractIds.length > 0) {
     let supplierPaymentsQuery = client
       .from('supplier_payments')
-      .select('payment_amount, payment_date, status')
+      .select('id, project_id, contract_id, payment_amount, payment_date, status')
       .in('contract_id', contractIds);
 
     if (dateRange) {
@@ -586,11 +608,24 @@ export async function getProjectFinancialSummary(
     }
 
     const { data: supplierPayments } = await supplierPaymentsQuery;
-
-    supplierPaidAmount = (supplierPayments || [])
-      .filter((p: SupplierPaymentRow) => isEffectiveSupplierPaymentStatus(p.status))
-      .reduce((sum: number, p: SupplierPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
+    addSupplierPaymentRows(supplierPayments as SupplierPaymentRow[] | null);
   }
+
+  let projectSupplierPaymentsQuery = client
+    .from('supplier_payments')
+    .select('id, project_id, contract_id, payment_amount, payment_date, status')
+    .eq('project_id', projectId);
+
+  if (dateRange) {
+    projectSupplierPaymentsQuery = buildDateFilter(projectSupplierPaymentsQuery, 'payment_date', dateRange);
+  }
+
+  const { data: projectSupplierPayments } = await projectSupplierPaymentsQuery;
+  addSupplierPaymentRows(projectSupplierPayments as SupplierPaymentRow[] | null);
+
+  const supplierPaidAmount = Array.from(supplierPaymentMapById.values())
+    .filter((p: SupplierPaymentRow) => isEffectiveSupplierPaymentStatus(p.status))
+    .reduce((sum: number, p: SupplierPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
 
   // 9. 工人已发工资
   let salaryPaymentsQuery = client
@@ -728,7 +763,8 @@ async function getMultiProjectFinancialSummariesImpl(
     expensesResult,
     miscMaterialsResult,
     clientPaymentsResult,
-    supplierPaymentsResult,
+    supplierContractPaymentsResult,
+    supplierProjectPaymentsResult,
     salaryPaymentsResult,
   ] = await Promise.all([
     buildDateFilter(
@@ -754,7 +790,8 @@ async function getMultiProjectFinancialSummariesImpl(
           client
             .from('supplier_settlements')
             .select('contract_id, settlement_amount, payable_amount, settlement_date, status')
-            .in('contract_id', contractIds),
+            .in('contract_id', contractIds)
+            .eq('status', 'reviewed'),
           'settlement_date',
           dateRange
         )
@@ -776,7 +813,7 @@ async function getMultiProjectFinancialSummariesImpl(
         .from('comprehensive_expenses')
         .select('project_id, amount, expense_date')
         .in('project_id', validProjectIds)
-        .neq('status', 'voided'),
+        .eq('status', 'reviewed'),
       'expense_date',
       dateRange
     ),
@@ -785,7 +822,7 @@ async function getMultiProjectFinancialSummariesImpl(
         .from('miscellaneous_materials')
         .select('project_id, amount, purchase_date')
         .in('project_id', validProjectIds)
-        .neq('status', 'voided'),
+        .eq('status', 'reviewed'),
       'purchase_date',
       dateRange
     ),
@@ -801,12 +838,20 @@ async function getMultiProjectFinancialSummariesImpl(
       ? buildDateFilter(
           client
             .from('supplier_payments')
-            .select('contract_id, payment_amount, payment_date, status')
+            .select('id, project_id, contract_id, payment_amount, payment_date, status')
             .in('contract_id', contractIds),
           'payment_date',
           dateRange
         )
       : Promise.resolve({ data: [] }),
+    buildDateFilter(
+      client
+        .from('supplier_payments')
+        .select('id, project_id, contract_id, payment_amount, payment_date, status')
+        .in('project_id', validProjectIds),
+      'payment_date',
+      dateRange
+    ),
     buildDateFilter(
       client
       .from('salary_payments')
@@ -872,12 +917,12 @@ async function getMultiProjectFinancialSummariesImpl(
   (supplierSettlementsResult.data || []).forEach((s: {
     contract_id?: unknown; settlement_amount?: unknown; payable_amount?: unknown; status?: string | null;
   }) => {
-    if (isVoidedStatus(s.status)) return;
+    if (!isReviewedStatus(s.status)) return;
     const pid = contractProjectMap.get(Number(s.contract_id));
     if (!pid) return;
     const a = getAcc(pid);
     a.settlementAmount += parseNumeric(s.settlement_amount);
-    a.supplierPayableBaseAmount += parseNumeric(s.payable_amount);
+    a.supplierPayableBaseAmount += getSupplierSettlementPayableBase(s);
   });
 
   // 工人工资
@@ -910,12 +955,24 @@ async function getMultiProjectFinancialSummariesImpl(
     getAcc(pid).clientPaidAmount += parseNumeric(p.payment_amount);
   });
 
-  // 供应商已付款（经合同关联项目）
-  (supplierPaymentsResult.data || []).forEach((p: {
-    contract_id?: unknown; payment_amount?: unknown; status?: string | null;
-  }) => {
+  // 供应商已付款：兼容合同关联付款与项目直连付款，按付款 ID 去重。
+  const supplierPaymentMapById = new Map<number, SupplierPaymentRow>();
+  [
+    ...(supplierContractPaymentsResult.data || []),
+    ...(supplierProjectPaymentsResult.data || []),
+  ].forEach((payment: SupplierPaymentRow) => {
+    const id = Number(payment.id);
+    if (Number.isFinite(id) && id > 0) {
+      supplierPaymentMapById.set(id, payment);
+    }
+  });
+
+  supplierPaymentMapById.forEach((p: SupplierPaymentRow) => {
     if (!isEffectiveSupplierPaymentStatus(p.status)) return;
-    const pid = contractProjectMap.get(Number(p.contract_id));
+    const projectIdFromPayment = Number(p.project_id);
+    const pid = validProjectIds.includes(projectIdFromPayment)
+      ? projectIdFromPayment
+      : contractProjectMap.get(Number(p.contract_id));
     if (!pid) return;
     getAcc(pid).supplierPaidAmount += parseNumeric(p.payment_amount);
   });

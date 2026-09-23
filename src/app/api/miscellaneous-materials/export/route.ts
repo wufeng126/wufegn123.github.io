@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');
+    let rows: any[] = [];
 
     const client = getSupabaseClient();
     
@@ -32,20 +33,25 @@ export async function GET(request: NextRequest) {
       query = query.eq('project_id', parseInt(projectId));
     }
 
-        // 数据权限：非超管仅导出其可访问项目的数据（防止越权导出全量）
+    // 数据权限：非超管仅导出其可访问项目的数据（防止越权导出全量）
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
     const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
-    if (accessibleProjects) {
-      query = query.in('project_id', accessibleProjects);
-    }
-    const { data, error } = await query;
+    if (accessibleProjects !== null && accessibleProjects.length === 0) {
+      rows = [];
+    } else {
+      if (accessibleProjects) {
+        query = query.in('project_id', accessibleProjects);
+      }
+      const { data, error } = await query;
 
-    if (error) {
-      throw new Error(`查询零星材料失败: ${error.message}`);
+      if (error) {
+        throw new Error(`查询零星材料失败: ${error.message}`);
+      }
+      rows = data || [];
     }
 
-    const exportData = (data || []).map((item: any) => ({
+    const exportData = rows.map((item: any) => ({
       project_name: item.project?.name || '',
       material_name: item.material_name || '',
       specification: item.specification || '',

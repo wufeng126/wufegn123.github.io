@@ -8,6 +8,7 @@ import {
   validateStatusTransition,
 } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 
 export async function GET(
   request: NextRequest,
@@ -25,7 +26,7 @@ export async function GET(
       .select(`
         *,
         contract:contract_id(
-          id, contract_name, contract_no, supplier_id,
+          id, contract_name, contract_no, supplier_id, project_id,
           payment_ratio_active, payment_ratio_complete
         )
       `)
@@ -33,6 +34,9 @@ export async function GET(
       .single();
 
     if (error) throw error;
+
+    const access = await assertProjectAccess(supabase, auth.user, data?.contract?.project_id);
+    if (!access.ok) return access.response;
 
     if (data?.contract?.supplier_id) {
       const { data: supplier } = await supabase
@@ -66,13 +70,15 @@ export async function PUT(
 
     const { data: current, error: fetchError } = await supabase
       .from('supplier_settlements')
-      .select('*')
+      .select('*, contract:contract_id(project_id)')
       .eq('id', settlementId)
       .single();
 
     if (fetchError || !current) {
       return NextResponse.json({ error: '结算单不存在' }, { status: 404 });
     }
+    const access = await assertProjectAccess(supabase, auth.user, current.contract?.project_id);
+    if (!access.ok) return access.response;
 
     if (isVoidedStatus(current.status)) {
       return NextResponse.json({ error: '已作废的结算单不可变更' }, { status: 400 });
@@ -187,13 +193,15 @@ export async function DELETE(
 
     const { data: current } = await supabase
       .from('supplier_settlements')
-      .select('*')
+      .select('*, contract:contract_id(project_id)')
       .eq('id', settlementId)
       .single();
 
     if (!current) {
       return NextResponse.json({ error: '结算单不存在' }, { status: 404 });
     }
+    const access = await assertProjectAccess(supabase, auth.user, current.contract?.project_id);
+    if (!access.ok) return access.response;
 
     if (isReviewedStatus(current.status)) {
       return NextResponse.json({ error: '已审核结算单不可删除，请先反审核或作废' }, { status: 400 });

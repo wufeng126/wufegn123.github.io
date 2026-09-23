@@ -141,6 +141,10 @@ export async function POST(request: NextRequest) {
     }
 
     const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects !== null && accessibleProjects.length === 0) {
+      return NextResponse.json({ error: '当前账号没有可导入的项目' }, { status: 403 });
+    }
+
     const projectNameMap: Record<string, number> = {};
     ((projects || []) as ProjectRow[]).forEach((p) => {
       if (!accessibleProjects || accessibleProjects.includes(p.id)) {

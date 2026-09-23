@@ -4,6 +4,7 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { syncAllSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { syncLivingAllowancesToSalary } from '@/lib/living-allowance';
 import * as XLSX from 'xlsx';
 
 // 将各种日期格式统一为 YYYY-MM
@@ -597,6 +598,46 @@ export async function POST(request: NextRequest) {
 
     console.log('[Salaries Batch] Successfully inserted', data?.length || 0, 'records');
 
+    let livingAllowanceSyncedCount = 0;
+    let livingAllowanceSyncedAmount = 0;
+    let livingAllowanceAddedAdvancePay = 0;
+
+    for (const salary of data || []) {
+      try {
+        const syncResult = await syncLivingAllowancesToSalary(client, {
+          id: Number((salary as any).id),
+          worker_id: Number((salary as any).worker_id),
+          project_id: (salary as any).project_id == null ? null : Number((salary as any).project_id),
+          year_month: String((salary as any).year_month || ''),
+          gross_pay: (salary as any).gross_pay,
+          income_tax: (salary as any).income_tax,
+          advance_pay: (salary as any).advance_pay,
+          labor_insurance: (salary as any).labor_insurance,
+          fine: (salary as any).fine,
+        });
+
+        if (syncResult.synced) {
+          livingAllowanceSyncedCount += syncResult.linkedCount;
+          livingAllowanceSyncedAmount += Number(syncResult.amount || 0);
+          livingAllowanceAddedAdvancePay += Number(syncResult.addedAdvancePay || 0);
+        }
+      } catch (syncError) {
+        const workerName = (salary as any).worker_name || (salary as any)._workerName || `工资记录${(salary as any).id || ''}`;
+        warnings.push(`${workerName}：生活费自动同步失败，工资已导入，可在生活费台账中人工核对`);
+        addIssue({
+          row: 0,
+          type: 'warning',
+          workerName,
+          projectName: '',
+          yearMonth: (salary as any).year_month || '',
+          reason: syncError instanceof Error ? syncError.message : '生活费自动同步失败',
+        });
+      }
+    }
+
+    livingAllowanceSyncedAmount = Math.round(livingAllowanceSyncedAmount * 100) / 100;
+    livingAllowanceAddedAdvancePay = Math.round(livingAllowanceAddedAdvancePay * 100) / 100;
+
     await syncAllSalaryPaymentStatus();
 
     const result: any = {
@@ -612,9 +653,14 @@ export async function POST(request: NextRequest) {
       errorCount: errors.length,
       warningCount: warnings.length,
       skippedCount: issues.filter(issue => issue.type === 'skipped').length,
+      livingAllowanceSyncedCount,
+      livingAllowanceSyncedAmount,
+      livingAllowanceAddedAdvancePay,
       message: errors.length > 0
         ? `成功导入 ${data?.length || 0} 条，失败 ${errors.length} 条`
-        : `成功导入 ${data?.length || 0} 条工资记录`,
+        : livingAllowanceSyncedCount > 0
+          ? `成功导入 ${data?.length || 0} 条工资记录，已匹配 ${livingAllowanceSyncedCount} 条生活费，补入预支款 ¥${livingAllowanceAddedAdvancePay.toLocaleString()}`
+          : `成功导入 ${data?.length || 0} 条工资记录`,
       importedYearMonths: Array.from(importedYearMonths),
     };
 
@@ -639,8 +685,11 @@ export async function POST(request: NextRequest) {
           imported: result.imported,
           updated: result.updated,
           notInRosterCount: notInRoster.length,
+          livingAllowanceSyncedCount,
+          livingAllowanceSyncedAmount,
+          livingAllowanceAddedAdvancePay,
           yearMonth: yearMonthText,
-          businessSummary: `批量导入月度工资，新增 ${result.imported || 0} 条，更新 ${result.updated || 0} 条${yearMonthText ? `，月份 ${yearMonthText}` : ''}${notInRoster.length > 0 ? `，${notInRoster.length} 人不在花名册中` : ''}`,
+          businessSummary: `批量导入月度工资，新增 ${result.imported || 0} 条，更新 ${result.updated || 0} 条${yearMonthText ? `，月份 ${yearMonthText}` : ''}${livingAllowanceSyncedCount > 0 ? `，匹配生活费 ${livingAllowanceSyncedCount} 条` : ''}${notInRoster.length > 0 ? `，${notInRoster.length} 人不在花名册中` : ''}`,
         },
       });
     }

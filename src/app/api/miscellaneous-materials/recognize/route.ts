@@ -65,6 +65,10 @@ async function getProjectsForUser(request: NextRequest) {
   if (!auth.ok) return { auth, projects: [] };
 
   const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+  if (accessibleProjects !== null && accessibleProjects.length === 0) {
+    return { auth, projects: [] };
+  }
+
   let query = client.from('projects').select('id, name').order('name', { ascending: true });
   if (accessibleProjects !== null) query = query.in('id', accessibleProjects);
   const { data, error } = await query;

@@ -390,8 +390,8 @@ export default function AccountDashboardPage() {
                       <TableCell className="text-right text-purple-600">{item.warranty_amount.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-orange-600">{item.final_payment.toLocaleString()}</TableCell>
                       <TableCell>
-                        <Badge variant={item.contract_status === '已完结' ? 'default' : 'secondary'}>
-                          {item.contract_status === '已完结' ? '已完结' : '履约中'}
+                        <Badge variant={item.contract_status === '已完结' ? 'default' : item.contract_status === '未关联合同' ? 'outline' : 'secondary'}>
+                          {item.contract_status || '履约中'}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -420,8 +420,8 @@ export default function AccountDashboardPage() {
                       <p className="truncate text-sm font-semibold text-gray-900">{item.supplier_name}</p>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.contract_name || '-'}</p>
                     </div>
-                    <Badge variant={item.contract_status === '已完结' ? 'default' : 'secondary'} className="shrink-0">
-                      {item.contract_status === '已完结' ? '已完结' : '履约中'}
+                    <Badge variant={item.contract_status === '已完结' ? 'default' : item.contract_status === '未关联合同' ? 'outline' : 'secondary'} className="shrink-0">
+                      {item.contract_status || '履约中'}
                     </Badge>
                   </div>
 

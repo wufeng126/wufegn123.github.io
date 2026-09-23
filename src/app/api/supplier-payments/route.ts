@@ -5,6 +5,19 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import {
+  assertProjectAccess,
+  badProjectIdResponse,
+  canAccessProject,
+  getProjectAccessScope,
+  parseOptionalProjectId,
+} from '@/lib/api-project-scope';
+
+type SupplierContractRef = {
+  id: number;
+  supplier_id?: number | null;
+  project_id?: number | null;
+};
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -14,17 +27,68 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('project_id');
   const supplierId = searchParams.get('supplier_id');
+  const requestedProjectId = parseOptionalProjectId(projectId);
+  if (Number.isNaN(requestedProjectId)) return badProjectIdResponse();
+  const requestedSupplierId = supplierId ? Number(supplierId) : null;
+  if (requestedSupplierId !== null && (!Number.isInteger(requestedSupplierId) || requestedSupplierId <= 0)) {
+    return NextResponse.json({ error: '供应商参数无效' }, { status: 400 });
+  }
+
+  const projectScope = await getProjectAccessScope(supabase, auth.user);
+  if (requestedProjectId && !canAccessProject(projectScope, requestedProjectId)) {
+    return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
+  }
+
+  let scopedContractIds: number[] | null = null;
+  if (projectScope !== null || requestedProjectId || requestedSupplierId) {
+    if (projectScope !== null && projectScope.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    let contractScopeQuery = supabase
+      .from('supplier_contracts')
+      .select('id');
+
+    if (requestedProjectId) {
+      contractScopeQuery = contractScopeQuery.eq('project_id', requestedProjectId);
+    } else if (projectScope !== null) {
+      contractScopeQuery = contractScopeQuery.in('project_id', projectScope);
+    }
+    if (requestedSupplierId) {
+      contractScopeQuery = contractScopeQuery.eq('supplier_id', requestedSupplierId);
+    }
+
+    const { data: scopedContracts, error: scopeError } = await contractScopeQuery;
+    if (scopeError) {
+      return NextResponse.json({ error: scopeError.message }, { status: 500 });
+    }
+    scopedContractIds = (scopedContracts || []).map((contract: any) => Number(contract.id)).filter(Boolean);
+  }
 
   let query = supabase
     .from('supplier_payments')
     .select('*')
     .order('payment_date', { ascending: false });
 
-  if (projectId) {
-    query = query.eq('project_id', parseInt(projectId));
+  if (requestedProjectId) {
+    if (scopedContractIds && scopedContractIds.length > 0) {
+      query = query.or(`project_id.eq.${requestedProjectId},contract_id.in.(${scopedContractIds.join(',')})`);
+    } else {
+      query = query.eq('project_id', requestedProjectId);
+    }
+  } else if (projectScope !== null) {
+    if (scopedContractIds && scopedContractIds.length > 0) {
+      query = query.or(`project_id.in.(${projectScope.join(',')}),contract_id.in.(${scopedContractIds.join(',')})`);
+    } else {
+      query = query.in('project_id', projectScope);
+    }
   }
-  if (supplierId) {
-    query = query.eq('supplier_id', parseInt(supplierId));
+  if (requestedSupplierId) {
+    if (scopedContractIds && scopedContractIds.length > 0) {
+      query = query.or(`supplier_id.eq.${requestedSupplierId},contract_id.in.(${scopedContractIds.join(',')})`);
+    } else {
+      query = query.eq('supplier_id', requestedSupplierId);
+    }
   }
 
   const { data, error } = await query;
@@ -44,6 +108,62 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const body = await request.json();
 
+    let contract: SupplierContractRef | null = null;
+    const loadContract = async (contractId: number) => {
+      const { data, error } = await supabase
+        .from('supplier_contracts')
+        .select('id, supplier_id, project_id')
+        .eq('id', contractId)
+        .single();
+      if (error || !data) {
+        return { error: NextResponse.json({ error: '合同不存在' }, { status: 400 }) };
+      }
+      return { data: data as SupplierContractRef };
+    };
+
+    const contractId = body.contract_id && Number(body.contract_id) > 0 ? Number(body.contract_id) : null;
+    if (contractId) {
+      const contractResult = await loadContract(contractId);
+      if (contractResult.error) return contractResult.error;
+      contract = contractResult.data;
+    }
+
+    if (body.settlement_id && Number(body.settlement_id) > 0) {
+      const { data: settlement, error: settlementError } = await supabase
+        .from('supplier_settlements')
+        .select('id, contract_id')
+        .eq('id', Number(body.settlement_id))
+        .single();
+      if (settlementError || !settlement) {
+        return NextResponse.json({ error: '结算单不存在' }, { status: 400 });
+      }
+      if (settlement.contract_id) {
+        const settlementContractId = Number(settlement.contract_id);
+        if (contractId && contractId !== settlementContractId) {
+          return NextResponse.json({ error: '结算单不属于当前合同' }, { status: 400 });
+        }
+        if (!contract) {
+          const contractResult = await loadContract(settlementContractId);
+          if (contractResult.error) return contractResult.error;
+          contract = contractResult.data;
+          body.contract_id = settlementContractId;
+        }
+      }
+    }
+
+    const normalizedProjectId = Number(body.project_id || contract?.project_id || 0);
+    if (normalizedProjectId > 0) {
+      const access = await assertProjectAccess(supabase, auth.user, normalizedProjectId);
+      if (!access.ok) return access.response;
+      body.project_id = normalizedProjectId;
+    } else if (!auth.user.is_super_admin) {
+      return NextResponse.json({ error: '请选择有权限的项目' }, { status: 400 });
+    }
+
+    if (contract?.supplier_id && !body.supplier_id) {
+      body.supplier_id = contract.supplier_id;
+    }
+
     // 与 supplier-contracts/payments 入口对齐：补齐付款单号与有效状态默认值，
     // 避免落成 status='pending'、payment_no 为 '-' 的“待确认”记录而不计入结算台账已付。
     const paymentDate: string = body.payment_date || new Date().toISOString().slice(0, 10);
@@ -60,6 +180,9 @@ export async function POST(request: NextRequest) {
 
     // D5 修复：与 supplier-contracts/payments 入口一致的校验——合同余额/结算单未付余额/作废状态
     const paymentAmount = Number(body.payment_amount || 0);
+    if (!paymentAmount || paymentAmount <= 0) {
+      return NextResponse.json({ error: '请输入有效的付款金额' }, { status: 400 });
+    }
     if (body.contract_id && Number(body.contract_id) > 0) {
       const contractValidation = await validateSupplierPayment({
         contract_id: Number(body.contract_id),
