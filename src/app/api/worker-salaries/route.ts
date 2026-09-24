@@ -7,6 +7,7 @@ import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { syncLivingAllowancesToSalary } from '@/lib/living-allowance';
+import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 import type { RequestAuthUser } from '@/lib/auth';
 
 type RelatedNameEntity = {
@@ -69,6 +70,11 @@ function paymentMatchKey(params: {
   return `${Number(params.worker_id || 0)}:${Number(params.project_id || 0)}:${params.year_month || ''}`;
 }
 
+function parsePositiveId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 // 安全解析 numeric 类型
 function parseNumeric(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -129,6 +135,15 @@ export async function GET(request: NextRequest) {
     const workerId = searchParams.get('worker_id');
     const projectId = searchParams.get('project_id');
     const month = searchParams.get('month');
+    const parsedWorkerId = workerId ? parsePositiveId(workerId) : null;
+    const parsedProjectId = projectId ? parsePositiveId(projectId) : null;
+
+    if (workerId && !parsedWorkerId) {
+      return NextResponse.json({ error: '无效的工人ID' }, { status: 400 });
+    }
+    if (projectId && !parsedProjectId) {
+      return NextResponse.json({ error: '无效的项目ID' }, { status: 400 });
+    }
 
     const client = getSupabaseClient();
     
@@ -138,6 +153,24 @@ export async function GET(request: NextRequest) {
     // 获取可访问的项目ID
     const accessibleProjects = await getAccessibleProjectIds(user.id || 0, user.role || 'admin');
     const isSuperAdmin = user.is_super_admin || user.role === 'super_admin';
+
+    if (
+      !isSuperAdmin &&
+      parsedProjectId !== null &&
+      !accessibleProjects.includes(parsedProjectId)
+    ) {
+      return NextResponse.json({ error: '无权查看该项目下的工资记录' }, { status: 403 });
+    }
+    if (!isSuperAdmin && accessibleProjects.length === 0) {
+      return NextResponse.json({
+        salaries: [],
+        totalGrossPay: '0.00',
+        totalNetPay: '0.00',
+        totalPaid: '0.00',
+        projectSummary: [],
+        orphan_payment_amount: 0,
+      });
+    }
     
     let query = client
       .from('worker_salaries')
@@ -166,12 +199,14 @@ export async function GET(request: NextRequest) {
       `)
       .order('year_month', { ascending: false });
 
-    if (workerId) {
-      query = query.eq('worker_id', parseInt(workerId));
+    if (parsedWorkerId !== null) {
+      query = query.eq('worker_id', parsedWorkerId);
     }
     
-    if (projectId) {
-      query = query.eq('project_id', parseInt(projectId));
+    if (parsedProjectId !== null) {
+      query = query.eq('project_id', parsedProjectId);
+    } else if (!isSuperAdmin) {
+      query = query.in('project_id', accessibleProjects);
     }
 
     if (month) {
@@ -185,7 +220,7 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询工资记录失败: ${error.message}`);
     }
 
-    // 数据权限过滤
+    // 数据权限过滤（查询层已过滤，内存层保留作为防御性校验）
     let filteredData = ((data || []) as WorkerSalaryRow[]);
     if (!isSuperAdmin && accessibleProjects.length === 0) {
       filteredData = [];
@@ -193,10 +228,49 @@ export async function GET(request: NextRequest) {
       filteredData = filteredData.filter((record) => accessibleProjects.includes(Number(record.project_id)));
     }
 
-    // 查询工资发放记录（salary_payments）
-    const { data: salaryPaymentsData } = await client
-      .from('salary_payments')
-      .select('salary_id, worker_id, project_id, year_month, payment_amount');
+    // 查询工资发放记录。已关联工资单的记录按可见工资单ID查询，
+    // 未关联的老数据按可访问项目查询，避免把其他项目的已发金额带入当前汇总。
+    const visibleSalaryIds = filteredData.map(record => record.id);
+    let salaryPaymentsData: SalaryPaymentRow[] = [];
+
+    if (isSuperAdmin) {
+      const { data: paymentRows, error: paymentError } = await client
+        .from('salary_payments')
+        .select('salary_id, worker_id, project_id, year_month, payment_amount');
+
+      if (paymentError) {
+        throw new Error(`查询工资发放记录失败: ${paymentError.message}`);
+      }
+      salaryPaymentsData = (paymentRows || []) as SalaryPaymentRow[];
+    } else {
+      let linkedPayments: SalaryPaymentRow[] = [];
+      if (visibleSalaryIds.length > 0) {
+        const { data: linkedRows, error: linkedError } = await client
+          .from('salary_payments')
+          .select('salary_id, worker_id, project_id, year_month, payment_amount')
+          .in('salary_id', visibleSalaryIds);
+
+        if (linkedError) {
+          throw new Error(`查询工资发放记录失败: ${linkedError.message}`);
+        }
+        linkedPayments = (linkedRows || []) as SalaryPaymentRow[];
+      }
+
+      const { data: unlinkedRows, error: unlinkedError } = await client
+        .from('salary_payments')
+        .select('salary_id, worker_id, project_id, year_month, payment_amount')
+        .is('salary_id', null)
+        .in('project_id', accessibleProjects);
+
+      if (unlinkedError) {
+        throw new Error(`查询工资发放记录失败: ${unlinkedError.message}`);
+      }
+
+      salaryPaymentsData = [
+        ...linkedPayments,
+        ...((unlinkedRows || []) as SalaryPaymentRow[]),
+      ];
+    }
 
     const paidAmountBySalaryId = new Map<number, number>();
     const unlinkedPaidAmountByMatchKey = new Map<string, number>();
@@ -210,10 +284,11 @@ export async function GET(request: NextRequest) {
     });
 
     let orphanPaymentAmount = 0; // 无对应工资单的独立发放（D7 提示用）
-    ((salaryPaymentsData || []) as SalaryPaymentRow[]).forEach((payment) => {
+    salaryPaymentsData.forEach((payment) => {
       const amount = parseNumeric(payment.payment_amount);
 
       if (payment.salary_id) {
+        if (!visibleSalaryIds.includes(Number(payment.salary_id))) return;
         paidAmountBySalaryId.set(
           payment.salary_id,
           (paidAmountBySalaryId.get(payment.salary_id) || 0) + amount
@@ -385,8 +460,10 @@ export async function POST(request: NextRequest) {
     // 计算应发工资和实发工资（前端可能未传入，由后端自动计算）
     const calculatedGrossPay = gross_pay != null ? gross_pay : (parseFloat(work_hours || '0') * parseFloat(hourly_rate || '0') + parseFloat(contract_work_pay || '0'));
     const calculatedNetPay = net_pay != null ? net_pay : (calculatedGrossPay - parseFloat(income_tax || '0') - parseFloat(advance_pay || '0') - parseFloat(labor_insurance || '0') - parseFloat(fine || '0'));
+    const parsedWorkerId = parsePositiveId(worker_id);
+    const parsedProjectId = parsePositiveId(project_id);
 
-    if (worker_id == null || project_id == null || !year_month) {
+    if (!parsedWorkerId || !parsedProjectId || !year_month) {
       return NextResponse.json({ error: '请填写完整信息' }, { status: 400 });
     }
 
@@ -397,15 +474,38 @@ export async function POST(request: NextRequest) {
     const accessibleProjects = await getAccessibleProjectIds(user.id || 0, user.role || 'admin');
     const isSuperAdmin = user.is_super_admin || user.role === 'super_admin';
     
-    if (!isSuperAdmin && (accessibleProjects.length === 0 || !accessibleProjects.includes(project_id))) {
+    if (!isSuperAdmin && (accessibleProjects.length === 0 || !accessibleProjects.includes(parsedProjectId))) {
       return NextResponse.json({ error: '无权在该项目下创建工资记录' }, { status: 403 });
+    }
+
+    const [{ data: workerRecord, error: workerError }, { data: projectRecord, error: projectError }] = await Promise.all([
+      client.from('workers').select('id, project_id').eq('id', parsedWorkerId).maybeSingle(),
+      client.from('projects').select('id').eq('id', parsedProjectId).maybeSingle(),
+    ]);
+
+    if (workerError) {
+      throw new Error(`查询工人信息失败: ${workerError.message}`);
+    }
+    if (projectError) {
+      throw new Error(`查询项目信息失败: ${projectError.message}`);
+    }
+    if (!workerRecord) {
+      return NextResponse.json({ error: '工人不存在' }, { status: 404 });
+    }
+    if (!projectRecord) {
+      return NextResponse.json({ error: '项目不存在' }, { status: 404 });
+    }
+
+    const workerProjectRelations = await getWorkerProjectRelations(client, [parsedWorkerId]);
+    if (!workerProjectRelations.get(parsedWorkerId)?.has(parsedProjectId)) {
+      return NextResponse.json({ error: '该工人与所选项目不匹配，无法创建工资记录' }, { status: 400 });
     }
 
     const { data: existingSalary, error: existingError } = await client
       .from('worker_salaries')
       .select('id')
-      .eq('worker_id', parseInt(worker_id))
-      .eq('project_id', parseInt(project_id))
+      .eq('worker_id', parsedWorkerId)
+      .eq('project_id', parsedProjectId)
       .eq('year_month', year_month)
       .maybeSingle();
 
@@ -421,8 +521,8 @@ export async function POST(request: NextRequest) {
     }
     
     const { data, error } = await insertWithSequenceFix('worker_salaries', { 
-        worker_id: parseInt(worker_id),
-        project_id: parseInt(project_id),
+        worker_id: parsedWorkerId,
+        project_id: parsedProjectId,
         year_month,
         work_hours: work_hours || '0',
         hourly_rate: hourly_rate || '0',
@@ -485,12 +585,12 @@ export async function POST(request: NextRequest) {
       operationType: 'create',
       resourceType: 'worker_salary',
       resourceId: salaryData?.id,
-      details: { worker_id, project_id, year_month, gross_pay, net_pay },
+      details: { worker_id: parsedWorkerId, project_id: parsedProjectId, year_month, gross_pay, net_pay },
       request,
     });
 
-    const { data: worker } = worker_id
-      ? await client.from('workers').select('name').eq('id', Number(worker_id)).maybeSingle()
+    const { data: worker } = parsedWorkerId
+      ? await client.from('workers').select('name').eq('id', parsedWorkerId).maybeSingle()
       : { data: null };
 
     // 钉钉推送通知
@@ -499,14 +599,14 @@ export async function POST(request: NextRequest) {
       title: '新增月度工资',
       content: `新增月度工资记录，核算周期: ${year_month}，应发: ¥${Number(salaryData?.gross_pay || calculatedGrossPay || 0).toLocaleString()}，实发: ¥${Number(salaryData?.net_pay || calculatedNetPay || 0).toLocaleString()}`,
       severity: 'info',
-      projectId: project_id ? parseInt(String(project_id)) : undefined,
+      projectId: parsedProjectId,
       relatedId: salaryData?.id,
       relatedType: 'worker_salary',
       metadata: {
         salary_id: salaryData?.id,
         salaryId: salaryData?.id,
-        worker_id,
-        project_id,
+        worker_id: parsedWorkerId,
+        project_id: parsedProjectId,
         year_month,
         yearMonth: year_month,
         gross_pay: salaryData?.gross_pay ?? calculatedGrossPay,

@@ -36,6 +36,7 @@ import {
   FileSignature,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hasCompatiblePermission } from '@/lib/route-permissions';
 import { BrandIconContainer, BrandLogo, type BrandIconName } from '@/components/ui/brand-icon';
 import { usePermission } from '@/contexts/permission-context';
 import { FloatingAIAssistant } from '@/components/floating-ai-assistant';
@@ -250,7 +251,7 @@ export default function SidebarLayout({
   const hasAnyPermission = (perms?: string[]) => {
     if (!perms || perms.length === 0) return true;
     if (isSuperAdmin) return true;
-    return perms.some(p => permissions.includes(p) || p === '*');
+    return perms.some(p => hasCompatiblePermission(p, permissions));
   };
 
   // 判断一级菜单是否对当前角色可见

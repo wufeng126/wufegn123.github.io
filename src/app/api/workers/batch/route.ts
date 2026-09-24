@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { syncWorkerProjectAssignment, syncWorkerProjectAssignments } from '@/lib/worker-assignment-sync';
 
 // 不限制手机号、身份证号、银行卡号格式，仅做非空判断
@@ -57,7 +58,9 @@ export async function POST(request: NextRequest) {
       fileName = '未知文件',
       operator,
     } = body;
-    const defaultProjectId = projectId ? Number(projectId) : null;
+    const defaultProjectId = projectId === undefined || projectId === null || projectId === ''
+      ? null
+      : Number(projectId);
 
     console.log('[Workers Batch] Received request with', workers?.length || 0, 'workers, mode:', importMode);
 
@@ -69,10 +72,37 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
 
-    const { data: projectList } = await client
-      .from('projects')
-      .select('id, name');
+    if (
+      defaultProjectId !== null
+      && (!Number.isInteger(defaultProjectId) || defaultProjectId <= 0)
+    ) {
+      return NextResponse.json({ success: false, error: '默认项目ID无效' }, { status: 400 });
+    }
+    if (
+      defaultProjectId !== null
+      && accessibleProjectIds !== null
+      && !accessibleProjectIds.includes(defaultProjectId)
+    ) {
+      return NextResponse.json({ success: false, error: '当前账号无权导入到该项目' }, { status: 403 });
+    }
+
+    let projectList: Array<{ id: number; name: string }> = [];
+    if (accessibleProjectIds === null || accessibleProjectIds.length > 0) {
+      let projectQuery = client
+        .from('projects')
+        .select('id, name');
+      if (accessibleProjectIds !== null) {
+        projectQuery = projectQuery.in('id', accessibleProjectIds);
+      }
+      const { data, error: projectQueryError } = await projectQuery;
+      if (projectQueryError) {
+        throw new Error(`查询项目失败，已停止导入: ${projectQueryError.message}`);
+      }
+      projectList = (data || []) as Array<{ id: number; name: string }>;
+    }
+
     const projectIdByName = new Map<string, number>();
     if (projectList) {
       for (const p of projectList) {
@@ -81,8 +111,12 @@ export async function POST(request: NextRequest) {
     }
 
     const resolveProjectId = (worker: any) => {
-      if (worker.project_id) return Number(worker.project_id);
-      if (worker.projectId) return Number(worker.projectId);
+      if (worker.project_id !== undefined && worker.project_id !== null && worker.project_id !== '') {
+        return Number(worker.project_id);
+      }
+      if (worker.projectId !== undefined && worker.projectId !== null && worker.projectId !== '') {
+        return Number(worker.projectId);
+      }
       const projectName = worker.project_name?.trim();
       if (projectName && projectIdByName.has(projectName)) {
         return projectIdByName.get(projectName)!;
@@ -163,6 +197,35 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const invalidProjectItem = validData.find((item) => (
+      item.data.project_id !== null
+      && (!Number.isInteger(item.data.project_id) || item.data.project_id <= 0)
+    ));
+    if (invalidProjectItem) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `第${invalidProjectItem.row}行的项目ID无效，已停止导入`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const unauthorizedProjectItem = validData.find((item) => (
+      item.data.project_id !== null
+      && accessibleProjectIds !== null
+      && !accessibleProjectIds.includes(item.data.project_id)
+    ));
+    if (unauthorizedProjectItem) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `第${unauthorizedProjectItem.row}行的项目无权访问，已停止导入`,
+        },
+        { status: 403 },
+      );
+    }
+
     // 获取已存在的工人数据（按身份证号）
     const idCardsToCheck = validData
       .filter(d => d.id_card_upper)
@@ -171,18 +234,45 @@ export async function POST(request: NextRequest) {
     const existingWorkersMap = new Map<string, any>();
     
     if (idCardsToCheck.length > 0) {
-      const { data: existingWorkers, error: queryError } = await client
-        .from('workers')
-        .select('id, name, id_card, phone, project_id')
-        .in('id_card', idCardsToCheck);
+      const workerColumns = 'id, name, id_card, phone, project_id';
+      const existingWorkers: any[] = [];
 
-      if (queryError) {
-        console.error('[Workers Batch] Query existing workers error:', queryError);
-      } else if (existingWorkers) {
-        for (const w of existingWorkers) {
-          if (w.id_card) {
-            existingWorkersMap.set(w.id_card.toUpperCase(), w);
+      if (accessibleProjectIds === null) {
+        const { data, error: queryError } = await client
+          .from('workers')
+          .select(workerColumns)
+          .in('id_card', idCardsToCheck);
+        if (queryError) {
+          throw new Error(`查询已有工人失败，已停止导入: ${queryError.message}`);
+        }
+        existingWorkers.push(...(data || []));
+      } else {
+        if (accessibleProjectIds.length > 0) {
+          const { data, error: queryError } = await client
+            .from('workers')
+            .select(workerColumns)
+            .in('id_card', idCardsToCheck)
+            .in('project_id', accessibleProjectIds);
+          if (queryError) {
+            throw new Error(`查询已有工人失败，已停止导入: ${queryError.message}`);
           }
+          existingWorkers.push(...(data || []));
+        }
+
+        const { data: unassignedWorkers, error: unassignedQueryError } = await client
+          .from('workers')
+          .select(workerColumns)
+          .in('id_card', idCardsToCheck)
+          .is('project_id', null);
+        if (unassignedQueryError) {
+          throw new Error(`查询未分配工人失败，已停止导入: ${unassignedQueryError.message}`);
+        }
+        existingWorkers.push(...(unassignedWorkers || []));
+      }
+
+      for (const w of existingWorkers) {
+        if (w.id_card) {
+          existingWorkersMap.set(w.id_card.toUpperCase(), w);
         }
       }
     }

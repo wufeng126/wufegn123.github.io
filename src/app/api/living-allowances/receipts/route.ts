@@ -28,9 +28,15 @@ export async function GET(request: NextRequest) {
 
     const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
-    const projectId = searchParams.get('project_id');
+    const projectIdParam = searchParams.get('project_id');
+    const hasProjectFilter = Boolean(projectIdParam && projectIdParam !== 'all');
+    const projectId = hasProjectFilter ? normalizeId(projectIdParam) : null;
     const splitStatus = searchParams.get('split_status');
     const limit = Math.min(Math.max(Number(searchParams.get('limit') || 30), 1), 100);
+
+    if (hasProjectFilter && !projectId) {
+      return NextResponse.json({ error: '项目ID无效' }, { status: 400 });
+    }
 
     let query = client
       .from('living_allowance_receipts')
@@ -52,7 +58,7 @@ export async function GET(request: NextRequest) {
       .order('id', { ascending: false })
       .limit(limit);
 
-    if (projectId && projectId !== 'all') query = query.eq('project_id', Number(projectId));
+    if (projectId) query = query.eq('project_id', projectId);
     if (splitStatus && splitStatus !== 'all') query = query.eq('split_status', splitStatus);
 
     const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
@@ -60,7 +66,11 @@ export async function GET(request: NextRequest) {
       if (accessibleProjectIds.length === 0) {
         return NextResponse.json({ receipts: [] });
       }
-      query = query.or(`project_id.is.null,project_id.in.(${accessibleProjectIds.join(',')})`);
+      if (projectId && !accessibleProjectIds.includes(projectId)) {
+        return NextResponse.json({ error: '无权查看该项目下的生活费回单' }, { status: 403 });
+      }
+      // 普通账号只允许查看已授权项目的回单，不能通过未指定项目的回单扩大查询范围。
+      query = query.in('project_id', accessibleProjectIds);
     }
 
     const { data, error } = await query;
@@ -87,6 +97,11 @@ export async function GET(request: NextRequest) {
 
     for (const item of itemsRes.data || []) {
       const receiptId = Number((item as any).receipt_id);
+      const receipt = rows.find((row: any) => Number(row.id) === receiptId);
+      const receiptProjectId = normalizeId(receipt?.project_id);
+      const itemProjectId = normalizeId((item as any).project_id);
+      // 回单拆分明细必须与父回单属于同一项目，异常数据不参与当前项目汇总。
+      if (receiptProjectId !== itemProjectId) continue;
       const summary = itemSummaryMap.get(receiptId) || { itemCount: 0, matchedCount: 0, amount: 0 };
       summary.itemCount += 1;
       summary.amount += parseMoney((item as any).amount);

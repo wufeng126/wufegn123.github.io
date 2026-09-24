@@ -1,7 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { syncWorkerProjectAssignments } from '@/lib/worker-assignment-sync';
+
+function normalizeWorkerIds(value: unknown): number[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const ids = value.map((item) => Number(item));
+  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) return null;
+  return Array.from(new Set(ids));
+}
+
+function parseProjectId(value: unknown): number | null | undefined {
+  if (value === null || value === '') return null;
+  const projectId = Number(value);
+  return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined;
+}
+
+function canAccessProject(accessibleProjectIds: number[] | null, projectId: unknown): boolean {
+  return projectId == null
+    || accessibleProjectIds === null
+    || accessibleProjectIds.includes(Number(projectId));
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,9 +29,10 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { ids, field, value } = body;
+    const { field, value } = body;
+    const ids = normalizeWorkerIds(body.ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    if (!ids) {
       return NextResponse.json({ error: '请提供要修改的工人ID' }, { status: 400 });
     }
 
@@ -26,15 +47,44 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const { data: previousWorkers } = field === 'project_id'
-      ? await client
-        .from('workers')
-        .select('id, project_id, entry_date')
-        .in('id', ids)
-      : { data: [] };
+    const { data: previousWorkers, error: workerQueryError } = await client
+      .from('workers')
+      .select('id, project_id, entry_date')
+      .in('id', ids);
+
+    if (workerQueryError) {
+      throw new Error(`查询工人失败: ${workerQueryError.message}`);
+    }
+
+    const workersById = new Map(
+      (previousWorkers || []).map((worker) => [Number(worker.id), worker]),
+    );
+    const missingIds = ids.filter((id) => !workersById.has(id));
+    if (missingIds.length > 0) {
+      return NextResponse.json(
+        { error: `以下工人不存在：${missingIds.join('、')}` },
+        { status: 404 },
+      );
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const hasInaccessibleWorker = (previousWorkers || []).some(
+      (worker) => !canAccessProject(accessibleProjectIds, worker.project_id),
+    );
+    if (hasInaccessibleWorker) {
+      return NextResponse.json({ error: '当前账号无权修改所选工人' }, { status: 403 });
+    }
+
+    const targetProjectId = field === 'project_id' ? parseProjectId(value) : undefined;
+    if (field === 'project_id' && targetProjectId === undefined) {
+      return NextResponse.json({ error: '项目ID无效' }, { status: 400 });
+    }
+    if (field === 'project_id' && !canAccessProject(accessibleProjectIds, targetProjectId)) {
+      return NextResponse.json({ error: '当前账号无权将工人分配到该项目' }, { status: 403 });
+    }
     
     const updateData: Record<string, any> = {};
-    updateData[field] = value || null;
+    updateData[field] = field === 'project_id' ? targetProjectId : value;
     
     const { data, error } = await client
       .from('workers')
@@ -55,7 +105,7 @@ export async function POST(request: NextRequest) {
         const previous = previousById.get(Number(id));
         return {
           workerId: Number(id),
-          projectId: value || null,
+          projectId: targetProjectId ?? null,
           previousProjectId: previous?.project_id || null,
           startDate: previous?.entry_date || null,
         };

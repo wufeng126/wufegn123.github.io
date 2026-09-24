@@ -36,12 +36,17 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const projectId = normalizeId(formData.get('project_id'));
+    const rawProjectId = formData.get('project_id');
+    const hasProjectId = rawProjectId !== null && String(rawProjectId).trim() !== '';
+    const projectId = normalizeId(rawProjectId);
     const receiptDate = String(formData.get('receipt_date') || '').trim();
     const payerAccount = String(formData.get('payer_account') || '').trim();
     const remark = String(formData.get('remark') || '').trim();
 
     if (!file) return NextResponse.json({ error: '请选择要上传的回单原图' }, { status: 400 });
+    if (hasProjectId && !projectId) {
+      return NextResponse.json({ error: '项目ID无效' }, { status: 400 });
+    }
     if (!receiptDate || !normalizeYearMonth(receiptDate)) {
       return NextResponse.json({ error: '请选择回单日期' }, { status: 400 });
     }
@@ -54,8 +59,25 @@ export async function POST(request: NextRequest) {
 
     const client = getSupabaseClient();
     const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
-    if (accessibleProjectIds !== null && projectId && !accessibleProjectIds.includes(projectId)) {
-      return NextResponse.json({ error: '无权在该项目下上传生活费回单' }, { status: 403 });
+    if (accessibleProjectIds !== null) {
+      if (!projectId) {
+        return NextResponse.json({ error: '普通账号上传生活费回单必须选择项目' }, { status: 400 });
+      }
+      if (!accessibleProjectIds.includes(projectId)) {
+        return NextResponse.json({ error: '无权在该项目下上传生活费回单' }, { status: 403 });
+      }
+    }
+
+    if (projectId) {
+      const { data: project, error: projectError } = await client
+        .from('projects')
+        .select('id')
+        .eq('id', projectId)
+        .maybeSingle();
+      if (projectError) throw new Error(`查询项目信息失败: ${projectError.message}`);
+      if (!project) {
+        return NextResponse.json({ error: '项目不存在' }, { status: 404 });
+      }
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

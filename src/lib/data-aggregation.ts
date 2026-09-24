@@ -263,6 +263,41 @@ export interface GlobalSummary {
   costIncomeRate: number;
 }
 
+function getEmptyGlobalSummary(): GlobalSummary {
+  return {
+    totalProjects: 0,
+    activeProjects: 0,
+    totalWorkers: 0,
+    inServiceWorkers: 0,
+    leftWorkers: 0,
+    totalInvoice: 0,
+    totalVisa: 0,
+    totalTaxableIncome: 0,
+    totalUntaxedIncome: 0,
+    totalTax: 0,
+    totalSettlement: 0,
+    totalSalary: 0,
+    totalExpense: 0,
+    totalMiscMaterial: 0,
+    totalCost: 0,
+    totalProfit: 0,
+    profitRate: 0,
+    totalClientPaid: 0,
+    totalSupplierPaid: 0,
+    totalWorkerPaid: 0,
+    totalSupplierPayableBase: 0,
+    totalReceivable: 0,
+    totalSupplierPayable: 0,
+    totalWorkerPayable: 0,
+    totalPayable: 0,
+    netCashFlow: 0,
+    fundingGapAmount: 0,
+    overallPaymentRate: 0,
+    payablePaymentRate: 0,
+    costIncomeRate: 0,
+  };
+}
+
 export interface ProjectListItem {
   id: number;
   name: string;
@@ -1115,9 +1150,13 @@ export async function getGlobalSummary(
   dateRange?: DateRange,
   projectIds?: number[]
 ): Promise<GlobalSummary> {
-  const sortedIds = projectIds && projectIds.length > 0 ? [...projectIds].sort((a, b) => a - b) : [];
+  const sortedIds = projectIds === undefined
+    ? 'all'
+    : projectIds.length === 0
+      ? 'none'
+      : [...new Set(projectIds)].sort((a, b) => a - b).join(',');
   return cached(
-    buildAggCacheKey(['gs', sortedIds.join(','), dateRange?.start, dateRange?.end]),
+    buildAggCacheKey(['gs', sortedIds, dateRange?.start, dateRange?.end]),
     { ttlMs: AGG_CACHE_TTL_MS, prefix: AGG_CACHE_PREFIX },
     () => getGlobalSummaryImpl(dateRange, projectIds)
   );
@@ -1127,11 +1166,15 @@ async function getGlobalSummaryImpl(
   dateRange?: DateRange,
   projectIds?: number[]
 ): Promise<GlobalSummary> {
+  if (projectIds !== undefined && projectIds.length === 0) {
+    return getEmptyGlobalSummary();
+  }
+
   const client = getSupabaseClient();
 
   // 获取项目列表
   let projectsQuery = client.from('projects').select('id, name, status').neq('name', PUBLIC_LOG_PROJECT_NAME);
-  if (projectIds && projectIds.length > 0) {
+  if (projectIds !== undefined) {
     projectsQuery = projectsQuery.in('id', projectIds);
   }
   const { data: projects } = await projectsQuery;
@@ -1142,7 +1185,7 @@ async function getGlobalSummaryImpl(
 
   // 工人统计
   let workersQuery = client.from('workers').select('id, status, project_id');
-  if (projectIds && projectIds.length > 0) {
+  if (projectIds !== undefined) {
     workersQuery = workersQuery.in('project_id', projectIds);
   }
   const { data: workersData } = await workersQuery;
@@ -1229,6 +1272,10 @@ async function getGlobalSummaryImpl(
 export async function getProjectListSummary(
   projectIds?: number[]
 ): Promise<ProjectListItem[]> {
+  if (projectIds !== undefined && projectIds.length === 0) {
+    return [];
+  }
+
   const client = getSupabaseClient();
 
   let projectsQuery = client
@@ -1237,7 +1284,7 @@ export async function getProjectListSummary(
     .neq('name', PUBLIC_LOG_PROJECT_NAME)
     .order('created_at', { ascending: false });
 
-  if (projectIds && projectIds.length > 0) {
+  if (projectIds !== undefined) {
     projectsQuery = projectsQuery.in('id', projectIds);
   }
 
@@ -1245,9 +1292,13 @@ export async function getProjectListSummary(
   if (!projects || projects.length === 0) return [];
 
   // 批量查询工人统计
-  const { data: workers } = await client
+  let workersQuery = client
     .from('workers')
     .select('id, status, project_id');
+  if (projectIds !== undefined) {
+    workersQuery = workersQuery.in('project_id', projectIds);
+  }
+  const { data: workers } = await workersQuery;
 
   const workerMap = new Map<number, { total: number; inService: number; left: number }>();
   (workers || []).forEach(w => {

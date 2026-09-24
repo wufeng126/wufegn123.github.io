@@ -5,6 +5,8 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { syncAllSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { syncLivingAllowancesToSalary } from '@/lib/living-allowance';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 import * as XLSX from 'xlsx';
 
 // 将各种日期格式统一为 YYYY-MM
@@ -88,6 +90,11 @@ type ImportIssue = {
   reason: string;
 };
 
+function parsePositiveId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 // GET: 下载导入模板
 export async function GET() {
   try {
@@ -126,11 +133,41 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || '';
     const client = getSupabaseClient();
 
-    // ========== 获取所有工人和项目（用于姓名匹配） ==========
-    const { data: workersData } = await client.from('workers').select('id, name, project_id, id_card');
-    const { data: projectsData } = await client.from('projects').select('id, name');
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const isSuperAdmin = accessibleProjectIds === null;
+    if (!isSuperAdmin && accessibleProjectIds.length === 0) {
+      return NextResponse.json({ error: '当前账号没有可导入工资的项目权限' }, { status: 403 });
+    }
+
+    // 仅读取当前账号可访问项目中的工人和项目，避免导入匹配阶段拿到其他项目数据。
+    let workersQuery = client.from('workers').select('id, name, project_id, id_card');
+    if (!isSuperAdmin) {
+      workersQuery = workersQuery.in('project_id', accessibleProjectIds);
+    }
+    const { data: workersData, error: workersError } = await workersQuery;
+    if (workersError) {
+      throw new Error(`查询工人档案失败: ${workersError.message}`);
+    }
+
+    let projectsQuery = client.from('projects').select('id, name');
+    if (!isSuperAdmin) {
+      projectsQuery = projectsQuery.in('id', accessibleProjectIds);
+    }
+    const { data: projectsData, error: projectsError } = await projectsQuery;
+    if (projectsError) {
+      throw new Error(`查询项目列表失败: ${projectsError.message}`);
+    }
+
     const workersList = workersData || [];
     const projectsList = projectsData || [];
+    const workerProjectRelations = await getWorkerProjectRelations(
+      client,
+      workersList.map((worker: any) => Number(worker.id)).filter((id: number) => Number.isInteger(id) && id > 0),
+    );
+    const isAccessibleProject = (projectId: unknown) => {
+      const parsedProjectId = parsePositiveId(projectId);
+      return parsedProjectId !== null && (isSuperAdmin || accessibleProjectIds.includes(parsedProjectId));
+    };
 
     const recordsToInsert: any[] = [];
     const errors: string[] = [];
@@ -369,22 +406,43 @@ export async function POST(request: NextRequest) {
         const workerCandidates = idCard
           ? workersList.filter(w => normalizeIdCard((w as any).id_card) === idCard)
           : workersList.filter(w => String(w.name || '').trim() === workerName);
-        const worker = (projectId
-          ? workerCandidates.find(w => Number(w.project_id) === Number(projectId))
-          : undefined) || workerCandidates[0];
+        const worker = projectId
+          ? workerCandidates.find(w => workerProjectRelations.get(Number(w.id))?.has(Number(projectId)))
+          : workerCandidates[0];
 
         if (!worker) {
-          const reason = idCard
+          const reason = projectId && workerCandidates.length > 0
+            ? `工人"${workerName}"不属于项目"${projectName}"，已跳过`
+            : idCard
             ? `未找到身份证号"${idCard}"对应的工人档案`
             : `未找到工人"${workerName}"（不在花名册中）`;
-          notInRoster.push({ row: rowNumber, name: workerName, projectName, yearMonth, reason });
-          warnings.push(`第${rowNumber}行：${reason}`);
-          addIssue({ row: rowNumber, type: 'skipped', workerName, projectName, yearMonth, reason });
+          if (projectId && workerCandidates.length > 0) {
+            errors.push(`第${rowNumber}行：${reason}`);
+            addIssue({ row: rowNumber, type: 'error', workerName, projectName, yearMonth, reason });
+          } else {
+            notInRoster.push({ row: rowNumber, name: workerName, projectName, yearMonth, reason });
+            warnings.push(`第${rowNumber}行：${reason}`);
+            addIssue({ row: rowNumber, type: 'skipped', workerName, projectName, yearMonth, reason });
+          }
           continue;
         }
 
         if (!projectId) {
-          projectId = worker.project_id || null;
+          projectId = parsePositiveId(worker.project_id);
+        }
+
+        if (!projectId || !isAccessibleProject(projectId)) {
+          const reason = '工资记录缺少可访问的项目归属，已跳过';
+          errors.push(`第${rowNumber}行：${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName, projectName, yearMonth, reason });
+          continue;
+        }
+
+        if (!workerProjectRelations.get(Number(worker.id))?.has(projectId)) {
+          const reason = `工人"${workerName}"不属于项目"${projectName || projectId}"，已跳过`;
+          errors.push(`第${rowNumber}行：${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName, projectName, yearMonth, reason });
+          continue;
         }
 
         // 计算应发和实发
@@ -425,7 +483,8 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < salaries.length; i++) {
         const s = salaries[i];
         const rowNumber = i + 1;
-        if (!s.worker_id) {
+        const workerId = parsePositiveId(s.worker_id);
+        if (!workerId) {
           const reason = '缺少工人信息';
           errors.push(`第${rowNumber}条记录${reason}`);
           addIssue({ row: rowNumber, type: 'error', projectName: s.project_name, yearMonth: s.year_month, reason });
@@ -438,11 +497,38 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const workerId = parseInt(s.worker_id);
-        let projectId: number | null = s.project_id ? parseInt(s.project_id) : null;
+        let projectId: number | null = s.project_id !== undefined && s.project_id !== null && s.project_id !== ''
+          ? parsePositiveId(s.project_id)
+          : null;
+        if (s.project_id !== undefined && s.project_id !== null && s.project_id !== '' && !projectId) {
+          const reason = '项目ID无效';
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName: s.worker_name, projectName: s.project_name, reason });
+          continue;
+        }
+
+        const worker = workersList.find((item: any) => Number(item.id) === workerId);
+        if (!worker) {
+          const reason = '工人不存在或当前账号无权访问该工人';
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName: s.worker_name, projectName: s.project_name, reason });
+          continue;
+        }
+
         if (!projectId) {
-          const { data: worker } = await client.from('workers').select('project_id').eq('id', workerId).single();
-          projectId = worker?.project_id || null;
+          projectId = parsePositiveId(worker.project_id);
+        }
+        if (!projectId || !isAccessibleProject(projectId)) {
+          const reason = '工资记录缺少可访问的项目归属';
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName: s.worker_name, projectName: s.project_name, reason });
+          continue;
+        }
+        if (!workerProjectRelations.get(workerId)?.has(projectId)) {
+          const reason = '工人与工资所属项目不匹配';
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName: s.worker_name, projectName: s.project_name, reason });
+          continue;
         }
 
         const workHours = Number(s.work_hours) || 0;
@@ -457,6 +543,12 @@ export async function POST(request: NextRequest) {
 
         // 确保 year_month 格式为 YYYY-MM
         const normalizedYM = normalizeYearMonth(s.year_month);
+        if (!/^\d{4}-\d{2}$/.test(normalizedYM)) {
+          const reason = `月份格式错误"${s.year_month}"，应为YYYY-MM格式`;
+          errors.push(`第${rowNumber}条记录${reason}`);
+          addIssue({ row: rowNumber, type: 'error', workerName: s.worker_name, projectName: s.project_name, reason });
+          continue;
+        }
         importedYearMonths.add(normalizedYM);
 
         recordsToInsert.push({

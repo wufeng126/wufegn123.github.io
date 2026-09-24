@@ -4,6 +4,7 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { normalizeYearMonth, parseMoney, yearMonthFromDate } from '@/lib/living-allowance';
+import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -48,6 +49,18 @@ export async function POST(request: NextRequest) {
     const overrideWorkerId = normalizeId(body.worker_id);
     const overrideProjectId = normalizeId(body.project_id);
     if (!itemId) return NextResponse.json({ error: '缺少回单拆分明细ID' }, { status: 400 });
+    const hasProjectOverride = body.project_id !== null
+      && body.project_id !== undefined
+      && String(body.project_id).trim() !== '';
+    if (hasProjectOverride && !overrideProjectId) {
+      return NextResponse.json({ error: '项目ID无效' }, { status: 400 });
+    }
+    const hasWorkerOverride = body.worker_id !== null
+      && body.worker_id !== undefined
+      && String(body.worker_id).trim() !== '';
+    if (hasWorkerOverride && !overrideWorkerId) {
+      return NextResponse.json({ error: '工人ID无效' }, { status: 400 });
+    }
 
     const client = getSupabaseClient();
     const { data: item, error: itemError } = await client
@@ -78,13 +91,42 @@ export async function POST(request: NextRequest) {
     const receipt = Array.isArray((item as any).living_allowance_receipts)
       ? (item as any).living_allowance_receipts[0]
       : (item as any).living_allowance_receipts;
+    if (!receipt) return NextResponse.json({ error: '回单不存在' }, { status: 404 });
     const receiptProjectId = normalizeId(receipt?.project_id);
-    const itemProjectId = overrideProjectId || normalizeId((item as any).project_id) || receiptProjectId;
+    const storedItemProjectId = normalizeId((item as any).project_id);
+    const projectIds = [receiptProjectId, storedItemProjectId, overrideProjectId]
+      .filter((projectId): projectId is number => projectId !== null);
+    if (new Set(projectIds).size > 1) {
+      return NextResponse.json({ error: '父回单、拆分明细与覆盖项目不一致' }, { status: 400 });
+    }
 
     const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
-    if (accessibleProjectIds !== null && itemProjectId && !accessibleProjectIds.includes(itemProjectId)) {
-      return NextResponse.json({ error: '无权在该项目下生成生活费台账' }, { status: 403 });
+    if (accessibleProjectIds !== null) {
+      if (!receiptProjectId) {
+        return NextResponse.json({ error: '普通账号不能处理未指定项目的回单明细' }, { status: 403 });
+      }
+      if (projectIds.length === 0) {
+        return NextResponse.json({ error: '普通账号不能处理未指定项目的回单明细' }, { status: 403 });
+      }
+      if (projectIds.some(projectId => !accessibleProjectIds.includes(projectId))) {
+        return NextResponse.json({ error: '无权在该项目下生成生活费台账' }, { status: 403 });
+      }
     }
+
+    if (projectIds.length > 0) {
+      const { data: projects, error: projectsError } = await client
+        .from('projects')
+        .select('id')
+        .in('id', projectIds);
+      if (projectsError) throw new Error(`查询项目信息失败: ${projectsError.message}`);
+      const existingProjectIds = new Set((projects || []).map((project: any) => Number(project.id)));
+      const missingProjectId = projectIds.find(projectId => !existingProjectIds.has(projectId));
+      if (missingProjectId) {
+        return NextResponse.json({ error: `项目${missingProjectId}不存在` }, { status: 404 });
+      }
+    }
+
+    let projectId = overrideProjectId || storedItemProjectId || receiptProjectId || null;
 
     if ((item as any).matched_record_id) {
       const { data: existingRecord } = await client
@@ -92,7 +134,13 @@ export async function POST(request: NextRequest) {
         .select('*')
         .eq('id', (item as any).matched_record_id)
         .maybeSingle();
-      if (existingRecord) return NextResponse.json({ record: existingRecord, matched: true, reused: true });
+      if (existingRecord) {
+        const existingProjectId = normalizeId((existingRecord as any).project_id);
+        if (projectId && existingProjectId && projectId !== existingProjectId) {
+          return NextResponse.json({ error: '已生成的生活费台账与当前项目不一致' }, { status: 400 });
+        }
+        return NextResponse.json({ record: existingRecord, matched: true, reused: true });
+      }
     }
 
     const { data: duplicateRecord, error: duplicateError } = await client
@@ -103,6 +151,10 @@ export async function POST(request: NextRequest) {
 
     if (duplicateError) throw new Error(`检查重复生活费台账失败: ${duplicateError.message}`);
     if (duplicateRecord) {
+      const duplicateProjectId = normalizeId((duplicateRecord as any).project_id);
+      if (projectId && duplicateProjectId && projectId !== duplicateProjectId) {
+        return NextResponse.json({ error: '已有生活费台账与当前项目不一致' }, { status: 400 });
+      }
       await client
         .from('living_allowance_receipt_items')
         .update({
@@ -128,28 +180,54 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       if (error) throw new Error(`查询工人失败: ${error.message}`);
       worker = data;
+      if (!worker) return NextResponse.json({ error: '工人不存在' }, { status: 404 });
+      if (!projectId) {
+        projectId = normalizeId(worker.project_id);
+      }
+      if (!projectId) {
+        return NextResponse.json({ error: '工人未关联项目，无法生成生活费台账' }, { status: 400 });
+      }
+      const workerRelations = await getWorkerProjectRelations(client, [Number(worker.id)]);
+      if (!workerRelations.get(Number(worker.id))?.has(projectId)) {
+        return NextResponse.json({ error: '工人与回单所属项目不匹配' }, { status: 400 });
+      }
+      if (accessibleProjectIds !== null && !accessibleProjectIds.includes(projectId)) {
+        return NextResponse.json({ error: '无权在该项目下生成生活费台账' }, { status: 403 });
+      }
       matchScore = 100;
     } else {
-      let query = client
+      if (!projectId) {
+        return NextResponse.json({ error: '请先指定回单项目或手动选择工人' }, { status: 400 });
+      }
+      const matchingProjectId = projectId;
+
+      const { data: candidates, error } = await client
         .from('workers')
         .select('id, name, project_id, bank_card')
-        .eq('name', (item as any).recipient_name);
-
-      if (itemProjectId) query = query.eq('project_id', itemProjectId);
-      const { data, error } = await query.limit(5);
+        .eq('name', (item as any).recipient_name)
+        .limit(50);
       if (error) throw new Error(`匹配工人失败: ${error.message}`);
 
-      const candidates = data || [];
+      const candidateRows = candidates || [];
+      const candidateIds = candidateRows
+        .map((candidate: any) => normalizeId(candidate.id))
+        .filter((id): id is number => id !== null);
+      const relations = await getWorkerProjectRelations(client, candidateIds);
+      const projectCandidates = candidateRows.filter((candidate: any) => {
+        const candidateId = normalizeId(candidate.id);
+        return candidateId !== null && relations.get(candidateId)?.has(matchingProjectId);
+      });
+
       const bankTail = normalizeTail((item as any).bank_card_tail);
       const tailMatched = bankTail
-        ? candidates.find((candidate: any) => maskTail(candidate.bank_card) === bankTail.slice(-4))
+        ? projectCandidates.find((candidate: any) => maskTail(candidate.bank_card) === bankTail.slice(-4))
         : null;
-      worker = tailMatched || (candidates.length === 1 ? candidates[0] : null);
+      worker = tailMatched || (projectCandidates.length === 1 ? projectCandidates[0] : null);
 
       if (worker) {
         matchScore += 50;
-        if (itemProjectId && Number(worker.project_id) === Number(itemProjectId)) matchScore += 25;
         if (tailMatched) matchScore += 25;
+        if (normalizeId(worker.project_id) === matchingProjectId) matchScore += 25;
       }
     }
 
@@ -161,13 +239,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未能明确匹配工人，请在拆分明细中手动选择工人后再生成台账' }, { status: 400 });
     }
 
-    const projectId = itemProjectId || normalizeId(worker.project_id);
+    if (!projectId) {
+      return NextResponse.json({ error: '拆分明细缺少所属项目' }, { status: 400 });
+    }
+
+    if (accessibleProjectIds !== null && !accessibleProjectIds.includes(projectId)) {
+      return NextResponse.json({ error: '无权在该项目下生成生活费台账' }, { status: 403 });
+    }
+
+    const { data: finalProject, error: finalProjectError } = await client
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .maybeSingle();
+    if (finalProjectError) throw new Error(`查询项目信息失败: ${finalProjectError.message}`);
+    if (!finalProject) {
+      return NextResponse.json({ error: `项目${projectId}不存在` }, { status: 404 });
+    }
+
     const allowanceDate = String((item as any).payment_date || receipt?.receipt_date || '').slice(0, 20);
     const yearMonth = normalizeYearMonth(body.year_month) || yearMonthFromDate(allowanceDate);
     const amount = parseMoney((item as any).amount);
 
-    if (!projectId || !allowanceDate || !yearMonth || amount <= 0) {
-      return NextResponse.json({ error: '拆分明细缺少项目、付款日期、所属月份或金额' }, { status: 400 });
+    if (!allowanceDate || !yearMonth || amount <= 0) {
+      return NextResponse.json({ error: '拆分明细缺少付款日期、所属月份或金额' }, { status: 400 });
     }
 
     const result = await insertWithSequenceFix('living_allowance_records', {

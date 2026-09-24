@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { syncLivingAllowancesToSalary } from '@/lib/living-allowance';
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -9,7 +10,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function normalizeId(value: unknown): number | null {
   const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -30,6 +31,12 @@ export async function POST(request: NextRequest) {
 
     if (error) throw new Error(`查询工资记录失败: ${error.message}`);
     if (!salary) return NextResponse.json({ error: '工资记录不存在' }, { status: 404 });
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const salaryProjectId = normalizeId((salary as any).project_id);
+    if (accessibleProjectIds !== null && (!salaryProjectId || !accessibleProjectIds.includes(salaryProjectId))) {
+      return NextResponse.json({ error: '无权同步该项目下的生活费' }, { status: 403 });
+    }
 
     const syncResult = await syncLivingAllowancesToSalary(client, salary as any);
     const { data: updatedSalary } = await client

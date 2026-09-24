@@ -336,8 +336,68 @@ const SUPPLIER_PAYMENT_API_ROUTES = [
   '/api/payments',
 ];
 
+const SALARY_PAYMENT_API_ROUTES = [
+  '/api/living-allowances',
+  '/api/worker-payments',
+];
+
 function isSupplierPaymentApiRoute(pathname: string): boolean {
   return SUPPLIER_PAYMENT_API_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
+}
+
+function isSalaryPaymentApiRoute(pathname: string): boolean {
+  return SALARY_PAYMENT_API_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
+}
+
+/**
+ * 工资发放权限存在历史编码：
+ * - salaries:pay：当前统一权限
+ * - salaries:pay_edit：旧权限中心和部分角色模板使用
+ * - salaries:pay_create / salaries:pay_delete：旧菜单拆分权限
+ *
+ * 保留这些编码的兼容关系，避免已有财务账号出现"页面能看到但无法保存"。
+ * 具体动作仍按 HTTP 方法收窄 create/delete 权限。
+ */
+function checkSalaryPaymentWritePermission(
+  method: string,
+  userPermissions: string[],
+): boolean {
+  const has = (permission: string) => userPermissions.includes(permission);
+  const hasBroadPaymentPermission = has('salaries:pay') || has('salaries:pay_edit');
+
+  if (method === 'POST') {
+    return hasBroadPaymentPermission || has('salaries:pay_create');
+  }
+  if (method === 'DELETE') {
+    return hasBroadPaymentPermission || has('salaries:pay_delete');
+  }
+  if (method === 'PUT' || method === 'PATCH') {
+    return hasBroadPaymentPermission;
+  }
+
+  return false;
+}
+
+/**
+ * 页面/菜单层的权限兼容判断。
+ *
+ * 工资发放历史上存在多套编码。页面入口允许具备查看/新增/编辑能力的角色进入，
+ * 但不因为仅有删除权限就放行，避免出现“只能删却能打开完整台账”的过宽入口。
+ */
+export function hasCompatiblePermission(
+  requiredPermission: string,
+  userPermissions: string[],
+): boolean {
+  if (userPermissions.includes(requiredPermission) || userPermissions.includes('*')) return true;
+
+  if (requiredPermission === 'salaries:pay') {
+    return (
+      userPermissions.includes('salaries:pay_edit') ||
+      userPermissions.includes('salaries:pay_create')
+    );
+  }
+
+  return false;
 }
 
 /**
@@ -394,6 +454,10 @@ export function checkApiWritePermission(
     if (method === 'PUT' || method === 'PATCH') {
       return userPermissions.includes('supplier_payments:edit');
     }
+  }
+
+  if (isSalaryPaymentApiRoute(pathname)) {
+    return checkSalaryPaymentWritePermission(method, userPermissions);
   }
 
   if (pathname === '/api/team-groups' && method === 'POST') {
@@ -484,7 +548,7 @@ export function hasRoutePermission(
 
   // 如果有 permission 字段，检查用户是否拥有该权限码
   if (config.permission) {
-    return userPermissions.includes(config.permission);
+    return hasCompatiblePermission(config.permission, userPermissions);
   }
 
   // 没有 permission 字段的路由默认放行

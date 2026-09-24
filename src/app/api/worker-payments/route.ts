@@ -5,10 +5,17 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 
 function parseAmount(value: any): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parsePositiveId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function isStandalonePaymentType(paymentType?: string | null) {
@@ -167,8 +174,19 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const startDate = searchParams.get('start_date');
     const endDate = searchParams.get('end_date');
+    const parsedWorkerId = workerId && workerId !== 'all' ? parsePositiveId(workerId) : null;
+
+    if (workerId && workerId !== 'all' && !parsedWorkerId) {
+      return NextResponse.json({ error: '无效的工人ID' }, { status: 400 });
+    }
 
     const client = getSupabaseClient();
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const isSuperAdmin = accessibleProjectIds === null;
+
+    if (!isSuperAdmin && accessibleProjectIds.length === 0) {
+      return NextResponse.json({ payments: [] });
+    }
     
     // 查询工资发放记录
     let query = client
@@ -193,8 +211,8 @@ export async function GET(request: NextRequest) {
       `)
       .order('payment_date', { ascending: false });
 
-    if (workerId && workerId !== 'all') {
-      query = query.eq('worker_id', parseInt(workerId));
+    if (parsedWorkerId !== null) {
+      query = query.eq('worker_id', parsedWorkerId);
     }
 
     if (startDate) {
@@ -205,19 +223,8 @@ export async function GET(request: NextRequest) {
       query = query.lte('payment_date', endDate);
     }
 
-    // 项目权限过滤：非超管仅返回其可访问项目的发放记录（防止越权查看全量工资发放）
-    const isSuperAdmin = auth.user.is_super_admin || auth.user.role === 'super_admin';
     if (!isSuperAdmin) {
-      const { data: userData } = await client
-        .from('users')
-        .select('managed_projects')
-        .eq('id', auth.user.id)
-        .maybeSingle();
-      const accessible = ((userData?.managed_projects || []) as number[]).map(Number);
-      if (accessible.length === 0) {
-        return NextResponse.json({ payments: [] });
-      }
-      query = query.in('project_id', accessible);
+      query = query.in('project_id', accessibleProjectIds);
     }
 
     const { data, error } = await query;
@@ -273,12 +280,47 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const workerId = parseInt(worker_id);
-    const projectId = parseInt(project_id);
+    const workerId = parsePositiveId(worker_id);
+    const projectId = parsePositiveId(project_id);
+    const salaryId = salary_id == null || salary_id === '' ? null : parsePositiveId(salary_id);
     const paymentAmount = parseAmount(amount);
 
+    if (!workerId || !projectId) {
+      return NextResponse.json({ error: '工人ID或项目ID无效' }, { status: 400 });
+    }
+    if (salary_id != null && salary_id !== '' && !salaryId) {
+      return NextResponse.json({ error: '工资核算单ID无效' }, { status: 400 });
+    }
     if (paymentAmount <= 0) {
       return NextResponse.json({ error: '发放金额必须大于0' }, { status: 400 });
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjectIds !== null && !accessibleProjectIds.includes(projectId)) {
+      return NextResponse.json({ error: '无权在该项目下新增工资发放记录' }, { status: 403 });
+    }
+
+    const [{ data: workerRecord, error: workerError }, { data: projectRecord, error: projectError }] = await Promise.all([
+      client.from('workers').select('id, project_id').eq('id', workerId).maybeSingle(),
+      client.from('projects').select('id').eq('id', projectId).maybeSingle(),
+    ]);
+
+    if (workerError) {
+      throw new Error(`查询工人信息失败: ${workerError.message}`);
+    }
+    if (projectError) {
+      throw new Error(`查询项目信息失败: ${projectError.message}`);
+    }
+    if (!workerRecord) {
+      return NextResponse.json({ error: '工人不存在' }, { status: 404 });
+    }
+    if (!projectRecord) {
+      return NextResponse.json({ error: '项目不存在' }, { status: 404 });
+    }
+
+    const workerProjectRelations = await getWorkerProjectRelations(client, [workerId]);
+    if (!workerProjectRelations.get(workerId)?.has(projectId)) {
+      return NextResponse.json({ error: '该工人与所选项目不匹配，无法创建工资发放记录' }, { status: 400 });
     }
 
     await ensurePaymentIsNotDuplicate(client, {
@@ -289,7 +331,7 @@ export async function POST(request: NextRequest) {
     });
 
     const matchedSalary = await resolveSalaryForPayment(client, {
-      salary_id,
+      salary_id: salaryId,
       worker_id: workerId,
       project_id: projectId,
       year_month,
@@ -327,7 +369,14 @@ export async function POST(request: NextRequest) {
       operationType: 'create',
       resourceType: 'salary_payment',
       resourceId: payment?.id || 0,
-      details: { salary_id: matchedSalary.salaryId, worker_id, project_id, amount, payment_date, payment_type },
+      details: {
+        salary_id: matchedSalary.salaryId,
+        worker_id: workerId,
+        project_id: projectId,
+        amount: paymentAmount,
+        payment_date,
+        payment_type,
+      },
       request,
     });
 
@@ -343,16 +392,16 @@ export async function POST(request: NextRequest) {
     await pushBusinessNotification({
       type: 'new_worker_payment',
       title: '新增工资发放',
-      content: `新增工资发放记录，金额: ¥${Number(amount).toLocaleString()}，发放日期: ${payment_date}`,
+      content: `新增工资发放记录，金额: ¥${paymentAmount.toLocaleString()}，发放日期: ${payment_date}`,
       severity: 'info',
-      projectId: project_id ? parseInt(String(project_id)) : undefined,
+      projectId,
       relatedId: payment?.id,
       relatedType: 'salary_payment',
       metadata: {
         payment_id: payment?.id,
         paymentId: payment?.id,
-        worker_id,
-        project_id,
+        worker_id: workerId,
+        project_id: projectId,
         workerName,
         projectName,
         year_month: resolvedYearMonth,
@@ -389,11 +438,33 @@ export async function DELETE(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const paymentId = parsePositiveId(id);
+    if (!paymentId) {
+      return NextResponse.json({ error: '无效的记录ID' }, { status: 400 });
+    }
+
+    const { data: existingPayment, error: fetchError } = await client
+      .from('salary_payments')
+      .select('id, salary_id, worker_id, project_id')
+      .eq('id', paymentId)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw new Error(`查询工资发放记录失败: ${fetchError.message}`);
+    }
+    if (!existingPayment) {
+      return NextResponse.json({ error: '工资发放记录不存在' }, { status: 404 });
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjectIds !== null && !accessibleProjectIds.includes(Number(existingPayment.project_id))) {
+      return NextResponse.json({ error: '无权删除该项目下的工资发放记录' }, { status: 403 });
+    }
 
     const { error } = await client
       .from('salary_payments')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', paymentId);
 
     if (error) {
       throw new Error(`删除发放记录失败: ${error.message}`);
@@ -402,12 +473,17 @@ export async function DELETE(request: NextRequest) {
     // 删除后全量重算，覆盖未直接挂 salary_id 但按工人/项目/月匹配的发放记录
     const { syncAllSalaryPaymentStatus } = await import('@/lib/business-logic');
     await syncAllSalaryPaymentStatus();
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'delete',
       resourceType: 'salary_payment',
-      resourceId: parseInt(id),
-      details: {},
+      resourceId: paymentId,
+      details: {
+        salary_id: existingPayment.salary_id,
+        worker_id: existingPayment.worker_id,
+        project_id: existingPayment.project_id,
+      },
       request,
     });
 

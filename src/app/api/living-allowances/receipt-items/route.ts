@@ -4,6 +4,7 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { parseMoney } from '@/lib/living-allowance';
+import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -39,9 +40,10 @@ function pickNumberSet(rows: any[], key: string) {
 }
 
 async function canAccessProject(client: ReturnType<typeof getSupabaseClient>, user: any, projectId?: number | null) {
-  if (!projectId) return true;
   const accessibleProjectIds = await getAccessibleProjectIds(client, user);
-  return accessibleProjectIds === null || accessibleProjectIds.includes(projectId);
+  if (accessibleProjectIds === null) return true;
+  if (!projectId) return false;
+  return accessibleProjectIds.includes(projectId);
 }
 
 export async function GET(request: NextRequest) {
@@ -91,6 +93,25 @@ export async function GET(request: NextRequest) {
     if (error) throw new Error(`查询回单拆分明细失败: ${error.message}`);
 
     const rows = data || [];
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const receiptProjectId = normalizeId((receipt as any).project_id);
+    const hasProjectConflict = rows.some((item: any) => {
+      const itemProjectId = normalizeId(item.project_id);
+      return receiptProjectId !== null && itemProjectId !== null && itemProjectId !== receiptProjectId;
+    });
+    if (hasProjectConflict) {
+      return NextResponse.json({ error: '回单拆分明细与父回单所属项目不一致' }, { status: 400 });
+    }
+    if (
+      accessibleProjectIds !== null
+      && rows.some((item: any) => {
+        const itemProjectId = normalizeId(item.project_id);
+        return itemProjectId !== null && !accessibleProjectIds.includes(itemProjectId);
+      })
+    ) {
+      return NextResponse.json({ error: '回单拆分明细中包含无权访问的项目' }, { status: 403 });
+    }
+
     const workerIds = pickNumberSet(rows, 'worker_id');
     const projectIds = pickNumberSet(rows, 'project_id');
     const [workersRes, projectsRes] = await Promise.all([
@@ -147,6 +168,8 @@ export async function POST(request: NextRequest) {
     if (!(await canAccessProject(client, auth.user, (receipt as any).project_id))) {
       return NextResponse.json({ error: '无权拆分该回单' }, { status: 403 });
     }
+    const receiptProjectId = normalizeId((receipt as any).project_id);
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
 
     const { data: existingItems, error: existingError } = await client
       .from('living_allowance_receipt_items')
@@ -165,7 +188,17 @@ export async function POST(request: NextRequest) {
         throw new Error(`第${index + 1}条明细请填写收款人和金额`);
       }
 
-      const projectId = normalizeId(item.project_id) || normalizeId((receipt as any).project_id);
+      const hasProjectId = item.project_id !== null
+        && item.project_id !== undefined
+        && String(item.project_id).trim() !== '';
+      const explicitProjectId = normalizeId(item.project_id);
+      if (hasProjectId && !explicitProjectId) {
+        throw new Error(`第${index + 1}条明细的项目ID无效`);
+      }
+      if (explicitProjectId && receiptProjectId && explicitProjectId !== receiptProjectId) {
+        throw new Error(`第${index + 1}条明细与父回单所属项目不一致`);
+      }
+      const projectId = explicitProjectId || receiptProjectId;
       return {
         receipt_id: receiptId,
         worker_id: normalizeId(item.worker_id),
@@ -182,10 +215,54 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    if (!auth.user.is_super_admin && rows.some(row => row.project_id)) {
-      const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
-      if (accessibleProjectIds !== null && !rows.every(row => !row.project_id || accessibleProjectIds.includes(row.project_id))) {
-        return NextResponse.json({ error: '拆分明细中包含无权访问的项目' }, { status: 403 });
+    const rowProjectIds = Array.from(new Set(
+      rows
+        .map(row => row.project_id)
+        .filter((id): id is number => id !== null),
+    ));
+    if (accessibleProjectIds !== null && rowProjectIds.some(projectId => !accessibleProjectIds.includes(projectId))) {
+      return NextResponse.json({ error: '拆分明细中包含无权访问的项目' }, { status: 403 });
+    }
+
+    if (rowProjectIds.length > 0) {
+      const { data: projects, error: projectsError } = await client
+        .from('projects')
+        .select('id')
+        .in('id', rowProjectIds);
+      if (projectsError) throw new Error(`查询项目失败: ${projectsError.message}`);
+      const existingProjectIds = new Set((projects || []).map((project: any) => Number(project.id)));
+      const missingProjectId = rowProjectIds.find(projectId => !existingProjectIds.has(projectId));
+      if (missingProjectId) {
+        return NextResponse.json({ error: `项目${missingProjectId}不存在` }, { status: 404 });
+      }
+    }
+
+    const workerIds = Array.from(new Set(
+      rows
+        .map(row => row.worker_id)
+        .filter((id): id is number => id !== null),
+    ));
+    const workerMap = new Map<number, any>();
+    if (workerIds.length > 0) {
+      const { data: workers, error: workersError } = await client
+        .from('workers')
+        .select('id, project_id')
+        .in('id', workerIds);
+      if (workersError) throw new Error(`查询工人信息失败: ${workersError.message}`);
+      for (const worker of workers || []) workerMap.set(Number((worker as any).id), worker);
+      const missingWorkerId = workerIds.find(workerId => !workerMap.has(workerId));
+      if (missingWorkerId) {
+        return NextResponse.json({ error: `工人${missingWorkerId}不存在` }, { status: 404 });
+      }
+    }
+
+    const workerRelations = await getWorkerProjectRelations(client, workerIds);
+    for (const row of rows) {
+      if (!row.worker_id || !row.project_id) continue;
+      if (!workerRelations.get(row.worker_id)?.has(row.project_id)) {
+        return NextResponse.json({
+          error: `工人${row.worker_id}与第${rows.indexOf(row) + 1}条明细所属项目不匹配`,
+        }, { status: 400 });
       }
     }
 

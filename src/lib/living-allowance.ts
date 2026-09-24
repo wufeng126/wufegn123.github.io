@@ -49,6 +49,8 @@ export async function getPendingLivingAllowanceRecords(
 
   if (params.projectId != null) {
     query = query.eq('project_id', params.projectId);
+  } else {
+    query = query.is('project_id', null);
   }
 
   const { data, error } = await query;
