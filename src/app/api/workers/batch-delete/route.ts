@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { checkWorkerDeleteGuard } from '@/lib/worker-delete-guard';
 
 function normalizeIdList(value: unknown, maxCount = 200): number[] | null {
@@ -28,6 +29,34 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+
+    const { data: workers, error: workerQueryError } = await client
+      .from('workers')
+      .select('id, project_id')
+      .in('id', ids);
+
+    if (workerQueryError) {
+      throw new Error(`查询工人失败: ${workerQueryError.message}`);
+    }
+
+    const existingIds = new Set((workers || []).map((worker) => Number(worker.id)));
+    const missingIds = ids.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      return NextResponse.json(
+        { error: `以下工人不存在：${missingIds.join('、')}` },
+        { status: 404 },
+      );
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const hasInaccessibleWorker = (workers || []).some((worker) => (
+      worker.project_id != null
+      && accessibleProjectIds !== null
+      && !accessibleProjectIds.includes(Number(worker.project_id))
+    ));
+    if (hasInaccessibleWorker) {
+      return NextResponse.json({ error: '当前账号无权删除所选工人' }, { status: 403 });
+    }
 
     // 删除守卫：选中工人中，有出勤/工资核算/工资发放数据的整批阻止，并提示哪些工人
     const guard = await checkWorkerDeleteGuard(client, ids);

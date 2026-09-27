@@ -5,6 +5,13 @@ import { calculatePayableAmount, isVoidedStatus, REVIEW_STATUS } from '@/lib/bus
 import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import {
+  assertProjectAccess,
+  badProjectIdResponse,
+  emptyProjectScopeResponse,
+  getProjectAccessScope,
+  parseOptionalProjectId,
+} from '@/lib/api-project-scope';
 
 // GET /api/supplier-settlements - 获取供应商结算记录（简化版）
 export async function GET(request: NextRequest) {
@@ -17,11 +24,45 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('start_date');
     const endDate = searchParams.get('end_date');
     const supplierId = searchParams.get('supplier_id');
+    const projectId = searchParams.get('project_id');
+    const requestedProjectId = parseOptionalProjectId(projectId);
+    if (Number.isNaN(requestedProjectId)) return badProjectIdResponse();
+
+    const projectScope = await getProjectAccessScope(supabase, auth.user);
+    if (requestedProjectId && projectScope !== null && !projectScope.includes(requestedProjectId)) {
+      return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
+    }
+    if (!requestedProjectId && projectScope !== null && projectScope.length === 0) {
+      return emptyProjectScopeResponse({ settlements: [] });
+    }
+
+    let contractScopeQuery = supabase
+      .from('supplier_contracts')
+      .select('id, supplier_id, project_id');
+
+    if (requestedProjectId) {
+      contractScopeQuery = contractScopeQuery.eq('project_id', requestedProjectId);
+    } else if (projectScope !== null) {
+      contractScopeQuery = contractScopeQuery.in('project_id', projectScope);
+    }
+    if (supplierId && supplierId !== 'all') {
+      contractScopeQuery = contractScopeQuery.eq('supplier_id', parseInt(supplierId));
+    }
+
+    const { data: scopedContracts, error: scopedContractsError } = await contractScopeQuery;
+    if (scopedContractsError) throw scopedContractsError;
+
+    const visibleContracts = scopedContracts || [];
+    const visibleContractIds = visibleContracts.map((contract: any) => Number(contract.id)).filter(Boolean);
+    if (visibleContractIds.length === 0) {
+      return emptyProjectScopeResponse({ settlements: [] });
+    }
 
     // 获取结算数据
     let query = supabase
       .from('supplier_settlements')
       .select('id, settlement_date, settlement_type, settlement_amount, invoice_amount, tax_amount, remark, contract_id, status')
+      .in('contract_id', visibleContractIds)
       .order('settlement_date', { ascending: false });
 
     if (startDate) {
@@ -41,11 +82,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取关联的合同信息
-    const contractIds = [...new Set(activeSettlements.map((s: any) => s.contract_id).filter(Boolean))];
-    const { data: contracts } = await supabase
-      .from('supplier_contracts')
-      .select('id, supplier_id, project_id')
-      .in('id', contractIds);
+    const contracts = visibleContracts.filter((contract: any) => visibleContractIds.includes(Number(contract.id)));
 
     const contractMap: Record<number, any> = {};
     (contracts || []).forEach((c: any) => { contractMap[c.id] = c; });
@@ -71,7 +108,7 @@ export async function GET(request: NextRequest) {
     (projects || []).forEach((p: any) => { projectMap[p.id] = p.name; });
 
     // 格式化为前端需要的结构
-    let result = activeSettlements.map((s: any) => {
+    const result = activeSettlements.map((s: any) => {
       const contract = contractMap[s.contract_id] || {};
       return {
         id: s.id,
@@ -87,11 +124,6 @@ export async function GET(request: NextRequest) {
         remark: s.remark,
       };
     });
-
-    // 按供应商筛选
-    if (supplierId && supplierId !== 'all') {
-      result = result.filter((s: any) => s.supplier_id === parseInt(supplierId));
-    }
 
     return NextResponse.json({ settlements: result });
   } catch (error: any) {
@@ -116,6 +148,12 @@ export async function POST(request: NextRequest) {
     if (!amount || Number(amount) <= 0) {
       return NextResponse.json({ error: '请输入有效的结算金额' }, { status: 400 });
     }
+    const normalizedProjectId = Number(project_id || 0);
+    if (!Number.isInteger(normalizedProjectId) || normalizedProjectId <= 0) {
+      return NextResponse.json({ error: '请选择项目' }, { status: 400 });
+    }
+    const access = await assertProjectAccess(supabase, auth.user, normalizedProjectId);
+    if (!access.ok) return access.response;
 
     // 归一化结算类型：progress/milestone/final（兼容历史值如"月度结算"按 progress 处理）
     let normalizedType = settlement_type || 'progress';
@@ -129,7 +167,7 @@ export async function POST(request: NextRequest) {
       .from('supplier_contracts')
       .select('id')
       .eq('supplier_id', supplier_id)
-      .eq('project_id', project_id)
+      .eq('project_id', normalizedProjectId)
       .limit(1);
 
     let contractId: number;
@@ -148,7 +186,7 @@ export async function POST(request: NextRequest) {
         .from('supplier_contracts')
         .insert({
           supplier_id,
-          project_id,
+          project_id: normalizedProjectId,
           contract_name: `合同-${new Date().toISOString().split('T')[0]}`,
           contract_status: 'active',
           total_amount: 0,

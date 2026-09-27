@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveSupplierPaymentStatus, isVoidedStatus, parseNumeric } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, isReviewedStatus, isVoidedStatus, parseNumeric } from '@/lib/business-logic';
+import { requireAuth } from '@/lib/api-auth';
+import { emptyProjectScopeResponse, getProjectAccessScope } from '@/lib/api-project-scope';
 
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
@@ -38,6 +40,7 @@ type SettlementRecord = {
 type PaymentRecord = {
   supplier_id?: number | string | null;
   contract_id?: number | string | null;
+  project_id?: number | string | null;
   payment_amount?: number | string | null;
   payment_date?: string | null;
   status?: string | null;
@@ -84,11 +87,34 @@ function getContractStatusLabel(contracts: ContractRecord[]) {
   return `已签${activeContracts.length - pendingCount} / 待签${pendingCount}`;
 }
 
+function getEmptyAccountPayload() {
+  return {
+    suppliers: [],
+    summary: {
+      totalSuppliers: 0,
+      signedContracts: 0,
+      pendingContracts: 0,
+      supplierTypes: [],
+      totalSettlement: 0,
+      totalPaid: 0,
+      totalPending: 0,
+    },
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const supplierId = searchParams.get('supplier_id');
+    const projectScope = await getProjectAccessScope(supabase, auth.user);
+
+    if (projectScope !== null && projectScope.length === 0) {
+      return emptyProjectScopeResponse(getEmptyAccountPayload());
+    }
 
     let suppliersQuery = supabase
       .from('suppliers')
@@ -107,6 +133,9 @@ export async function GET(request: NextRequest) {
 
     const supplierRecords = (suppliers || []) as SupplierRecord[];
     const supplierIds = supplierRecords.map((supplier) => Number(supplier.id));
+    if (!supplierId && supplierIds.length === 0) {
+      return NextResponse.json(getEmptyAccountPayload());
+    }
 
     let contractsQuery = supabase
       .from('supplier_contracts')
@@ -117,6 +146,9 @@ export async function GET(request: NextRequest) {
       contractsQuery = contractsQuery.eq('supplier_id', parseInt(supplierId));
     } else if (supplierIds.length > 0) {
       contractsQuery = contractsQuery.in('supplier_id', supplierIds);
+    }
+    if (projectScope !== null) {
+      contractsQuery = contractsQuery.in('project_id', projectScope);
     }
 
     const { data: contracts, error: contractsError } = await contractsQuery;
@@ -153,7 +185,7 @@ export async function GET(request: NextRequest) {
     if (contractIds.length > 0) {
       const { data: settlements, error: settlementsError } = await supabase
         .from('supplier_settlements')
-        .select('contract_id, settlement_amount, settlement_date, settlement_type, status')
+        .select('contract_id, settlement_amount, payable_amount, settlement_date, settlement_type, status')
         .in('contract_id', contractIds);
 
       if (settlementsError) throw settlementsError;
@@ -163,7 +195,7 @@ export async function GET(request: NextRequest) {
     if (supplierIds.length > 0) {
       const { data: payments, error: paymentsError } = await supabase
         .from('supplier_payments')
-        .select('supplier_id, contract_id, payment_amount, payment_date, status')
+        .select('supplier_id, contract_id, project_id, payment_amount, payment_date, status')
         .in('supplier_id', supplierIds);
 
       if (paymentsError) throw paymentsError;
@@ -171,15 +203,21 @@ export async function GET(request: NextRequest) {
 
       // 老表结算/付款：挂 supplier_id 直连，不受合同关联缺失影响，补全台账
       // 老表（settlements/payments）为历史遗留表，生产库可能未建 → 表不存在时静默跳过，不能抛错导致整个接口 500
+      let legacySettlementsQuery = supabase
+        .from('settlements')
+        .select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type, settlement_month')
+        .in('supplier_id', supplierIds);
+      let legacyPaymentsQuery = supabase
+        .from('payments')
+        .select('supplier_id, project_id, payment_amount, payment_date')
+        .in('supplier_id', supplierIds);
+      if (projectScope !== null) {
+        legacySettlementsQuery = legacySettlementsQuery.in('project_id', projectScope);
+        legacyPaymentsQuery = legacyPaymentsQuery.in('project_id', projectScope);
+      }
       const [legacySettlementsRes, legacyPaymentsRes] = await Promise.all([
-        supabase
-          .from('settlements')
-          .select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type, settlement_month')
-          .in('supplier_id', supplierIds),
-        supabase
-          .from('payments')
-          .select('supplier_id, project_id, payment_amount, payment_date')
-          .in('supplier_id', supplierIds),
+        legacySettlementsQuery,
+        legacyPaymentsQuery,
       ]);
       if (legacySettlementsRes.error && !isMissingTableError(legacySettlementsRes.error)) {
         console.warn('[SupplierAccount] legacy settlements query failed:', legacySettlementsRes.error.message);
@@ -214,13 +252,18 @@ export async function GET(request: NextRequest) {
       if (pid) contractToProject.set(contractId, pid);
       contractsBySupplier.set(sid, [...(contractsBySupplier.get(sid) || []), contract]);
     });
+    const isProjectInScope = (projectId?: number | string | null) => {
+      if (projectScope === null) return true;
+      const pid = Number(projectId);
+      return Number.isInteger(pid) && projectScope.includes(pid);
+    };
 
     // D4 修复：老表+新表按指纹去重（新表为权威来源）。
     // 同笔结算/付款在迁移或双录入场景下两表并存：供应商+项目+金额+日期(+类型) 一致视为同一笔，
     // 老表重复项不再并入台账，避免重复计数。
     const newSettlementFingerprints = new Set<string>();
     settlementRecords.forEach((settlement) => {
-      if (isVoidedStatus(settlement.status)) return;
+      if (!isReviewedStatus(settlement.status)) return;
       const sid = contractToSupplier.get(Number(settlement.contract_id));
       const pid = contractToProject.get(Number(settlement.contract_id));
       if (!sid || !pid) return;
@@ -231,9 +274,10 @@ export async function GET(request: NextRequest) {
     const newPaymentFingerprints = new Set<string>();
     paymentRecords.forEach((payment) => {
       if (!isEffectiveSupplierPaymentStatus(payment.status)) return;
-      const sid = Number(payment.supplier_id) || contractToSupplier.get(Number(payment.contract_id));
-      const pid = contractToProject.get(Number(payment.contract_id));
-      if (!sid || !pid) return;
+      const contractId = Number(payment.contract_id);
+      const sid = Number(payment.supplier_id) || contractToSupplier.get(contractId);
+      const pid = contractId ? contractToProject.get(contractId) : Number(payment.project_id);
+      if (!sid || !pid || !isProjectInScope(pid)) return;
       newPaymentFingerprints.add(
         [sid, pid, roundMoney(parseNumeric(payment.payment_amount)), (payment.payment_date || '').trim()].join('|')
       );
@@ -242,9 +286,11 @@ export async function GET(request: NextRequest) {
     const settlementBySupplier = new Map<number, number>();
     const payableBySupplier = new Map<number, number>();
     settlementRecords.forEach((settlement) => {
-      if (isVoidedStatus(settlement.status)) return;
-      const sid = contractToSupplier.get(Number(settlement.contract_id));
-      if (!sid) return;
+      if (!isReviewedStatus(settlement.status)) return;
+      const contractId = Number(settlement.contract_id);
+      const sid = contractToSupplier.get(contractId);
+      const pid = contractToProject.get(contractId);
+      if (!sid || !pid || !isProjectInScope(pid)) return;
       const settlementAmount = parseNumeric(settlement.settlement_amount);
       // 口径统一（D1）：应付以 payable_amount 为准（进度结算按比例）；payable 缺失时用结算额兜底
       const payableAmount = parseNumeric(settlement.payable_amount) || settlementAmount;
@@ -255,8 +301,10 @@ export async function GET(request: NextRequest) {
     const paidBySupplier = new Map<number, number>();
     paymentRecords.forEach((payment) => {
       if (!isEffectiveSupplierPaymentStatus(payment.status)) return;
-      const sid = Number(payment.supplier_id) || contractToSupplier.get(Number(payment.contract_id));
-      if (!sid) return;
+      const contractId = Number(payment.contract_id);
+      const sid = Number(payment.supplier_id) || contractToSupplier.get(contractId);
+      const pid = contractId ? contractToProject.get(contractId) : Number(payment.project_id);
+      if (!sid || !pid || !isProjectInScope(pid)) return;
       paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + parseNumeric(payment.payment_amount));
     });
 
@@ -267,6 +315,7 @@ export async function GET(request: NextRequest) {
       if (!sid) return;
       const amount = parseNumeric(settlement.settlement_amount);
       const pid = Number(settlement.project_id) || 0;
+      if (!isProjectInScope(pid)) return;
       const fp = [sid, pid, roundMoney(amount), (settlement.settlement_date || '').trim(), (settlement.settlement_type || '').trim()].join('|');
       if (newSettlementFingerprints.has(fp)) return;
       settlementBySupplier.set(sid, (settlementBySupplier.get(sid) || 0) + amount);
@@ -277,6 +326,7 @@ export async function GET(request: NextRequest) {
       if (!sid) return;
       const amount = parseNumeric(payment.payment_amount);
       const pid = Number(payment.project_id) || 0;
+      if (!isProjectInScope(pid)) return;
       const fp = [sid, pid, roundMoney(amount), (payment.payment_date || '').trim()].join('|');
       if (newPaymentFingerprints.has(fp)) return;
       paidBySupplier.set(sid, (paidBySupplier.get(sid) || 0) + amount);
@@ -287,7 +337,19 @@ export async function GET(request: NextRequest) {
       projectNameMap.set(Number(project.id), project.name || '');
     });
 
-    const accountData = supplierRecords.map((supplier) => {
+    const accountSupplierRecords = projectScope === null
+      ? supplierRecords
+      : supplierRecords.filter((supplier) => {
+        const sid = Number(supplier.id);
+        return (
+          (contractsBySupplier.get(sid)?.length || 0) > 0 ||
+          settlementBySupplier.has(sid) ||
+          payableBySupplier.has(sid) ||
+          paidBySupplier.has(sid)
+        );
+      });
+
+    const accountData = accountSupplierRecords.map((supplier) => {
       const sid = Number(supplier.id);
       const supplierContracts = contractsBySupplier.get(sid) || [];
       const activeContracts = supplierContracts.filter((contract) => !isInactiveContract(contract.contract_status));

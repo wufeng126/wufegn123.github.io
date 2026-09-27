@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
-import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
-import { requireApiWritePermission } from '@/lib/api-auth';
+import { isEffectiveSupplierPaymentStatus, isReviewedStatus, isVoidedStatus } from '@/lib/business-logic';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { assertProjectAccess, badProjectIdResponse } from '@/lib/api-project-scope';
 
 function isFinalSettlementType(type?: string | null) {
   const normalized = String(type || '').trim().toLowerCase();
@@ -22,6 +23,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = getSupabaseClient();
 
@@ -37,6 +41,9 @@ export async function GET(
 
     if (error) throw error;
 
+    const access = await assertProjectAccess(supabase, auth.user, data?.project_id);
+    if (!access.ok) return access.response;
+
     // 获取结算统计
     const { data: settlements } = await supabase
       .from('supplier_settlements')
@@ -44,7 +51,7 @@ export async function GET(
       .eq('contract_id', id)
       .order('created_at', { ascending: false });
 
-    const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+    const activeSettlements = (settlements || []).filter((s: any) => isReviewedStatus(s.status));
 
     const totalSettlement = activeSettlements.reduce(
       (sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0
@@ -129,6 +136,18 @@ export async function PUT(
     if (!oldData) {
       return NextResponse.json({ error: '合同不存在' }, { status: 404 });
     }
+    const currentAccess = await assertProjectAccess(supabase, auth.user, oldData.project_id);
+    if (!currentAccess.ok) return currentAccess.response;
+    if (project_id !== undefined) {
+      const nextProjectId = project_id ? Number(project_id) : null;
+      if (nextProjectId && !Number.isInteger(nextProjectId)) return badProjectIdResponse();
+      if (nextProjectId) {
+        const nextAccess = await assertProjectAccess(supabase, auth.user, nextProjectId);
+        if (!nextAccess.ok) return nextAccess.response;
+      } else if (!auth.user.is_super_admin) {
+        return NextResponse.json({ error: '请选择有权限的项目' }, { status: 400 });
+      }
+    }
 
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user;
@@ -136,7 +155,7 @@ export async function PUT(
     const updateData: any = {};
     if (contract_no !== undefined) updateData.contract_no = contract_no;
     if (contract_name !== undefined) updateData.contract_name = contract_name;
-    if (project_id !== undefined) updateData.project_id = project_id;
+    if (project_id !== undefined) updateData.project_id = project_id || null;
     if (sign_date !== undefined) updateData.sign_date = sign_date || null;
     if (expire_date !== undefined) updateData.expire_date = expire_date || null;
     if (total_amount !== undefined) updateData.total_amount = total_amount === '' ? null : Number(total_amount);
@@ -198,9 +217,15 @@ export async function DELETE(
     // 获取合同名称用于日志
     const { data: contractData } = await supabase
       .from('supplier_contracts')
-      .select('contract_name')
+      .select('contract_name, project_id')
       .eq('id', id)
       .single();
+
+    if (!contractData) {
+      return NextResponse.json({ error: '合同不存在' }, { status: 404 });
+    }
+    const access = await assertProjectAccess(supabase, auth.user, contractData.project_id);
+    if (!access.ok) return access.response;
 
     // 删除保护：存在已审核/非草稿结算单或已生效付款时禁止删除（防止账务数据静默丢失）
     const { data: contractSettlements } = await supabase

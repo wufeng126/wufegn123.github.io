@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isSalaryPaymentLocked, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -19,6 +20,18 @@ const ALLOWED_BATCH_UPDATE_FIELDS = [
   'net_pay',
 ] as const;
 
+function normalizeIdList(value: unknown, maxCount = 500): number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxCount) return null;
+
+  const ids = value.map((item) => {
+    const id = typeof item === 'number' ? item : Number(item);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+
+  if (ids.some((id) => id === null)) return null;
+  return Array.from(new Set(ids as number[]));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiWritePermission(request);
@@ -26,8 +39,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { ids, field, value } = body;
+    const normalizedIds = normalizeIdList(ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    if (!normalizedIds) {
       return NextResponse.json({ error: 'Please provide salary record IDs to update.' }, { status: 400 });
     }
 
@@ -44,13 +58,37 @@ export async function POST(request: NextRequest) {
     const { data: existingRecords, error: fetchError } = await client
       .from('worker_salaries')
       .select('*')
-      .in('id', ids);
+      .in('id', normalizedIds);
 
     if (fetchError) {
       throw new Error(`Failed to query salary records: ${fetchError.message}`);
     }
 
-    const lockedRecords = (existingRecords || []).filter(record => isSalaryPaymentLocked(record.payment_status));
+    const records = existingRecords || [];
+    if (records.length !== normalizedIds.length) {
+      const existingIds = new Set(records.map(record => Number(record.id)));
+      const missingIds = normalizedIds.filter(id => !existingIds.has(id));
+      return NextResponse.json({
+        error: '部分工资记录不存在，未执行批量修改。',
+        missing_ids: missingIds,
+      }, { status: 404 });
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const unauthorizedRecords = accessibleProjectIds === null
+      ? []
+      : records.filter(record => (
+        !record.project_id || !accessibleProjectIds.includes(Number(record.project_id))
+      ));
+
+    if (unauthorizedRecords.length > 0) {
+      return NextResponse.json({
+        error: '包含无权操作的项目工资记录，未执行批量修改。',
+        unauthorized_ids: unauthorizedRecords.map(record => record.id),
+      }, { status: 403 });
+    }
+
+    const lockedRecords = records.filter(record => isSalaryPaymentLocked(record.payment_status));
     if (lockedRecords.length > 0) {
       return NextResponse.json({
         error: 'Salary records with payments cannot be batch updated.',
@@ -59,7 +97,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const updatePromises = (existingRecords || []).map(async (record) => {
+    const updatePromises = records.map(async (record) => {
       const nextValue = value ?? '0';
       const updateData: Record<string, string> = { [field]: nextValue };
 
@@ -101,11 +139,11 @@ export async function POST(request: NextRequest) {
 
     await Promise.all(updatePromises);
 
-    for (const id of ids) {
+    for (const id of normalizedIds) {
       await syncSalaryPaymentStatus(Number(id));
     }
 
-    return NextResponse.json({ success: true, count: ids.length });
+    return NextResponse.json({ success: true, count: normalizedIds.length });
   } catch (error: unknown) {
     console.error('API Error:', error);
     return NextResponse.json(

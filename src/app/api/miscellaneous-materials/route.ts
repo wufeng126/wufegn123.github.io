@@ -30,6 +30,14 @@ export async function GET(request: NextRequest) {
     
     // 获取用户可访问的项目列表
     const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const emptyPayload = {
+      materials: [],
+      pagination: { page, pageSize, total: 0, totalPages: 0 },
+      stats: { totalCount: 0, totalAmount: 0, projectStats: {} },
+    };
+    if (accessibleProjects !== null && accessibleProjects.length === 0) {
+      return NextResponse.json(emptyPayload);
+    }
     
     // 先获取总数
     let countQuery = client
@@ -40,11 +48,7 @@ export async function GET(request: NextRequest) {
     if (projectId && projectId !== 'all') {
       const pid = parseInt(projectId);
       if (accessibleProjects && !accessibleProjects.includes(pid)) {
-        return NextResponse.json({
-          materials: [],
-          pagination: { page, pageSize, total: 0, totalPages: 0 },
-          stats: { totalCount: 0, totalAmount: 0, projectStats: {} },
-        });
+        return NextResponse.json(emptyPayload);
       }
       countQuery = countQuery.eq('project_id', pid);
     } else if (accessibleProjects !== null) {
@@ -129,12 +133,12 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询零星材料统计失败: ${statsError.message}`);
     }
 
-    const activeData = ((statsData || []) as MiscMaterialStatsRow[]).filter(item => !isVoidedStatus(item.status || undefined));
+    const reviewedData = ((statsData || []) as MiscMaterialStatsRow[]).filter(item => isReviewedStatus(item.status || undefined));
 
     let totalAmount = 0;
     const projectStats: Record<string, number> = {};
 
-    activeData.forEach(item => {
+    reviewedData.forEach(item => {
       const amount = parseFloat(String(item.amount || '0'));
       totalAmount += amount;
 
@@ -176,7 +180,7 @@ export async function GET(request: NextRequest) {
         totalPages,
       },
       stats: {
-        totalCount: activeData.length,
+        totalCount: reviewedData.length,
         totalAmount,
         projectStats,
       }
@@ -220,6 +224,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: `以下项目ID不存在: ${invalidProjects.join(', ')}` 
       }, { status: 400 });
+    }
+
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const unauthorizedProjects = accessibleProjects === null ? [] : projectIds.filter(id => !accessibleProjects.includes(id));
+    if (unauthorizedProjects.length > 0) {
+      return NextResponse.json({
+        error: `当前账号无权写入以下项目: ${unauthorizedProjects.join(', ')}`,
+      }, { status: 403 });
     }
 
     const insertData = records.map(record => {
@@ -293,7 +305,7 @@ export async function PUT(request: NextRequest) {
 
     const { data: currentMaterial, error: currentError } = await client
       .from('miscellaneous_materials')
-      .select('id, status, quantity, unit_price, amount')
+      .select('id, project_id, status, quantity, unit_price, amount')
       .eq('id', materialId)
       .single();
 
@@ -309,12 +321,25 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
     }
 
+    const targetProjectId = parseInt(project_id);
+    if (!Number.isInteger(targetProjectId)) {
+      return NextResponse.json({ error: '请选择项目' }, { status: 400 });
+    }
+
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (
+      accessibleProjects !== null &&
+      (!accessibleProjects.includes(Number(currentMaterial.project_id)) || !accessibleProjects.includes(targetProjectId))
+    ) {
+      return NextResponse.json({ error: '当前账号无权修改该项目材料记录' }, { status: 403 });
+    }
+
     const qty = parseFloat(quantity) || 0;
     const price = parseFloat(unit_price) || 0;
     const amount = Math.round(qty * price * 100) / 100;
 
     const updateData: Record<string, any> = {
-      project_id: parseInt(project_id),
+      project_id: targetProjectId,
       material_name: material_name?.trim() || '未命名材料',
       unit: unit?.trim() || null,
       quantity: qty,
@@ -386,9 +411,18 @@ export async function DELETE(request: NextRequest) {
 
     const { data: currentMaterial } = await client
       .from('miscellaneous_materials')
-      .select('status')
+      .select('status, project_id')
       .eq('id', materialId)
       .single();
+
+    if (!currentMaterial) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects !== null && !accessibleProjects.includes(Number(currentMaterial?.project_id))) {
+      return NextResponse.json({ error: '当前账号无权删除该项目材料记录' }, { status: 403 });
+    }
 
     if (isReviewedStatus(currentMaterial?.status) || isVoidedStatus(currentMaterial?.status)) {
       return NextResponse.json({ error: '已审核或已作废记录不可删除' }, { status: 400 });

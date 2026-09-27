@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { isSalaryPaymentLocked } from '@/lib/business-logic';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 function normalizeIdList(value: unknown, maxCount = 500): number[] | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > maxCount) return null;
@@ -32,14 +33,38 @@ export async function POST(request: NextRequest) {
 
     const { data: salaryRecords, error: fetchError } = await client
       .from('worker_salaries')
-      .select('id, payment_status')
+      .select('id, project_id, payment_status')
       .in('id', ids);
 
     if (fetchError) {
       throw new Error(`Query salary records failed: ${fetchError.message}`);
     }
 
-    const lockedRecords = (salaryRecords || []).filter(record => isSalaryPaymentLocked(record.payment_status));
+    const records = salaryRecords || [];
+    if (records.length !== ids.length) {
+      const existingIds = new Set(records.map(record => Number(record.id)));
+      const missingIds = ids.filter(id => !existingIds.has(id));
+      return NextResponse.json({
+        error: '部分工资记录不存在，未执行批量删除。',
+        missing_ids: missingIds,
+      }, { status: 404 });
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const unauthorizedRecords = accessibleProjectIds === null
+      ? []
+      : records.filter(record => (
+        !record.project_id || !accessibleProjectIds.includes(Number(record.project_id))
+      ));
+
+    if (unauthorizedRecords.length > 0) {
+      return NextResponse.json({
+        error: '包含无权操作的项目工资记录，未执行批量删除。',
+        unauthorized_ids: unauthorizedRecords.map(record => record.id),
+      }, { status: 403 });
+    }
+
+    const lockedRecords = records.filter(record => isSalaryPaymentLocked(record.payment_status));
     if (lockedRecords.length > 0) {
       return NextResponse.json({
         error: 'Salary records with payments cannot be deleted.',

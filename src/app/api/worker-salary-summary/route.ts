@@ -1,14 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const year = searchParams.get('year');
     const projectId = searchParams.get('project_id');
     const workerId = searchParams.get('worker_id');
 
     const client = getSupabaseClient();
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    const requestedProjectId = projectId ? Number(projectId) : null;
+
+    if (requestedProjectId !== null && !Number.isInteger(requestedProjectId)) {
+      return NextResponse.json({ error: '项目参数无效' }, { status: 400 });
+    }
+
+    if (
+      requestedProjectId !== null &&
+      accessibleProjectIds !== null &&
+      !accessibleProjectIds.includes(requestedProjectId)
+    ) {
+      return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
+    }
+
+    // 普通用户没有任何项目权限时返回空结果，不能退化为查询全部项目。
+    if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+      return NextResponse.json({
+        summary: [],
+        total: 0,
+      });
+    }
     
     // 构建基础查询
     let query = client
@@ -37,8 +64,10 @@ export async function GET(request: NextRequest) {
     }
     
     // 应用项目筛选
-    if (projectId) {
-      query = query.eq('project_id', parseInt(projectId));
+    if (requestedProjectId !== null) {
+      query = query.eq('project_id', requestedProjectId);
+    } else if (accessibleProjectIds !== null) {
+      query = query.in('project_id', accessibleProjectIds);
     }
     
     // 应用工人筛选

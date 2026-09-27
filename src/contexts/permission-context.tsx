@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { isSuperAdminUser } from '@/lib/route-permissions';
+import { hasCompatiblePermission, isSuperAdminUser } from '@/lib/route-permissions';
 import { authFetch } from '@/lib/auth-client';
 
 // 权限定义 - 每个菜单项对应的权限代码
@@ -33,6 +33,7 @@ export const PERMISSION_MAP: Record<string, string[]> = {
   // === 人力工资模块 ===
   '/workers/roster': ['workers:view'],
   '/workers/salaries': ['salaries:view'],
+  '/workers/living-allowances': ['salaries:pay'],
   '/workers/query': ['salaries:query'],
   '/workers/payments': ['salaries:pay'],
   '/certificates': ['certificates:view'],
@@ -242,19 +243,19 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   // 检查是否有某个权限
   const hasPermission = useCallback((permission: string): boolean => {
     if (isSuperAdmin) return true;
-    return permissions.includes(permission) || permissions.includes('*');
+    return hasCompatiblePermission(permission, permissions);
   }, [permissions, isSuperAdmin]);
 
   // 检查是否有任意一个权限
   const hasAnyPermission = useCallback((perms: string[]): boolean => {
     if (isSuperAdmin) return true;
-    return perms.some(p => permissions.includes(p) || permissions.includes('*'));
+    return perms.some(p => hasCompatiblePermission(p, permissions));
   }, [permissions, isSuperAdmin]);
 
   // 检查是否拥有所有权限
   const hasAllPermissions = useCallback((perms: string[]): boolean => {
     if (isSuperAdmin) return true;
-    return perms.every(p => permissions.includes(p) || permissions.includes('*'));
+    return perms.every(p => hasCompatiblePermission(p, permissions));
   }, [permissions, isSuperAdmin]);
 
   // 检查是否能访问某个路径

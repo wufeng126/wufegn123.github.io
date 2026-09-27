@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
-import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
+import { isReviewedStatus, REVIEW_STATUS } from '@/lib/business-logic';
+import {
+  assertProjectAccess,
+  badProjectIdResponse,
+  emptyProjectScopeResponse,
+  getProjectAccessScope,
+  parseOptionalProjectId,
+} from '@/lib/api-project-scope';
 
 // 费用类型
 const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工', '办公用品', '其他杂费'];
@@ -21,10 +27,12 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
     
     // 获取用户可访问的项目列表
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjects = await getProjectAccessScope(client, auth.user);
     
     // 获取查询参数
     const projectId = searchParams.get('projectId');
+    const requestedProjectId = parseOptionalProjectId(projectId);
+    if (Number.isNaN(requestedProjectId)) return badProjectIdResponse();
     const expenseType = searchParams.get('expenseType');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
@@ -38,13 +46,15 @@ export async function GET(request: NextRequest) {
       .select('*, projects(name)', { count: 'exact' });
 
     // 项目过滤
-    if (projectId && projectId !== 'all') {
-      const pid = parseInt(projectId);
-      if (accessibleProjects && !accessibleProjects.includes(pid)) {
-        return NextResponse.json({ data: [], total: 0, page: 1, pageSize, stats: { total: '0', byType: {} } });
+    if (requestedProjectId) {
+      if (accessibleProjects && !accessibleProjects.includes(requestedProjectId)) {
+        return NextResponse.json({ expenses: [], pagination: { page, pageSize, total: 0, totalPages: 0 }, stats: { totalCount: 0, totalAmount: 0, typeStats: {}, projectStats: {} } });
       }
-      query = query.eq('project_id', pid);
+      query = query.eq('project_id', requestedProjectId);
     } else if (accessibleProjects !== null) {
+      if (accessibleProjects.length === 0) {
+        return emptyProjectScopeResponse({ expenses: [], pagination: { page, pageSize, total: 0, totalPages: 0 }, stats: { totalCount: 0, totalAmount: 0, typeStats: {}, projectStats: {} } });
+      }
       query = query.in('project_id', accessibleProjects);
     }
     
@@ -80,8 +90,8 @@ export async function GET(request: NextRequest) {
       .from('comprehensive_expenses')
       .select('id, expense_type, amount, project_id, expense_date, status');
 
-    if (projectId && projectId !== 'all') {
-      statsQuery = statsQuery.eq('project_id', parseInt(projectId));
+    if (requestedProjectId) {
+      statsQuery = statsQuery.eq('project_id', requestedProjectId);
     } else if (accessibleProjects !== null) {
       statsQuery = statsQuery.in('project_id', accessibleProjects);
     }
@@ -96,22 +106,22 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: allExpenses } = await statsQuery;
-    const activeExpenses = (allExpenses || []).filter((e: any) => !isVoidedStatus(e.status));
+    const reviewedExpenses = (allExpenses || []).filter((e: any) => isReviewedStatus(e.status));
     const expenses = (data || []).map((e: any) => ({
       ...e,
       status: e.status || REVIEW_STATUS.DRAFT,
     }));
 
     // 计算统计数据
-    const totalCount = activeExpenses.length;
-    const totalAmount = activeExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+    const totalCount = reviewedExpenses.length;
+    const totalAmount = reviewedExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
     
     // 按类型统计
     const typeStats: Record<string, number> = {};
     EXPENSE_TYPES.forEach(type => {
       typeStats[type] = 0;
     });
-    activeExpenses.forEach(e => {
+    reviewedExpenses.forEach(e => {
       if (typeStats[e.expense_type] !== undefined) {
         typeStats[e.expense_type] += parseFloat(e.amount) || 0;
       }
@@ -119,7 +129,7 @@ export async function GET(request: NextRequest) {
 
     // 按项目统计
     const projectStats: Record<number, { name: string; amount: number; count: number }> = {};
-    activeExpenses.forEach(e => {
+    reviewedExpenses.forEach(e => {
       if (e.project_id) {
         if (!projectStats[e.project_id]) {
           projectStats[e.project_id] = { name: '', amount: 0, count: 0 };
@@ -203,10 +213,21 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    const normalizedProjectId = project_id ? Number(project_id) : null;
+    if (normalizedProjectId && !Number.isInteger(normalizedProjectId)) {
+      return badProjectIdResponse();
+    }
+    if (normalizedProjectId) {
+      const access = await assertProjectAccess(client, auth.user, normalizedProjectId);
+      if (!access.ok) return access.response;
+    } else if (!auth.user.is_super_admin) {
+      return NextResponse.json({ error: '请选择有权限的项目' }, { status: 400 });
+    }
+
     const { data: expData, error: expError } = await insertWithSequenceFix(
       'comprehensive_expenses',
       {
-        project_id: project_id || null,
+        project_id: normalizedProjectId,
         expense_type,
         amount: parseFloat(amount),
         expense_date,

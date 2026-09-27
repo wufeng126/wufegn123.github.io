@@ -6,6 +6,9 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getWorkerProjectRelations } from '@/lib/worker-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 type DbRow = Record<string, any>;
 
@@ -33,6 +36,30 @@ type ParsedPaymentRow = {
   remark?: string | null;
   create_worker?: boolean;
 };
+
+class ImportValidationError extends Error {
+  status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = 'ImportValidationError';
+    this.status = status;
+  }
+}
+
+function parsePositiveId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeIdList(value: unknown, maxCount = 500): number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxCount) return null;
+
+  const ids = value.map((item) => parsePositiveId(item));
+  if (ids.some((id) => id === null)) return null;
+
+  return Array.from(new Set(ids as number[]));
+}
 
 function parseAmount(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -176,7 +203,7 @@ function parseCsv(text: string) {
 async function readRowsFromFile(file: File) {
   const fileName = file.name.toLowerCase();
   if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls') && !fileName.endsWith('.csv')) {
-    throw new Error('请上传 Excel 文件（.xlsx/.xls）或 CSV 文件');
+    throw new ImportValidationError('请上传 Excel 文件（.xlsx/.xls）或 CSV 文件');
   }
 
   const buffer = await file.arrayBuffer();
@@ -194,9 +221,13 @@ async function readRowsFromFile(file: File) {
   return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false }) as any[][];
 }
 
-async function analyzeRows(rows: any[][]) {
+async function analyzeRows(
+  rows: any[][],
+  client: ReturnType<typeof getSupabaseClient>,
+  accessibleProjectIds: number[] | null,
+) {
   if (rows.length < 2) {
-    throw new Error('文件内容为空或格式不正确');
+    throw new ImportValidationError('文件内容为空或格式不正确');
   }
 
   const nameKeywords = ['工人姓名', '姓名', '工人', '员工姓名', '员工'];
@@ -230,24 +261,45 @@ async function analyzeRows(rows: any[][]) {
   if (amountIdx === -1) missingCols.push('实发金额');
 
   if (missingCols.length > 0) {
-    throw new Error(`缺少必要列：${missingCols.join('、')}。当前表头：${headers.join('、')}`);
+    throw new ImportValidationError(`缺少必要列：${missingCols.join('、')}。当前表头：${headers.join('、')}`);
   }
 
-  const client = getSupabaseClient();
-  const [{ data: workersData }, { data: projectsData }] = await Promise.all([
+  const [{ data: workersData, error: workersError }, projectsResult] = await Promise.all([
     client.from('workers').select('id, name, id_card'),
-    client.from('projects').select('id, name'),
+    (() => {
+      let query = client.from('projects').select('id, name');
+      if (accessibleProjectIds !== null) {
+        query = query.in('id', accessibleProjectIds);
+      }
+      return query;
+    })(),
   ]);
 
+  if (workersError) {
+    throw new Error(`查询工人档案失败：${workersError.message}`);
+  }
+  if (projectsResult.error) {
+    throw new Error(`查询项目列表失败：${projectsResult.error.message}`);
+  }
+
   const allWorkers = (workersData || []) as Array<{ id: number; name: string | null; id_card: string | null }>;
-  const workerMap = new Map(allWorkers
-    .filter((worker: any) => normalizeIdCard(worker.id_card))
-    .map((worker: any) => [normalizeIdCard(worker.id_card), worker]));
+  const workerProjectRelations = await getWorkerProjectRelations(
+    client,
+    allWorkers.map((worker) => Number(worker.id)).filter((id) => Number.isInteger(id) && id > 0),
+  );
+  const workersByIdCard = new Map<string, typeof allWorkers>();
+  allWorkers.forEach((worker) => {
+    const idCard = normalizeIdCard(worker.id_card);
+    if (!idCard) return;
+    const workers = workersByIdCard.get(idCard) || [];
+    workers.push(worker);
+    workersByIdCard.set(idCard, workers);
+  });
   // 工人 id -> 归一化姓名，用于工资核算单按姓名回退匹配（如调离人员、Excel 缺身份证）
   const workerNameById = new Map<number, string>(
     allWorkers.map((w: any) => [Number(w.id), normalizeText(w.name)]),
   );
-  const projectMap = new Map((projectsData || []).map((project: any) => [normalizeText(project.name), project]));
+  const projectMap = new Map((projectsResult.data || []).map((project: any) => [normalizeText(project.name), project]));
   const batchDuplicateKeys = new Set<string>();
   const parsedRows: ParsedPaymentRow[] = [];
   const issues: ImportIssue[] = [];
@@ -300,7 +352,18 @@ async function analyzeRows(rows: any[][]) {
 
     if (blocked || !project) continue;
 
-    const worker = workerMap.get(idCard);
+    const workerCandidates = workersByIdCard.get(idCard) || [];
+    const worker = workerCandidates.find((candidate) =>
+      workerProjectRelations.get(Number(candidate.id))?.has(Number(project.id))
+    );
+    if (!worker && workerCandidates.length > 0) {
+      block(
+        'worker_project_mismatch',
+        `工人“${workerName}”不属于项目“${project.name}”，已拦截`,
+      );
+    }
+    if (blocked) continue;
+
     const parsed: ParsedPaymentRow = {
       row: rowNo,
       worker_name: workerName,
@@ -512,8 +575,178 @@ async function analyzeRows(rows: any[][]) {
   };
 }
 
-async function ensureMissingWorkers(rows: ParsedPaymentRow[]) {
-  const client = getSupabaseClient();
+async function validateConfirmRows(
+  rows: unknown,
+  client: ReturnType<typeof getSupabaseClient>,
+  accessibleProjectIds: number[] | null,
+) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new ImportValidationError('没有可导入的工资发放数据');
+  }
+  if (rows.length > 1000) {
+    throw new ImportValidationError('单次最多确认导入1000条工资发放记录');
+  }
+
+  const normalizedRows = (rows as Array<Record<string, unknown>>).map((raw, index): ParsedPaymentRow => {
+    const projectId = parsePositiveId(raw.project_id);
+    const workerId = raw.worker_id == null || raw.worker_id === '' ? null : parsePositiveId(raw.worker_id);
+    const salaryId = raw.salary_id == null || raw.salary_id === '' ? null : parsePositiveId(raw.salary_id);
+    const yearMonth = normalizeYearMonth(raw.year_month);
+    const paymentAmount = parseAmount(raw.payment_amount);
+    const paymentDate = String(raw.payment_date || '').trim();
+
+    if (!projectId) {
+      throw new ImportValidationError(`第${index + 1}行项目ID无效`);
+    }
+    if (raw.worker_id != null && raw.worker_id !== '' && !workerId) {
+      throw new ImportValidationError(`第${index + 1}行工人ID无效`);
+    }
+    if (raw.salary_id != null && raw.salary_id !== '' && !salaryId) {
+      throw new ImportValidationError(`第${index + 1}行工资核算单ID无效`);
+    }
+    if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
+      throw new ImportValidationError(`第${index + 1}行工资所属月份格式错误，应为 YYYY-MM`);
+    }
+    if (paymentAmount <= 0) {
+      throw new ImportValidationError(`第${index + 1}行发放金额必须大于0`);
+    }
+    if (!paymentDate) {
+      throw new ImportValidationError(`第${index + 1}行发放日期为空`);
+    }
+
+    return {
+      row: parsePositiveId(raw.row) || index + 1,
+      worker_name: String(raw.worker_name || '').trim(),
+      id_card: normalizeIdCard(String(raw.id_card || '')),
+      project_name: String(raw.project_name || '').trim(),
+      project_id: projectId,
+      worker_id: workerId,
+      salary_id: salaryId,
+      year_month: yearMonth,
+      payment_amount: paymentAmount,
+      payment_date: paymentDate,
+      payment_type: String(raw.payment_type || '月度工资').trim() || '月度工资',
+      remark: raw.remark == null ? null : String(raw.remark).trim() || null,
+      create_worker: raw.create_worker === true && !workerId,
+    };
+  });
+
+  const projectIds = [...new Set(normalizedRows.map((row) => row.project_id))];
+  if (
+    accessibleProjectIds !== null &&
+    normalizedRows.some((row) => !accessibleProjectIds.includes(row.project_id))
+  ) {
+    throw new ImportValidationError('导入数据包含当前账号无权访问的项目，批量导入已取消', 403);
+  }
+
+  const { data: projects, error: projectsError } = await client
+    .from('projects')
+    .select('id, name')
+    .in('id', projectIds);
+  if (projectsError) {
+    throw new Error(`查询项目列表失败：${projectsError.message}`);
+  }
+
+  const projectMap = new Map((projects || []).map((project: any) => [Number(project.id), project]));
+  normalizedRows.forEach((row) => {
+    const project = projectMap.get(row.project_id);
+    if (!project) {
+      throw new ImportValidationError(`项目ID ${row.project_id} 不存在`, 404);
+    }
+    row.project_name = String(project.name || row.project_name || '');
+  });
+
+  const workerIds = [...new Set(
+    normalizedRows
+      .map((row) => row.worker_id)
+      .filter((id): id is number => id !== null),
+  )];
+  const workers = workerIds.length > 0
+    ? await client.from('workers').select('id, name, id_card, project_id').in('id', workerIds)
+    : { data: [], error: null };
+
+  if (workers.error) {
+    throw new Error(`查询工人档案失败：${workers.error.message}`);
+  }
+
+  const workerMap = new Map((workers.data || []).map((worker: any) => [Number(worker.id), worker]));
+  const relations = await getWorkerProjectRelations(client, workerIds);
+
+  for (const row of normalizedRows) {
+    if (!row.worker_id) {
+      if (!row.create_worker || !row.worker_name || !row.id_card) {
+        throw new ImportValidationError(`第${row.row}行缺少可确认的工人信息`);
+      }
+      continue;
+    }
+
+    const worker = workerMap.get(row.worker_id);
+    if (!worker) {
+      throw new ImportValidationError(`第${row.row}行工人不存在，批量导入已取消`, 404);
+    }
+    row.worker_name = String(worker.name || row.worker_name || '').trim();
+    if (!relations.get(row.worker_id)?.has(row.project_id)) {
+      throw new ImportValidationError(`第${row.row}行工人与工资所属项目不匹配，批量导入已取消`);
+    }
+  }
+
+  const newWorkerIdCards = [...new Set(
+    normalizedRows
+      .filter((row) => !row.worker_id && row.create_worker)
+      .map((row) => row.id_card)
+      .filter(Boolean),
+  )];
+  if (newWorkerIdCards.length > 0) {
+    const { data: existingWorkers, error: existingWorkersError } = await client
+      .from('workers')
+      .select('id, id_card')
+      .in('id_card', newWorkerIdCards);
+    if (existingWorkersError) {
+      throw new Error(`检查工人身份证号失败：${existingWorkersError.message}`);
+    }
+    if ((existingWorkers || []).length > 0) {
+      throw new ImportValidationError('确认数据时发现身份证号已存在，请重新上传并预览后再导入', 409);
+    }
+  }
+
+  const salaryIds = [...new Set(
+    normalizedRows
+      .map((row) => row.salary_id)
+      .filter((id): id is number => id !== null),
+  )];
+  if (salaryIds.length > 0) {
+    const { data: salaryRows, error: salaryError } = await client
+      .from('worker_salaries')
+      .select('id, worker_id, project_id, year_month')
+      .in('id', salaryIds);
+    if (salaryError) {
+      throw new Error(`查询工资核算单失败：${salaryError.message}`);
+    }
+
+    const salaryMap = new Map((salaryRows || []).map((salary: any) => [Number(salary.id), salary]));
+    for (const row of normalizedRows) {
+      if (!row.salary_id) continue;
+      const salary = salaryMap.get(row.salary_id);
+      if (!salary) {
+        throw new ImportValidationError(`第${row.row}行工资核算单不存在，批量导入已取消`, 404);
+      }
+      if (
+        Number(salary.worker_id) !== Number(row.worker_id) ||
+        Number(salary.project_id) !== row.project_id ||
+        String(salary.year_month) !== row.year_month
+      ) {
+        throw new ImportValidationError(`第${row.row}行工资发放信息与工资核算单不一致，批量导入已取消`);
+      }
+    }
+  }
+
+  return normalizedRows;
+}
+
+async function ensureMissingWorkers(
+  rows: ParsedPaymentRow[],
+  client: ReturnType<typeof getSupabaseClient>,
+) {
   const missingRows = rows.filter(row => row.create_worker && !row.worker_id);
   if (missingRows.length === 0) return rows;
 
@@ -556,15 +789,73 @@ async function ensureMissingWorkers(rows: ParsedPaymentRow[]) {
   });
 }
 
-async function confirmImport(rows: ParsedPaymentRow[], request: NextRequest) {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ error: '没有可导入的工资发放数据' }, { status: 400 });
+async function confirmImport(
+  rows: unknown,
+  request: NextRequest,
+  client: ReturnType<typeof getSupabaseClient>,
+  accessibleProjectIds: number[] | null,
+) {
+  const validatedRows = await validateConfirmRows(rows, client, accessibleProjectIds);
+  const rowsWithWorkers = await ensureMissingWorkers(validatedRows, client);
+  const finalRows = await validateConfirmRows(rowsWithWorkers, client, accessibleProjectIds);
+
+  const existingBusinessKeys = new Set<string>();
+  const existingIdentityKeys = new Set<string>();
+  const projectIds = [...new Set(finalRows.map((row) => row.project_id))];
+  const yearMonths = [...new Set(finalRows.map((row) => row.year_month))];
+  const { data: existingPayments, error: existingPaymentsError } = await client
+    .from('salary_payments')
+    .select('worker_id, project_id, year_month, payment_amount, workers(name), projects(name)')
+    .in('project_id', projectIds)
+    .in('year_month', yearMonths);
+  if (existingPaymentsError) {
+    throw new Error(`检查重复工资发放失败：${existingPaymentsError.message}`);
   }
 
-  const rowsWithWorkers = await ensureMissingWorkers(rows);
-  const client = getSupabaseClient();
+  (existingPayments || []).forEach((payment: any) => {
+    existingIdentityKeys.add(
+      `${Number(payment.worker_id)}:${Number(payment.project_id)}:${payment.year_month}:${parseAmount(payment.payment_amount).toFixed(2)}`,
+    );
 
-  const insertRows = rowsWithWorkers.map(row => ({
+    const workerName = normalizeText(payment.workers?.name);
+    const projectName = normalizeText(payment.projects?.name);
+    if (workerName && projectName) {
+      existingBusinessKeys.add(duplicatePaymentKey({
+        workerName,
+        projectName,
+        yearMonth: payment.year_month,
+        amount: payment.payment_amount,
+      }));
+    }
+  });
+
+  const importedBusinessKeys = new Set<string>();
+  const importedIdentityKeys = new Set<string>();
+  for (const row of finalRows) {
+    const identityKey = `${Number(row.worker_id)}:${row.project_id}:${row.year_month}:${row.payment_amount.toFixed(2)}`;
+    const businessKey = duplicatePaymentKey({
+      workerName: row.worker_name,
+      projectName: row.project_name,
+      yearMonth: row.year_month,
+      amount: row.payment_amount,
+    });
+    const hasBusinessIdentity = Boolean(normalizeText(row.worker_name) && normalizeText(row.project_name));
+
+    if (
+      existingIdentityKeys.has(identityKey) ||
+      importedIdentityKeys.has(identityKey) ||
+      (hasBusinessIdentity && (
+        existingBusinessKeys.has(businessKey) ||
+        importedBusinessKeys.has(businessKey)
+      ))
+    ) {
+      throw new ImportValidationError(`第${row.row}行工资发放记录已存在，批量导入已取消`, 409);
+    }
+    importedIdentityKeys.add(identityKey);
+    if (hasBusinessIdentity) importedBusinessKeys.add(businessKey);
+  }
+
+  const insertRows = finalRows.map(row => ({
     salary_id: row.salary_id || null,
     worker_id: row.worker_id,
     project_id: row.project_id,
@@ -584,6 +875,8 @@ async function confirmImport(rows: ParsedPaymentRow[], request: NextRequest) {
     return NextResponse.json({ error: `批量导入失败：${error.message}` }, { status: 500 });
   }
 
+  invalidateAggregationCache();
+
   const affectedSalaryIds = [...new Set(insertRows.map(row => row.salary_id).filter(Boolean))];
   for (const salaryId of affectedSalaryIds) {
     await syncSalaryPaymentStatus(Number(salaryId));
@@ -596,18 +889,18 @@ async function confirmImport(rows: ParsedPaymentRow[], request: NextRequest) {
     details: {
       action: 'batch_import_confirmed',
       count: data?.length || 0,
-      autoCreatedWorkers: rowsWithWorkers.filter(row => row.create_worker).length,
-      unmatchedSalary: rowsWithWorkers.filter(row => !row.salary_id).length,
+      autoCreatedWorkers: finalRows.filter(row => row.create_worker).length,
+      unmatchedSalary: finalRows.filter(row => !row.salary_id).length,
     },
     request,
   });
 
   if ((data?.length || 0) > 0) {
-    const importedYearMonths = [...new Set(rowsWithWorkers.map(row => row.year_month).filter(Boolean))];
-    const importedProjects = [...new Set(rowsWithWorkers.map(row => row.project_name).filter(Boolean))].slice(0, 5);
-    const autoCreatedWorkers = rowsWithWorkers.filter(row => row.create_worker).length;
-    const unmatchedSalary = rowsWithWorkers.filter(row => !row.salary_id).length;
-    const totalPaymentAmount = rowsWithWorkers.reduce((sum, row) => sum + parseAmount(row.payment_amount), 0);
+    const importedYearMonths = [...new Set(finalRows.map(row => row.year_month).filter(Boolean))];
+    const importedProjects = [...new Set(finalRows.map(row => row.project_name).filter(Boolean))].slice(0, 5);
+    const autoCreatedWorkers = finalRows.filter(row => row.create_worker).length;
+    const unmatchedSalary = finalRows.filter(row => !row.salary_id).length;
+    const totalPaymentAmount = finalRows.reduce((sum, row) => sum + parseAmount(row.payment_amount), 0);
     await pushBusinessNotification({
       type: 'new_worker_payment',
       title: '批量导入工资发放',
@@ -630,8 +923,8 @@ async function confirmImport(rows: ParsedPaymentRow[], request: NextRequest) {
   return NextResponse.json({
     success: true,
     count: data?.length || 0,
-    autoCreatedWorkers: rowsWithWorkers.filter(row => row.create_worker).length,
-    unmatchedSalary: rowsWithWorkers.filter(row => !row.salary_id).length,
+    autoCreatedWorkers: finalRows.filter(row => row.create_worker).length,
+    unmatchedSalary: finalRows.filter(row => !row.salary_id).length,
   });
 }
 
@@ -668,6 +961,8 @@ export async function POST(request: NextRequest) {
     const auth = await requireApiWritePermission(request);
     if (!auth.ok) return auth.response;
 
+    const client = getSupabaseClient();
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
     const contentType = request.headers.get('content-type') || '';
 
     if (contentType.includes('multipart/form-data')) {
@@ -676,7 +971,7 @@ export async function POST(request: NextRequest) {
       if (!file) return NextResponse.json({ error: '请上传文件' }, { status: 400 });
 
       const rows = await readRowsFromFile(file);
-      const preview = await analyzeRows(rows);
+      const preview = await analyzeRows(rows, client, accessibleProjectIds);
       return NextResponse.json({
         mode: 'preview',
         needsConfirmation: preview.readyRows.length > 0,
@@ -686,15 +981,18 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     if (body?.mode === 'confirm') {
-      return confirmImport(body.rows || [], request);
+      return confirmImport(body.rows || [], request, client, accessibleProjectIds);
     }
 
     return NextResponse.json({ error: '无效的导入请求' }, { status: 400 });
   } catch (error: any) {
     console.error('[Worker Payments Batch] API Error:', error);
+    const status = error instanceof ImportValidationError
+      ? error.status
+      : 500;
     return NextResponse.json(
       { error: error.message || '批量导入失败' },
-      { status: 500 }
+      { status }
     );
   }
 }
@@ -705,13 +1003,44 @@ export async function DELETE(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { ids } = body;
+    const ids = normalizeIdList(body?.ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: '请选择要删除的记录' }, { status: 400 });
+    if (!ids) {
+      return NextResponse.json(
+        { error: '请提供有效的工资发放记录ID，且单次最多删除500条' },
+        { status: 400 },
+      );
     }
 
     const client = getSupabaseClient();
+    const { data: existingRows, error: fetchError } = await client
+      .from('salary_payments')
+      .select('id, salary_id, worker_id, project_id')
+      .in('id', ids);
+
+    if (fetchError) {
+      throw new Error(`查询工资发放记录失败：${fetchError.message}`);
+    }
+
+    if (!existingRows || existingRows.length !== ids.length) {
+      const existingIds = new Set((existingRows || []).map((row: any) => Number(row.id)));
+      const missingIds = ids.filter((id) => !existingIds.has(id));
+      return NextResponse.json({
+        error: `部分工资发放记录不存在，批量删除已取消：${missingIds.join('、')}`,
+      }, { status: 404 });
+    }
+
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    if (
+      accessibleProjectIds !== null &&
+      existingRows.some((row: any) => !accessibleProjectIds.includes(Number(row.project_id)))
+    ) {
+      return NextResponse.json(
+        { error: '所选记录中包含无权删除的项目数据，批量删除已取消' },
+        { status: 403 },
+      );
+    }
+
     const { error } = await client
       .from('salary_payments')
       .delete()
@@ -721,8 +1050,17 @@ export async function DELETE(request: NextRequest) {
       throw new Error(`批量删除失败：${error.message}`);
     }
 
+    await auditLog({
+      operationType: 'delete',
+      resourceType: 'salary_payment',
+      resourceId: 0,
+      details: { action: 'batch_delete', count: ids.length, ids },
+      request,
+    });
+
     const { syncAllSalaryPaymentStatus } = await import('@/lib/business-logic');
     await syncAllSalaryPaymentStatus();
+    invalidateAggregationCache();
 
     return NextResponse.json({ success: true, count: ids.length });
   } catch (error: any) {

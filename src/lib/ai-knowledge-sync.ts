@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { isEffectiveSupplierPaymentStatus } from '@/lib/review-status';
 
 export interface SyncResult {
   workers: number;
@@ -230,20 +231,23 @@ async function syncSettlementData(supabase: any, customHeaders?: Record<string, 
   if (error) throw error;
   if (!settlements || settlements.length === 0) return 0;
 
-  const content = settlements.map((s: any) => 
+  const activeSettlements = settlements.filter((s: any) => s.status !== 'voided' && s.status !== 'cancelled');
+  if (activeSettlements.length === 0) return 0;
+
+  const content = activeSettlements.map((s: any) =>
     `${s.settlement_no || '-'} | 供应商:${s.suppliers?.name || '-'} | 项目:${s.projects?.name || '-'} | 结算金额:${s.settlement_amount || 0} | 状态:${s.status || '-'}`
   ).join('\n');
 
   const docId = await addKnowledgeDoc(supabase, {
-    title: '结算台账',
+    title: '历史旧结算台账（迁移核对）',
     category: 'business_data',
     source_type: 'auto_sync',
     source_ref: 'settlement_all',
-    content: `结算台账（共${settlements.length}条记录）\n\n结算单号 | 供应商 | 项目 | 结算金额 | 状态\n${content}`,
+    content: `历史旧结算台账（共${activeSettlements.length}条记录，仅用于迁移核对，不作为正式供应商结算口径）\n\n结算单号 | 供应商 | 项目 | 结算金额 | 状态\n${content}`,
     status: 'active',
   }, customHeaders);
 
-  return docId ? settlements.length : 0;
+  return docId ? activeSettlements.length : 0;
 }
 
 /**
@@ -254,30 +258,97 @@ async function syncSupplierSettlementData(supabase: any, customHeaders?: Record<
     .from('supplier_settlements')
     .select(`
       id,
+      contract_id,
       settlement_no,
       settlement_amount,
-      paid_amount,
-      status,
-      suppliers(name),
-      projects(name)
+      payable_amount,
+      settlement_date,
+      settlement_type,
+      status
     `)
-    .neq('status', 'voided')
+    .eq('status', 'reviewed')
     .order("created_at", { ascending: false })
     .limit(2000);
 
   if (error) throw error;
   if (!settlements || settlements.length === 0) return 0;
 
+  const contractIds = Array.from(new Set(
+    settlements
+      .map((s: any) => Number(s.contract_id))
+      .filter((id: number) => Number.isFinite(id))
+  ));
+
+  const contractMap = new Map<number, {
+    contractName: string;
+    supplierName: string;
+    projectName: string;
+  }>();
+
+  if (contractIds.length > 0) {
+    const { data: contracts, error: contractError } = await supabase
+      .from('supplier_contracts')
+      .select('id, contract_name, supplier_id, project_id')
+      .in('id', contractIds);
+
+    if (contractError) throw contractError;
+
+    const supplierIds = Array.from(new Set(
+      (contracts || [])
+        .map((c: any) => Number(c.supplier_id))
+        .filter((id: number) => Number.isFinite(id))
+    ));
+    const projectIds = Array.from(new Set(
+      (contracts || [])
+        .map((c: any) => Number(c.project_id))
+        .filter((id: number) => Number.isFinite(id))
+    ));
+
+    const supplierNameMap = new Map<number, string>();
+    if (supplierIds.length > 0) {
+      const { data: suppliers, error: supplierError } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .in('id', supplierIds);
+
+      if (supplierError) throw supplierError;
+      (suppliers || []).forEach((supplier: any) => {
+        supplierNameMap.set(Number(supplier.id), supplier.name || '-');
+      });
+    }
+
+    const projectNameMap = new Map<number, string>();
+    if (projectIds.length > 0) {
+      const { data: projects, error: projectError } = await supabase
+        .from('projects')
+        .select('id, name')
+        .in('id', projectIds);
+
+      if (projectError) throw projectError;
+      (projects || []).forEach((project: any) => {
+        projectNameMap.set(Number(project.id), project.name || '-');
+      });
+    }
+
+    (contracts || []).forEach((contract: any) => {
+      contractMap.set(Number(contract.id), {
+        contractName: contract.contract_name || '-',
+        supplierName: supplierNameMap.get(Number(contract.supplier_id)) || '-',
+        projectName: projectNameMap.get(Number(contract.project_id)) || '-',
+      });
+    });
+  }
+
   const content = settlements.map((s: any) => 
-    `${s.settlement_no || '-'} | 供应商:${s.suppliers?.name || '-'} | 项目:${s.projects?.name || '-'} | 结算金额:${s.settlement_amount || 0} | 已付:${s.paid_amount || 0} | 状态:${s.status || '-'}`
+    `${s.settlement_no || '-'} | 合同:${contractMap.get(Number(s.contract_id))?.contractName || '-'} | 供应商:${contractMap.get(Number(s.contract_id))?.supplierName || '-'} | 项目:${contractMap.get(Number(s.contract_id))?.projectName || '-'} | 结算日期:${s.settlement_date || '-'} | 类型:${s.settlement_type || '-'} | 结算金额:${s.settlement_amount || 0} | 应付金额:${s.payable_amount || 0} | 状态:${s.status || '-'}`
   ).join('\n');
 
   const docId = await addKnowledgeDoc(supabase, {
-    title: '供应商结算台账',
+    title: '供应商正式结算台账',
     category: 'business_data',
     source_type: 'auto_sync',
     source_ref: 'supplier_settlement_all',
-    content: `供应商结算台账（共${settlements.length}条记录）\n\n结算单号 | 供应商 | 项目 | 结算金额 | 已付金额 | 状态\n${content}`,
+    content: `供应商正式结算台账（共${settlements.length}条已审核记录）\n\n结算单号 | 合同 | 供应商 | 项目 | 结算日期 | 类型 | 结算金额 | 应付金额 | 状态\n${content}`,
     status: 'active',
   }, customHeaders);
 
@@ -332,11 +403,13 @@ async function syncSupplierPaymentData(supabase: any, customHeaders?: Record<str
     .from('supplier_payments')
     .select(`
       id,
+      supplier_id,
+      project_id,
+      contract_id,
       payment_amount,
       payment_date,
       payment_type,
-      status,
-      supplier_contracts(contract_name, suppliers(name), projects(name))
+      status
     `)
     .order("payment_date", { ascending: false })
     .limit(2000);
@@ -344,20 +417,79 @@ async function syncSupplierPaymentData(supabase: any, customHeaders?: Record<str
   if (error) throw error;
   if (!payments || payments.length === 0) return 0;
 
-  const content = payments.map((p: any) => 
-    `合同:${p.supplier_contracts?.contract_name || '-'} | 供应商:${p.supplier_contracts?.suppliers?.name || '-'} | 项目:${p.supplier_contracts?.projects?.name || '-'} | 金额:${p.payment_amount || 0} | 日期:${p.payment_date || '-'} | 类型:${p.payment_type || '-'} | 状态:${p.status || '-'}`
-  ).join('\n');
+  const effectivePayments = payments.filter((p: any) => isEffectiveSupplierPaymentStatus(p.status));
+  if (effectivePayments.length === 0) return 0;
+
+  const supplierIds = new Set<number>();
+  const projectIds = new Set<number>();
+  const contractIds = new Set<number>();
+
+  effectivePayments.forEach((payment: any) => {
+    const supplierId = Number(payment.supplier_id);
+    const projectId = Number(payment.project_id);
+    const contractId = Number(payment.contract_id);
+    if (Number.isFinite(supplierId) && supplierId > 0) supplierIds.add(supplierId);
+    if (Number.isFinite(projectId) && projectId > 0) projectIds.add(projectId);
+    if (Number.isFinite(contractId) && contractId > 0) contractIds.add(contractId);
+  });
+
+  let contractsById = new Map<number, any>();
+  if (contractIds.size > 0) {
+    const { data: contracts, error: contractsError } = await supabase
+      .from('supplier_contracts')
+      .select('id,contract_name,supplier_id,project_id')
+      .in('id', Array.from(contractIds));
+    if (contractsError) throw contractsError;
+    contractsById = new Map((contracts || []).map((contract: any) => [Number(contract.id), contract]));
+    (contracts || []).forEach((contract: any) => {
+      const supplierId = Number(contract.supplier_id);
+      const projectId = Number(contract.project_id);
+      if (Number.isFinite(supplierId) && supplierId > 0) supplierIds.add(supplierId);
+      if (Number.isFinite(projectId) && projectId > 0) projectIds.add(projectId);
+    });
+  }
+
+  let supplierNames = new Map<number, string>();
+  if (supplierIds.size > 0) {
+    const { data: suppliers, error: suppliersError } = await supabase
+      .from('suppliers')
+      .select('id,name')
+      .in('id', Array.from(supplierIds));
+    if (suppliersError) throw suppliersError;
+    supplierNames = new Map((suppliers || []).map((supplier: any) => [Number(supplier.id), supplier.name || '-']));
+  }
+
+  let projectNames = new Map<number, string>();
+  if (projectIds.size > 0) {
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('id,name')
+      .in('id', Array.from(projectIds));
+    if (projectsError) throw projectsError;
+    projectNames = new Map((projects || []).map((project: any) => [Number(project.id), project.name || '-']));
+  }
+
+  const content = effectivePayments.map((p: any) =>
+  {
+    const contract = contractsById.get(Number(p.contract_id));
+    const supplierId = Number(p.supplier_id) || Number(contract?.supplier_id);
+    const projectId = Number(p.project_id) || Number(contract?.project_id);
+    const contractName = contract?.contract_name || (p.contract_id ? `未找到合同#${p.contract_id}` : '未关联合同');
+    const supplierName = supplierNames.get(supplierId) || '-';
+    const projectName = projectNames.get(projectId) || '-';
+    return `合同:${contractName} | 供应商:${supplierName} | 项目:${projectName} | 金额:${p.payment_amount || 0} | 日期:${p.payment_date || '-'} | 类型:${p.payment_type || '-'} | 状态:${p.status || '-'}`;
+  }).join('\n');
 
   const docId = await addKnowledgeDoc(supabase, {
     title: '供应商付款台账',
     category: 'business_data',
     source_type: 'auto_sync',
     source_ref: 'supplier_payment_all',
-    content: `供应商付款台账（共${payments.length}条记录）\n\n合同 | 供应商 | 项目 | 金额 | 日期 | 类型 | 状态\n${content}`,
+    content: `供应商付款台账（共${effectivePayments.length}条有效记录）\n\n合同 | 供应商 | 项目 | 金额 | 日期 | 类型 | 状态\n${content}`,
     status: 'active',
   }, customHeaders);
 
-  return docId ? payments.length : 0;
+  return docId ? effectivePayments.length : 0;
 }
 
 /**

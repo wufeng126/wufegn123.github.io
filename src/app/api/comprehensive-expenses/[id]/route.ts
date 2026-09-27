@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
+import { assertProjectAccess, badProjectIdResponse } from '@/lib/api-project-scope';
 
 // 费用类型
 const EXPENSE_TYPES = ['招待费', '差旅费', '房租水电', '现金帮工', '办公用品', '其他杂费'];
@@ -32,6 +33,9 @@ export async function GET(
     if (!data) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
     }
+
+    const access = await assertProjectAccess(client, auth.user, data.project_id);
+    if (!access.ok) return access.response;
 
     return NextResponse.json({ expense: { ...data, status: data.status || REVIEW_STATUS.DRAFT } });
   } catch (error: any) {
@@ -80,7 +84,7 @@ export async function PUT(
 
     const { data: currentExpense, error: currentError } = await client
       .from('comprehensive_expenses')
-      .select('id, status, amount')
+      .select('id, status, amount, project_id')
       .eq('id', expenseId)
       .single();
 
@@ -92,12 +96,27 @@ export async function PUT(
       return NextResponse.json({ error: '已作废记录不可修改' }, { status: 400 });
     }
 
+    const currentAccess = await assertProjectAccess(client, auth.user, currentExpense.project_id);
+    if (!currentAccess.ok) return currentAccess.response;
+
     if (isReviewedStatus(currentExpense.status) && amount !== undefined && status !== REVIEW_STATUS.DRAFT) {
       return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
     }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (project_id !== undefined) updateData.project_id = project_id || null;
+    if (project_id !== undefined) {
+      const normalizedProjectId = project_id ? Number(project_id) : null;
+      if (normalizedProjectId && !Number.isInteger(normalizedProjectId)) {
+        return badProjectIdResponse();
+      }
+      if (normalizedProjectId) {
+        const targetAccess = await assertProjectAccess(client, auth.user, normalizedProjectId);
+        if (!targetAccess.ok) return targetAccess.response;
+      } else if (!auth.user.is_super_admin) {
+        return NextResponse.json({ error: '请选择有权限的项目' }, { status: 400 });
+      }
+      updateData.project_id = normalizedProjectId;
+    }
     if (expense_type) updateData.expense_type = expense_type;
     if (amount !== undefined) updateData.amount = parseFloat(amount);
     if (expense_date) updateData.expense_date = expense_date;
@@ -162,11 +181,18 @@ export async function DELETE(
     const client = getSupabaseClient();
 
     // 先获取记录信息用于审计日志
-    const { data: existingData } = await client
+    const { data: existingData, error: existingError } = await client
       .from('comprehensive_expenses')
       .select('id, expense_type, amount, project_id, status')
       .eq('id', expenseId)
       .single();
+
+    if (existingError || !existingData) {
+      return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    const access = await assertProjectAccess(client, auth.user, existingData.project_id);
+    if (!access.ok) return access.response;
 
     if (isReviewedStatus(existingData?.status) || isVoidedStatus(existingData?.status)) {
       return NextResponse.json({ error: '已审核或已作废记录不可删除' }, { status: 400 });

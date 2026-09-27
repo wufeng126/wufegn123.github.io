@@ -233,21 +233,21 @@ describe('isFinalSettlementType（决算类型判定）', () => {
 });
 
 describe('summarizeSupplierSettlementRows（结算汇总）', () => {
-  it('汇总金额并排除作废结算与无效付款', () => {
+  it('汇总金额仅统计已审核结算并排除无效付款', () => {
     const summary = summarizeSupplierSettlementRows(
       [
         { id: 1, contract_id: 1, settlement_amount: '10000', payable_amount: '8000', status: 'reviewed' },
         { id: 2, contract_id: 1, settlement_amount: '5000', payable_amount: '5000', status: 'voided' }, // 排除
-        { id: 3, contract_id: 1, settlement_amount: '2000', payable_amount: '1500', status: 'draft' },
+        { id: 3, contract_id: 1, settlement_amount: '2000', payable_amount: '1500', status: 'draft' }, // 排除
       ],
       [
         { id: 1, contract_id: 1, payment_amount: '6000', status: 'completed' },
         { id: 2, contract_id: 1, payment_amount: '3000', status: 'cancelled' }, // 排除
       ]
     );
-    expect(summary.totalSettlements).toBe(2);
-    expect(summary.totalAmount).toBe(12000); // 10000 + 2000
-    expect(summary.totalPayable).toBe(9500); // 8000 + 1500
+    expect(summary.totalSettlements).toBe(1);
+    expect(summary.totalAmount).toBe(10000);
+    expect(summary.totalPayable).toBe(8000);
     expect(summary.totalPaid).toBe(6000);
   });
 

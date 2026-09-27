@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
-import { DEFAULT_PAYMENT_RATIOS, isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/business-logic';
+import { DEFAULT_PAYMENT_RATIOS, isEffectiveSupplierPaymentStatus, isReviewedStatus } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import {
+  applyProjectScopeToQuery,
+  assertProjectAccess,
+  badProjectIdResponse,
+  emptyProjectScopeResponse,
+  getProjectAccessScope,
+  parseOptionalProjectId,
+} from '@/lib/api-project-scope';
 
 function isFinalSettlementType(type?: string | null) {
   const normalized = String(type || '').trim().toLowerCase();
@@ -17,6 +25,16 @@ function isFinalSettlementType(type?: string | null) {
   );
 }
 
+const emptyContractSummary = {
+  totalContracts: 0,
+  totalAmount: 0,
+  avgPaymentRatio: 0,
+  totalSettlement: 0,
+  totalPayable: 0,
+  totalPaid: 0,
+  totalPending: 0,
+};
+
 // GET /api/supplier-contracts - 获取合同列表
 export async function GET(request: NextRequest) {
   try {
@@ -28,6 +46,13 @@ export async function GET(request: NextRequest) {
     const supplierId = searchParams.get('supplier_id');
     const status = searchParams.get('status');
     const projectId = searchParams.get('project_id');
+    const requestedProjectId = parseOptionalProjectId(projectId);
+    if (Number.isNaN(requestedProjectId)) return badProjectIdResponse();
+
+    const projectScope = await getProjectAccessScope(supabase, auth.user);
+    if (requestedProjectId && projectScope !== null && !projectScope.includes(requestedProjectId)) {
+      return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
+    }
 
     let query = supabase
       .from('supplier_contracts')
@@ -43,8 +68,14 @@ export async function GET(request: NextRequest) {
     if (status && status !== 'all') {
       query = query.eq('contract_status', status);
     }
-    if (projectId && projectId !== 'all') {
-      query = query.eq('project_id', parseInt(projectId));
+    if (requestedProjectId) {
+      query = query.eq('project_id', requestedProjectId);
+    } else {
+      const scopedQuery = applyProjectScopeToQuery(query, projectScope);
+      if (!scopedQuery) {
+        return emptyProjectScopeResponse({ contracts: [], summary: emptyContractSummary });
+      }
+      query = scopedQuery;
     }
 
     const { data, error } = await query;
@@ -59,7 +90,7 @@ export async function GET(request: NextRequest) {
           .select('settlement_amount, payable_amount, settlement_type, status')
           .eq('contract_id', contract.id);
 
-        const activeSettlements = (settlements || []).filter((s: any) => !isVoidedStatus(s.status));
+        const activeSettlements = (settlements || []).filter((s: any) => isReviewedStatus(s.status));
 
         const totalSettlement = activeSettlements.reduce(
           (sum: number, s: any) => sum + Number(s.settlement_amount || 0), 0
@@ -136,6 +167,16 @@ export async function POST(request: NextRequest) {
     if (!contract_name) {
       return NextResponse.json({ error: '请输入合同名称' }, { status: 400 });
     }
+    const normalizedProjectId = project_id ? Number(project_id) : null;
+    if (normalizedProjectId && !Number.isInteger(normalizedProjectId)) {
+      return badProjectIdResponse();
+    }
+    if (normalizedProjectId) {
+      const access = await assertProjectAccess(supabase, auth.user, normalizedProjectId);
+      if (!access.ok) return access.response;
+    } else if (!auth.user.is_super_admin) {
+      return NextResponse.json({ error: '请选择有权限的项目' }, { status: 400 });
+    }
 
     // 获取用户信息
     const { data: userData } = await supabase.auth.getUser();
@@ -143,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await insertWithSequenceFix('supplier_contracts', {
         supplier_id,
-        project_id: project_id || null,
+        project_id: normalizedProjectId,
         contract_no: contract_no || null,
         contract_name,
         sign_date: sign_date || null,

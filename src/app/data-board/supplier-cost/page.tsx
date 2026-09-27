@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KpiCard } from '@/components/business/common';
 import { DashboardSkeleton, FilterBar, KpiSection, StandardDashboardLayout } from '@/components/dashboard/standard-layout';
-import { isEffectiveSupplierPaymentStatus, isVoidedStatus } from '@/lib/review-status';
+import { isEffectiveSupplierPaymentStatus, isReviewedStatus } from '@/lib/review-status';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
   constructor(props: { children: ReactNode }) {
@@ -56,10 +56,14 @@ type Settlement = {
 
 type Payment = {
   id: number;
+  supplier_id?: number | string | null;
+  project_id?: number | string | null;
   contract_id?: number | string | null;
   payment_amount?: number | string | null;
   amount?: number | string | null;
   status?: string | null;
+  supplier_name?: string | null;
+  project_name?: string | null;
 };
 
 type Project = {
@@ -89,6 +93,8 @@ type ContractRow = {
   progressUnpaid: number;
   finalUnpaid: number;
   paymentRatio: number;
+  isUnlinkedPayment?: boolean;
+  paymentCount?: number;
 };
 
 type SupplierSummary = {
@@ -135,6 +141,13 @@ function toNumber(value: unknown) {
 function toId(value: unknown) {
   if (value === null || value === undefined || value === '') return '';
   return String(value);
+}
+
+function settlementPayableAmount(settlement: Settlement) {
+  if (settlement.payable_amount === null || settlement.payable_amount === undefined || settlement.payable_amount === '') {
+    return toNumber(settlement.settlement_amount);
+  }
+  return toNumber(settlement.payable_amount);
 }
 
 function formatMoney(value: number) {
@@ -253,10 +266,11 @@ function SupplierCostDashboard() {
   }, [suppliers]);
 
   const contractRows = useMemo<ContractRow[]>(() => {
-    return contracts.map((contract) => {
+    const contractIdSet = new Set(contracts.map((contract) => Number(contract.id)).filter(Number.isFinite));
+    const rows = contracts.map((contract) => {
       const contractId = Number(contract.id);
       const contractSettlements = settlements.filter((settlement) => (
-        Number(settlement.contract_id) === contractId && !isVoidedStatus(settlement.status)
+        Number(settlement.contract_id) === contractId && isReviewedStatus(settlement.status)
       ));
       const contractPayments = payments.filter((payment) => (
         Number(payment.contract_id) === contractId && isEffectiveSupplierPaymentStatus(payment.status)
@@ -265,7 +279,7 @@ function SupplierCostDashboard() {
       const projectId = toId(contract.project_id);
       const supplierId = toId(contract.supplier_id || contract.supplier?.id);
       const settlementAmount = contractSettlements.reduce((sum, settlement) => sum + toNumber(settlement.settlement_amount), 0);
-      const payableAmount = contractSettlements.reduce((sum, settlement) => sum + toNumber(settlement.payable_amount), 0);
+      const payableAmount = contractSettlements.reduce((sum, settlement) => sum + settlementPayableAmount(settlement), 0);
       const progressPayable = payableAmount;
       const finalPayable = settlementAmount;
       const paidAmount = contractPayments.reduce((sum, payment) => (
@@ -293,6 +307,60 @@ function SupplierCostDashboard() {
         paymentRatio: paymentRate(paidAmount, progressPayable),
       };
     });
+
+    const unlinkedPaymentGroups = new Map<string, {
+      projectId: string;
+      projectName: string;
+      supplierId: string;
+      supplierName: string;
+      paidAmount: number;
+      paymentCount: number;
+    }>();
+
+    payments.forEach((payment) => {
+      if (!isEffectiveSupplierPaymentStatus(payment.status)) return;
+      const contractId = Number(payment.contract_id);
+      if (Number.isFinite(contractId) && contractIdSet.has(contractId)) return;
+
+      const projectId = toId(payment.project_id);
+      const supplierId = toId(payment.supplier_id);
+      const key = `${projectId || 'unknown-project'}|${supplierId || payment.supplier_name || 'unknown-supplier'}`;
+      const current = unlinkedPaymentGroups.get(key) || {
+        projectId,
+        projectName: payment.project_name || projectNameById.get(projectId) || '未关联项目',
+        supplierId,
+        supplierName: payment.supplier_name || supplierNameById.get(supplierId) || '未知供应商',
+        paidAmount: 0,
+        paymentCount: 0,
+      };
+
+      current.paidAmount += toNumber(payment.payment_amount) || toNumber(payment.amount);
+      current.paymentCount += 1;
+      unlinkedPaymentGroups.set(key, current);
+    });
+
+    const unlinkedRows = Array.from(unlinkedPaymentGroups.values()).map((group, index) => ({
+      id: -(index + 1),
+      projectId: group.projectId,
+      projectName: group.projectName,
+      supplierId: group.supplierId,
+      supplierName: group.supplierName,
+      contractName: '未关联合同付款',
+      contractNo: `${group.paymentCount} 笔付款`,
+      settlementAmount: 0,
+      payableAmount: 0,
+      progressPayable: 0,
+      finalPayable: 0,
+      paidAmount: group.paidAmount,
+      unpaidAmount: 0,
+      progressUnpaid: 0,
+      finalUnpaid: 0,
+      paymentRatio: 0,
+      isUnlinkedPayment: true,
+      paymentCount: group.paymentCount,
+    }));
+
+    return [...rows, ...unlinkedRows];
   }, [contracts, settlements, payments, projectNameById, supplierNameById]);
 
   const filteredRows = useMemo(() => {
@@ -332,7 +400,9 @@ function SupplierCostDashboard() {
           finalUnpaid: 0,
           paymentRatio: 0,
         };
-        current.contractCount += 1;
+        if (!row.isUnlinkedPayment) {
+          current.contractCount += 1;
+        }
         current.settlementAmount += row.settlementAmount;
         current.payableAmount += row.payableAmount;
         current.progressPayable += row.progressPayable;
@@ -358,7 +428,7 @@ function SupplierCostDashboard() {
         projectId: rows[0]?.projectId || '',
         projectName: rows[0]?.projectName || '未关联项目',
         supplierCount: supplierMap.size,
-        contractCount: rows.length,
+        contractCount: rows.filter((row) => !row.isUnlinkedPayment).length,
         settlementAmount,
         payableAmount,
         progressPayable,
@@ -386,7 +456,7 @@ function SupplierCostDashboard() {
     return {
       projectCount: projectSummaries.length,
       supplierCount: new Set(filteredRows.map((row) => row.supplierId || row.supplierName)).size,
-      contractCount: filteredRows.length,
+      contractCount: filteredRows.filter((row) => !row.isUnlinkedPayment).length,
       settlementAmount,
       payableAmount,
       progressPayable,
@@ -546,7 +616,7 @@ function SupplierCostDashboard() {
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">
-                共 {projectSummaries.length} 个项目，{filteredRows.length} 份供应商合同
+                共 {projectSummaries.length} 个项目，{stats.contractCount} 份供应商合同
               </div>
             </div>
           </CardHeader>

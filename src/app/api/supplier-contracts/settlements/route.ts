@@ -6,12 +6,19 @@ import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import {
   buildSupplierSettlementCumulativeMap,
   calculatePayableAmount,
-  isEffectiveSupplierPaymentStatus,
+  isReviewedStatus,
   isVoidedStatus,
   REVIEW_STATUS,
   summarizeSupplierSettlementRows,
 } from '@/lib/business-logic';
 import { DEFAULT_PAYMENT_RATIOS } from '@/lib/payment-ratios';
+import {
+  assertProjectAccess,
+  badProjectIdResponse,
+  emptyProjectScopeResponse,
+  getProjectAccessScope,
+  parseOptionalProjectId,
+} from '@/lib/api-project-scope';
 
 function toNumber(value: unknown) {
   const num = Number(value || 0);
@@ -42,6 +49,16 @@ function compareBySettlementDateDesc(a: any, b: any) {
   return -compareBySettlementDateAsc(a, b);
 }
 
+const emptySettlementSummary = {
+  totalSettlements: 0,
+  totalAmount: 0,
+  totalPayable: 0,
+  totalFinalPayable: 0,
+  totalPaid: 0,
+  totalProgressPending: 0,
+  totalFinalPending: 0,
+};
+
 // GET /api/supplier-contracts/settlements - 获取结算单列表
 export async function GET(request: NextRequest) {
   try {
@@ -54,28 +71,45 @@ export async function GET(request: NextRequest) {
     const supplierId = searchParams.get('supplier_id');
     const settlementType = searchParams.get('settlement_type');
     const projectId = searchParams.get('project_id');
+    const requestedProjectId = parseOptionalProjectId(projectId);
+    if (Number.isNaN(requestedProjectId)) return badProjectIdResponse();
+    const projectScope = await getProjectAccessScope(supabase, auth.user);
+    if (requestedProjectId && projectScope !== null && !projectScope.includes(requestedProjectId)) {
+      return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
+    }
 
-    let contractIdsForProject: number[] = [];
-    if (projectId) {
-      const { data: projectContracts } = await supabase
+    let scopedContractIds: number[] | null = null;
+    if (contractId && contractId !== 'all') {
+      const { data: contract, error: contractError } = await supabase
         .from('supplier_contracts')
-        .select('id')
-        .eq('project_id', parseInt(projectId));
-      contractIdsForProject = (projectContracts || []).map((c: any) => c.id);
-
-      if (contractIdsForProject.length === 0) {
-        return NextResponse.json({
-          settlements: [],
-          summary: {
-            totalSettlements: 0,
-            totalAmount: 0,
-            totalPayable: 0,
-            totalFinalPayable: 0,
-            totalPaid: 0,
-            totalProgressPending: 0,
-            totalFinalPending: 0,
-          },
-        });
+        .select('id, project_id')
+        .eq('id', parseInt(contractId))
+        .single();
+      if (contractError || !contract) {
+        return NextResponse.json({ error: '合同不存在' }, { status: 404 });
+      }
+      const access = await assertProjectAccess(supabase, auth.user, contract.project_id);
+      if (!access.ok) return access.response;
+    } else if (projectScope !== null || requestedProjectId || (supplierId && supplierId !== 'all')) {
+      if (projectScope !== null && projectScope.length === 0) {
+        return emptyProjectScopeResponse({ settlements: [], summary: emptySettlementSummary });
+      }
+      let contractScopeQuery = supabase
+        .from('supplier_contracts')
+        .select('id');
+      if (requestedProjectId) {
+        contractScopeQuery = contractScopeQuery.eq('project_id', requestedProjectId);
+      } else if (projectScope !== null) {
+        contractScopeQuery = contractScopeQuery.in('project_id', projectScope);
+      }
+      if (supplierId && supplierId !== 'all') {
+        contractScopeQuery = contractScopeQuery.eq('supplier_id', parseInt(supplierId));
+      }
+      const { data: scopedContracts, error: scopeError } = await contractScopeQuery;
+      if (scopeError) throw scopeError;
+      scopedContractIds = (scopedContracts || []).map((c: any) => Number(c.id)).filter(Boolean);
+      if (scopedContractIds.length === 0) {
+        return emptyProjectScopeResponse({ settlements: [], summary: emptySettlementSummary });
       }
     }
 
@@ -94,8 +128,8 @@ export async function GET(request: NextRequest) {
 
     if (contractId && contractId !== 'all') {
       query = query.eq('contract_id', parseInt(contractId));
-    } else if (projectId) {
-      query = query.in('contract_id', contractIdsForProject);
+    } else if (scopedContractIds) {
+      query = query.in('contract_id', scopedContractIds);
     }
     if (settlementType && settlementType !== 'all') {
       query = query.eq('settlement_type', settlementType);
@@ -129,8 +163,8 @@ export async function GET(request: NextRequest) {
       result = settlementsWithDetails.filter((s: any) => s.contract?.supplier_id === parseInt(supplierId));
     }
 
-    const activeSettlements = result.filter((s: any) => !isVoidedStatus(s.status));
-    const settlementContractIds = [...new Set(activeSettlements.map((s: any) => s.contract_id).filter(Boolean))];
+    const reviewedSettlements = result.filter((s: any) => isReviewedStatus(s.status));
+    const settlementContractIds = [...new Set(reviewedSettlements.map((s: any) => s.contract_id).filter(Boolean))];
     let paymentRows: any[] = [];
     if (settlementContractIds.length > 0) {
       const { data: payments } = await supabase
@@ -140,7 +174,7 @@ export async function GET(request: NextRequest) {
       paymentRows = payments || [];
     }
 
-    const cumulativeBySettlementId = buildSupplierSettlementCumulativeMap(activeSettlements, paymentRows);
+    const cumulativeBySettlementId = buildSupplierSettlementCumulativeMap(reviewedSettlements, paymentRows);
 
     result = result
       .map((settlement: any) => {
@@ -162,7 +196,7 @@ export async function GET(request: NextRequest) {
       })
       .sort(compareBySettlementDateDesc);
 
-    const summary = summarizeSupplierSettlementRows(activeSettlements, paymentRows);
+    const summary = summarizeSupplierSettlementRows(reviewedSettlements, paymentRows);
 
     return NextResponse.json({
       settlements: result,
@@ -213,6 +247,8 @@ export async function POST(request: NextRequest) {
     if (contractError || !contract) {
       return NextResponse.json({ error: '合同不存在' }, { status: 400 });
     }
+    const access = await assertProjectAccess(supabase, auth.user, contract.project_id);
+    if (!access.ok) return access.response;
 
     if (contract.locked || contract.contract_status === '已完结') {
       return NextResponse.json({ error: '该合同已完结，无法新增结算单' }, { status: 400 });

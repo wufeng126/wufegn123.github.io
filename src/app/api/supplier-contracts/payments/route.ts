@@ -7,6 +7,13 @@ import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { isEffectiveSupplierPaymentStatus, validateSupplierPayment, validateSupplierSettlementPayment } from '@/lib/business-logic';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { normalizeSupplierPaymentType } from '@/lib/supplier-payment-types';
+import {
+  assertProjectAccess,
+  badProjectIdResponse,
+  emptyProjectScopeResponse,
+  getProjectAccessScope,
+  parseOptionalProjectId,
+} from '@/lib/api-project-scope';
 
 // GET /api/supplier-contracts/payments - 获取付款记录列表
 export async function GET(request: NextRequest) {
@@ -20,9 +27,32 @@ export async function GET(request: NextRequest) {
     const settlementId = searchParams.get('settlement_id');
     const supplierId = searchParams.get('supplier_id');
     const projectId = searchParams.get('project_id');
+    const requestedProjectId = parseOptionalProjectId(projectId);
+    if (Number.isNaN(requestedProjectId)) return badProjectIdResponse();
+    const projectScope = await getProjectAccessScope(supabase, auth.user);
+    if (requestedProjectId && projectScope !== null && !projectScope.includes(requestedProjectId)) {
+      return NextResponse.json({ error: '当前账号无权访问该项目' }, { status: 403 });
+    }
 
     let scopedContractIds: number[] | null = null;
-    if ((supplierId && supplierId !== 'all') || (projectId && projectId !== 'all')) {
+    if (contractId && contractId !== 'all') {
+      const { data: contract, error: contractError } = await supabase
+        .from('supplier_contracts')
+        .select('id, project_id')
+        .eq('id', parseInt(contractId))
+        .single();
+      if (contractError || !contract) {
+        return NextResponse.json({ error: '合同不存在' }, { status: 404 });
+      }
+      const access = await assertProjectAccess(supabase, auth.user, contract.project_id);
+      if (!access.ok) return access.response;
+    } else if ((supplierId && supplierId !== 'all') || requestedProjectId || projectScope !== null) {
+      if (projectScope !== null && projectScope.length === 0) {
+        return emptyProjectScopeResponse({
+          payments: [],
+          summary: { totalPayments: 0, totalAmount: 0 },
+        });
+      }
       let contractScopeQuery = supabase
         .from('supplier_contracts')
         .select('id');
@@ -30,20 +60,16 @@ export async function GET(request: NextRequest) {
       if (supplierId && supplierId !== 'all') {
         contractScopeQuery = contractScopeQuery.eq('supplier_id', parseInt(supplierId));
       }
-      if (projectId && projectId !== 'all') {
-        contractScopeQuery = contractScopeQuery.eq('project_id', parseInt(projectId));
+      if (requestedProjectId) {
+        contractScopeQuery = contractScopeQuery.eq('project_id', requestedProjectId);
+      } else if (projectScope !== null) {
+        contractScopeQuery = contractScopeQuery.in('project_id', projectScope);
       }
 
       const { data: scopedContracts, error: scopeError } = await contractScopeQuery;
       if (scopeError) throw scopeError;
       scopedContractIds = (scopedContracts || []).map((contract: any) => Number(contract.id)).filter(Boolean);
 
-      if (scopedContractIds.length === 0) {
-        return NextResponse.json({
-          payments: [],
-          summary: { totalPayments: 0, totalAmount: 0 },
-        });
-      }
     }
 
     let query = supabase
@@ -58,7 +84,25 @@ export async function GET(request: NextRequest) {
     if (contractId && contractId !== 'all') {
       query = query.eq('contract_id', parseInt(contractId));
     } else if (scopedContractIds) {
-      query = query.in('contract_id', scopedContractIds);
+      const paymentScope: string[] = [];
+      if (scopedContractIds.length > 0) {
+        paymentScope.push(`contract_id.in.(${scopedContractIds.join(',')})`);
+      }
+      if (requestedProjectId) {
+        paymentScope.push(`project_id.eq.${requestedProjectId}`);
+      } else if (projectScope !== null && projectScope.length > 0) {
+        paymentScope.push(`project_id.in.(${projectScope.join(',')})`);
+      }
+      if (supplierId && supplierId !== 'all') {
+        paymentScope.push(`supplier_id.eq.${parseInt(supplierId)}`);
+      }
+      if (paymentScope.length === 0) {
+        return NextResponse.json({
+          payments: [],
+          summary: { totalPayments: 0, totalAmount: 0 },
+        });
+      }
+      query = query.or(paymentScope.join(','));
     }
     if (settlementId && settlementId !== 'all') {
       query = query.eq('settlement_id', parseInt(settlementId));
@@ -67,8 +111,17 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const supplierIds = [...new Set((data || []).map((p: any) => p.contract?.supplier_id).filter(Boolean))];
-    const projectIds = [...new Set((data || []).map((p: any) => p.project_id || p.contract?.project_id).filter(Boolean))];
+    const scopedPayments = (data || []).filter((payment: any) => {
+      const paymentProjectId = Number(payment.project_id || payment.contract?.project_id || 0);
+      const paymentSupplierId = Number(payment.supplier_id || payment.contract?.supplier_id || 0);
+      if (requestedProjectId && paymentProjectId !== requestedProjectId) return false;
+      if (!requestedProjectId && projectScope !== null && !projectScope.includes(paymentProjectId)) return false;
+      if (supplierId && supplierId !== 'all' && paymentSupplierId !== parseInt(supplierId)) return false;
+      return true;
+    });
+
+    const supplierIds = [...new Set(scopedPayments.map((p: any) => p.supplier_id || p.contract?.supplier_id).filter(Boolean))];
+    const projectIds = [...new Set(scopedPayments.map((p: any) => p.project_id || p.contract?.project_id).filter(Boolean))];
     const suppliersMap: Record<number, any> = {};
     const projectsMap: Record<number, any> = {};
 
@@ -94,9 +147,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const paymentsWithDetails = (data || []).map((payment: any) => ({
+    const paymentsWithDetails = scopedPayments.map((payment: any) => ({
       ...payment,
-      supplier_name: suppliersMap[payment.contract?.supplier_id]?.name || '',
+      supplier_id: payment.supplier_id || payment.contract?.supplier_id || null,
+      supplier_name: suppliersMap[payment.supplier_id || payment.contract?.supplier_id]?.name || '',
       project_id: payment.project_id || payment.contract?.project_id || null,
       project_name: projectsMap[payment.project_id || payment.contract?.project_id]?.name || '',
     }));
@@ -138,14 +192,6 @@ export async function POST(request: NextRequest) {
     const settlementId = settlement_id ? Number(settlement_id) : null;
     const paymentAmount = Number(payment_amount);
 
-    const contractValidation = await validateSupplierPayment({
-      contract_id: contractId,
-      payment_amount: paymentAmount,
-    });
-    if (!contractValidation.valid) {
-      return NextResponse.json({ error: contractValidation.message }, { status: 400 });
-    }
-
     const { data: contract, error: contractError } = await supabase
       .from('supplier_contracts')
       .select('supplier_id, project_id')
@@ -154,12 +200,36 @@ export async function POST(request: NextRequest) {
     if (contractError || !contract) {
       return NextResponse.json({ error: '合同不存在' }, { status: 400 });
     }
+    const access = await assertProjectAccess(supabase, auth.user, contract.project_id);
+    if (!access.ok) return access.response;
+
+    const contractValidation = await validateSupplierPayment({
+      contract_id: contractId,
+      payment_amount: paymentAmount,
+    });
+    if (!contractValidation.valid) {
+      return NextResponse.json({ error: contractValidation.message }, { status: 400 });
+    }
 
     // 收集软警告（超额付款等），随成功响应返回，由前端提示但不阻断保存
     const warnings: string[] = [];
     if (contractValidation.warning) warnings.push(contractValidation.warning);
 
+    let settlementForPaymentType: { settlement_type?: string | null; contract_id?: number | string | null } | null = null;
     if (settlementId) {
+      const { data: settlement, error: settlementError } = await supabase
+        .from('supplier_settlements')
+        .select('id, contract_id, settlement_type')
+        .eq('id', settlementId)
+        .single();
+      if (settlementError || !settlement) {
+        return NextResponse.json({ error: '结算单不存在' }, { status: 400 });
+      }
+      if (Number(settlement.contract_id) !== contractId) {
+        return NextResponse.json({ error: '结算单不属于当前合同' }, { status: 400 });
+      }
+      settlementForPaymentType = settlement;
+
       const settlementValidation = await validateSupplierSettlementPayment({
         settlement_id: settlementId,
         payment_amount: paymentAmount,
@@ -175,13 +245,8 @@ export async function POST(request: NextRequest) {
 
     let finalPaymentType = normalizeSupplierPaymentType(payment_type);
     if (!payment_type && settlementId) {
-      const { data: settlement } = await supabase
-        .from('supplier_settlements')
-        .select('settlement_type')
-        .eq('id', settlementId)
-        .single();
-      if (settlement?.settlement_type) {
-        finalPaymentType = normalizeSupplierPaymentType(settlement.settlement_type);
+      if (settlementForPaymentType?.settlement_type) {
+        finalPaymentType = normalizeSupplierPaymentType(settlementForPaymentType.settlement_type);
       }
     }
 

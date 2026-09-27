@@ -5,6 +5,7 @@
 import { LLMClient, KnowledgeClient, Config, HeaderUtils, DataSourceType, type CozeConfig } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { calculateSalaryPaymentStatus, calculateSalaryUnpaidAmount } from '@/lib/business-logic';
+import { isEffectiveSupplierPaymentStatus, isReviewedStatus } from '@/lib/review-status';
 
 // ============ 类型定义 ============
 
@@ -781,35 +782,113 @@ export async function fetchBusinessDataForContext(
 
     // ====== 3. 供应商&合同付款数据 ======
     if (intent.type === 'supplier_payment' || !pageContext || pageContext.includes('supplier') || pageContext.includes('cost') || pageContext.includes('dashboard')) {
-      const { data: suppliers } = await supabase.from('suppliers').select('id,name,contact_person,phone').limit(30);
+      let supplierQuery = supabase.from('suppliers').select('id,name,contact_person,phone');
+      if (intent.entities.supplierName) {
+        supplierQuery = supplierQuery.ilike('name', `%${intent.entities.supplierName}%`);
+      }
+      const { data: suppliers } = await supplierQuery.limit(intent.entities.supplierName ? 10 : 30);
       if (suppliers && suppliers.length > 0 && canSensitive) {
         const supplierLines: string[] = [];
         for (const sp of suppliers) {
           let line = `${sp.name} | 联系人:${sp.contact_person || '-'}`;
           let contractQuery = supabase.from('supplier_contracts')
-            .select('id,contract_name,total_amount,cumulative_paid,contract_status,project_id')
+            .select('id,contract_name,total_amount,contract_amount,contract_status,project_id,project:project_id(name)')
             .eq('supplier_id', sp.id);
           if (projectId) contractQuery = contractQuery.eq('project_id', projectId);
           const { data: contracts } = await contractQuery;
 
+          const contractIdSet = new Set<number>();
           if (contracts && contracts.length > 0) {
+            const contractIds = contracts.map((c: any) => Number(c.id)).filter(Boolean);
+            contractIds.forEach((id: number) => contractIdSet.add(id));
+            const { data: settlements } = await supabase
+              .from('supplier_settlements')
+              .select('contract_id,settlement_amount,payable_amount,status')
+              .in('contract_id', contractIds);
+            const { data: payments } = await supabase
+              .from('supplier_payments')
+              .select('contract_id,payment_amount,status')
+              .in('contract_id', contractIds);
+
+            const reviewedSettlements = (settlements || []).filter((s: any) => isReviewedStatus(s.status));
+            const effectivePayments = (payments || []).filter((p: any) => isEffectiveSupplierPaymentStatus(p.status));
+
             for (const c of contracts) {
-              const unpaid = parseNumeric(c.total_amount) - parseNumeric(c.cumulative_paid);
-              line += `\n  合同:${c.contract_name} | 总额:${formatMoney(c.total_amount)} | 已付:${formatMoney(c.cumulative_paid)} | 未付:${formatMoney(unpaid)} | 状态:${c.contract_status || '履约中'}`;
+              const contractSettlements = reviewedSettlements.filter((s: any) => Number(s.contract_id) === Number(c.id));
+              const contractPayments = effectivePayments.filter((p: any) => Number(p.contract_id) === Number(c.id));
+              const totalAmount = parseNumeric(c.total_amount) || parseNumeric(c.contract_amount);
+              const totalSettlement = contractSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
+              const totalPayable = contractSettlements.reduce((sum: number, s: any) => {
+                const payableMissing = s.payable_amount === null || s.payable_amount === undefined || s.payable_amount === '';
+                return sum + (payableMissing ? parseNumeric(s.settlement_amount) : parseNumeric(s.payable_amount));
+              }, 0);
+              const totalPaid = contractPayments.reduce((sum: number, p: any) => sum + parseNumeric(p.payment_amount), 0);
+              const unpaid = Math.max(0, totalPayable - totalPaid);
+              const prepaymentNote = totalPaid > totalPayable ? ' | 提示:有效已付超过审核应付，可能为预付或结算未审核' : '';
+              const projectInfo = Array.isArray(c.project) ? c.project[0] : c.project;
+              const projectName = projectInfo?.name ? ` | 项目:${projectInfo.name}` : '';
+              line += `\n  合同:${c.contract_name || '-'}${projectName} | 合同总额:${formatMoney(totalAmount)} | 已审核结算:${formatMoney(totalSettlement)} | 审核应付:${formatMoney(totalPayable)} | 有效已付:${formatMoney(totalPaid)} | 应付未付:${formatMoney(unpaid)} | 状态:${c.contract_status || '履约中'}${prepaymentNote}`;
             }
           }
 
-          const { data: oldSettlements } = await supabase.from('settlements')
-            .select('settlement_amount,settlement_date,settlement_month')
+          let directPaymentQuery = supabase
+            .from('supplier_payments')
+            .select('id,project_id,contract_id,payment_amount,payment_date,payment_type,status')
             .eq('supplier_id', sp.id);
+          if (projectId) directPaymentQuery = directPaymentQuery.eq('project_id', projectId);
+          const { data: supplierPayments } = await directPaymentQuery
+            .order('payment_date', { ascending: false })
+            .limit(50);
+          const directPayments = (supplierPayments || [])
+            .filter((p: any) => isEffectiveSupplierPaymentStatus(p.status))
+            .filter((p: any) => {
+              const contractId = Number(p.contract_id);
+              return !Number.isFinite(contractId) || contractId <= 0 || !contractIdSet.has(contractId);
+            });
+
+          if (directPayments.length > 0) {
+            const directProjectIds = Array.from(new Set(
+              directPayments
+                .map((p: any) => Number(p.project_id))
+                .filter((id: number) => Number.isFinite(id) && id > 0)
+            ));
+            const directProjectNames = new Map<number, string>();
+            if (directProjectIds.length > 0) {
+              const { data: directProjects } = await supabase
+                .from('projects')
+                .select('id,name')
+                .in('id', directProjectIds);
+              (directProjects || []).forEach((project: any) => {
+                directProjectNames.set(Number(project.id), project.name || '-');
+              });
+            }
+
+            const totalDirectPaid = directPayments.reduce(
+              (sum: number, p: any) => sum + parseNumeric(p.payment_amount),
+              0
+            );
+            const directDetails = directPayments.slice(0, 5).map((p: any) => {
+              const projectName = directProjectNames.get(Number(p.project_id)) || '-';
+              return `${p.payment_date || '-'} 项目:${projectName} 金额:${formatMoney(p.payment_amount)} 类型:${p.payment_type || '-'}`;
+            }).join('；');
+            line += `\n  未关联合同付款:${formatMoney(totalDirectPaid)}(${directPayments.length}笔，按供应商/项目直连录入，不混入合同应付) | 最近:${directDetails}`;
+          }
+
+          let legacySettlementQuery = supabase.from('settlements')
+            .select('settlement_amount,settlement_date,settlement_month,status,project_id')
+            .eq('supplier_id', sp.id);
+          if (projectId) legacySettlementQuery = legacySettlementQuery.eq('project_id', projectId);
+          const { data: oldSettlements } = await legacySettlementQuery.neq('status', 'voided');
           if (oldSettlements && oldSettlements.length > 0) {
             const totalSettlement = oldSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
-            line += `\n  累计结算:${formatMoney(totalSettlement)}(${oldSettlements.length}笔)`;
+            line += `\n  历史旧结算表:${formatMoney(totalSettlement)}(${oldSettlements.length}笔，迁移核对用，不计入正式供应商台账口径)`;
           }
 
           supplierLines.push(line);
         }
         parts.push(`【供应商台账】共${suppliers.length}家\n${supplierLines.join('\n')}`);
+      } else if (intent.entities.supplierName && canSensitive) {
+        parts.push(`【供应商台账】未找到名称匹配“${intent.entities.supplierName}”的供应商。可让用户补充供应商全称或到供应商库核对。`);
       }
     }
 
@@ -901,7 +980,7 @@ export function buildSystemPrompt(
 ## 核心能力
 1. **工人工资查询**：按工人姓名、项目、月份查询工资明细，区分应发、实发/应付、已发、未发余额
 2. **合同清单查询**：按项目查询合同内清单、工作内容、单位、匹配量、合同单价，优先使用结构化工程量清单
-3. **供应商款项查询**：查询各供应商合同金额、已付/未付/结算情况、合同状态
+3. **供应商款项查询**：查询各供应商合同金额、已审核结算、审核应付、有效已付、应付未付、合同状态
 4. **证件到期管理**：查询即将过期和已过期证件，提醒办理
 5. **报表智能解读**：自动分析看板图表，输出资金、用工风险提醒
 6. **合同文件解读**：解析用户上传的分包合同、劳务合同、报价清单文件，提取关键条款
@@ -912,7 +991,7 @@ export function buildSystemPrompt(
 - 金额保留2位小数，超过1万用万元单位（如 1.23万元）
 - 百分比保留1位小数
 - 回答工人工资时：必须列出工人姓名、所属项目、月份、应发、实发/应付、已发、未发余额、发放状态；如果同名工人超过1人，先提醒按项目/手机号/身份证尾号核对
-- 回答供应商款项时：列出供应商名→合同名→总额→已付→未付→合同状态
+- 回答供应商款项时：列出供应商名→合同名→合同总额→已审核结算→审核应付→有效已付→应付未付→合同状态；如存在合同级预付款或历史旧表数据，要单独说明，不能混入正式结算金额
 - 回答合同清单时：列出项目名、清单项/分项工程、单位、匹配量/预算量、合同单价、工作内容/备注、来源入口
 - 合同清单、金额、单价必须来自业务台账或知识库；只找到合同文件但没有结构化清单时，明确说明“未找到结构化清单，需先导入/解析”，不能编造扫描件内容
 - 发现风险时主动提醒（🔴高危 🟡警告 🟢正常）
@@ -927,7 +1006,7 @@ export function buildSystemPrompt(
 - 回款率超100%为超收/预收，需标注🟡风险
 - 成本超支：实际成本 > 预算成本时🔴预警
 - 证件到期：30天🟢/15天🟡/7天🔴/已过期🔴 四级提醒
-- 结算金额以settlement_amount为准，排除已作废(voided)记录
+- 供应商正式结算只统计已审核(reviewed)的 supplier_settlements；供应商付款只统计有效付款（completed、reviewed 或历史空状态）；草稿、待审核、作废、取消记录不能作为正式金额
 
 ## 数据来源
 - 系统后台业务台账：项目、工人、工资、供应商、合同、结算、付款、证件
@@ -950,7 +1029,7 @@ const OFFLINE_QA: Record<string, string> = {
   '工资计算': '应发工资 = 工时×工价 + 包活工资；实发工资 = 应发工资 - 个税 - 借支 - 劳保。在月度工资页面可以录入工时和工价，系统会自动计算。',
   '工资': '工资数据查询暂时不可用，您可以在【月度工资】页面直接查看。应发工资 = 工时×工价 + 包活工资；实发工资 = 应发工资 - 个税 - 借支 - 劳保。',
   '证件到期': '系统会自动检测证件到期情况，30天/15天/7天/已过期四级提醒，在消息通知中心可以查看所有到期提醒。',
-  '供应商付款': '在供应商结算页面录入结算单，然后在付款情况页面录入付款记录。系统会自动校验付款是否超额。',
+  '供应商付款': '在供应商结算页面录入结算单，结算单审核通过后可直接关联付款；合同级预付款可在付款情况页面录入。正式统计只看已审核结算和有效付款。',
   '供应商': '供应商数据查询暂时不可用，您可以在【供应商结算】页面直接查看合同和付款信息。',
   '甲方报量': '在甲方报量页面新增报量记录，填写工作内容、数量、单价，系统自动计算报量金额 = 数量 × 单价。',
   '利润率': '利润率 = (总结算金额 - 总成本) / 总结算金额 × 100%。在成本利润中心可以查看各项目的利润率分析。',
