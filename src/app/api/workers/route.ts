@@ -4,6 +4,7 @@ import { getCurrentUser, type RequestAuthUser } from '@/lib/auth';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { syncWorkerProjectAssignment } from '@/lib/worker-assignment-sync';
+import { ensureWorkerPerson } from '@/lib/person-service';
 import { getAccessibleProjectIds as getUnifiedAccessibleProjectIds } from '@/lib/api-project-access';
 import { canAccessSensitiveData } from '@/lib/ai-service';
 
@@ -21,6 +22,7 @@ type WorkerRow = {
   phone?: string | null;
   bank_card?: string | null;
   project_id?: number | null;
+  person_id?: number | null;
   status?: string | null;
   left_at?: string | null;
   created_at?: string | null;
@@ -96,6 +98,7 @@ export async function GET(request: NextRequest) {
       phone,
       bank_card,
       project_id,
+      person_id,
       status,
       left_at,
       created_at,
@@ -156,6 +159,8 @@ export async function GET(request: NextRequest) {
       bank_card: canViewSensitive ? (worker.bank_card || '') : maskBankCard(worker.bank_card),
       project_id: worker.project_id,
       project_name: getProjectName(worker.projects),
+      person_id: worker.person_id ?? null,
+      person_project_ids: null as number[] | null,
       status: worker.status || 'in_service',
       left_at: worker.left_at,
       created_at: worker.created_at,
@@ -164,6 +169,46 @@ export async function GET(request: NextRequest) {
       is_blacklist: worker.is_blacklist || false,
       remark: worker.remark,
     }));
+
+    // 方案A：聚合同一 person 的全部项目任职，便于前端展示"同一人多项目"。
+    // 仅对 person_id 非空的工人查询其同 person 的其他 worker（不同项目）。
+    const personIdSet = new Set<number>();
+    formattedWorkers.forEach((w) => {
+      if (w.person_id) personIdSet.add(w.person_id);
+    });
+    const personWorkersMap = new Map<number, Array<{ id: number; project_id: number | null; project_name: string | null; status: string | null }>>();
+    if (personIdSet.size > 0) {
+      // 分批查询（PostgREST in 长度限制），仅取在职记录
+      const ids = Array.from(personIdSet);
+      const personProjects: Array<{ person_id: number; id: number; project_id: number | null; status: string | null; projects: WorkerProject }> = [];
+      for (let i = 0; i < ids.length; i += 300) {
+        const chunk = ids.slice(i, i + 300);
+        const { data } = await client
+          .from('workers')
+          .select(`person_id, id, project_id, status, projects(name)`)
+          .in('person_id', chunk);
+        personProjects.push(...((data || []) as typeof personProjects));
+      }
+      personProjects.forEach((row) => {
+        if (!row.person_id) return;
+        const list = personWorkersMap.get(row.person_id) || [];
+        list.push({
+          id: row.id,
+          project_id: row.project_id ?? null,
+          project_name: getProjectName(row.projects),
+          status: row.status || null,
+        });
+        personWorkersMap.set(row.person_id, list);
+      });
+      formattedWorkers.forEach((w) => {
+        if (w.person_id && personWorkersMap.has(w.person_id)) {
+          w.person_project_ids = personWorkersMap
+            .get(w.person_id)!
+            .map((pw) => pw.project_id)
+            .filter((pid): pid is number => pid !== null);
+        }
+      });
+    }
 
     return NextResponse.json({ workers: formattedWorkers });
   } catch (error: unknown) {
@@ -243,6 +288,25 @@ export async function POST(request: NextRequest) {
       throw workerError;
     }
     const worker = Array.isArray(workerData) ? workerData[0] : workerData;
+
+    // 方案A：归入人员主档，回填 person_id（同一人跨项目共享一个 person）
+    if (worker?.id) {
+      try {
+        await ensureWorkerPerson(client, {
+          id: worker.id,
+          name: worker.name,
+          id_card: worker.id_card,
+          phone: worker.phone,
+          bank_card: worker.bank_card,
+          project_id: worker.project_id ?? project_id ?? null,
+          is_blacklist: worker.is_blacklist,
+          remark: worker.remark,
+        });
+      } catch (personError) {
+        // person 归并失败不影响主流程（旧库无 persons 表时静默）
+        console.warn('[Workers] resolve person failed:', personError);
+      }
+    }
 
     // 创建对应的项目分配记录
     if (project_id && worker?.id) {

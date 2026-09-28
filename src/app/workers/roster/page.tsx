@@ -29,6 +29,8 @@ interface Worker {
   bank_card: string | null;
   project_id: number | null;
   project_name?: string;
+  person_id?: number | null;
+  person_project_ids?: number[] | null;
   status: string;
   left_at: string | null;
   created_at: string;
@@ -1220,6 +1222,14 @@ export default function WorkerRosterPage() {
                                       <LinkableCell href={`/workers/salaries?worker_id=${worker.id}&worker_name=${encodeURIComponent(worker.name)}`} className="font-medium text-foreground">
                                         {worker.name}
                                       </LinkableCell>
+                                      {(worker.person_project_ids?.length ?? 0) > 1 && (
+                                        <span
+                                          title={`同身份证人员同时在职于 ${worker.person_project_ids!.length} 个项目`}
+                                          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary"
+                                        >
+                                          跨{worker.person_project_ids!.length}项目
+                                        </span>
+                                      )}
                                       {worker.is_blacklist && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600">黑</span>}
                                     </div>
                                   </TableCell>

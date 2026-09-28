@@ -4,6 +4,18 @@ import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { syncWorkerProjectAssignment, syncWorkerProjectAssignments } from '@/lib/worker-assignment-sync';
+import { ensureWorkerPerson } from '@/lib/person-service';
+
+// 方案A：批量归入人员主档（同一人跨项目共享一个 person），静默失败不影响主流程
+async function backfillWorkerPersons(client: any, workers: Array<{ id: number; name: string; id_card?: string | null; phone?: string | null; bank_card?: string | null; project_id?: number | null; is_blacklist?: boolean | null; remark?: string | null; entry_date?: string | null }>) {
+  for (const worker of workers) {
+    try {
+      await ensureWorkerPerson(client, worker);
+    } catch (personError) {
+      console.warn('[Workers Batch] backfill person failed for worker', worker.id, personError);
+    }
+  }
+}
 
 // 不限制手机号、身份证号、银行卡号格式，仅做非空判断
 
@@ -370,6 +382,7 @@ export async function POST(request: NextRequest) {
                     projectId: worker.project_id || null,
                     startDate: worker.entry_date || null,
                   });
+                  await backfillWorkerPersons(client, [singleData]);
                   stats.inserted++;
                 }
               } catch (singleCatchError: any) {
@@ -384,6 +397,7 @@ export async function POST(request: NextRequest) {
               projectId: worker.project_id || null,
               startDate: worker.entry_date || null,
             })));
+            await backfillWorkerPersons(client, data as Array<{ id: number; name: string; id_card?: string | null; phone?: string | null; bank_card?: string | null; project_id?: number | null; is_blacklist?: boolean | null; remark?: string | null }>);
             stats.inserted += data.length;
           }
         } catch (batchError: any) {
@@ -412,6 +426,7 @@ export async function POST(request: NextRequest) {
                   projectId: worker.project_id || null,
                   startDate: worker.entry_date || null,
                 });
+                await backfillWorkerPersons(client, [singleData]);
                 stats.inserted++;
               }
             } catch {
@@ -448,6 +463,7 @@ export async function POST(request: NextRequest) {
             previousProjectId: item.old_project_id || null,
             startDate: item.data.entry_date || null,
           });
+          await backfillWorkerPersons(client, [{ id: item.id, name: item.data.name, id_card: item.data.id_card, phone: item.data.phone, bank_card: item.data.bank_card, project_id: item.data.project_id, entry_date: item.data.entry_date }]);
           stats.updated++;
         }
       }
@@ -501,6 +517,8 @@ export async function POST(request: NextRequest) {
             .from('workers')
             .update({ project_id: newProjectId })
             .eq('id', item.id);
+
+          await backfillWorkerPersons(client, [{ id: item.id, name: item.data.name, id_card: item.data.id_card, phone: item.data.phone, bank_card: item.data.bank_card, project_id: newProjectId, entry_date: item.data.entry_date }]);
 
           stats.transferred = (stats.transferred || 0) + 1;
         } catch (error: any) {

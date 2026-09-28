@@ -128,6 +128,27 @@ export const workerSalaries = pgTable("worker_salaries", {
 		}).onDelete("cascade"),
 ]);
 
+// 工人身份主档：全局唯一的"人"。
+// 与 workers（工人项目任职/花名册）分离：一个人可在多个项目拥有多条 worker 任职记录，
+// 但同属一个 person 主档（身份证号全局唯一）。用于解决"重名 / 一人多项目导致数据分裂"。
+export const persons = pgTable("persons", {
+	id: serial().primaryKey().notNull(),
+	name: varchar({ length: 100 }).notNull(),
+	idCard: varchar("id_card", { length: 18 }),
+	phone: varchar({ length: 20 }),
+	bankCard: varchar("bank_card", { length: 30 }),
+	gender: varchar({ length: 10 }),
+	age: integer(),
+	isBlacklist: boolean("is_blacklist").default(false),
+	remark: text(),
+	sourceWorkerId: integer("source_worker_id"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("persons_id_card_unique_idx").using("btree", table.idCard.asc().nullsLast().op("text_ops")).where(sql`id_card is not null and id_card <> ''`),
+	index("persons_name_idx").using("btree", table.name.asc().nullsLast().op("text_ops")),
+]);
+
 export const workers = pgTable("workers", {
 	id: serial().primaryKey().notNull(),
 	name: varchar({ length: 100 }).notNull(),
@@ -143,6 +164,7 @@ export const workers = pgTable("workers", {
 	isBlacklist: boolean("is_blacklist").default(false),
 	remark: text(),
 	projectId: integer("project_id"),
+	personId: integer("person_id"), // 关联 persons 主档（方案A：一人可多项目任职，personId 归并同一个人）
 	status: varchar({ length: 20 }).default('in_service'), // in_service: 在场, left: 退场
 	leftAt: timestamp("left_at", { withTimezone: true, mode: 'string' }), // 退场时间
 }, (table) => [
@@ -151,11 +173,17 @@ export const workers = pgTable("workers", {
 	index("workers_phone_idx").using("btree", table.phone.asc().nullsLast().op("text_ops")),
 	index("workers_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 	index("workers_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("workers_person_id_idx").using("btree", table.personId.asc().nullsLast().op("int4_ops")),
 	uniqueIndex("workers_project_id_card_unique_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops"), table.idCard.asc().nullsLast().op("text_ops")).where(sql`id_card is not null`),
 	foreignKey({
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
 			name: "workers_project_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.personId],
+			foreignColumns: [persons.id],
+			name: "workers_person_id_fkey"
 		}).onDelete("set null"),
 ]);
 

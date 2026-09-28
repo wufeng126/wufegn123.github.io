@@ -69,14 +69,27 @@
    - year: 年度
    - status: 状态
 
-2. **workers** - 工人表（花名册）
+2. **persons** - 工人身份主档（方案A：人员主档分离，2026 引入）
+   - id: 主键
+   - name: 姓名
+   - id_card: 身份证号（全局唯一，`persons_id_card_unique_idx`，非空唯一）
+   - phone: 联系电话
+   - bank_card: 银行卡号
+   - is_blacklist: 黑名单
+   - `来源/设计`：与 workers 分离——persons 是全局唯一的"人"；worker 是"某人在某项目的任职"。解决"重名 / 一人多项目导致工资、发放、考勤按不同 worker_id 记录对不上"的数据分裂。
+   - 归并规则：有身份证按身份证归人；无身份证按"项目+姓名"兜底归人（见 `lib/person-service.ts`）
+
+3. **workers** - 工人表（花名册，现为"人在某项目的任职"）
    - id: 主键
    - name: 姓名
    - work_type: 工种
    - id_card: 身份证号
    - phone: 联系电话
    - bank_card: 银行卡号
-   - project_id: 所属项目ID（外键）
+   - project_id: 所属项目ID（外键，项目任职维度）
+   - person_id: 关联 persons 主档（外键，`workers_person_id_fkey`，ON DELETE SET NULL）
+   - `设计与约束`：同一人跨多个项目可有多个 worker 行（共享同一 person_id）；`workers_project_id_card_unique_idx`(project_id,id_card) 保证同项目内身份证唯一。
+   - 新增/批量导入工人时自动通过 `ensureWorkerPerson()` 归入 persons 主档并回填 person_id。
 
 3. **worker_salaries** - 工人工资表（月度工资）
    - id: 主键
