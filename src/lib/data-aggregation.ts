@@ -22,6 +22,7 @@ import {
 import { parseNumeric, round2, yearMonthToRange } from './format';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { cached, invalidateByPrefix } from './simple-cache';
+import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
 
 // 聚合数据缓存有效期（毫秒）：统计读多写少，30 秒窗口内复用结果，显著降低 DB 查询压力。
 const AGG_CACHE_TTL_MS = 30 * 1000;
@@ -365,7 +366,7 @@ type SalaryPaymentRow = { payment_amount?: unknown };
 type TeamSettlementRow = { id?: unknown; status?: string | null };
 type TeamSettlementItemRow = { amount?: unknown };
 type ExpenseRow = { amount?: unknown };
-type MiscMaterialRow = { amount?: unknown };
+type MiscMaterialRow = { quantity?: unknown; unit_price?: unknown };
 
 /** Supabase 查询构建器的日期过滤最小结构（保留具体类型 T 以支持链式调用） */
 type DateFilterableQuery = { gte: (column: string, value: unknown) => unknown; lte: (column: string, value: unknown) => unknown };
@@ -595,7 +596,7 @@ export async function getProjectFinancialSummary(
   // 6. 零星材料（仅已审核）
   let miscMaterialsQuery = client
     .from('miscellaneous_materials')
-    .select('amount, purchase_date')
+    .select('quantity, unit_price, purchase_date')
     .eq('project_id', projectId)
     .eq('status', 'reviewed');
 
@@ -604,7 +605,10 @@ export async function getProjectFinancialSummary(
   }
 
   const { data: miscMaterials } = await miscMaterialsQuery;
-  const miscMaterialAmount = (miscMaterials || []).reduce((sum: number, m: MiscMaterialRow) => sum + parseNumeric(m.amount), 0);
+  const miscMaterialAmount = (miscMaterials || []).reduce(
+    (sum: number, m: MiscMaterialRow) => sum + calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price),
+    0,
+  );
 
   // 7. 甲方已回款
   let clientPaymentsQuery = client
@@ -855,7 +859,7 @@ async function getMultiProjectFinancialSummariesImpl(
     buildDateFilter(
       client
         .from('miscellaneous_materials')
-        .select('project_id, amount, purchase_date')
+        .select('project_id, quantity, unit_price, purchase_date')
         .in('project_id', validProjectIds)
         .eq('status', 'reviewed'),
       'purchase_date',
@@ -977,10 +981,10 @@ async function getMultiProjectFinancialSummariesImpl(
   });
 
   // 零星材料
-  (miscMaterialsResult.data || []).forEach((m: { project_id?: unknown; amount?: unknown }) => {
+  (miscMaterialsResult.data || []).forEach((m: { project_id?: unknown; quantity?: unknown; unit_price?: unknown }) => {
     const pid = Number(m.project_id);
     if (!pid) return;
-    getAcc(pid).miscMaterialAmount += parseNumeric(m.amount);
+    getAcc(pid).miscMaterialAmount += calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price);
   });
 
   // 甲方已回款

@@ -25,7 +25,9 @@ interface MiscMaterialStats {
   materials: MiscMaterial[];
 }
 
-type MiscMaterialApiItem = Partial<MiscMaterial>;
+type MiscMaterialApiItem = Partial<MiscMaterial> & {
+  purchaser?: string | null;
+};
 
 interface ProjectMiscMaterialsProps {
   projectId: number;
@@ -49,7 +51,7 @@ export function ProjectMiscMaterials({ projectId }: ProjectMiscMaterialsProps) {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/miscellaneous-materials?projectId=${projectId}&pageSize=100`);
+      const res = await fetch(`/api/miscellaneous-materials?projectId=${projectId}&status=reviewed&pageSize=100`);
       const data = await res.json();
       
       const materials = (data.materials || []).map((item: MiscMaterialApiItem) => ({
@@ -60,20 +62,22 @@ export function ProjectMiscMaterials({ projectId }: ProjectMiscMaterialsProps) {
         unit_price: item.unit_price,
         total_price: item.total_price,
         purchase_date: item.purchase_date,
-        supplier: item.supplier,
+        supplier: item.supplier ?? item.purchaser,
         remark: item.remark,
       }));
 
-      const totalAmount = materials.reduce((sum: number, m: MiscMaterial) => 
-        sum + (parseFloat(m.total_price) || 0), 0);
-      const avgUnitPrice = materials.length > 0 
-        ? materials.reduce((sum: number, m: MiscMaterial) => 
-            sum + (parseFloat(m.unit_price) || 0), 0) / materials.length 
-        : 0;
+      const reviewedAmount = Number(data.stats?.reviewedAmount ?? data.stats?.totalAmount ?? 0);
+      const avgUnitPrice = Number(
+        data.stats?.reviewedAvgUnitPrice
+        ?? (materials.length > 0
+          ? materials.reduce((sum: number, m: MiscMaterial) =>
+              sum + (parseFloat(m.unit_price) || 0), 0) / materials.length
+          : 0),
+      );
 
       setStats({
-        total_count: data.pagination?.total || materials.length,
-        total_amount: totalAmount,
+        total_count: data.stats?.reviewedCount ?? data.pagination?.total ?? materials.length,
+        total_amount: reviewedAmount,
         avg_unit_price: avgUnitPrice,
         materials,
       });
@@ -204,7 +208,7 @@ export function ProjectMiscMaterials({ projectId }: ProjectMiscMaterialsProps) {
                     <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>单价</th>
                     <th className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#86909C' }}>金额</th>
                     <th className="px-4 py-3 text-center text-xs font-medium" style={{ color: '#86909C' }}>采购日期</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>供应商</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#86909C' }}>采购人</th>
                   </tr>
                 </thead>
                 <tbody>

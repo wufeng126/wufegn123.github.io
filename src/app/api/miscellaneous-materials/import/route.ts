@@ -4,6 +4,11 @@ import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import {
+  calculateMiscellaneousMaterialAmount,
+  parsePositiveMiscellaneousMaterialNumber,
+} from '@/lib/miscellaneous-materials';
 
 type XlsxModule = {
   read: (data: Uint8Array, options: { type: 'array' }) => {
@@ -121,13 +126,15 @@ export async function POST(request: NextRequest) {
     const unitIdx = findIndex(['单位']);
     const quantityIdx = findIndex(['数量']);
     const priceIdx = findIndex(['单价']);
-    const amountIdx = findIndex(['金额']);
     const dateIdx = findIndex(['采购日期', '日期']);
     const purchaserIdx = findIndex(['采购人']);
     const remarkIdx = findIndex(['备注']);
 
-    if (projectIdx < 0 || materialIdx < 0) {
-      return NextResponse.json({ error: '文件缺少必要列：项目名称、材料名称' }, { status: 400 });
+    if (projectIdx < 0 || materialIdx < 0 || quantityIdx < 0 || priceIdx < 0) {
+      return NextResponse.json(
+        { error: '文件缺少必要列：项目名称、材料名称、数量、单价' },
+        { status: 400 },
+      );
     }
 
     const client = getSupabaseClient();
@@ -176,18 +183,19 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const quantity = parseFloat(values[quantityIdx]) || 0;
-      const unitPrice = parseFloat(values[priceIdx]) || 0;
-      let amount = parseFloat(values[amountIdx]) || 0;
-      
-      if (amount === 0 && quantity > 0 && unitPrice > 0) {
-        amount = Math.round(quantity * unitPrice * 100) / 100;
-      }
-
-      if (amount === 0) {
-        errors.push(`第${i + 1}行：金额为空且无法计算`);
+      const quantity = parsePositiveMiscellaneousMaterialNumber(values[quantityIdx]);
+      if (quantity === null) {
+        errors.push(`第${i + 1}行：数量必须是大于0的数字`);
         continue;
       }
+
+      const unitPrice = parsePositiveMiscellaneousMaterialNumber(values[priceIdx]);
+      if (unitPrice === null) {
+        errors.push(`第${i + 1}行：单价必须是大于0的数字`);
+        continue;
+      }
+
+      const amount = calculateMiscellaneousMaterialAmount(quantity, unitPrice);
 
       // 处理日期格式 - Excel 可能返回数字序列号
       let purchaseDate = values[dateIdx] || '';
@@ -206,7 +214,7 @@ export async function POST(request: NextRequest) {
         purchaseDate = new Date().toISOString().split('T')[0];
       }
       
-      const duplicateKey = `${projectId}-${materialName.trim()}-${purchaseDate}-${amount}`;
+      const duplicateKey = `${projectId}-${materialName.trim()}-${purchaseDate}-${quantity}-${unitPrice}`;
       if (duplicates.includes(duplicateKey)) {
         errors.push(`第${i + 1}行：可能为重复数据`);
         continue;
@@ -240,6 +248,8 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw new Error(`导入失败: ${error.message}`);
     }
+
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'import',

@@ -5,9 +5,15 @@ import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
+import {
+  calculateMiscellaneousMaterialAmount,
+  parsePositiveMiscellaneousMaterialNumber,
+} from '@/lib/miscellaneous-materials';
 
 interface MiscMaterialStatsRow {
-  amount: string | number | null;
+  quantity: string | number | null;
+  unit_price: string | number | null;
+  amount?: string | number | null;
   status: string | null;
   projects?: { name?: string | null } | null;
 }
@@ -20,8 +26,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
     const materialName = searchParams.get('materialName');
+    const specification = searchParams.get('specification');
+    const purchaser = searchParams.get('purchaser');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
 
@@ -33,7 +42,18 @@ export async function GET(request: NextRequest) {
     const emptyPayload = {
       materials: [],
       pagination: { page, pageSize, total: 0, totalPages: 0 },
-      stats: { totalCount: 0, totalAmount: 0, projectStats: {} },
+      stats: {
+        totalCount: 0,
+        totalAmount: 0,
+        reviewedCount: 0,
+        reviewedAmount: 0,
+        reviewedAvgUnitPrice: 0,
+        draftCount: 0,
+        draftAmount: 0,
+        voidedCount: 0,
+        voidedAmount: 0,
+        projectStats: {},
+      },
     };
     if (accessibleProjects !== null && accessibleProjects.length === 0) {
       return NextResponse.json(emptyPayload);
@@ -58,11 +78,22 @@ export async function GET(request: NextRequest) {
     if (materialName) {
       countQuery = countQuery.ilike('material_name', `%${materialName}%`);
     }
+    if (specification) {
+      countQuery = countQuery.ilike('specification', `%${specification}%`);
+    }
+    if (purchaser) {
+      countQuery = countQuery.ilike('purchaser', `%${purchaser}%`);
+    }
     if (startDate) {
       countQuery = countQuery.gte('purchase_date', startDate);
     }
     if (endDate) {
       countQuery = countQuery.lte('purchase_date', endDate);
+    }
+    if (status && status !== 'all') {
+      countQuery = status === REVIEW_STATUS.DRAFT
+        ? countQuery.or('status.eq.draft,status.is.null')
+        : countQuery.eq('status', status);
     }
 
     const { count, error: countError } = await countQuery;
@@ -89,11 +120,22 @@ export async function GET(request: NextRequest) {
     if (materialName) {
       query = query.ilike('material_name', `%${materialName}%`);
     }
+    if (specification) {
+      query = query.ilike('specification', `%${specification}%`);
+    }
+    if (purchaser) {
+      query = query.ilike('purchaser', `%${purchaser}%`);
+    }
     if (startDate) {
       query = query.gte('purchase_date', startDate);
     }
     if (endDate) {
       query = query.lte('purchase_date', endDate);
+    }
+    if (status && status !== 'all') {
+      query = status === REVIEW_STATUS.DRAFT
+        ? query.or('status.eq.draft,status.is.null')
+        : query.eq('status', status);
     }
 
     const { data, error } = await query;
@@ -108,6 +150,8 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         project_id,
+        quantity,
+        unit_price,
         amount,
         status,
         projects(id, name)
@@ -121,11 +165,22 @@ export async function GET(request: NextRequest) {
     if (materialName) {
       statsQuery = statsQuery.ilike('material_name', `%${materialName}%`);
     }
+    if (specification) {
+      statsQuery = statsQuery.ilike('specification', `%${specification}%`);
+    }
+    if (purchaser) {
+      statsQuery = statsQuery.ilike('purchaser', `%${purchaser}%`);
+    }
     if (startDate) {
       statsQuery = statsQuery.gte('purchase_date', startDate);
     }
     if (endDate) {
       statsQuery = statsQuery.lte('purchase_date', endDate);
+    }
+    if (status && status !== 'all') {
+      statsQuery = status === REVIEW_STATUS.DRAFT
+        ? statsQuery.or('status.eq.draft,status.is.null')
+        : statsQuery.eq('status', status);
     }
 
     const { data: statsData, error: statsError } = await statsQuery;
@@ -133,15 +188,25 @@ export async function GET(request: NextRequest) {
       throw new Error(`查询零星材料统计失败: ${statsError.message}`);
     }
 
-    const reviewedData = ((statsData || []) as MiscMaterialStatsRow[]).filter(item => isReviewedStatus(item.status || undefined));
+    const allStatsData = (statsData || []) as MiscMaterialStatsRow[];
+    const reviewedData = allStatsData.filter(item => isReviewedStatus(item.status || undefined));
+    const draftData = allStatsData.filter(item => !isReviewedStatus(item.status || undefined) && !isVoidedStatus(item.status || undefined));
+    const voidedData = allStatsData.filter(item => isVoidedStatus(item.status || undefined));
 
-    let totalAmount = 0;
+    const sumAmount = (rows: MiscMaterialStatsRow[]) => rows.reduce((sum, item) => {
+      return sum + calculateMiscellaneousMaterialAmount(item.quantity, item.unit_price);
+    }, 0);
+
+    const reviewedAmount = sumAmount(reviewedData);
+    const reviewedAvgUnitPrice = reviewedData.length > 0
+      ? reviewedData.reduce((sum, item) => sum + Number(item.unit_price || 0), 0) / reviewedData.length
+      : 0;
+    const draftAmount = sumAmount(draftData);
+    const voidedAmount = sumAmount(voidedData);
     const projectStats: Record<string, number> = {};
 
     reviewedData.forEach(item => {
-      const amount = parseFloat(String(item.amount || '0'));
-      totalAmount += amount;
-
+      const amount = calculateMiscellaneousMaterialAmount(item.quantity, item.unit_price);
       const projectName = item.projects?.name || '未知项目';
       if (!projectStats[projectName]) {
         projectStats[projectName] = 0;
@@ -150,14 +215,16 @@ export async function GET(request: NextRequest) {
     });
 
     const materials = (data || []).map((item: any) => {
+      const amount = calculateMiscellaneousMaterialAmount(item.quantity, item.unit_price);
       return {
         id: item.id,
         project_id: item.project_id,
         material_name: item.material_name,
+        specification: item.specification,
         unit: item.unit,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        total_price: item.amount,
+        total_price: amount,
         purchase_date: item.purchase_date,
         supplier: item.purchaser,
         remark: item.remark,
@@ -180,8 +247,15 @@ export async function GET(request: NextRequest) {
         totalPages,
       },
       stats: {
-        totalCount: reviewedData.length,
-        totalAmount,
+        totalCount: count || 0,
+        totalAmount: reviewedAmount,
+        reviewedCount: reviewedData.length,
+        reviewedAmount,
+        reviewedAvgUnitPrice,
+        draftCount: draftData.length,
+        draftAmount,
+        voidedCount: voidedData.length,
+        voidedAmount,
         projectStats,
       }
     });
@@ -204,7 +278,18 @@ export async function POST(request: NextRequest) {
     
     const client = getSupabaseClient();
     
-    const projectIds = [...new Set(records.map(r => parseInt(r.project_id)).filter(Boolean))];
+    const invalidProjectRow = records.findIndex((record) => {
+      const projectId = Number(record.project_id);
+      return !Number.isInteger(projectId) || projectId <= 0;
+    });
+    if (invalidProjectRow >= 0) {
+      return NextResponse.json(
+        { error: `第${invalidProjectRow + 1}条：请选择有效项目` },
+        { status: 400 },
+      );
+    }
+
+    const projectIds = [...new Set(records.map(r => Number(r.project_id)).filter(Boolean))];
     if (projectIds.length === 0) {
       return NextResponse.json({ error: '请选择项目' }, { status: 400 });
     }
@@ -234,19 +319,29 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    const insertData = records.map(record => {
-      const { 
-        project_id, material_name, unit, 
-        quantity, unit_price, purchase_date, supplier, remark 
+    const validationErrors: string[] = [];
+    const insertData = records.flatMap((record, index) => {
+      const {
+        project_id, material_name, specification, unit,
+        quantity, unit_price, purchase_date, supplier, remark
       } = record;
 
-      const qty = parseFloat(quantity) || 0;
-      const price = parseFloat(unit_price) || 0;
-      const amount = Math.round(qty * price * 100) / 100;
+      const qty = parsePositiveMiscellaneousMaterialNumber(quantity);
+      const price = parsePositiveMiscellaneousMaterialNumber(unit_price);
+      if (qty === null) {
+        validationErrors.push(`第${index + 1}条：数量必须是大于0的数字`);
+        return [];
+      }
+      if (price === null) {
+        validationErrors.push(`第${index + 1}条：单价必须是大于0的数字`);
+        return [];
+      }
+      const amount = calculateMiscellaneousMaterialAmount(qty, price);
 
-      return {
+      return [{
         project_id: parseInt(project_id),
         material_name: material_name?.trim() || '未命名材料',
+        specification: specification?.trim() || null,
         unit: unit?.trim() || null,
         quantity: qty,
         unit_price: price,
@@ -255,8 +350,15 @@ export async function POST(request: NextRequest) {
         purchaser: supplier?.trim() || null,
         remark: remark?.trim() || null,
         status: REVIEW_STATUS.DRAFT,
-      };
+      }];
     }).filter(item => item.project_id && item.material_name);
+
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { error: validationErrors[0], details: validationErrors },
+        { status: 400 },
+      );
+    }
 
     if (insertData.length === 0) {
       return NextResponse.json({ error: '没有有效的数据' }, { status: 400 });
@@ -294,7 +396,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { id, project_id, material_name, unit, quantity, unit_price, purchase_date, supplier, remark, status } = body;
+    const { id, project_id, material_name, specification, unit, quantity, unit_price, purchase_date, supplier, remark, status } = body;
 
     if (!id) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
@@ -305,7 +407,7 @@ export async function PUT(request: NextRequest) {
 
     const { data: currentMaterial, error: currentError } = await client
       .from('miscellaneous_materials')
-      .select('id, project_id, status, quantity, unit_price, amount')
+      .select('id, project_id, status, material_name, specification, unit, quantity, unit_price, amount, purchase_date, purchaser, remark')
       .eq('id', materialId)
       .single();
 
@@ -317,11 +419,38 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '已作废记录不可修改' }, { status: 400 });
     }
 
-    if (isReviewedStatus(currentMaterial.status) && (quantity !== undefined || unit_price !== undefined) && status !== REVIEW_STATUS.DRAFT) {
-      return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
+    const contentFields = [
+      'project_id',
+      'material_name',
+      'specification',
+      'unit',
+      'quantity',
+      'unit_price',
+      'purchase_date',
+      'supplier',
+      'remark',
+    ] as const;
+    const contentFieldsProvided = contentFields.filter((field) => body[field] !== undefined);
+    const isStatusChange = status !== undefined;
+
+    if (isStatusChange && contentFieldsProvided.length > 0) {
+      return NextResponse.json(
+        { error: '状态变更必须单独提交，不能同时修改材料内容' },
+        { status: 400 },
+      );
     }
 
-    const targetProjectId = parseInt(project_id);
+    if (!isStatusChange && contentFieldsProvided.length === 0) {
+      return NextResponse.json({ error: '请提交要修改的材料内容' }, { status: 400 });
+    }
+
+    if (!isStatusChange && isReviewedStatus(currentMaterial.status)) {
+      return NextResponse.json({ error: '已审核记录不可直接编辑，请先单独反审核' }, { status: 400 });
+    }
+
+    const targetProjectId = project_id === undefined
+      ? Number(currentMaterial.project_id)
+      : parseInt(project_id);
     if (!Number.isInteger(targetProjectId)) {
       return NextResponse.json({ error: '请选择项目' }, { status: 400 });
     }
@@ -334,37 +463,79 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '当前账号无权修改该项目材料记录' }, { status: 403 });
     }
 
-    const qty = parseFloat(quantity) || 0;
-    const price = parseFloat(unit_price) || 0;
-    const amount = Math.round(qty * price * 100) / 100;
-
-    const updateData: Record<string, any> = {
-      project_id: targetProjectId,
-      material_name: material_name?.trim() || '未命名材料',
-      unit: unit?.trim() || null,
-      quantity: qty,
-      unit_price: price,
-      amount,
-      purchase_date: purchase_date || new Date().toISOString().split('T')[0],
-      purchaser: supplier?.trim() || null,
-      remark: remark?.trim() || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (status !== undefined) {
+    if (isStatusChange) {
       const validation = validateStatusTransition(currentMaterial.status || REVIEW_STATUS.DRAFT, status);
       if (!validation.valid) {
         return NextResponse.json({ error: validation.message || '状态流转不合法' }, { status: 400 });
       }
-      updateData.status = status;
+
+      const statusUpdate: Record<string, unknown> = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
       if (status === REVIEW_STATUS.REVIEWED) {
-        updateData.reviewed_at = new Date().toISOString();
-        updateData.reviewed_by = auth.user.name || auth.user.username || 'system';
+        statusUpdate.reviewed_at = new Date().toISOString();
+        statusUpdate.reviewed_by = auth.user.name || auth.user.username || 'system';
       } else if (status === REVIEW_STATUS.DRAFT) {
-        updateData.reviewed_at = null;
-        updateData.reviewed_by = null;
+        statusUpdate.reviewed_at = null;
+        statusUpdate.reviewed_by = null;
       }
+
+      const { data, error } = await client
+        .from('miscellaneous_materials')
+        .update(statusUpdate)
+        .eq('id', materialId)
+        .select();
+
+      if (error) {
+        throw new Error(`更新零星材料状态失败: ${error.message}`);
+      }
+
+      invalidateAggregationCache();
+      await auditLog({
+        operationType: 'update',
+        resourceType: 'miscellaneous_material',
+        resourceId: materialId,
+        details: { status },
+        request,
+      });
+
+      return NextResponse.json({ materials: data });
     }
+
+    const qty = quantity === undefined
+      ? parsePositiveMiscellaneousMaterialNumber(currentMaterial.quantity)
+      : parsePositiveMiscellaneousMaterialNumber(quantity);
+    const price = unit_price === undefined
+      ? parsePositiveMiscellaneousMaterialNumber(currentMaterial.unit_price)
+      : parsePositiveMiscellaneousMaterialNumber(unit_price);
+    if (qty === null) {
+      return NextResponse.json({ error: '数量必须是大于0的数字' }, { status: 400 });
+    }
+    if (price === null) {
+      return NextResponse.json({ error: '单价必须是大于0的数字' }, { status: 400 });
+    }
+    const amount = calculateMiscellaneousMaterialAmount(qty, price);
+
+    const updateData: Record<string, unknown> = {
+      project_id: targetProjectId,
+      material_name: material_name === undefined
+        ? currentMaterial.material_name
+        : material_name?.trim() || '未命名材料',
+      specification: specification === undefined
+        ? currentMaterial.specification || null
+        : specification?.trim() || null,
+      unit: unit === undefined ? currentMaterial.unit || null : unit?.trim() || null,
+      quantity: qty,
+      unit_price: price,
+      amount,
+      purchase_date: purchase_date === undefined
+        ? currentMaterial.purchase_date
+        : purchase_date || new Date().toISOString().split('T')[0],
+      purchaser: supplier === undefined ? currentMaterial.purchaser || null : supplier?.trim() || null,
+      remark: remark === undefined ? currentMaterial.remark || null : remark?.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await client
       .from('miscellaneous_materials')
@@ -375,6 +546,8 @@ export async function PUT(request: NextRequest) {
     if (error) {
       throw new Error(`更新零星材料记录失败: ${error.message}`);
     }
+
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'update',
@@ -436,6 +609,8 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       throw new Error(`删除零星材料记录失败: ${error.message}`);
     }
+
+    invalidateAggregationCache();
 
     await auditLog({
       operationType: 'delete',

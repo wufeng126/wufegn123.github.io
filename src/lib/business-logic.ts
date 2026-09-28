@@ -4,6 +4,7 @@
  */
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
+import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
 export { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
 
 type SupplierPaymentAmountRow = {
@@ -72,7 +73,8 @@ type ExpenseLikeRow = {
 };
 
 type MiscMaterialLikeRow = {
-  amount?: unknown;
+  quantity?: unknown;
+  unit_price?: unknown;
 };
 
 // ========== 通用工具 ==========
@@ -1003,11 +1005,14 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
   // 6. 零星材料（正式成本仅统计已审核）
   const { data: miscMaterials } = await client
     .from('miscellaneous_materials')
-    .select('amount')
+    .select('quantity, unit_price')
     .eq('project_id', projectId)
     .eq('status', REVIEW_STATUS.REVIEWED);
 
-  const miscMaterialAmount = (miscMaterials || []).reduce((sum: number, m: MiscMaterialLikeRow) => sum + parseNumeric(m.amount), 0);
+  const miscMaterialAmount = (miscMaterials || []).reduce(
+    (sum: number, m: MiscMaterialLikeRow) => sum + calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price),
+    0,
+  );
 
   // 汇总计算
   const taxableIncome = invoiceAmount + visaAmount;
