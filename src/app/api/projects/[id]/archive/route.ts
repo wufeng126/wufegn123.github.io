@@ -10,6 +10,7 @@ import {
   isEffectiveSupplierPaymentStatus,
   isReviewedStatus,
 } from '@/lib/business-logic';
+import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
 
 type ArchiveParams = { params: Promise<{ id: string }> };
 
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
       supabase.from('supplier_payments').select('payment_amount,status').eq('project_id', projectId),
       supabase.from('worker_salaries').select('gross_pay,net_pay,payment_status').eq('project_id', projectId),
       supabase.from('salary_payments').select('payment_amount').eq('project_id', projectId),
-      supabase.from('miscellaneous_materials').select('amount,quantity,status').eq('project_id', projectId),
+      supabase.from('miscellaneous_materials').select('quantity,unit_price,status').eq('project_id', projectId),
     ]);
 
     const queryErrors = [
@@ -259,7 +260,12 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
         supplierPaymentAmount: sumRows(effectiveSupplierPayments, 'payment_amount'),
         workerSalaryAmount: sumRows(workerSalariesResult.data, 'net_pay'),
         salaryPaymentAmount: sumRows(salaryPaymentsResult.data, 'payment_amount'),
-        miscMaterialAmount: sumRows(effectiveMiscMaterials, 'amount'),
+        miscMaterialAmount: effectiveMiscMaterials.reduce(
+          (sum, row: { quantity?: unknown; unit_price?: unknown }) => (
+            sum + calculateMiscellaneousMaterialAmount(row.quantity, row.unit_price)
+          ),
+          0,
+        ),
       },
       archivedAt: new Date().toISOString(),
       archivedBy: auth.user.id,

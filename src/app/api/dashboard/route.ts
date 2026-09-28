@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries, getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
+import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { requireAuth } from '@/lib/api-auth';
 import { logger } from '@/lib/logger';
@@ -524,7 +525,7 @@ export async function GET(request: Request) {
     // 零星材料 - 支持项目筛选和时间范围筛选
     let miscMaterialsQuery = client
       .from('miscellaneous_materials')
-      .select('amount, purchase_date')
+      .select('quantity, unit_price, purchase_date')
       .eq('status', 'reviewed');
     
     if (projectId) {
@@ -537,7 +538,7 @@ export async function GET(request: Request) {
     const { data: miscMaterials } = await miscMaterialsQuery;
     
     const totalMiscMaterialCost = miscMaterials?.reduce((sum, m) => {
-      return sum + (parseFloat(m.amount || '0') || 0);
+      return sum + calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price);
     }, 0) || 0;
     
     // 税费计算：从 client_reports 的 invoice_amount 和 tax_rate 计算

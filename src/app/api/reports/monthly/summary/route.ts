@@ -24,6 +24,7 @@ import {
 import { requireAuth } from '@/lib/api-auth';
 import { getProjectAccessScope } from '@/lib/api-project-scope';
 import { logger } from '@/lib/logger';
+import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
 
 const supabase = getSupabaseClient();
 
@@ -415,7 +416,11 @@ export async function GET(request: NextRequest) {
       const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + teamSettlementCost;
       const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)));
       const expenseCost = safeSum(projExpenses.map((e: Record<string, unknown>) => Number(e.amount || 0)));
-      const materialCost = safeSum(projMaterials.map((m: Record<string, unknown>) => Number(m.amount || 0)));
+      const materialCost = safeSum(
+        projMaterials.map((m: Record<string, unknown>) => (
+          calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price)
+        ))
+      );
 
       // 税费：从 client_reports 的 invoice_amount 和 tax_rate 计算（表无 tax_amount 列）
       const taxCost = safeSum(projReports.map((r: Record<string, unknown>) => {
@@ -451,7 +456,9 @@ export async function GET(request: NextRequest) {
         projMaterials.filter((m: Record<string, unknown>) => {
           const d = m.purchase_date as string;
           return d && d.startsWith(reportMonth);
-        }).map((m: Record<string, unknown>) => Number(m.amount || 0))
+        }).map((m: Record<string, unknown>) => (
+          calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price)
+        ))
       );
 
       const monthTaxCost = safeSum(monthReports.map((r: Record<string, unknown>) => {
@@ -896,7 +903,9 @@ export async function GET(request: NextRequest) {
       materials.filter((m: Record<string, unknown>) => {
         const d = m.purchase_date as string;
         return d && (m.purchase_date as string).startsWith(prevMonth);
-      }).map((m: Record<string, unknown>) => Number(m.amount || 0))
+      }).map((m: Record<string, unknown>) => (
+        calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price)
+      ))
     ) + prevMonthSalary + safeSum(
       allSettlements.filter((s) => {
         const d = s.settlementDate || '';
@@ -943,7 +952,9 @@ export async function GET(request: NextRequest) {
       materials.filter((m: Record<string, unknown>) => {
         const d = m.purchase_date as string;
         return d && d.startsWith(lastYearMonth);
-      }).map((m: Record<string, unknown>) => Number(m.amount || 0))
+      }).map((m: Record<string, unknown>) => (
+        calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price)
+      ))
     ) + lastYearSalary + safeSum(
       allSettlements.filter((s) => {
         const d = s.settlementDate || '';
@@ -1048,7 +1059,11 @@ export async function GET(request: NextRequest) {
         expenses.filter((e: Record<string, unknown>) => (e.expense_date as string || '').startsWith(trend.month)).map((e: Record<string, unknown>) => Number(e.amount || 0))
       );
       const monthMaterials = safeSum(
-        materials.filter((m: Record<string, unknown>) => (m.purchase_date as string || '').startsWith(trend.month)).map((m: Record<string, unknown>) => Number(m.amount || 0))
+        materials
+          .filter((m: Record<string, unknown>) => (m.purchase_date as string || '').startsWith(trend.month))
+          .map((m: Record<string, unknown>) => (
+            calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price)
+          ))
       );
       const monthSupplierSettlement = safeSum(
         allSettlements.filter((s) => {

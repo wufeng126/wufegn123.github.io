@@ -5,6 +5,7 @@ import { auditLog } from '@/lib/audit-log';
 import { REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import type { RequestAuthUser } from '@/lib/auth';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 type ReviewUpdateData = {
   status: string;
@@ -136,6 +137,9 @@ export async function POST(request: NextRequest) {
     if (resource_type === 'supplier_settlement') {
       await syncSupplierSettlementReviewSideEffects(client, data, targetStatus, auth.user);
     }
+
+    // 审核状态会影响首页、成本中心、月报等聚合数据，统一审核入口也要主动清缓存。
+    invalidateAggregationCache();
 
     // 记录审计日志
     const actionNames: Record<string, string> = {

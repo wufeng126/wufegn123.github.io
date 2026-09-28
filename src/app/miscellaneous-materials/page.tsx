@@ -22,14 +22,24 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plus, Pencil, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight,
-  Package, Building2, Calendar, FileSpreadsheet, Loader2, Camera, Mic, Sparkles
+  Package, FileSpreadsheet, Loader2, Camera, Mic, Sparkles,
+  CheckCircle2, RotateCcw, Ban
 } from 'lucide-react';
+
+type MaterialStatus = 'draft' | 'reviewed' | 'voided';
+
+const statusMeta: Record<MaterialStatus, { label: string; color: string; background: string }> = {
+  draft: { label: '草稿', color: '#D46B08', background: '#FFF7E8' },
+  reviewed: { label: '已审核', color: '#008A39', background: '#E8FFEA' },
+  voided: { label: '已作废', color: '#86909C', background: '#F2F3F5' },
+};
 
 // 类型定义
 interface MiscMaterial {
   id: number;
   project_id: number;
   material_name: string;
+  specification: string | null;
   unit: string | null;
   quantity: string;
   unit_price: string;
@@ -37,6 +47,9 @@ interface MiscMaterial {
   purchase_date: string;
   supplier: string | null;
   remark: string | null;
+  status: MaterialStatus;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
   created_at: string;
   projects: { name: string } | null;
 }
@@ -51,6 +64,12 @@ interface Pagination {
 interface Stats {
   totalCount: number;
   totalAmount: number;
+  reviewedCount: number;
+  reviewedAmount: number;
+  draftCount: number;
+  draftAmount: number;
+  voidedCount: number;
+  voidedAmount: number;
   projectStats: Record<string, number>;
 }
 
@@ -59,6 +78,7 @@ type AssistMode = 'image' | 'voice' | 'text';
 interface RecognitionDraft {
   project_id?: string;
   material_name?: string;
+  specification?: string;
   unit?: string;
   quantity?: string;
   unit_price?: string;
@@ -113,11 +133,24 @@ function MiscMaterialsContent() {
   const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
-  const [stats, setStats] = useState<Stats>({ totalCount: 0, totalAmount: 0, projectStats: {} });
+  const [stats, setStats] = useState<Stats>({
+    totalCount: 0,
+    totalAmount: 0,
+    reviewedCount: 0,
+    reviewedAmount: 0,
+    draftCount: 0,
+    draftAmount: 0,
+    voidedCount: 0,
+    voidedAmount: 0,
+    projectStats: {},
+  });
   
   // 筛选条件
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [materialName, setMaterialName] = useState('');
+  const [specification, setSpecification] = useState('');
+  const [purchaser, setPurchaser] = useState('');
+  const [status, setStatus] = useState<'all' | MaterialStatus>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -129,6 +162,7 @@ function MiscMaterialsContent() {
   const [assistDialogOpen, setAssistDialogOpen] = useState(false);
   const [currentMaterial, setCurrentMaterial] = useState<MiscMaterial | null>(null);
   const [saving, setSaving] = useState(false);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [listening, setListening] = useState(false);
   
@@ -148,6 +182,7 @@ function MiscMaterialsContent() {
   const [form, setForm] = useState({
     project_id: '',
     material_name: '',
+    specification: '',
     unit: '',
     quantity: '',
     unit_price: '',
@@ -174,6 +209,22 @@ function MiscMaterialsContent() {
     fetchMaterials(1);
   }, [selectedProjectId, startDate, endDate]);
 
+  const buildFilterParams = (includePaging = false, page = 1) => {
+    const params = new URLSearchParams();
+    if (includePaging) {
+      params.append('page', page.toString());
+      params.append('pageSize', pagination.pageSize.toString());
+    }
+    if (selectedProjectId !== 'all') params.append('projectId', selectedProjectId);
+    if (materialName.trim()) params.append('materialName', materialName.trim());
+    if (specification.trim()) params.append('specification', specification.trim());
+    if (purchaser.trim()) params.append('purchaser', purchaser.trim());
+    if (status !== 'all') params.append('status', status);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return params;
+  };
+
   // 获取项目列表
   async function fetchProjects() {
     try {
@@ -189,21 +240,7 @@ function MiscMaterialsContent() {
   async function fetchMaterials(page: number = pagination.page) {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      params.append('page', page.toString());
-      params.append('pageSize', pagination.pageSize.toString());
-      if (selectedProjectId !== 'all') {
-        params.append('projectId', selectedProjectId);
-      }
-      if (materialName) {
-        params.append('materialName', materialName);
-      }
-      if (startDate) {
-        params.append('startDate', startDate);
-      }
-      if (endDate) {
-        params.append('endDate', endDate);
-      }
+      const params = buildFilterParams(true, page);
       
       const response = await fetch(`/api/miscellaneous-materials?${params}`);
       const data = await response.json();
@@ -230,19 +267,7 @@ function MiscMaterialsContent() {
   // 获取统计数据
   async function fetchStats() {
     try {
-      const params = new URLSearchParams();
-      if (selectedProjectId !== 'all') {
-        params.append('projectId', selectedProjectId);
-      }
-      if (materialName) {
-        params.append('materialName', materialName);
-      }
-      if (startDate) {
-        params.append('startDate', startDate);
-      }
-      if (endDate) {
-        params.append('endDate', endDate);
-      }
+      const params = buildFilterParams();
       
       const response = await fetch(`/api/miscellaneous-materials?${params}`);
       const data = await response.json();
@@ -259,6 +284,7 @@ function MiscMaterialsContent() {
     setForm({
       project_id: '',
       material_name: '',
+      specification: '',
       unit: '',
       quantity: '',
       unit_price: '',
@@ -285,6 +311,7 @@ function MiscMaterialsContent() {
     setForm({
       project_id: draft.project_id || (selectedProjectId !== 'all' ? selectedProjectId : ''),
       material_name: draft.material_name || '',
+      specification: draft.specification || '',
       unit: draft.unit || '',
       quantity: draft.quantity || '',
       unit_price: draft.unit_price || '',
@@ -407,6 +434,7 @@ function MiscMaterialsContent() {
         body: JSON.stringify({
           project_id: parseInt(form.project_id),
           material_name: form.material_name,
+          specification: form.specification || null,
           unit: form.unit || null,
           quantity: parseFloat(form.quantity),
           unit_price: parseFloat(form.unit_price),
@@ -467,6 +495,7 @@ function MiscMaterialsContent() {
           id: currentMaterial.id,
           project_id: parseInt(form.project_id),
           material_name: form.material_name,
+          specification: form.specification || null,
           unit: form.unit || null,
           quantity: parseFloat(form.quantity),
           unit_price: parseFloat(form.unit_price),
@@ -506,6 +535,46 @@ function MiscMaterialsContent() {
     }
   };
 
+  const handleStatusChange = async (material: MiscMaterial, nextStatus: MaterialStatus) => {
+    if (material.status === 'voided') {
+      toast({ title: '记录已作废', description: '已作废记录不可再次变更', variant: 'error' });
+      return;
+    }
+
+    try {
+      setStatusUpdatingId(material.id);
+      const response = await fetch('/api/miscellaneous-materials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: material.id, status: nextStatus }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '状态更新失败');
+      }
+
+      toast({
+        title: nextStatus === 'reviewed' ? '审核成功' : nextStatus === 'draft' ? '已反审核' : '已作废',
+        description: nextStatus === 'reviewed'
+          ? '该记录已纳入成本中心和经营月报'
+          : nextStatus === 'draft'
+            ? '记录已退回草稿，可重新核对后审核'
+            : '记录已保留留痕，不再计入正式统计',
+      });
+      await fetchMaterials(pagination.page);
+      await fetchStats();
+    } catch (error: unknown) {
+      toast({
+        title: '状态更新失败',
+        description: getClientErrorMessage(error, '请稍后重试'),
+        variant: 'error',
+      });
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
+
   // 删除材料
   const handleDelete = async () => {
     if (!currentMaterial) return;
@@ -542,19 +611,10 @@ function MiscMaterialsContent() {
     }
   };
 
-  // 导出Excel
+  // 导出台账
   const handleExport = async () => {
     try {
-      const params = new URLSearchParams();
-      if (selectedProjectId !== 'all') {
-        params.append('projectId', selectedProjectId);
-      }
-      if (startDate) {
-        params.append('startDate', startDate);
-      }
-      if (endDate) {
-        params.append('endDate', endDate);
-      }
+      const params = buildFilterParams();
       
       const response = await fetch(`/api/miscellaneous-materials/export?${params}`);
       
@@ -566,7 +626,7 @@ function MiscMaterialsContent() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `零星材料统计_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.download = `零星材料统计_${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -643,10 +703,19 @@ function MiscMaterialsContent() {
 
   // 打开编辑对话框
   const openEditDialog = (material: MiscMaterial) => {
+    if (material.status === 'voided') {
+      toast({ title: '记录已作废', description: '已作废记录不可编辑', variant: 'error' });
+      return;
+    }
+    if (material.status === 'reviewed') {
+      toast({ title: '请先反审核', description: '已审核记录需要先反审核，才能修改数量和金额', variant: 'error' });
+      return;
+    }
     setCurrentMaterial(material);
     setForm({
       project_id: material.project_id.toString(),
       material_name: material.material_name,
+      specification: material.specification || '',
       unit: material.unit || '',
       quantity: material.quantity,
       unit_price: material.unit_price,
@@ -665,9 +734,9 @@ function MiscMaterialsContent() {
 
   // 下载导入模板
   const downloadTemplate = () => {
-    const headers = ['项目名称', '材料名称', '规格型号', '单位', '数量', '单价', '金额', '采购日期', '采购人', '备注'];
-    const example1 = ['XX项目', 'C30混凝土', 'C30商品混凝土', 'm³', '100', '380', '38000', '2024-01-15', '张三', '主体结构用'];
-    const example2 = ['XX项目', '钢筋', 'HRB400 Φ12', '吨', '5', '4200', '21000', '2024-01-16', '李四', ''];
+    const headers = ['项目名称', '材料名称', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'];
+    const example1 = ['XX项目', 'C30混凝土', 'C30商品混凝土', 'm³', '100', '380', '2024-01-15', '张三', '主体结构用'];
+    const example2 = ['XX项目', '钢筋', 'HRB400 Φ12', '吨', '5', '4200', '2024-01-16', '李四', ''];
     const csvContent = '\uFEFF' + [headers.join(','), example1.join(','), example2.join(',')].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -686,13 +755,128 @@ function MiscMaterialsContent() {
     return new Date(dateStr).toLocaleDateString('zh-CN');
   };
 
+  const renderStatusBadge = (material: MiscMaterial) => {
+    const meta = statusMeta[material.status] || statusMeta.draft;
+    return (
+      <span
+        className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+        style={{
+          color: meta.color,
+          backgroundColor: meta.background,
+          borderColor: `${meta.color}55`,
+        }}
+      >
+        {meta.label}
+      </span>
+    );
+  };
+
+  const renderMaterialActions = (material: MiscMaterial) => {
+    const isUpdating = statusUpdatingId === material.id;
+
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-1">
+        {material.status === 'draft' && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(material, 'reviewed')}
+              disabled={isUpdating}
+              className="h-8 px-2"
+              title="审核"
+              aria-label="审核"
+            >
+              {isUpdating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" style={{ color: '#008A39' }} />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(material, 'voided')}
+              disabled={isUpdating}
+              className="h-8 px-2"
+              title="作废"
+              aria-label="作废"
+            >
+              <Ban className="h-4 w-4" style={{ color: '#86909C' }} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEditDialog(material)}
+              className="h-8 px-2"
+              title="编辑"
+              aria-label="编辑"
+            >
+              <Pencil className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setCurrentMaterial(material);
+                setDeleteDialogOpen(true);
+              }}
+              className="h-8 px-2"
+              title="删除"
+              aria-label="删除"
+            >
+              <Trash2 className="h-4 w-4" style={{ color: '#F53F3F' }} />
+            </Button>
+          </>
+        )}
+
+        {material.status === 'reviewed' && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(material, 'draft')}
+              disabled={isUpdating}
+              className="h-8 px-2"
+              title="反审核"
+              aria-label="反审核"
+            >
+              {isUpdating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" style={{ color: '#D46B08' }} />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(material, 'voided')}
+              disabled={isUpdating}
+              className="h-8 px-2"
+              title="作废"
+              aria-label="作废"
+            >
+              <Ban className="h-4 w-4" style={{ color: '#86909C' }} />
+            </Button>
+          </>
+        )}
+
+        {material.status === 'voided' && (
+          <span className="px-2 text-xs" style={{ color: 'var(--color-text-3)' }}>
+            只读留痕
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5 p-3 sm:p-4 md:p-6" style={{ backgroundColor: 'var(--color-muted)', minHeight: 'calc(100vh - 64px)' }}>
       {/* 页面标题 */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>零星材料统计</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>管理项目零星材料采购记录，自动计入项目成本</p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>零星材料登记台账</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>登记采购发生、核对审核状态，已审核记录进入项目成本统计</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <Button
@@ -725,7 +909,7 @@ function MiscMaterialsContent() {
             className="gap-2"
           >
             <Download className="h-4 w-4" />
-            导出Excel
+            导出CSV
           </Button>
           <Button
             onClick={() => {
@@ -736,7 +920,7 @@ function MiscMaterialsContent() {
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             <Plus className="h-4 w-4" />
-            新增材料
+            新增登记
           </Button>
         </div>
       </div>
@@ -747,11 +931,12 @@ function MiscMaterialsContent() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg" style={{ backgroundColor: '#E8F3FF' }}>
-                <Package className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
+                <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>总记录数</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>{stats.totalCount}</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>已审核金额</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.reviewedAmount)}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>{stats.reviewedCount} 笔进入成本</p>
               </div>
             </div>
           </CardContent>
@@ -761,11 +946,12 @@ function MiscMaterialsContent() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg" style={{ backgroundColor: '#FFF7E8' }}>
-                <FileSpreadsheet className="h-5 w-5" style={{ color: '#FF7D00' }} />
+                <FileSpreadsheet className="h-5 w-5" style={{ color: '#D46B08' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>总金额</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.totalAmount)}</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>待审核金额</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.draftAmount)}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>{stats.draftCount} 笔待核对</p>
               </div>
             </div>
           </CardContent>
@@ -775,11 +961,12 @@ function MiscMaterialsContent() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg" style={{ backgroundColor: '#E8FFEA' }}>
-                <Building2 className="h-5 w-5" style={{ color: '#00B42A' }} />
+                <Ban className="h-5 w-5" style={{ color: '#86909C' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>涉及项目</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>{Object.keys(stats.projectStats).length}</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>已作废金额</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.voidedAmount)}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>{stats.voidedCount} 笔保留留痕</p>
               </div>
             </div>
           </CardContent>
@@ -789,13 +976,12 @@ function MiscMaterialsContent() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-muted)' }}>
-                <Calendar className="h-5 w-5" style={{ color: 'var(--color-text-3)' }} />
+                <Package className="h-5 w-5" style={{ color: 'var(--color-text-3)' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>平均单价</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>
-                  ¥{stats.totalCount > 0 ? formatAmount(stats.totalAmount / stats.totalCount) : '0.00'}
-                </p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>记录数</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>{stats.totalCount}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>当前筛选范围</p>
               </div>
             </div>
           </CardContent>
@@ -805,7 +991,7 @@ function MiscMaterialsContent() {
       {/* 筛选条件 */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
             <div className="space-y-1.5">
               <Label style={{ color: 'var(--color-text-3)' }}>项目</Label>
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
@@ -832,6 +1018,41 @@ function MiscMaterialsContent() {
                 onChange={(e) => setMaterialName(e.target.value)}
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label style={{ color: 'var(--color-text-3)' }}>规格型号</Label>
+              <Input
+                className="w-full"
+                placeholder="搜索规格型号"
+                value={specification}
+                onChange={(e) => setSpecification(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label style={{ color: 'var(--color-text-3)' }}>采购人</Label>
+              <Input
+                className="w-full"
+                placeholder="搜索采购人"
+                value={purchaser}
+                onChange={(e) => setPurchaser(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label style={{ color: 'var(--color-text-3)' }}>状态</Label>
+              <Select value={status} onValueChange={(value) => setStatus(value as 'all' | MaterialStatus)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="全部状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="draft">草稿</SelectItem>
+                  <SelectItem value="reviewed">已审核</SelectItem>
+                  <SelectItem value="voided">已作废</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             <div className="space-y-1.5">
               <Label style={{ color: 'var(--color-text-3)' }}>开始日期</Label>
@@ -852,32 +1073,40 @@ function MiscMaterialsContent() {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
-            
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button
               onClick={() => {
                 fetchMaterials(1);
                 fetchStats();
               }}
-              className="w-full gap-2"
+              className="gap-2"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
               <Search className="h-4 w-4" />
               查询
             </Button>
-            
             <Button
               variant="outline"
               onClick={() => {
                 setSelectedProjectId('all');
                 setMaterialName('');
+                setSpecification('');
+                setPurchaser('');
+                setStatus('all');
                 setStartDate('');
                 setEndDate('');
-                fetchMaterials(1);
-                fetchStats();
+                setTimeout(() => {
+                  fetchMaterials(1);
+                  fetchStats();
+                }, 0);
               }}
             >
               重置
             </Button>
+            <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
+              统计金额仅包含已审核记录
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -942,9 +1171,19 @@ function MiscMaterialsContent() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{material.material_name}</p>
+                        {material.specification && (
+                          <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-text-3)' }}>
+                            {material.specification}
+                          </p>
+                        )}
                         <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-text-3)' }}>{material.projects?.name || '-'}</p>
                       </div>
-                      <span className="shrink-0 text-sm font-semibold" style={{ color: '#FF7D00' }}>¥{formatAmount(material.total_price)}</span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {renderStatusBadge(material)}
+                        <span className="text-sm font-semibold" style={{ color: '#FF7D00' }}>
+                          ¥{formatAmount(material.total_price)}
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                       <div className="rounded-lg bg-[var(--color-muted)] px-2 py-1.5">
@@ -960,30 +1199,12 @@ function MiscMaterialsContent() {
                         <span className="ml-2 font-medium" style={{ color: 'var(--foreground)' }}>{material.purchase_date}</span>
                       </div>
                       <div className="rounded-lg bg-[var(--color-muted)] px-2 py-1.5">
-                        <span style={{ color: 'var(--color-text-3)' }}>供应商</span>
+                        <span style={{ color: 'var(--color-text-3)' }}>采购人</span>
                         <span className="ml-2 font-medium" style={{ color: 'var(--foreground)' }}>{material.supplier || '-'}</span>
                       </div>
                     </div>
-                    <div className="mt-3 flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(material)}
-                        className="h-8 px-3"
-                      >
-                        <Pencil className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setCurrentMaterial(material);
-                          setDeleteDialogOpen(true);
-                        }}
-                        className="h-8 px-3"
-                      >
-                        <Trash2 className="h-4 w-4" style={{ color: '#F53F3F' }} />
-                      </Button>
+                    <div className="mt-3 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
+                      {renderMaterialActions(material)}
                     </div>
                   </div>
                 ))}
@@ -994,12 +1215,14 @@ function MiscMaterialsContent() {
                     <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
                       <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>项目名称</th>
                       <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>材料名称</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>规格型号</th>
                       <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>单位</th>
                       <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>数量</th>
                       <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>单价</th>
                       <th className="text-right py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>金额</th>
                       <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>采购日期</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>供应商</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>采购人</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>状态</th>
                       <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>操作</th>
                     </tr>
                   </thead>
@@ -1014,6 +1237,11 @@ function MiscMaterialsContent() {
                         <td className="py-3 px-4">
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                             {material.material_name}
+                          </span>
+                        </td>
+                        <td className="max-w-48 py-3 px-4">
+                          <span className="block truncate text-sm" style={{ color: 'var(--color-text-3)' }} title={material.specification || undefined}>
+                            {material.specification || '-'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -1046,28 +1274,11 @@ function MiscMaterialsContent() {
                             {material.supplier || '-'}
                           </span>
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          {renderStatusBadge(material)}
+                        </td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditDialog(material)}
-                              className="h-8 px-2"
-                            >
-                              <Pencil className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setCurrentMaterial(material);
-                                setDeleteDialogOpen(true);
-                              }}
-                              className="h-8 px-2"
-                            >
-                              <Trash2 className="h-4 w-4" style={{ color: '#F53F3F' }} />
-                            </Button>
-                          </div>
+                          {renderMaterialActions(material)}
                         </td>
                       </tr>
                     ))}
@@ -1161,7 +1372,7 @@ function MiscMaterialsContent() {
                   />
                 </div>
                 <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  可直接说“某项目买水泥10袋，单价25元，供应商某某”。也可上传音频文件，音频只用于识别不保存。
+                  可直接说“某项目买水泥10袋，单价25元，采购人张三”。也可上传音频文件，音频只用于识别不保存。
                 </p>
               </div>
             )}
@@ -1171,7 +1382,7 @@ function MiscMaterialsContent() {
                 {assistMode === 'text' ? '材料描述' : '识别文字/补充说明'}
               </Label>
               <Textarea
-                placeholder="例如：A项目采购水泥10袋，单价25元，供应商张三，7月14日"
+                placeholder="例如：A项目采购水泥10袋，单价25元，采购人张三，7月14日"
                 value={assistText}
                 onChange={(e) => setAssistText(e.target.value)}
                 rows={4}
@@ -1237,7 +1448,15 @@ function MiscMaterialsContent() {
                 />
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label style={{ color: 'var(--foreground)' }}>规格型号</Label>
+                <Input
+                  placeholder="如：M16×80"
+                  value={form.specification}
+                  onChange={(e) => setForm({ ...form, specification: e.target.value })}
+                />
+              </div>
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>单位</Label>
                 <Input
@@ -1277,9 +1496,9 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: 'var(--foreground)' }}>供应商</Label>
+                <Label style={{ color: 'var(--foreground)' }}>采购人</Label>
                 <Input
-                  placeholder="供应商名称"
+                  placeholder="填写采购人"
                   value={form.supplier}
                   onChange={(e) => setForm({ ...form, supplier: e.target.value })}
                 />
@@ -1302,6 +1521,9 @@ function MiscMaterialsContent() {
                 </span>
               </div>
             )}
+            <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
+              金额由系统按“数量 × 单价”自动计算，保存后以系统计算结果为准。
+            </p>
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
@@ -1344,7 +1566,15 @@ function MiscMaterialsContent() {
                 />
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <Label style={{ color: 'var(--foreground)' }}>规格型号</Label>
+                <Input
+                  placeholder="如：M16×80"
+                  value={form.specification}
+                  onChange={(e) => setForm({ ...form, specification: e.target.value })}
+                />
+              </div>
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>单位</Label>
                 <Input
@@ -1384,9 +1614,9 @@ function MiscMaterialsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label style={{ color: 'var(--foreground)' }}>供应商</Label>
+                <Label style={{ color: 'var(--foreground)' }}>采购人</Label>
                 <Input
-                  placeholder="供应商名称"
+                  placeholder="填写采购人"
                   value={form.supplier}
                   onChange={(e) => setForm({ ...form, supplier: e.target.value })}
                 />
@@ -1409,6 +1639,9 @@ function MiscMaterialsContent() {
                 </span>
               </div>
             )}
+            <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
+              金额由系统按“数量 × 单价”自动计算，保存后以系统计算结果为准。
+            </p>
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
@@ -1445,7 +1678,7 @@ function MiscMaterialsContent() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label style={{ color: 'var(--foreground)' }}>选择Excel文件</Label>
+              <Label style={{ color: 'var(--foreground)' }}>选择Excel或CSV文件</Label>
               <Input
                 type="file"
                 accept=".xlsx,.xls,.csv"
@@ -1455,7 +1688,7 @@ function MiscMaterialsContent() {
                 }}
               />
               <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
-                支持 .xlsx、.xls、.csv 格式，文件大小不超过 5MB
+                支持 .xlsx、.xls、.csv 格式，文件大小不超过 10MB
               </p>
             </div>
             
@@ -1469,8 +1702,9 @@ function MiscMaterialsContent() {
               <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-3)' }}>
                 <li>• 第一行为表头，数据从第二行开始</li>
                 <li>• 必填列：项目名称、材料名称、数量、单价</li>
-                <li>• 可选列：规格型号、单位、金额、采购日期、采购人、备注</li>
-                <li>• 金额为空时自动按 数量×单价 计算</li>
+                <li>• 可选列：规格型号、单位、采购日期、采购人、备注</li>
+                <li>• 金额由系统按“数量 × 单价”自动计算，旧模板中的金额列会被忽略</li>
+                <li>• 导入记录默认进入草稿，审核后才计入成本统计</li>
                 <li>• 采购日期格式：YYYY-MM-DD（如：2024-01-15）</li>
               </ul>
             </div>
