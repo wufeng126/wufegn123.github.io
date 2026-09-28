@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isSalaryPaymentLocked, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { getDeductedLivingAllowanceTotals } from '@/lib/living-allowance';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -97,8 +98,39 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const requestedAdvancePay = field === 'advance_pay'
+      ? Number(value ?? 0)
+      : null;
+    if (requestedAdvancePay !== null && (!Number.isFinite(requestedAdvancePay) || requestedAdvancePay < 0)) {
+      return NextResponse.json({ error: '预支款必须是大于等于0的有效金额。' }, { status: 400 });
+    }
+
+    // 已经同步进工资表的生活费是工资预支款的组成部分，批量修改不能把这部分金额压低。
+    // 这里不再触发同步，避免“修改工资”动作再次把生活费加进工资。
+    const deductedAllowanceTotals = field === 'advance_pay'
+      ? await getDeductedLivingAllowanceTotals(client, normalizedIds)
+      : new Map<number, number>();
+    const insufficientAdvancePayRecords = requestedAdvancePay === null
+      ? []
+      : records.filter(record => (
+        requestedAdvancePay + 0.01 < (deductedAllowanceTotals.get(Number(record.id)) || 0)
+      ));
+
+    if (insufficientAdvancePayRecords.length > 0) {
+      return NextResponse.json({
+        error: '批量修改的预支款不能低于已经同步到工资表的生活费金额。',
+        protected_ids: insufficientAdvancePayRecords.map(record => record.id),
+        protected_advance_pay: Object.fromEntries(
+          insufficientAdvancePayRecords.map(record => [
+            record.id,
+            deductedAllowanceTotals.get(Number(record.id)) || 0,
+          ]),
+        ),
+      }, { status: 400 });
+    }
+
     const updatePromises = records.map(async (record) => {
-      const nextValue = value ?? '0';
+      const nextValue = String(value ?? '0');
       const updateData: Record<string, string> = { [field]: nextValue };
 
       // 直接修正应发/实发金额：不重算，仅更新目标字段

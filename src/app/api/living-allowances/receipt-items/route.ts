@@ -3,7 +3,16 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
-import { parseMoney } from '@/lib/living-allowance';
+import {
+  buildLivingAllowanceReconciliation,
+  hasPersistedLivingAllowanceMatch,
+  queryReceiptItemsWithCompatibility,
+} from '@/lib/living-allowance-reconciliation';
+import {
+  normalizeYearMonth,
+  parseMoney,
+  yearMonthFromDate,
+} from '@/lib/living-allowance';
 import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -57,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     const { data: receipt, error: receiptError } = await client
       .from('living_allowance_receipts')
-      .select('id, project_id')
+      .select('id, project_id, receipt_date')
       .eq('id', receiptId)
       .maybeSingle();
 
@@ -67,9 +76,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '无权查看该回单' }, { status: 403 });
     }
 
-    const { data, error } = await client
-      .from('living_allowance_receipt_items')
-      .select(`
+    const { data, error } = await queryReceiptItemsWithCompatibility(
+      (select) => client
+        .from('living_allowance_receipt_items')
+        .select(select)
+        .eq('receipt_id', receiptId)
+        .order('id', { ascending: true }),
+      `
         id,
         receipt_id,
         worker_id,
@@ -82,13 +95,13 @@ export async function GET(request: NextRequest) {
         crop_box,
         match_status,
         matched_record_id,
+        matched_salary_id,
         match_score,
         remark,
         created_at,
         updated_at
-      `)
-      .eq('receipt_id', receiptId)
-      .order('id', { ascending: true });
+      `,
+    );
 
     if (error) throw new Error(`查询回单拆分明细失败: ${error.message}`);
 
@@ -113,29 +126,156 @@ export async function GET(request: NextRequest) {
     }
 
     const workerIds = pickNumberSet(rows, 'worker_id');
-    const projectIds = pickNumberSet(rows, 'project_id');
-    const [workersRes, projectsRes] = await Promise.all([
+    const yearMonths = Array.from(new Set(
+      rows
+        .map((item: any) => (
+          normalizeYearMonth(item.payment_date)
+          || yearMonthFromDate((receipt as any).receipt_date)
+        ))
+        .filter(Boolean),
+    ));
+    const projectIds = Array.from(new Set([
+      ...pickNumberSet(rows, 'project_id'),
+      ...(receiptProjectId ? [receiptProjectId] : []),
+    ]));
+    const salaryIds = pickNumberSet(rows, 'matched_salary_id');
+    const allowanceRecordIds = pickNumberSet(rows, 'matched_record_id');
+    const [
+      workersRes,
+      projectsRes,
+      salariesByWorkerRes,
+      salariesByIdRes,
+      allowancesByWorkerRes,
+      allowancesByIdRes,
+    ] = await Promise.all([
       workerIds.length > 0
         ? client.from('workers').select('id, name, work_type, bank_card').in('id', workerIds)
         : Promise.resolve({ data: [], error: null }),
       projectIds.length > 0
         ? client.from('projects').select('id, name').in('id', projectIds)
         : Promise.resolve({ data: [], error: null }),
+      workerIds.length > 0
+        ? (() => {
+          let query = client
+            .from('worker_salaries')
+            .select('id, worker_id, project_id, year_month, advance_pay, net_pay')
+            .in('worker_id', workerIds);
+          if (yearMonths.length > 0) query = query.in('year_month', yearMonths);
+          return query;
+        })()
+        : Promise.resolve({ data: [], error: null }),
+      salaryIds.length > 0
+        ? client
+          .from('worker_salaries')
+          .select('id, worker_id, project_id, year_month, advance_pay, net_pay')
+          .in('id', salaryIds)
+        : Promise.resolve({ data: [], error: null }),
+      workerIds.length > 0
+        ? (() => {
+          let query = client
+            .from('living_allowance_records')
+            .select('id, receipt_item_id, worker_id, project_id, year_month, amount, status, deducted_salary_id')
+            .in('worker_id', workerIds);
+          if (yearMonths.length > 0) query = query.in('year_month', yearMonths);
+          return query;
+        })()
+        : Promise.resolve({ data: [], error: null }),
+      allowanceRecordIds.length > 0
+        ? client
+          .from('living_allowance_records')
+          .select('id, receipt_item_id, worker_id, project_id, year_month, amount, status, deducted_salary_id')
+          .in('id', allowanceRecordIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (workersRes.error) throw new Error(`查询工人信息失败: ${workersRes.error.message}`);
     if (projectsRes.error) throw new Error(`查询项目信息失败: ${projectsRes.error.message}`);
-
+    if (salariesByWorkerRes.error) throw new Error(`查询工资核对信息失败: ${salariesByWorkerRes.error.message}`);
+    if (salariesByIdRes.error) throw new Error(`查询关联工资信息失败: ${salariesByIdRes.error.message}`);
+    if (allowancesByWorkerRes.error) throw new Error(`查询生活费台账信息失败: ${allowancesByWorkerRes.error.message}`);
+    if (allowancesByIdRes.error) throw new Error(`查询关联生活费信息失败: ${allowancesByIdRes.error.message}`);
     const workerMap = new Map((workersRes.data || []).map((row: any) => [row.id, row]));
     const projectMap = new Map((projectsRes.data || []).map((row: any) => [row.id, row]));
+    const salaryMap = new Map<number, any>();
+    for (const salary of [...(salariesByWorkerRes.data || []), ...(salariesByIdRes.data || [])]) {
+      salaryMap.set(Number((salary as any).id), salary);
+    }
+    const allowanceMap = new Map<number, any>();
+    for (const record of [...(allowancesByWorkerRes.data || []), ...(allowancesByIdRes.data || [])]) {
+      allowanceMap.set(Number((record as any).id), record);
+    }
+    const relevantAllowanceIds = Array.from(allowanceMap.keys());
+    const occupiedItemsRes = relevantAllowanceIds.length > 0
+      ? await client
+        .from('living_allowance_receipt_items')
+        .select('id, matched_record_id')
+        .in('matched_record_id', relevantAllowanceIds)
+      : { data: [], error: null };
+    if (occupiedItemsRes.error) throw new Error(`查询生活费核对占用关系失败: ${occupiedItemsRes.error.message}`);
 
-    const items = rows.map((item: any) => ({
-      ...item,
-      amount: parseMoney(item.amount),
-      worker_name: item.worker_id ? workerMap.get(item.worker_id)?.name || '未知工人' : '',
-      worker_work_type: item.worker_id ? workerMap.get(item.worker_id)?.work_type || '' : '',
-      project_name: item.project_id ? projectMap.get(item.project_id)?.name || '未知项目' : '',
-    }));
+    const occupiedRecordOwners = new Map<number, Set<number>>();
+    for (const row of occupiedItemsRes.data || []) {
+      const recordId = normalizeId((row as any).matched_record_id);
+      const itemId = normalizeId((row as any).id);
+      if (recordId === null || itemId === null) continue;
+      const owners = occupiedRecordOwners.get(recordId) || new Set<number>();
+      owners.add(itemId);
+      occupiedRecordOwners.set(recordId, owners);
+    }
+
+    const items = rows.map((item: any) => {
+      const workerId = normalizeId(item.worker_id);
+      const projectId = normalizeId(item.project_id) ?? receiptProjectId;
+      const itemRecordId = normalizeId(item.matched_record_id);
+      const occupiedByOtherItems = new Set<number>();
+      for (const [recordId, owners] of occupiedRecordOwners.entries()) {
+        if (!owners.has(Number(item.id))) occupiedByOtherItems.add(recordId);
+      }
+      const reconciliation = buildLivingAllowanceReconciliation({
+        workerId,
+        projectId,
+        itemId: Number(item.id),
+        itemAmount: item.amount,
+        paymentDate: item.payment_date,
+        receiptDate: (receipt as any).receipt_date,
+        existingRecordId: itemRecordId,
+        existingSalaryId: normalizeId(item.matched_salary_id),
+        persistedMatchStatus: item.match_status,
+        salaryRecords: Array.from(salaryMap.values()),
+        allowanceRecords: Array.from(allowanceMap.values()),
+        occupiedRecordIds: occupiedByOtherItems,
+      });
+      const salary = reconciliation.salary;
+      const salaryCandidates = reconciliation.salaryCandidates;
+      const allowanceRecord = reconciliation.allowanceRecord;
+      const allowanceRecordAmount = reconciliation.allowanceRecordAmount;
+      const receiptAmount = reconciliation.receiptAmount;
+
+      return {
+        ...item,
+        amount: receiptAmount,
+        worker_name: item.worker_id ? workerMap.get(item.worker_id)?.name || '未知工人' : '',
+        worker_work_type: item.worker_id ? workerMap.get(item.worker_id)?.work_type || '' : '',
+        project_name: projectId ? projectMap.get(projectId)?.name || '未知项目' : '',
+        year_month: reconciliation.yearMonth,
+        matched_record_id: allowanceRecord?.id || null,
+        matched_salary_id: salary?.id || null,
+        allowance_record_amount: allowanceRecordAmount,
+        allowance_month_total: reconciliation.allowanceMonthTotal,
+        allowance_record_count: reconciliation.allowanceRecords.length,
+        salary_advance_pay: reconciliation.salaryAdvancePay,
+        salary_net_pay: salary ? parseMoney(salary.net_pay) : null,
+        allowance_difference: reconciliation.allowanceDifference,
+        allowance_month_difference: reconciliation.allowanceMonthDifference,
+        salary_difference: reconciliation.salaryDifference,
+        salary_coverage_difference: reconciliation.salaryCoverageDifference,
+        salary_found: Boolean(salary) && !reconciliation.salaryDuplicate,
+        salary_duplicate: reconciliation.salaryDuplicate,
+        salary_record_count: salaryCandidates.length,
+        allowance_record_found: Boolean(allowanceRecord),
+        match_status: reconciliation.matchStatus,
+      };
+    });
 
     return NextResponse.json({ items });
   } catch (error: unknown) {
@@ -171,14 +311,21 @@ export async function POST(request: NextRequest) {
     const receiptProjectId = normalizeId((receipt as any).project_id);
     const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
 
-    const { data: existingItems, error: existingError } = await client
-      .from('living_allowance_receipt_items')
-      .select('id, matched_record_id')
-      .eq('receipt_id', receiptId);
+    const { data: existingItems, error: existingError } = await queryReceiptItemsWithCompatibility(
+      (select) => client
+        .from('living_allowance_receipt_items')
+        .select(select)
+        .eq('receipt_id', receiptId),
+      'id, matched_record_id, matched_salary_id, match_status',
+    );
 
     if (existingError) throw new Error(`查询已有拆分明细失败: ${existingError.message}`);
-    if ((existingItems || []).some((item: any) => item.matched_record_id)) {
-      return NextResponse.json({ error: '该回单已有明细生成生活费台账，不能覆盖拆分明细' }, { status: 400 });
+    if ((existingItems || []).some((item: any) => hasPersistedLivingAllowanceMatch({
+      matchStatus: item.match_status,
+      matchedRecordId: item.matched_record_id,
+      matchedSalaryId: item.matched_salary_id,
+    }))) {
+      return NextResponse.json({ error: '该回单已有核对结果，不能覆盖拆分明细' }, { status: 400 });
     }
 
     const rows: ReceiptSplitRow[] = items.map((item: any, index: number) => {

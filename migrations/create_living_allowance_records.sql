@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS living_allowance_receipt_items (
   crop_box JSONB,
   match_status VARCHAR(20) DEFAULT 'unmatched' NOT NULL,
   matched_record_id INTEGER,
+  matched_salary_id INTEGER REFERENCES worker_salaries(id) ON DELETE SET NULL,
   match_score INTEGER DEFAULT 0,
   remark TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -57,6 +58,8 @@ CREATE INDEX IF NOT EXISTS living_allowance_receipt_items_project_id_idx
   ON living_allowance_receipt_items(project_id);
 CREATE INDEX IF NOT EXISTS living_allowance_receipt_items_match_status_idx
   ON living_allowance_receipt_items(match_status);
+CREATE INDEX IF NOT EXISTS living_allowance_receipt_items_matched_salary_id_idx
+  ON living_allowance_receipt_items(matched_salary_id);
 
 CREATE TABLE IF NOT EXISTS living_allowance_records (
   id SERIAL PRIMARY KEY,

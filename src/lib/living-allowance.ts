@@ -7,6 +7,14 @@ export type PendingLivingAllowanceRecord = {
   amount: unknown;
 };
 
+export type DeductedLivingAllowanceRecord = {
+  id: number;
+  deducted_salary_id: number;
+  amount: unknown;
+  deducted_amount?: unknown;
+  status?: string | null;
+};
+
 export type SalaryForAllowanceSync = {
   id: number;
   worker_id: number;
@@ -19,10 +27,65 @@ export type SalaryForAllowanceSync = {
   fine?: unknown;
 };
 
+export const FINAL_LIVING_ALLOWANCE_MATCH_STATUSES = [
+  'matched',
+  'amount_matched',
+  'amount_mismatch',
+] as const;
+
+export type LivingAllowanceReceiptMatchStatus =
+  | 'unmatched'
+  | 'manual_required'
+  | 'matched'
+  | 'amount_matched'
+  | 'amount_mismatch'
+  | 'salary_not_found'
+  | 'salary_duplicate'
+  | 'record_not_found'
+  | 'allowance_record_not_found';
+
+export function isFinalLivingAllowanceMatchStatus(value: unknown): boolean {
+  return (FINAL_LIVING_ALLOWANCE_MATCH_STATUSES as readonly string[]).includes(String(value || ''));
+}
+
 export function parseMoney(value: unknown): number {
   if (value === null || value === undefined || value === '') return 0;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function isMoneyWithinCentTolerance(left: unknown, right: unknown, toleranceCents = 1): boolean {
+  const leftCents = Math.round(parseMoney(left) * 100);
+  const rightCents = Math.round(parseMoney(right) * 100);
+  return Math.abs(leftCents - rightCents) <= toleranceCents;
+}
+
+export function deriveLivingAllowanceReceiptMatchStatus(params: {
+  salaryCount: number;
+  allowanceRecordCount: number;
+  allowanceRecordId: number | null;
+  allowanceRecordAmount: number | null;
+  receiptAmount: number;
+  allowanceMonthTotal: number;
+  salaryAdvancePay: number | null;
+}): LivingAllowanceReceiptMatchStatus {
+  if (params.salaryCount > 1) return 'salary_duplicate';
+  if (params.salaryCount === 0 || params.salaryAdvancePay === null) return 'salary_not_found';
+  if (params.allowanceRecordCount === 0) return 'record_not_found';
+  if (params.allowanceRecordId === null || params.allowanceRecordAmount === null) {
+    return 'allowance_record_not_found';
+  }
+
+  const amountMatched = isMoneyWithinCentTolerance(
+    params.receiptAmount,
+    params.allowanceRecordAmount,
+  )
+    && isMoneyWithinCentTolerance(params.allowanceMonthTotal, params.salaryAdvancePay);
+  return amountMatched ? 'amount_matched' : 'amount_mismatch';
 }
 
 export function normalizeYearMonth(value?: string | null): string {
@@ -77,6 +140,34 @@ export async function getPendingLivingAllowanceTotal(
     records,
     total: Math.round(total * 100) / 100,
   };
+}
+
+export async function getDeductedLivingAllowanceTotals(
+  client: SupabaseClient,
+  salaryIds: number[],
+) {
+  const totals = new Map<number, number>();
+  if (salaryIds.length === 0) return totals;
+
+  const { data, error } = await client
+    .from('living_allowance_records')
+    .select('id, deducted_salary_id, amount, deducted_amount, status')
+    .in('deducted_salary_id', salaryIds);
+
+  if (error) {
+    throw new Error(`查询已同步生活费失败: ${error.message}`);
+  }
+
+  for (const record of (data || []) as DeductedLivingAllowanceRecord[]) {
+    const salaryId = Number(record.deducted_salary_id);
+    if (!Number.isInteger(salaryId) || salaryId <= 0) continue;
+    const deductedAmount = record.deducted_amount === null || record.deducted_amount === undefined
+      ? parseMoney(record.amount)
+      : parseMoney(record.deducted_amount);
+    totals.set(salaryId, Math.round(((totals.get(salaryId) || 0) + deductedAmount) * 100) / 100);
+  }
+
+  return totals;
 }
 
 export async function markLivingAllowancesDeducted(

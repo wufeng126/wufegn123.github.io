@@ -311,6 +311,7 @@ export const livingAllowanceReceiptItems = pgTable("living_allowance_receipt_ite
 	cropBox: jsonb("crop_box"),
 	matchStatus: varchar("match_status", { length: 20 }).default('unmatched').notNull(),
 	matchedRecordId: integer("matched_record_id"),
+	matchedSalaryId: integer("matched_salary_id"),
 	matchScore: integer("match_score").default(0),
 	remark: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -334,6 +335,11 @@ export const livingAllowanceReceiptItems = pgTable("living_allowance_receipt_ite
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
 			name: "living_allowance_receipt_items_project_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.matchedSalaryId],
+			foreignColumns: [workerSalaries.id],
+			name: "living_allowance_receipt_items_matched_salary_id_fkey"
 		}).onDelete("set null"),
 ]);
 

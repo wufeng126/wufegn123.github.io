@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ExternalLink,
   FileImage,
-  Link2,
   Loader2,
   Plus,
   ReceiptText,
@@ -87,6 +86,13 @@ type ReceiptRow = {
   url?: string | null;
   item_count?: number;
   matched_count?: number;
+  reconciled_count?: number;
+  amount_matched_count?: number;
+  amount_mismatch_count?: number;
+  salary_not_found_count?: number;
+  salary_duplicate_count?: number;
+  record_not_found_count?: number;
+  pending_count?: number;
   split_amount?: number;
 };
 
@@ -102,8 +108,23 @@ type SplitRow = {
   amount: number | string;
   payment_date: string;
   transaction_no?: string;
-  match_status?: 'unmatched' | 'manual_required' | 'matched' | string;
+  match_status?: 'unmatched' | 'manual_required' | 'matched' | 'amount_matched' | 'amount_mismatch' | 'salary_not_found' | 'salary_duplicate' | 'record_not_found' | 'allowance_record_not_found' | string;
   matched_record_id?: number | null;
+  matched_salary_id?: number | null;
+  allowance_record_amount?: number | null;
+  allowance_month_total?: number | null;
+  allowance_record_count?: number;
+  salary_advance_pay?: number | null;
+  salary_net_pay?: number | null;
+  allowance_difference?: number | null;
+  allowance_month_difference?: number | null;
+  salary_difference?: number | null;
+  salary_coverage_difference?: number | null;
+  salary_found?: boolean;
+  salary_duplicate?: boolean;
+  salary_record_count?: number;
+  allowance_record_found?: boolean;
+  year_month?: string;
   match_score?: number;
   remark?: string;
 };
@@ -123,6 +144,12 @@ const money = (value: unknown) => {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const signedMoney = (value: unknown) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '-';
+  return `${amount > 0 ? '+' : ''}¥${money(amount)}`;
+};
+
 const asSelectValue = (value: unknown) => {
   if (value === null || value === undefined || value === '') return 'none';
   return String(value);
@@ -138,18 +165,103 @@ function statusBadge(status?: string) {
     return <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">已进工资表</Badge>;
   }
   if (status === 'matched') {
-    return <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">已生成台账</Badge>;
+    return <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">核对完成</Badge>;
+  }
+  if (status === 'amount_matched') {
+    return <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">金额一致</Badge>;
+  }
+  if (status === 'amount_mismatch') {
+    return <Badge className="border-red-200 bg-red-50 text-red-700">金额不一致</Badge>;
+  }
+  if (status === 'salary_not_found') {
+    return <Badge className="border-amber-200 bg-amber-50 text-amber-700">未找到工资</Badge>;
+  }
+  if (status === 'salary_duplicate') {
+    return <Badge className="border-orange-200 bg-orange-50 text-orange-700">工资记录重复</Badge>;
+  }
+  if (status === 'record_not_found' || status === 'allowance_record_not_found') {
+    return <Badge className="border-amber-200 bg-amber-50 text-amber-700">未找到生活费台账</Badge>;
   }
   if (status === 'manual_required') {
-    return <Badge className="border-amber-200 bg-amber-50 text-amber-700">需手动匹配</Badge>;
+    return <Badge className="border-amber-200 bg-amber-50 text-amber-700">需补充工人</Badge>;
   }
   if (status === 'split') {
-    return <Badge className="border-sky-200 bg-sky-50 text-sky-700">已拆分</Badge>;
+    return <Badge className="border-sky-200 bg-sky-50 text-sky-700">待核对</Badge>;
   }
   if (status === 'pending') {
     return <Badge className="border-slate-200 bg-slate-50 text-slate-600">待拆分</Badge>;
   }
+  if (status === 'unmatched') {
+    return <Badge className="border-slate-200 bg-slate-50 text-slate-600">待核对</Badge>;
+  }
   return <Badge className="border-orange-200 bg-orange-50 text-orange-700">待扣工资</Badge>;
+}
+
+function matchStatusHint(status?: string) {
+  if (status === 'manual_required') return '暂未完成核对，请补充工人后重试';
+  if (status === 'salary_not_found') return '暂未完成核对，补齐工资记录后可重试';
+  if (status === 'salary_duplicate') return '暂未完成核对，清理重复工资记录后可重试';
+  if (status === 'record_not_found') return '暂未完成核对，补齐生活费台账后可重试';
+  if (status === 'allowance_record_not_found') return '暂未完成核对，确认生活费台账对应关系后可重试';
+  if (status === 'amount_mismatch') return '已完成核对，请查看回单、生活费台账与工资预支款差异';
+  return '';
+}
+
+function isFinalMatchStatus(status?: string) {
+  return ['matched', 'amount_matched', 'amount_mismatch'].includes(status || '');
+}
+
+function getMatchFeedback(status?: string) {
+  if (status === 'amount_matched') {
+    return { title: '工资核对完成，金额一致', variant: 'success' as const };
+  }
+  if (status === 'amount_mismatch') {
+    return {
+      title: '工资核对完成，请查看金额差异',
+      description: '回单金额、生活费台账或工资预支款存在差异。',
+      variant: 'error' as const,
+    };
+  }
+  if (status === 'manual_required') {
+    return {
+      title: '暂未完成核对',
+      description: '请补充工人后重试。',
+      variant: 'error' as const,
+    };
+  }
+  if (status === 'salary_not_found') {
+    return {
+      title: '暂未完成核对',
+      description: '补齐工资记录后可重试。',
+      variant: 'error' as const,
+    };
+  }
+  if (status === 'salary_duplicate') {
+    return {
+      title: '存在重复工资记录，暂不能确认',
+      description: '请清理同一工人、项目、月份的重复工资记录后重试。',
+      variant: 'error' as const,
+    };
+  }
+  if (status === 'record_not_found') {
+    return {
+      title: '暂未完成核对',
+      description: '补齐生活费台账后可重试。',
+      variant: 'error' as const,
+    };
+  }
+  if (status === 'allowance_record_not_found') {
+    return {
+      title: '暂未完成核对',
+      description: '确认生活费台账对应关系后可重试。',
+      variant: 'error' as const,
+    };
+  }
+  return { title: '工资核对完成', variant: 'success' as const };
+}
+
+function isProtectedSplitRow(row: SplitRow) {
+  return isFinalMatchStatus(row.match_status);
 }
 
 function makeBlankSplitRow(receipt?: ReceiptRow): SplitRow {
@@ -227,7 +339,11 @@ export default function LivingAllowancesPage() {
     { label: '本期生活费', value: `¥${money(summary.totalAmount)}`, tone: 'text-slate-900' },
     { label: '待扣工资', value: `¥${money(summary.pendingAmount)}`, tone: 'text-orange-600' },
     { label: '已进工资表', value: `¥${money(summary.deductedAmount)}`, tone: 'text-emerald-600' },
-    { label: '回单待处理', value: `${receipts.filter(receipt => receipt.split_status !== 'matched').length} 张`, tone: 'text-sky-600' },
+    {
+      label: '回单待核对',
+      value: `${receipts.filter(receipt => receipt.split_status === 'pending' || (receipt.pending_count || 0) > 0).length} 张`,
+      tone: 'text-sky-600',
+    },
   ];
 
   const fetchData = async () => {
@@ -361,7 +477,7 @@ export default function LivingAllowancesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '上传回单失败');
 
-      toast({ title: '回单已上传，可以开始拆分匹配' });
+      toast({ title: '回单已上传，可以开始拆分并核对工资' });
       setReceiptDialogOpen(false);
       setReceiptForm({ project_id: 'none', receipt_date: getToday(), payer_account: '', remark: '', file: null });
       await fetchData();
@@ -412,6 +528,10 @@ export default function LivingAllowancesPage() {
 
   const saveSplitRows = async () => {
     if (!selectedReceipt) return;
+    if (splitRows.some(isProtectedSplitRow)) {
+      toast({ title: '该回单已有核对结果，不能覆盖拆分明细', variant: 'error' });
+      return;
+    }
     const invalidIndex = splitRows.findIndex(row => !row.recipient_name || parseAmount(row.amount) <= 0);
     if (invalidIndex >= 0) {
       toast({ title: `第 ${invalidIndex + 1} 行请填写收款人和金额`, variant: 'error' });
@@ -452,8 +572,7 @@ export default function LivingAllowancesPage() {
 
   const matchSplitRow = async (row: SplitRow) => {
     if (!row.id) {
-      toast({ title: '请先保存拆分明细，再生成台账', variant: 'error' });
-      return false;
+      throw new Error('请先保存拆分明细，再核对工资');
     }
 
     const res = await fetch('/api/living-allowances/match', {
@@ -467,19 +586,20 @@ export default function LivingAllowancesPage() {
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '生成台账失败');
-    return true;
+    if (!res.ok && !data?.match_status) throw new Error(data.error || '核对工资失败');
+    return data;
   };
 
   const handleMatchRow = async (row: SplitRow) => {
     setSaving(true);
     try {
-      await matchSplitRow(row);
-      toast({ title: '已生成生活费台账' });
+      const result = await matchSplitRow(row);
+      const feedback = getMatchFeedback(result?.match_status);
+      toast(feedback);
       if (selectedReceipt) await openSplitDialog(selectedReceipt);
       await fetchData();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : '生成失败', variant: 'error' });
+      toast({ title: error instanceof Error ? error.message : '核对失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -489,16 +609,51 @@ export default function LivingAllowancesPage() {
     setSaving(true);
     try {
       let success = 0;
+      let pending = 0;
+      let skipped = 0;
+      let failed = 0;
+      const failureMessages: string[] = [];
       for (const row of splitRows) {
-        if (row.match_status === 'matched') continue;
-        await matchSplitRow(row);
-        success += 1;
+        if (isProtectedSplitRow(row)) {
+          skipped += 1;
+          continue;
+        }
+        if (!row.id) {
+          failed += 1;
+          if (failureMessages.length < 3) failureMessages.push('存在未保存的拆分明细');
+          continue;
+        }
+        try {
+          const result = await matchSplitRow(row);
+          success += 1;
+          if (result?.match_status && !isFinalMatchStatus(result.match_status)) {
+            pending += 1;
+          }
+        } catch (error) {
+          failed += 1;
+          if (failureMessages.length < 3) {
+            failureMessages.push(error instanceof Error ? error.message : '核对失败');
+          }
+        }
       }
-      toast({ title: `已生成 ${success} 条生活费台账` });
+      if (failed > 0) {
+        toast({
+          title: `已完成 ${success} 条核对，${failed} 条失败${skipped ? `，${skipped} 条已跳过` : ''}`,
+          description: failureMessages.join('；'),
+          variant: 'error',
+        });
+      } else {
+        toast({
+          title: pending > 0
+            ? `已处理 ${success} 条核对，${pending} 条待补齐后重试`
+            : `已完成 ${success} 条核对${skipped ? `，${skipped} 条已有结果已跳过` : ''}`,
+          description: pending > 0 ? '工资或生活费台账信息补齐后，可再次点击核对。' : undefined,
+        });
+      }
       if (selectedReceipt) await openSplitDialog(selectedReceipt);
       await fetchData();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : '批量生成失败', variant: 'error' });
+      toast({ title: error instanceof Error ? error.message : '批量核对失败', variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -514,7 +669,7 @@ export default function LivingAllowancesPage() {
               <h1 className="text-lg font-semibold text-slate-950">生活费发放台账</h1>
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              先登记生活费和回单，工资表出来后自动匹配到预支款，保留原图和拆分明细。
+              先登记生活费，工资表导入时自动处理预支款；回单原图仅用于查询核对，不会再次扣款。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -585,7 +740,7 @@ export default function LivingAllowancesPage() {
         <Tabs defaultValue="records" className="gap-3">
           <TabsList className="h-10 rounded-lg">
             <TabsTrigger value="records">生活费台账</TabsTrigger>
-            <TabsTrigger value="receipts">回单拆分匹配</TabsTrigger>
+            <TabsTrigger value="receipts">回单与工资核对</TabsTrigger>
           </TabsList>
 
           <TabsContent value="records">
@@ -662,11 +817,11 @@ export default function LivingAllowancesPage() {
           </TabsContent>
 
           <TabsContent value="receipts">
-            <div className="grid gap-3 xl:grid-cols-[1fr_360px]">
+            <div className="space-y-3">
               <Card className="rounded-lg py-0 shadow-sm">
                 <CardHeader className="border-b px-4 py-4">
-                  <CardTitle className="text-base">回单原图</CardTitle>
-                  <CardDescription>一张回单可拆成多名工人的付款明细，再生成生活费台账。</CardDescription>
+                  <CardTitle className="text-base">回单原图与核对结果</CardTitle>
+                  <CardDescription>一张回单可以拆成多名工人，核对工资表预支款和已有生活费台账，不新增生活费记录。</CardDescription>
                 </CardHeader>
                 <CardContent className="px-0">
                   <div className="overflow-x-auto">
@@ -677,7 +832,7 @@ export default function LivingAllowancesPage() {
                           <TableHead>项目</TableHead>
                           <TableHead>文件</TableHead>
                           <TableHead className="text-right">拆分金额</TableHead>
-                          <TableHead>进度</TableHead>
+                          <TableHead>核对结果</TableHead>
                           <TableHead className="text-right">操作</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -698,15 +853,25 @@ export default function LivingAllowancesPage() {
                             </TableCell>
                             <TableCell className="text-right">¥{money(receipt.split_amount || 0)}</TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-col items-start gap-1">
                                 {statusBadge(receipt.split_status)}
-                                <span className="text-xs text-slate-500">{receipt.matched_count || 0}/{receipt.item_count || 0}</span>
+                                <span className="text-xs text-slate-500">
+                                  已核对 {receipt.reconciled_count ?? receipt.matched_count ?? 0}/{receipt.item_count || 0}
+                                </span>
+                                {(receipt.item_count || 0) > 0 && (
+                                  <span className="text-xs text-slate-500">
+                                    一致 {receipt.amount_matched_count || 0} · 差异 {receipt.amount_mismatch_count || 0}
+                                    {(receipt.salary_not_found_count || 0) > 0 ? ` · 无工资 ${receipt.salary_not_found_count}` : ''}
+                                    {(receipt.salary_duplicate_count || 0) > 0 ? ` · 工资重复 ${receipt.salary_duplicate_count}` : ''}
+                                    {(receipt.record_not_found_count || 0) > 0 ? ` · 无台账 ${receipt.record_not_found_count}` : ''}
+                                  </span>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="outline" onClick={() => void openSplitDialog(receipt)}>
                                 <Scissors className="mr-1.5 h-3.5 w-3.5" />
-                                拆分匹配
+                                查看/核对
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -717,29 +882,13 @@ export default function LivingAllowancesPage() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-lg shadow-sm">
-                <CardHeader className="px-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Link2 className="h-4 w-4 text-blue-600" />
-                    自动抵扣规则
-                  </CardTitle>
-                  <CardDescription>工资表出来以后如何和生活费台账对上。</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 px-4 text-sm text-slate-600">
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="font-medium text-slate-900">匹配条件</p>
-                    <p className="mt-1">同一工人、同一项目、同一所属月份的待扣生活费，会在工资保存或批量导入后自动匹配。</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="font-medium text-slate-900">抵扣方式</p>
-                    <p className="mt-1">生活费补入工资表“预支款”，系统同步重算实发工资，并把生活费标记为已进工资表。</p>
-                  </div>
-                  <div className="rounded-lg bg-amber-50 p-3 text-amber-800">
-                    <p className="font-medium">避免重复扣</p>
-                    <p className="mt-1">如果工资表原本的预支款已经覆盖生活费金额，只建立关联关系，不会再次增加扣款。</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                <p className="font-medium">核对口径</p>
+                <p className="mt-1 leading-6">
+                  生活费扣款以工资导入或工资保存时的原有逻辑为准；这里仅将回单明细与工资表、已有生活费台账进行查询核对，
+                  不新增生活费台账，也不修改预支款和实发工资。
+                </p>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
@@ -865,9 +1014,9 @@ export default function LivingAllowancesPage() {
       <Dialog open={splitDialogOpen} onOpenChange={setSplitDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-6xl">
           <DialogHeader>
-            <DialogTitle>回单拆分匹配</DialogTitle>
+            <DialogTitle>回单拆分与工资核对</DialogTitle>
             <DialogDescription>
-              {selectedReceipt ? `${selectedReceipt.receipt_date} · ${selectedReceipt.file_name || '回单文件'}` : '将一张回单拆成多名工人的生活费明细'}
+              {selectedReceipt ? `${selectedReceipt.receipt_date} · ${selectedReceipt.file_name || '回单文件'}` : '将一张回单拆成多名工人的付款明细，再查询对应工资信息'}
             </DialogDescription>
           </DialogHeader>
 
@@ -875,7 +1024,7 @@ export default function LivingAllowancesPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
               <span className="inline-flex items-center gap-2 text-slate-600">
                 <FileImage className="h-4 w-4 text-blue-600" />
-                可先打开原图核对收款人、金额和流水号
+                先打开原图录入收款人和金额，保存后再进行工资核对
               </span>
               <a href={selectedReceipt.url} target="_blank" rel="noreferrer">
                 <Button variant="outline" size="sm">
@@ -894,6 +1043,7 @@ export default function LivingAllowancesPage() {
                   <TableHead className="min-w-[190px]">匹配工人</TableHead>
                   <TableHead className="min-w-[190px]">项目</TableHead>
                   <TableHead className="min-w-[120px]">金额</TableHead>
+                  <TableHead className="min-w-[220px]">工资核对</TableHead>
                   <TableHead className="min-w-[140px]">付款日期</TableHead>
                   <TableHead className="min-w-[120px]">卡号后四位</TableHead>
                   <TableHead className="min-w-[160px]">流水号</TableHead>
@@ -905,10 +1055,10 @@ export default function LivingAllowancesPage() {
                 {splitRows.map((row, index) => (
                   <TableRow key={`${row.id || 'new'}-${index}`}>
                     <TableCell>
-                      <Input value={row.recipient_name || ''} onChange={(event) => updateSplitRow(index, { recipient_name: event.target.value })} placeholder="回单收款人" disabled={row.match_status === 'matched'} />
+                      <Input value={row.recipient_name || ''} onChange={(event) => updateSplitRow(index, { recipient_name: event.target.value })} placeholder="回单收款人" disabled={isProtectedSplitRow(row)} />
                     </TableCell>
                     <TableCell>
-                      <Select value={asSelectValue(row.worker_id)} onValueChange={(value) => updateSplitRow(index, { worker_id: value === 'none' ? '' : value })} disabled={row.match_status === 'matched'}>
+                      <Select value={asSelectValue(row.worker_id)} onValueChange={(value) => updateSplitRow(index, { worker_id: value === 'none' ? '' : value })} disabled={isProtectedSplitRow(row)}>
                         <SelectTrigger><SelectValue placeholder="可手动选择" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">自动匹配</SelectItem>
@@ -921,7 +1071,7 @@ export default function LivingAllowancesPage() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Select value={asSelectValue(row.project_id || selectedReceipt?.project_id)} onValueChange={(value) => updateSplitRow(index, { project_id: value === 'none' ? '' : value })} disabled={row.match_status === 'matched'}>
+                      <Select value={asSelectValue(row.project_id || selectedReceipt?.project_id)} onValueChange={(value) => updateSplitRow(index, { project_id: value === 'none' ? '' : value })} disabled={isProtectedSplitRow(row)}>
                         <SelectTrigger><SelectValue placeholder="选择项目" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">不指定项目</SelectItem>
@@ -930,25 +1080,95 @@ export default function LivingAllowancesPage() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Input type="number" step="0.01" value={row.amount} onChange={(event) => updateSplitRow(index, { amount: event.target.value })} disabled={row.match_status === 'matched'} />
+                      <Input type="number" step="0.01" value={row.amount} onChange={(event) => updateSplitRow(index, { amount: event.target.value })} disabled={isProtectedSplitRow(row)} />
                     </TableCell>
                     <TableCell>
-                      <Input type="date" value={row.payment_date || selectedReceipt?.receipt_date || getToday()} onChange={(event) => updateSplitRow(index, { payment_date: event.target.value })} disabled={row.match_status === 'matched'} />
+                      <div className="space-y-1 text-xs leading-5 text-slate-600">
+                        <div>
+                          工资预支款：
+                          <span className="font-medium text-slate-900">
+                            {row.salary_found ? `¥${money(row.salary_advance_pay)}` : '未找到'}
+                          </span>
+                        </div>
+                        <div>
+                          本笔生活费：
+                          <span className="font-medium text-slate-900">
+                            {row.allowance_record_found ? `¥${money(row.allowance_record_amount)}` : '未找到'}
+                          </span>
+                        </div>
+                        <div>
+                          本月累计生活费：
+                          <span className="font-medium text-slate-900">
+                            {row.allowance_record_count ? `¥${money(row.allowance_month_total)}` : '未找到'}
+                          </span>
+                        </div>
+                        {row.salary_duplicate && (
+                          <div className="font-medium text-orange-700">
+                            同一工人、项目、月份存在 {row.salary_record_count || 0} 条工资记录，暂不能确认工资对应关系
+                          </div>
+                        )}
+                        {row.allowance_difference !== null && row.allowance_difference !== undefined && (
+                          <div className={cn(
+                            'font-medium',
+                            Math.abs(Number(row.allowance_difference)) <= 0.01 ? 'text-emerald-700' : 'text-orange-700',
+                          )}>
+                            回单 - 本笔生活费：{signedMoney(row.allowance_difference)}
+                          </div>
+                        )}
+                        {row.allowance_month_difference !== null && row.allowance_month_difference !== undefined && (
+                          <div className={cn(
+                            'font-medium',
+                            Math.abs(Number(row.allowance_month_difference)) <= 0.01 ? 'text-emerald-700' : 'text-orange-700',
+                          )}>
+                            回单 - 本月生活费：{signedMoney(row.allowance_month_difference)}
+                          </div>
+                        )}
+                        {row.salary_difference !== null && row.salary_difference !== undefined && (
+                          <div className={cn(
+                            'font-medium',
+                            Math.abs(Number(row.salary_difference)) <= 0.01 ? 'text-emerald-700' : 'text-orange-700',
+                          )}>
+                            回单 - 预支款：{signedMoney(row.salary_difference)}
+                          </div>
+                        )}
+                        {row.salary_coverage_difference !== null && row.salary_coverage_difference !== undefined && (
+                          <div className={cn(
+                            'font-medium',
+                            Math.abs(Number(row.salary_coverage_difference)) <= 0.01 ? 'text-emerald-700' : 'text-orange-700',
+                          )}>
+                            本月生活费 - 预支款：{signedMoney(row.salary_coverage_difference)}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Input value={row.bank_card_tail || ''} onChange={(event) => updateSplitRow(index, { bank_card_tail: event.target.value })} placeholder="后4位" disabled={row.match_status === 'matched'} />
+                      <Input type="date" value={row.payment_date || selectedReceipt?.receipt_date || getToday()} onChange={(event) => updateSplitRow(index, { payment_date: event.target.value })} disabled={isProtectedSplitRow(row)} />
                     </TableCell>
                     <TableCell>
-                      <Input value={row.transaction_no || ''} onChange={(event) => updateSplitRow(index, { transaction_no: event.target.value })} placeholder="选填" disabled={row.match_status === 'matched'} />
+                      <Input value={row.bank_card_tail || ''} onChange={(event) => updateSplitRow(index, { bank_card_tail: event.target.value })} placeholder="后4位" disabled={isProtectedSplitRow(row)} />
                     </TableCell>
-                    <TableCell>{statusBadge(row.match_status)}</TableCell>
+                    <TableCell>
+                      <Input value={row.transaction_no || ''} onChange={(event) => updateSplitRow(index, { transaction_no: event.target.value })} placeholder="选填" disabled={isProtectedSplitRow(row)} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {statusBadge(row.match_status)}
+                        {matchStatusHint(row.match_status) && (
+                          <div className="max-w-[180px] text-xs leading-4 text-slate-500">
+                            {matchStatusHint(row.match_status)}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => void handleMatchRow(row)} disabled={saving || row.match_status === 'matched'}>
-                          {row.match_status === 'manual_required' ? <AlertTriangle className="mr-1 h-3.5 w-3.5" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />}
-                          生成
+                        <Button size="sm" variant="outline" onClick={() => void handleMatchRow(row)} disabled={saving || isProtectedSplitRow(row)}>
+                          {['manual_required', 'salary_not_found', 'salary_duplicate', 'record_not_found', 'allowance_record_not_found'].includes(row.match_status || '')
+                            ? <AlertTriangle className="mr-1 h-3.5 w-3.5" />
+                            : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />}
+                          核对
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => removeSplitRow(index)} disabled={row.match_status === 'matched'}>删除</Button>
+                        <Button size="sm" variant="ghost" onClick={() => removeSplitRow(index)} disabled={isProtectedSplitRow(row)}>删除</Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -958,17 +1178,17 @@ export default function LivingAllowancesPage() {
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={addSplitRow}>
+            <Button variant="outline" onClick={addSplitRow} disabled={saving || splitRows.some(isProtectedSplitRow)}>
               <Plus className="mr-2 h-4 w-4" />
               增加一行
             </Button>
-            <Button variant="outline" onClick={() => void saveSplitRows()} disabled={saving || splitRows.some(row => row.match_status === 'matched')}>
+            <Button variant="outline" onClick={() => void saveSplitRows()} disabled={saving || splitRows.some(isProtectedSplitRow)}>
               <Save className="mr-2 h-4 w-4" />
               保存拆分
             </Button>
-            <Button onClick={() => void handleMatchAll()} disabled={saving || splitRows.length === 0}>
+            <Button onClick={() => void handleMatchAll()} disabled={saving || splitRows.length === 0 || splitRows.every(isProtectedSplitRow)}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-              批量生成台账
+              批量核对
             </Button>
           </DialogFooter>
         </DialogContent>
