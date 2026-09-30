@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Download, Plus, Trash2, FileText } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
@@ -105,6 +106,15 @@ const getStatusLabel = (value?: string | null) => {
 
 const isEffectivePayment = (payment: Payment) => payment.status !== 'voided' && payment.status !== '作废';
 
+const getSettlementStatusLabel = (status?: string | null) => {
+  if (status === 'reviewed') return '已审核';
+  if (status === 'voided') return '已作废';
+  return '未审核';
+};
+
+const isReviewedSettlement = (status?: string | null) => status === 'reviewed';
+const isVoidedSettlement = (status?: string | null) => status === 'voided';
+
 const csvCell = (value: string | number | null | undefined) => {
   const text = String(value ?? '');
   return `"${text.replace(/"/g, '""')}"`;
@@ -138,7 +148,7 @@ export default function PaymentsPage() {
   const [formData, setFormData] = useState({
     supplier_id: '',
     contract_id: '',
-    settlement_id: '',
+    settlement_ids: [] as string[],
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
     payment_type: 'progress',
@@ -192,22 +202,32 @@ export default function PaymentsPage() {
     return settlements.filter((settlement) => Number(settlement.contract_id) === Number(formData.contract_id));
   }, [settlements, formData.contract_id]);
 
-  const selectedFormSettlement = useMemo(() => {
-    if (!formData.settlement_id) return null;
-    return settlements.find((settlement) => Number(settlement.id) === Number(formData.settlement_id)) || null;
-  }, [formData.settlement_id, settlements]);
+  const selectedFormSettlements = useMemo(() => {
+    const selectedIds = new Set(formData.settlement_ids.map((id) => Number(id)));
+    return formSettlements.filter((settlement) => selectedIds.has(Number(settlement.id)));
+  }, [formData.settlement_ids, formSettlements]);
+
+  const getSettlementPaidAmount = useCallback((settlementId: number) => {
+    return payments
+      .filter((payment) => Number(payment.settlement_id) === Number(settlementId) && isEffectivePayment(payment))
+      .reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
+  }, [payments]);
+
+  const getSettlementRemainingAmount = useCallback((settlement: SettlementOption) => {
+    return Math.max(0, Number(settlement.payable_amount || 0) - getSettlementPaidAmount(Number(settlement.id)));
+  }, [getSettlementPaidAmount]);
 
   const selectedFormSettlementPaid = useMemo(() => {
-    if (!formData.settlement_id) return 0;
-    return payments
-      .filter((payment) => Number(payment.settlement_id) === Number(formData.settlement_id) && isEffectivePayment(payment))
-      .reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
-  }, [formData.settlement_id, payments]);
+    return selectedFormSettlements.reduce((sum, settlement) => sum + getSettlementPaidAmount(Number(settlement.id)), 0);
+  }, [getSettlementPaidAmount, selectedFormSettlements]);
+
+  const selectedFormSettlementPayable = useMemo(() => {
+    return selectedFormSettlements.reduce((sum, settlement) => sum + Number(settlement.payable_amount || 0), 0);
+  }, [selectedFormSettlements]);
 
   const selectedFormSettlementRemaining = useMemo(() => {
-    if (!selectedFormSettlement) return 0;
-    return Math.max(0, Number(selectedFormSettlement.payable_amount || 0) - selectedFormSettlementPaid);
-  }, [selectedFormSettlement, selectedFormSettlementPaid]);
+    return selectedFormSettlements.reduce((sum, settlement) => sum + getSettlementRemainingAmount(settlement), 0);
+  }, [getSettlementRemainingAmount, selectedFormSettlements]);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -344,7 +364,9 @@ export default function PaymentsPage() {
     setFormData({
       supplier_id: autoSelectedContract ? String(autoSelectedContract.supplier_id) : String(supplierId || ''),
       contract_id: autoSelectedContract ? String(autoSelectedContract.id) : '',
-      settlement_id: settlement ? String(settlement.id) : settlementId,
+      settlement_ids: settlement && isReviewedSettlement(settlement.status) && !isVoidedSettlement(settlement.status)
+        ? [String(settlement.id)]
+        : [],
       amount: '',
       payment_date: new Date().toISOString().split('T')[0],
       payment_type: normalizeSupplierPaymentType(settlement?.settlement_type),
@@ -398,7 +420,7 @@ export default function PaymentsPage() {
     setFormData({
       supplier_id: '',
       contract_id: '',
-      settlement_id: '',
+      settlement_ids: [],
       amount: '',
       payment_date: new Date().toISOString().split('T')[0],
       payment_type: 'progress',
@@ -426,7 +448,7 @@ export default function PaymentsPage() {
       ...prev,
       supplier_id: supplierId,
       contract_id: onlyContract ? String(onlyContract.id) : '',
-      settlement_id: '',
+      settlement_ids: [],
     }));
   };
 
@@ -436,16 +458,20 @@ export default function PaymentsPage() {
       ...prev,
       contract_id: contractId,
       supplier_id: contract ? String(contract.supplier_id) : prev.supplier_id,
-      settlement_id: '',
+      settlement_ids: [],
     }));
   };
 
-  const handleSettlementChange = (settlementId: string) => {
+  const handleSettlementToggle = (settlementId: string, checked: boolean) => {
     const settlement = settlements.find((item) => Number(item.id) === Number(settlementId));
     setFormData((prev) => ({
       ...prev,
-      settlement_id: settlementId,
-      payment_type: settlement ? normalizeSupplierPaymentType(settlement.settlement_type) : prev.payment_type,
+      settlement_ids: checked
+        ? [...new Set([...prev.settlement_ids, settlementId])]
+        : prev.settlement_ids.filter((id) => id !== settlementId),
+      payment_type: checked && prev.settlement_ids.length === 0 && settlement
+        ? normalizeSupplierPaymentType(settlement.settlement_type)
+        : prev.payment_type,
     }));
   };
 
@@ -480,7 +506,8 @@ export default function PaymentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contract_id: Number(formData.contract_id),
-          settlement_id: formData.settlement_id ? Number(formData.settlement_id) : null,
+          settlement_ids: formData.settlement_ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
+          settlement_id: formData.settlement_ids[0] ? Number(formData.settlement_ids[0]) : null,
           payment_amount: Number(formData.amount),
           payment_date: formData.payment_date,
           payment_type: formData.payment_type,
@@ -885,12 +912,112 @@ export default function PaymentsPage() {
               {formData.supplier_id && formContracts.length > 1 && !formData.contract_id && (
                 <p className="text-xs text-muted-foreground">该供应商存在多个合同，请选择本次付款对应合同。</p>
               )}
-              {selectedFormSettlement && (
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label>关联结算单</Label>
+                {formData.settlement_ids.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground"
+                    onClick={() => setFormData((prev) => ({ ...prev, settlement_ids: [] }))}
+                  >
+                    清空已选
+                  </Button>
+                )}
+              </div>
+              {!formData.contract_id ? (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-sm text-muted-foreground">
+                  请先选择合同，再关联对应结算单。
+                </div>
+              ) : formSettlements.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-sm text-muted-foreground">
+                  当前合同暂无结算单，可直接按合同级付款保存。
+                </div>
+              ) : (
+                <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                  {formSettlements.map((settlement) => {
+                    const settlementId = String(settlement.id);
+                    const paidAmount = getSettlementPaidAmount(Number(settlement.id));
+                    const remainingAmount = getSettlementRemainingAmount(settlement);
+                    const reviewed = isReviewedSettlement(settlement.status);
+                    const voided = isVoidedSettlement(settlement.status);
+                    const disabled = voided || !reviewed || remainingAmount <= 0;
+                    const checked = formData.settlement_ids.includes(settlementId);
+                    const checkboxId = `supplier-payment-settlement-${settlement.id}`;
+                    return (
+                      <div
+                        key={settlement.id}
+                        className={`rounded-md border p-3 transition ${
+                          checked
+                            ? 'border-blue-200 bg-blue-50/70'
+                            : disabled
+                              ? 'border-gray-100 bg-gray-50/70 opacity-80'
+                              : 'border-gray-100 hover:border-blue-100 hover:bg-blue-50/30'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={checkboxId}
+                            checked={checked}
+                            disabled={disabled}
+                            onCheckedChange={(value) => handleSettlementToggle(settlementId, value === true)}
+                            className="mt-1"
+                          />
+                          <div
+                            className={`min-w-0 flex-1 space-y-2 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            role="button"
+                            tabIndex={disabled ? -1 : 0}
+                            onClick={() => {
+                              if (!disabled) handleSettlementToggle(settlementId, !checked);
+                            }}
+                            onKeyDown={(event) => {
+                              if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
+                                event.preventDefault();
+                                handleSettlementToggle(settlementId, !checked);
+                              }
+                            }}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-sm font-semibold text-gray-900">{settlement.settlement_no || `#${settlement.id}`}</span>
+                              <Badge variant={reviewed ? 'default' : voided ? 'outline' : 'secondary'}>{getSettlementStatusLabel(settlement.status)}</Badge>
+                              <Badge variant="outline">{getPaymentTypeLabel(settlement.settlement_type)}</Badge>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div>
+                                <div className="text-muted-foreground">应付</div>
+                                <div className="mt-0.5 font-semibold text-blue-700">{formatCurrency(settlement.payable_amount)}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted-foreground">已付</div>
+                                <div className="mt-0.5 font-semibold text-green-700">{formatCurrency(paidAmount)}</div>
+                              </div>
+                              <div>
+                                <div className="text-muted-foreground">剩余</div>
+                                <div className="mt-0.5 font-semibold text-orange-700">{formatCurrency(remainingAmount)}</div>
+                              </div>
+                            </div>
+                            {disabled && (
+                              <div className="text-xs text-muted-foreground">
+                                {voided ? '已作废结算单不能关联付款' : !reviewed ? '未审核结算单需先审核后才能关联付款' : '该结算单已无剩余未付金额'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedFormSettlements.length > 0 && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm">
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <div className="text-xs text-muted-foreground">结算应付</div>
-                      <div className="mt-1 font-semibold text-blue-700">{formatCurrency(selectedFormSettlement.payable_amount)}</div>
+                      <div className="text-xs text-muted-foreground">所选应付</div>
+                      <div className="mt-1 font-semibold text-blue-700">{formatCurrency(selectedFormSettlementPayable)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">已登记付款</div>
@@ -902,7 +1029,9 @@ export default function PaymentsPage() {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-xs text-muted-foreground">付款金额仍需按实际付款录入，系统会继续做超付校验。</div>
+                    <div className="text-xs text-muted-foreground">
+                      已选 {selectedFormSettlements.length} 张结算单，保存后按剩余未付金额自动分摊。
+                    </div>
                     {selectedFormSettlementRemaining > 0 && (
                       <Button
                         type="button"
@@ -917,26 +1046,11 @@ export default function PaymentsPage() {
                   </div>
                   {Number(formData.amount || 0) > selectedFormSettlementRemaining && selectedFormSettlementRemaining > 0 && (
                     <div className="mt-2 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-700">
-                      当前付款金额大于该结算单剩余未付，请核对是否存在重复付款。
+                      当前付款金额大于所选结算单剩余未付，超出部分会按合同级付款保存，请核对是否为预付款。
                     </div>
                   )}
                 </div>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>关联结算单</Label>
-              <Select value={formData.settlement_id || 'none'} onValueChange={(value) => handleSettlementChange(value === 'none' ? '' : value)} disabled={!formData.contract_id}>
-                <SelectTrigger><SelectValue placeholder={formData.contract_id ? '可选，选择对应结算单' : '请先选择合同'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">不关联结算单</SelectItem>
-                  {formSettlements.map((settlement) => (
-                    <SelectItem key={settlement.id} value={String(settlement.id)}>
-                      {settlement.settlement_no} / {getPaymentTypeLabel(settlement.settlement_type)} / {formatCurrency(settlement.payable_amount)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
