@@ -7,10 +7,25 @@ export const REVIEW_STATUS = {
 } as const;
 
 export function normalizeReviewStatus(status?: string | null): ReviewStatus {
-  if (status === REVIEW_STATUS.REVIEWED || status === REVIEW_STATUS.VOIDED) {
-    return status;
+  switch ((status || '').trim()) {
+    case REVIEW_STATUS.REVIEWED:
+    case '已提交':
+    case '已审核':
+    case '已结算':
+    case 'approved':
+    case 'complete':
+    case 'completed':
+    case 'paid':
+      return REVIEW_STATUS.REVIEWED;
+    case REVIEW_STATUS.VOIDED:
+    case '作废':
+    case '已作废':
+    case 'voided':
+    case 'cancelled':
+      return REVIEW_STATUS.VOIDED;
+    default:
+      return REVIEW_STATUS.DRAFT;
   }
-  return REVIEW_STATUS.DRAFT;
 }
 
 export function isReviewedStatus(status?: string | null): boolean {
