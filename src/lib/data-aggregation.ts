@@ -176,6 +176,117 @@ export async function getSupplierSettlementTotal(
   return round2(total);
 }
 
+export interface SupplierSettlementMetrics {
+  settlementAmount: number;         // 供应商结算成本（材料机械），新表+老表去重
+  supplierPayableBaseAmount: number; // 应付基数（老表无应付列，按全款）
+}
+
+/**
+ * 按项目汇总供应商结算（新表 supplier_settlements + 老表 settlements，同 supplier 按指纹去重）。
+ * 供单项目汇总、批量汇总共用，保证口径一致。
+ */
+async function getSupplierSettlementMetricsByProjects(
+  client: AggDbClient,
+  projectIds: number[],
+  dateRange?: DateRange | null,
+): Promise<Map<number, SupplierSettlementMetrics>> {
+  const result = new Map<number, SupplierSettlementMetrics>();
+  if (projectIds.length === 0) return result;
+  const projectFingerprints = new Map<number, Set<string>>();
+  const ensure = (pid: number) => {
+    if (!result.has(pid)) {
+      result.set(pid, { settlementAmount: 0, supplierPayableBaseAmount: 0 });
+      projectFingerprints.set(pid, new Set());
+    }
+    return result.get(pid)!;
+  };
+  const inRange = (date: unknown): boolean => {
+    if (!dateRange) return true;
+    const d = String(date ?? '');
+    return !d || (d >= dateRange.start && d <= dateRange.end);
+  };
+
+  // 1. 新表：合同 → 项目 + 供应商
+  const { data: contracts } = await client
+    .from('supplier_contracts')
+    .select('id, project_id, supplier_id')
+    .in('project_id', projectIds);
+  const contractIds: number[] = (contracts || []).map((c: ContractRow) => Number(c.id)).filter(Boolean);
+  const contractToProject = new Map<number, number>();
+  const contractToSupplier = new Map<number, number>();
+  (contracts || []).forEach((c: ContractRow) => {
+    const cid = Number(c.id);
+    const pid = Number(c.project_id);
+    const sid = Number(c.supplier_id);
+    if (cid && pid) contractToProject.set(cid, pid);
+    if (cid && sid) contractToSupplier.set(cid, sid);
+  });
+
+  if (contractIds.length > 0) {
+    let settleQuery = client
+      .from('supplier_settlements')
+      .select('contract_id, settlement_amount, payable_amount, settlement_date, settlement_type, status')
+      .in('contract_id', contractIds);
+    if (dateRange) settleQuery = buildDateFilter(settleQuery, 'settlement_date', dateRange);
+    const { data: newSettlements } = await settleQuery;
+    for (const s of (newSettlements || []) as SupplierSettlementRow[]) {
+      if (!isReviewedStatus(s.status)) continue;
+      const pid = contractToProject.get(Number(s.contract_id));
+      if (!pid) continue;
+      if (!inRange(s.settlement_date)) continue;
+      const amount = parseNumeric(s.settlement_amount);
+      const m = ensure(pid);
+      m.settlementAmount += amount;
+      m.supplierPayableBaseAmount += getSupplierSettlementPayableBase(s);
+      projectFingerprints.get(pid)!.add(supplierSettlementFingerprint({
+        supplierId: contractToSupplier.get(Number(s.contract_id)) || 0,
+        projectId: pid,
+        amount,
+        date: s.settlement_date ? String(s.settlement_date) : null,
+        type: s.settlement_type ? String(s.settlement_type) : null,
+      }));
+    }
+  }
+
+  // 2. 老表（历史遗留；表不存在时静默跳过），与同 supplier 的新表记录按指纹去重并入
+  try {
+    let legacyQuery = client
+      .from('settlements')
+      .select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type')
+      .in('project_id', projectIds);
+    if (dateRange) legacyQuery = buildDateFilter(legacyQuery, 'settlement_date', dateRange);
+    const { data: legacy } = await legacyQuery;
+    for (const s of (legacy || []) as LegacySettlementRow[]) {
+      const pid = Number(s.project_id);
+      if (!result.has(pid)) continue;
+      if (!inRange(s.settlement_date)) continue;
+      const sid = Number(s.supplier_id);
+      const amount = parseNumeric(s.settlement_amount);
+      const fp = supplierSettlementFingerprint({
+        supplierId: sid,
+        projectId: pid,
+        amount,
+        date: s.settlement_date ? String(s.settlement_date) : null,
+        type: s.settlement_type ? String(s.settlement_type) : null,
+      });
+      const fps = projectFingerprints.get(pid)!;
+      if (fps.has(fp)) continue; // 新表已有同 supplier 同额同日同类型，视为重复
+      fps.add(fp);
+      const m = result.get(pid)!;
+      m.settlementAmount += amount;
+      m.supplierPayableBaseAmount += amount; // 老表无应付列，按全款应付
+    }
+  } catch {
+    // 老表可能不存在（新库未建），静默跳过
+  }
+
+  for (const m of result.values()) {
+    m.settlementAmount = round2(m.settlementAmount);
+    m.supplierPayableBaseAmount = round2(m.supplierPayableBaseAmount);
+  }
+  return result;
+}
+
 // ========== 类型定义 ==========
 
 export interface DateRange {
@@ -530,35 +641,17 @@ export async function getProjectFinancialSummary(
   const { data: visas } = await visasQuery;
   const visaAmount = (visas || []).reduce((sum: number, v: VisaRow) => sum + parseNumeric(v.visa_amount), 0);
 
-  // 3. 供应商结算（仅已审核，排除作废）
+  // 3. 供应商结算（仅已审核，新表+老表指纹去重）
   const { data: contracts } = await client
     .from('supplier_contracts')
     .select('id')
     .eq('project_id', projectId);
-
   const contractIds = (contracts || []).map((c: ContractRow) => Number(c.id)).filter(Boolean);
 
-  let settlementAmount = 0;
-  let supplierPayableBaseAmount = 0;
-  if (contractIds.length > 0) {
-    let settlementsQuery = client
-      .from('supplier_settlements')
-      .select('settlement_amount, payable_amount, settlement_date, status')
-      .in('contract_id', contractIds);
-
-    if (dateRange) {
-      settlementsQuery = buildDateFilter(settlementsQuery, 'settlement_date', dateRange);
-    }
-
-    const { data: settlements } = await settlementsQuery;
-
-    const activeSettlements = (settlements || []).filter((s: SupplierSettlementRow) => isReviewedStatus(s.status));
-    settlementAmount = activeSettlements.reduce((sum: number, s: SupplierSettlementRow) => sum + parseNumeric(s.settlement_amount), 0);
-    supplierPayableBaseAmount = activeSettlements.reduce(
-      (sum: number, s: SupplierSettlementRow) => sum + getSupplierSettlementPayableBase(s),
-      0
-    );
-  }
+  const supplierSettlementMap = await getSupplierSettlementMetricsByProjects(client, [projectId], dateRange);
+  const supplierSettle = supplierSettlementMap.get(projectId) || { settlementAmount: 0, supplierPayableBaseAmount: 0 };
+  const settlementAmount = supplierSettle.settlementAmount;
+  const supplierPayableBaseAmount = supplierSettle.supplierPayableBaseAmount;
 
   // 4. 工人工资（应发总额用于成本；实发 net 用于未付口径，与工人工资模块一致）
   let salariesQuery = client
@@ -799,7 +892,6 @@ async function getMultiProjectFinancialSummariesImpl(
   const [
     clientReportsResult,
     visasResult,
-    supplierSettlementsResult,
     salariesResult,
     expensesResult,
     miscMaterialsResult,
@@ -826,17 +918,6 @@ async function getMultiProjectFinancialSummariesImpl(
       'created_at',
       dateRange
     ),
-    contractIds.length > 0
-      ? buildDateFilter(
-          client
-            .from('supplier_settlements')
-            .select('contract_id, settlement_amount, payable_amount, settlement_date, status')
-            .in('contract_id', contractIds)
-            .eq('status', 'reviewed'),
-          'settlement_date',
-          dateRange
-        )
-      : Promise.resolve({ data: [] }),
     (() => {
       let q = client
         .from('worker_salaries')
@@ -954,17 +1035,13 @@ async function getMultiProjectFinancialSummariesImpl(
     getAcc(pid).visaAmount += parseNumeric(v.visa_amount);
   });
 
-  // 供应商结算（经合同关联项目）
-  (supplierSettlementsResult.data || []).forEach((s: {
-    contract_id?: unknown; settlement_amount?: unknown; payable_amount?: unknown; status?: string | null;
-  }) => {
-    if (!isReviewedStatus(s.status)) return;
-    const pid = contractProjectMap.get(Number(s.contract_id));
-    if (!pid) return;
+  // 供应商结算（新表+老表指纹去重，经合同关联项目；与单项目汇总同源）
+  const supplierSettlementProjectMap = await getSupplierSettlementMetricsByProjects(client, validProjectIds, dateRange);
+  for (const [pid, m] of supplierSettlementProjectMap) {
     const a = getAcc(pid);
-    a.settlementAmount += parseNumeric(s.settlement_amount);
-    a.supplierPayableBaseAmount += getSupplierSettlementPayableBase(s);
-  });
+    a.settlementAmount = m.settlementAmount;
+    a.supplierPayableBaseAmount = m.supplierPayableBaseAmount;
+  }
 
   // 工人工资
   (salariesResult.data || []).forEach((s: { project_id?: unknown; gross_pay?: unknown; net_pay?: unknown }) => {
