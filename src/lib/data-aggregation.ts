@@ -211,6 +211,7 @@ export interface ProjectFinancialSummary {
   clientPaidAmount: number;   // 甲方已回款
   supplierPaidAmount: number; // 供应商已付款
   workerPaidAmount: number;   // 工人已发工资
+  workerSalaryGrossAmount: number; // 工人应发工资（gross，用于应付付款率分母与单项目口径统一）
   // 回款率
   paymentRate: number;
   receivableAmount: number;
@@ -719,6 +720,7 @@ export async function getProjectFinancialSummary(
     clientPaidAmount: round2(clientPaidAmount),
     supplierPaidAmount: round2(supplierPaidAmount),
     workerPaidAmount: round2(workerPaidAmount),
+    workerSalaryGrossAmount: round2(workerSalaryAmount),
     paymentRate: round2(paymentRate),
     receivableAmount: round2(receivableAmount),
     supplierPayableBaseAmount: round2(supplierPayableBaseAmount),
@@ -1070,6 +1072,7 @@ async function getMultiProjectFinancialSummariesImpl(
       clientPaidAmount: round2(a.clientPaidAmount),
       supplierPaidAmount: round2(a.supplierPaidAmount),
       workerPaidAmount: round2(a.workerPaidAmount),
+      workerSalaryGrossAmount: round2(a.workerSalaryGross),
       paymentRate: round2(paymentRate),
       receivableAmount: round2(receivableAmount),
       supplierPayableBaseAmount: round2(a.supplierPayableBaseAmount),
@@ -1206,6 +1209,7 @@ async function getGlobalSummaryImpl(
     totalTax: 0, totalSettlement: 0, totalSalary: 0, totalExpense: 0,
     totalMiscMaterial: 0, totalCost: 0, totalProfit: 0,
     totalClientPaid: 0, totalSupplierPaid: 0, totalWorkerPaid: 0,
+    totalWorkerSalaryGross: 0,
     totalSupplierPayableBase: 0, totalWorkerPayable: 0,
   };
 
@@ -1224,6 +1228,7 @@ async function getGlobalSummaryImpl(
     totals.totalClientPaid += summary.clientPaidAmount;
     totals.totalSupplierPaid += summary.supplierPaidAmount;
     totals.totalWorkerPaid += summary.workerPaidAmount;
+    totals.totalWorkerSalaryGross += summary.workerSalaryGrossAmount;
     totals.totalSupplierPayableBase += summary.supplierPayableBaseAmount;
     totals.totalWorkerPayable += summary.workerPayableAmount;
   }
@@ -1239,7 +1244,8 @@ async function getGlobalSummaryImpl(
   const totalWorkerPayable = totals.totalWorkerPayable;
   const totalPayable = totalSupplierPayable + totalWorkerPayable;
   const totalCashOut = totals.totalSupplierPaid + totals.totalWorkerPaid;
-  const payableBaseAmount = totals.totalSupplierPayableBase + totals.totalWorkerPaid + totalWorkerPayable;
+  // 应付付款率分母：统一为 gross（应发）口径，与单项目/批量汇总一致（salaryAmount = worker gross + 班组结算成本）
+  const payableBaseAmount = totals.totalSupplierPayableBase + totals.totalWorkerSalaryGross;
   const payablePaymentRate = payableBaseAmount > 0 ? (totalCashOut / payableBaseAmount) * 100 : 0;
   const costIncomeRate = totals.totalTaxableIncome > 0
     ? (totals.totalCost / totals.totalTaxableIncome) * 100

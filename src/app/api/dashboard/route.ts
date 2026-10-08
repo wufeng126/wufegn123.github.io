@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
-import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries, getSupplierSettlementTotal, getTeamSettlementCostAmount } from '@/lib/data-aggregation';
-import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
+import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus } from '@/lib/business-logic';
+import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries } from '@/lib/data-aggregation';
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { requireAuth } from '@/lib/api-auth';
 import { logger } from '@/lib/logger';
@@ -469,139 +468,9 @@ export async function GET(request: Request) {
     const pendingPayment = financialMetrics.receivableAmount;
 
     // ========== 成本数据 ==========
-    
-    // 供应商结算金额（材料机械成本）- 支持项目筛选
-    // D2 修复：统一走 data-aggregation 口径（新表 supplier_settlements 仅统计已审核 +
-    // 老表 settlements 按指纹去重），与成本利润中心/月报一致，不再单独查老表
-    const totalSupplierCost = await getSupplierSettlementTotal(client, {
-      projectId: projectId ? parseInt(projectId) : undefined,
-      startDate: timeRange !== 'year' ? rangeStartDate : undefined,
-    });
-    
-    // 工人工资（使用 gross_pay 应发工资）- 支持项目筛选和时间范围筛选
-    let workerSalariesQuery = client
-      .from('worker_salaries')
-      .select('gross_pay, year_month');
-    
-    if (projectId) {
-      workerSalariesQuery = workerSalariesQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      // year_month format is YYYY-MM, compare as string
-      const rangeStartMonth = rangeStartDate.substring(0, 7); // YYYY-MM
-      workerSalariesQuery = workerSalariesQuery.gte('year_month', rangeStartMonth);
-    }
-    
-    const { data: workerSalaries } = await workerSalariesQuery;
-    
-    const totalWorkerSalaryCost = workerSalaries?.reduce((sum, s) => {
-      return sum + (parseFloat(s.gross_pay || '0') || 0);
-    }, 0) || 0;
-    const totalTeamSettlementCost = await getTeamSettlementCostAmount(client, {
-      projectId: projectId ? parseInt(projectId) : undefined,
-      startDate: timeRange !== 'year' ? rangeStartDate : undefined,
-    });
-    const totalSalaryCost = totalWorkerSalaryCost + totalTeamSettlementCost;
-    
-    // 综合费用 - 支持项目筛选和时间范围筛选
-    let expensesQuery = client
-      .from('comprehensive_expenses')
-      .select('amount, expense_date')
-      .eq('status', 'reviewed');
-    
-    if (projectId) {
-      expensesQuery = expensesQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      expensesQuery = expensesQuery.gte('expense_date', rangeStartDate);
-    }
-    
-    const { data: expenses } = await expensesQuery;
-    
-    const totalExpenseCost = expenses?.reduce((sum, e) => {
-      return sum + (parseFloat(e.amount || '0') || 0);
-    }, 0) || 0;
-    
-    // 零星材料 - 支持项目筛选和时间范围筛选
-    let miscMaterialsQuery = client
-      .from('miscellaneous_materials')
-      .select('quantity, unit_price, purchase_date')
-      .eq('status', 'reviewed');
-    
-    if (projectId) {
-      miscMaterialsQuery = miscMaterialsQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      miscMaterialsQuery = miscMaterialsQuery.gte('purchase_date', rangeStartDate);
-    }
-    
-    const { data: miscMaterials } = await miscMaterialsQuery;
-    
-    const totalMiscMaterialCost = miscMaterials?.reduce((sum, m) => {
-      return sum + calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price);
-    }, 0) || 0;
-    
-    // 税费计算：从 client_reports 的 invoice_amount 和 tax_rate 计算
-    // 不含税收入 = 开票金额 / (1 + 税率 / 100)
-    // 税费 = 开票金额 − 不含税收入
-    let clientReportsForTaxQuery = client
-      .from('client_reports')
-      .select('invoice_amount, tax_rate, report_date, settlement_amount, report_amount');
-    
-    if (projectId) {
-      clientReportsForTaxQuery = clientReportsForTaxQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      clientReportsForTaxQuery = clientReportsForTaxQuery.gte('report_date', rangeStartDate);
-    }
-    
-    const { data: clientReportsForTax } = await clientReportsForTaxQuery;
-    
-    const totalTaxCost = clientReportsForTax?.reduce((sum, r) => {
-      const invoiceAmount = parseFloat(r.invoice_amount || '0') || 0;
-      const taxRate = parseFloat(r.tax_rate || '9') || 9;
-      if (invoiceAmount > 0 && taxRate >= 0) {
-        const untaxedIncome = invoiceAmount / (1 + taxRate / 100);
-        const taxAmount = invoiceAmount - untaxedIncome;
-        return sum + taxAmount;
-      }
-      return sum;
-    }, 0) || 0;
-    
-    // 获取已完成的签证金额
-    let visasQuery = client
-      .from('visas')
-      .select('visa_amount, created_at')
-      .in('status', [...VISA_DONE_STATUSES]);
-    
-    if (projectId) {
-      visasQuery = visasQuery.eq('project_id', parseInt(projectId));
-    }
-    if (timeRange !== 'year') {
-      visasQuery = visasQuery.gte('created_at', rangeStartDate);
-    }
-    const { data: visasForIncome } = await visasQuery;
-    
-    const totalSignedVisaAmount = visasForIncome?.reduce((sum, v) => {
-      return sum + (parseFloat(v.visa_amount || '0') || 0);
-    }, 0) || 0;
-    
-    // 计算开票金额总额（含税收入）—— 口径统一（D3）：invoice → settlement → report 兜底
-    const totalInvoiceAmount = clientReportsForTax?.reduce((sum, r) => {
-      const inv = parseFloat(r.invoice_amount || '0') || parseFloat(r.settlement_amount || '0') || parseFloat(r.report_amount || '0');
-      return sum + (inv || 0);
-    }, 0) || 0;
-    
-    // 含税收入 = 开票金额 + 签证
-    const totalTaxableIncome = totalInvoiceAmount + totalSignedVisaAmount;
-    
-    // 总成本 = 供应商结算 + 工人工资 + 综合费用 + 税费 + 零星材料
-    const totalCost = totalSupplierCost + totalSalaryCost + totalExpenseCost + totalTaxCost + totalMiscMaterialCost;
-    
-    // 总利润 = 含税收入 - 总成本
-    const totalProfit = totalTaxableIncome - totalCost;
-    const profitRate = totalTaxableIncome > 0 ? (totalProfit / totalTaxableIncome * 100) : 0;
-    
+    // P1-B 修复：成本构成已复用顶部统一聚合 financialMetrics（与 KPI/成本中心同源），
+    // 移除原手工重算块（含硬编码税率 9%），避免全局与单项目双口径不一致。
+
     // ========== 月度趋势数据 ==========
     const recentMonths = getRecentMonths(trendMonthCount);
     
@@ -659,12 +528,14 @@ export async function GET(request: Request) {
     }));
     
     // ========== 成本构成数据 ==========
+    // P1-B 修复：直接复用顶部统一聚合 financialMetrics 的成本字段（与 KPI/成本中心口径一致），
+    // 移除原网红独立重算（含硬编码税率 9%），避免全局与单项目双口径
     const costComposition = [
-      { name: '材料机械', value: totalSupplierCost, color: '#165DFF' },
-      { name: '人工费', value: totalSalaryCost, color: '#00B42A' },
-      { name: '综合费用', value: totalExpenseCost, color: '#FF7D00' },
-      { name: '税费', value: totalTaxCost, color: '#F53F3F' },
-      { name: '零星材料', value: totalMiscMaterialCost, color: '#722ED1' },
+      { name: '材料机械', value: financialMetrics.supplierCost, color: '#165DFF' },
+      { name: '人工费', value: financialMetrics.salaryCost, color: '#00B42A' },
+      { name: '综合费用', value: financialMetrics.expenseCost, color: '#FF7D00' },
+      { name: '税费', value: financialMetrics.taxCost, color: '#F53F3F' },
+      { name: '零星材料', value: financialMetrics.miscMaterialCost, color: '#722ED1' },
     ].filter(c => c.value > 0);
 
     // ========== 各项目收入/成本对比数据（批量汇总，消除 N+1） ==========
