@@ -100,7 +100,7 @@ export async function resolvePersonForWorker(
 
   // 1. 有身份证 → 按身份证归人（唯一）
   if (card) {
-    let person = await findPersonByIdCard(client, card);
+    const person = await findPersonByIdCard(client, card);
     if (person) {
       // 补充最新联系方式
       if (input.phone || input.bankCard) {
