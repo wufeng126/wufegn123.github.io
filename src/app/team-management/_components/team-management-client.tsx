@@ -653,11 +653,12 @@ export function TeamSettlementLedgerPageClient() {
     const params = new URLSearchParams();
     if (selectedProjectId) params.set('projectId', String(selectedProjectId));
     if (selectedTeamId) params.set('teamId', String(selectedTeamId));
-    if (month) params.set('month', month);
+    // 汇总视图展示全项目累计，不按月份过滤；仅明细视图按月份筛选
+    if (viewMode !== 'summary' && month) params.set('month', month);
     const json = await readJson(await fetch(`/api/team-settlements?${params.toString()}`, { credentials: 'include' }));
     setSettlements(Array.isArray(json.data?.settlements) ? json.data.settlements : []);
     setSummary(json.data?.summary || emptySummary);
-  }, [month, selectedProjectId, selectedTeamId]);
+  }, [month, selectedProjectId, selectedTeamId, viewMode]);
 
   const reload = useCallback(async () => {
     setLoading(true);
