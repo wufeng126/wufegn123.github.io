@@ -5,9 +5,11 @@ import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigat
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  BarChart3,
   ClipboardList,
   Download,
   FileSpreadsheet,
+  List,
   Loader2,
   Pencil,
   Plus,
@@ -71,8 +73,21 @@ type TeamSettlement = {
   safety_fund_deduct?: number;
   deduction_total?: number;
   payable_amount?: number;
+  paid_amount?: number;
+  unpaid_amount?: number;
   items?: SettlementItem[];
   splits?: SettlementSplit[];
+};
+type TeamSettlementPayment = {
+  id: number;
+  settlement_id?: number;
+  payment_amount?: number;
+  method?: string;
+  method_desc?: string;
+  payment_date?: string;
+  remark?: string;
+  created_by_name?: string;
+  created_at?: string;
 };
 type ItemTotal = {
   project_id: number;
@@ -161,6 +176,19 @@ function statusText(status?: string) {
   if (status === 'confirmed') return '已确认';
   if (status === 'draft') return '草稿';
   return '在场';
+}
+
+function formatMethod(method?: string) {
+  const map: Record<string, string> = {
+    bank: '银行转账',
+    cash: '现金',
+    check: '支票',
+    transfer: '转账',
+    wechat: '微信',
+    alipay: '支付宝',
+    other: '其他',
+  };
+  return method ? map[method] || method : '-';
 }
 
 function maskIdCard(value?: string) {
@@ -602,6 +630,7 @@ export function TeamSettlementLedgerPageClient() {
   const [groups, setGroups] = useState<TeamGroup[]>([]);
   const [settlements, setSettlements] = useState<TeamSettlement[]>([]);
   const [summary, setSummary] = useState(emptySummary);
+  const [viewMode, setViewMode] = useState<'summary' | 'detail'>(searchParams.get('view') === 'detail' ? 'detail' : 'summary');
   const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
   const [teamId, setTeamId] = useState(searchParams.get('teamId') || '');
   const [month, setMonth] = useState(searchParams.get('month') || currentMonth());
@@ -646,6 +675,26 @@ export function TeamSettlementLedgerPageClient() {
     void reload();
   }, [reload]);
 
+  const projectSummary = useMemo(() => {
+    const map = new Map<string, { project_name: string; count: number; quantity_amount: number; paid_amount: number; unpaid_amount: number }>();
+    settlements.forEach((row) => {
+      const name = row.project_name || '未分配项目';
+      const entry = map.get(name) || { project_name: name, count: 0, quantity_amount: 0, paid_amount: 0, unpaid_amount: 0 };
+      entry.count += 1;
+      entry.quantity_amount += toNumber(row.quantity_amount);
+      entry.paid_amount += toNumber(row.paid_amount);
+      entry.unpaid_amount += toNumber(row.unpaid_amount);
+      map.set(name, entry);
+    });
+    return Array.from(map.values()).sort((a, b) => b.unpaid_amount - a.unpaid_amount);
+  }, [settlements]);
+
+  function drillToProject(projectName: string) {
+    const project = projects.find((item) => item.name === projectName);
+    if (project) setProjectId(String(project.id));
+    setViewMode('detail');
+  }
+
   return (
     <PageShell>
       <Header
@@ -666,6 +715,65 @@ export function TeamSettlementLedgerPageClient() {
         )}
       />
       <Message>{projectMessage || message}</Message>
+
+      <div className="inline-flex rounded-lg border border-[#E5E8EF] bg-white p-1 shadow-sm">
+        <button
+          onClick={() => { setViewMode('summary'); setProjectId(''); }}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'summary' ? 'bg-[#165DFF] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
+        >
+          <BarChart3 className="h-3.5 w-3.5" />按项目汇总
+        </button>
+        <button
+          onClick={() => setViewMode('detail')}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'detail' ? 'bg-[#165DFF] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
+        >
+          <List className="h-3.5 w-3.5" />结算明细
+        </button>
+      </div>
+
+      {viewMode === 'summary' ? (
+        <section className="mt-3 rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#EEF0F5] p-4">
+            <div>
+              <h2 className="font-semibold">按项目汇总（全项目累计）</h2>
+              <p className="mt-1 text-xs text-[#86909C]">每个项目各班组按结算累计值汇总；点击项目可下钻查看该项目结算明细。</p>
+            </div>
+            <ClipboardList className="h-5 w-5 text-[#165DFF]" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-[#F7F8FA] text-xs font-medium text-[#86909C]">
+                <tr>
+                  <th className="px-4 py-3 text-left">项目</th>
+                  <th className="px-4 py-3 text-right">结算单数</th>
+                  <th className="px-4 py-3 text-right">结算金额</th>
+                  <th className="px-4 py-3 text-right">累计已付</th>
+                  <th className="px-4 py-3 text-right">累计未付</th>
+                  <th className="px-4 py-3 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#EEF0F5]">
+                {loading ? (
+                  <tr><td colSpan={6} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
+                ) : projectSummary.length === 0 ? (
+                  <tr><td colSpan={6} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
+                ) : projectSummary.map((row) => (
+                  <tr key={row.project_name} className="hover:bg-[#FAFBFF]">
+                    <td className="px-4 py-3 font-medium">{row.project_name}</td>
+                    <td className="px-4 py-3 text-right">{row.count}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
+                    <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.paid_amount)}</td>
+                    <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.unpaid_amount)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={() => drillToProject(row.project_name)} className="text-sm font-medium text-[#165DFF] hover:underline">查看明细</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
@@ -694,6 +802,7 @@ export function TeamSettlementLedgerPageClient() {
         </div>
       </section>
 
+      {viewMode === 'detail' && (<>
       <SettlementFilters
         projects={projects}
         groups={groups}
@@ -725,6 +834,8 @@ export function TeamSettlementLedgerPageClient() {
                 <th className="px-4 py-3 text-right">结算金额</th>
                 <th className="px-4 py-3 text-right">扣款合计</th>
                 <th className="px-4 py-3 text-right">实付金额</th>
+                <th className="px-4 py-3 text-right">已付</th>
+                <th className="px-4 py-3 text-right">未付</th>
                 <th className="px-4 py-3 text-right">分账金额</th>
                 <th className="px-4 py-3 text-right">总工时</th>
                 <th className="px-4 py-3 text-center">状态</th>
@@ -733,9 +844,9 @@ export function TeamSettlementLedgerPageClient() {
             </thead>
             <tbody className="divide-y divide-[#EEF0F5]">
               {loading ? (
-                <tr><td colSpan={12} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
+                <tr><td colSpan={14} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
               ) : settlements.length === 0 ? (
-                <tr><td colSpan={12} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
+                <tr><td colSpan={14} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
               ) : settlements.map((row) => (
                 <tr key={row.id} className="hover:bg-[#FAFBFF]">
                   <td className="px-4 py-3 font-medium">{row.settlement_no || `#${row.id}`}</td>
@@ -746,6 +857,8 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.deduction_total)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.payable_amount)}</td>
+                  <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.paid_amount || 0)}</td>
+                  <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.unpaid_amount || 0)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatMoney(row.split_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.total_hours)}</td>
                   <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{statusText(row.status)}</span></td>
@@ -784,6 +897,7 @@ export function TeamSettlementLedgerPageClient() {
           ))}
         </div>
       </section>
+      </>)}
     </PageShell>
   );
 }
@@ -1193,6 +1307,28 @@ export function TeamSettlementDetailPageClient() {
   const [settlement, setSettlement] = useState<TeamSettlement | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [payments, setPayments] = useState<TeamSettlementPayment[]>([]);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('bank');
+  const [paymentDate, setPaymentDate] = useState(currentMonth());
+  const [paymentRemark, setPaymentRemark] = useState('');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+
+  const loadPayments = useCallback(async () => {
+    if (!id) return;
+    setPaymentLoading(true);
+    setPaymentMessage('');
+    try {
+      const json = await readJson(await fetch(`/api/team-settlement-payments?settlementId=${encodeURIComponent(id)}`, { credentials: 'include' }));
+      setPayments(Array.isArray(json.data?.payments) ? json.data.payments : []);
+    } catch (error) {
+      setPaymentMessage(error instanceof Error ? error.message : '付款记录加载失败');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, [id]);
 
   const loadSettlement = useCallback(async () => {
     if (!id) return;
@@ -1212,7 +1348,8 @@ export function TeamSettlementDetailPageClient() {
 
   useEffect(() => {
     void loadSettlement();
-  }, [loadSettlement]);
+    void loadPayments();
+  }, [loadSettlement, loadPayments]);
 
   function printPage() {
     window.print();
@@ -1232,6 +1369,54 @@ export function TeamSettlementDetailPageClient() {
 
   const items = settlement?.items || [];
   const splits = settlement?.splits || [];
+
+  async function addPayment() {
+    if (!id) return;
+    const amount = Number(paymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPaymentMessage('请输入有效的付款金额');
+      return;
+    }
+    setPaymentLoading(true);
+    setPaymentMessage('');
+    try {
+      const json = await readJson(await fetch('/api/team-settlement-payments', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settlement_id: Number(id),
+          payment_amount: amount,
+          method: paymentMethod,
+          payment_date: paymentDate,
+          remark: paymentRemark || undefined,
+        }),
+      }));
+      void json;
+      setPaymentAmount('');
+      setPaymentRemark('');
+      setShowPaymentForm(false);
+      await Promise.all([loadSettlement(), loadPayments()]);
+    } catch (error) {
+      setPaymentMessage(error instanceof Error ? error.message : '付款记录保存失败');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
+  async function deletePayment(paymentId: number) {
+    if (!window.confirm('确定删除这条付款记录？')) return;
+    setPaymentLoading(true);
+    setPaymentMessage('');
+    try {
+      await readJson(await fetch(`/api/team-settlement-payments?id=${paymentId}`, { method: 'DELETE', credentials: 'include' }));
+      await Promise.all([loadSettlement(), loadPayments()]);
+    } catch (error) {
+      setPaymentMessage(error instanceof Error ? error.message : '付款记录删除失败');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
 
   return (
     <PageShell>
@@ -1291,6 +1476,8 @@ export function TeamSettlementDetailPageClient() {
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#E5E8EF] pt-3">
                 <span className="text-sm text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(settlement.deduction_total)}</b></span>
                 <span className="text-sm text-[#4E5969]">实付金额：<b className="text-[#165DFF]">{formatMoney(settlement.payable_amount)}</b></span>
+                <span className="text-sm text-[#4E5969]">已付：<b className="text-[#00B42A]">{formatMoney(settlement.paid_amount || 0)}</b></span>
+                <span className="text-sm text-[#4E5969]">未付：<b className={Number(settlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(settlement.unpaid_amount || 0)}</b></span>
               </div>
             </div>
           </div>
@@ -1350,6 +1537,95 @@ export function TeamSettlementDetailPageClient() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-8 rounded-lg border border-[#E5E8EF] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">付款记录</h3>
+                  <p className="mt-1 text-xs text-[#86909C]">
+                    已付 <b className="text-[#165DFF]">{formatMoney(settlement.paid_amount || 0)}</b>，未付{' '}
+                    <b className={Number(settlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(settlement.unpaid_amount || 0)}</b>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPaymentForm((current) => !current)}
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF] hover:text-[#165DFF]"
+                >
+                  <Plus className="h-3.5 w-3.5" />记一笔付款
+                </button>
+              </div>
+
+              {paymentMessage && <div className="mt-3 rounded-md bg-[#FFF7E8] px-3 py-2 text-xs text-[#E88012]">{paymentMessage}</div>}
+
+              {showPaymentForm && (
+                <div className="mt-4 grid gap-3 rounded-md bg-[#F7F8FA] p-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[#86909C]">付款金额</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={paymentAmount}
+                      onChange={(event) => setPaymentAmount(event.target.value)}
+                      placeholder="请输入付款金额"
+                      className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[#86909C]">付款方式</span>
+                    <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                      <option value="bank">银行转账</option>
+                      <option value="cash">现金</option>
+                      <option value="check">支票</option>
+                      <option value="other">其他</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[#86909C]">付款日期</span>
+                    <input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[#86909C]">备注</span>
+                    <input value={paymentRemark} onChange={(event) => setPaymentRemark(event.target.value)} placeholder="选填" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                  </label>
+                  <div className="flex items-end gap-2 md:col-span-2">
+                    <button onClick={() => void addPayment()} disabled={paymentLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50">
+                      <Save className="h-4 w-4" />保存付款
+                    </button>
+                    <button onClick={() => setShowPaymentForm(false)} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">取消</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 overflow-x-auto rounded-md border border-[#EBEDF3]">
+                <table className="w-full text-sm">
+                  <thead className="bg-[#F7F8FA] text-xs font-medium text-[#86909C]">
+                    <tr>
+                      <th className="px-3 py-3 text-right">付款金额</th>
+                      <th className="px-3 py-3 text-left">付款方式</th>
+                      <th className="px-3 py-3 text-left">付款日期</th>
+                      <th className="px-3 py-3 text-left">备注</th>
+                      <th className="px-3 py-3 text-left">记录人</th>
+                      <th className="px-3 py-3 text-center">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EEF0F5]">
+                    {payments.length === 0 ? (
+                      <tr><td colSpan={6} className="py-8 text-center text-[#86909C]">{paymentLoading ? '加载中…' : '暂无付款记录'}</td></tr>
+                    ) : payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td className="px-3 py-3 text-right font-semibold text-[#00B42A]">+{formatMoney(payment.payment_amount)}</td>
+                        <td className="px-3 py-3">{payment.method_desc || formatMethod(payment.method)}</td>
+                        <td className="px-3 py-3">{(payment.payment_date || '').slice(0, 10)}</td>
+                        <td className="px-3 py-3 text-[#4E5969]">{payment.remark || '-'}</td>
+                        <td className="px-3 py-3 text-[#4E5969]">{payment.created_by_name || '-'}</td>
+                        <td className="px-3 py-3 text-center">
+                          <button onClick={() => void deletePayment(payment.id)} className="text-xs text-[#F53F3F] hover:underline">删除</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {settlement.remark && (

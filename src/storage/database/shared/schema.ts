@@ -1297,3 +1297,38 @@ export const teamSettlementSplits = pgTable("team_settlement_splits", {
 			name: "team_settlement_splits_worker_id_fkey"
 		}).onDelete("cascade"),
 ]);
+
+// 班组结算付款记录（挂结算单，多笔付款累计为已付金额）
+export const teamSettlementPayments = pgTable("team_settlement_payments", {
+	id: serial("id").primaryKey(),
+	settlementId: integer("settlement_id").notNull(),
+	projectId: integer("project_id").notNull(),
+	teamId: integer("team_id"),
+	paymentAmount: numeric("payment_amount", { precision: 14, scale: 2 }).default('0'),
+	method: varchar("method", { length: 30 }).default('bank'),
+	methodDesc: varchar("method_desc", { length: 50 }),
+	paymentDate: timestamp("payment_date", { withTimezone: true, mode: 'string' }),
+	remark: text(),
+	createdBy: integer("created_by"),
+	createdByName: varchar("created_by_name", { length: 100 }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("team_settlement_payments_settlement_id_idx").on(table.settlementId),
+	index("team_settlement_payments_project_id_idx").on(table.projectId),
+	index("team_settlement_payments_team_id_idx").on(table.teamId),
+	foreignKey({
+			columns: [table.settlementId],
+			foreignColumns: [teamSettlements.id],
+			name: "team_settlement_payments_settlement_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.projectId],
+			foreignColumns: [projects.id],
+			name: "team_settlement_payments_project_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.teamId],
+			foreignColumns: [teamGroups.id],
+			name: "team_settlement_payments_team_id_fkey"
+		}).onDelete("set null"),
+]);

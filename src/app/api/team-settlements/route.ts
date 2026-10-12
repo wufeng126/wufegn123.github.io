@@ -247,7 +247,7 @@ export async function GET(request: NextRequest) {
     if (!projectId && Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) {
       return apiSuccess({
         settlements: [],
-        summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0 },
+        summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, paid_amount: 0, unpaid_amount: 0 },
         item_totals: [],
       });
     }
@@ -267,7 +267,7 @@ export async function GET(request: NextRequest) {
       if (isMissingTableError(error)) {
         return apiSuccess({
           settlements: [],
-          summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0 },
+          summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, paid_amount: 0, unpaid_amount: 0 },
           item_totals: [],
           needs_migration: true,
         });
@@ -276,12 +276,13 @@ export async function GET(request: NextRequest) {
     }
 
     const settlementIds = (settlements || []).map((row) => Number(row.id)).filter(Boolean);
-    const [{ data: items }, { data: splits }] = settlementIds.length > 0
+    const [{ data: items }, { data: splits }, { data: payments }] = settlementIds.length > 0
       ? await Promise.all([
           supabase.from('team_settlement_items').select('*').in('settlement_id', settlementIds),
           supabase.from('team_settlement_splits').select('*').in('settlement_id', settlementIds),
+          supabase.from('team_settlement_payments').select('*').in('settlement_id', settlementIds),
         ])
-      : [{ data: [] }, { data: [] }];
+      : [{ data: [] }, { data: [] }, { data: [] }];
 
     const itemMap = new Map<number, Array<Record<string, unknown>>>();
     const splitMap = new Map<number, Array<Record<string, unknown>>>();
@@ -294,6 +295,11 @@ export async function GET(request: NextRequest) {
       const list = splitMap.get(Number(split.settlement_id)) || [];
       list.push(split);
       splitMap.set(Number(split.settlement_id), list);
+    });
+    const paidMap = new Map<number, number>();
+    (payments || []).forEach((payment) => {
+      const sid = Number(payment.settlement_id);
+      paidMap.set(sid, round2((paidMap.get(sid) || 0) + toNumber(payment.payment_amount)));
     });
 
     const projectNameMap = await loadProjectNames(supabase, (settlements || []).map((row) => Number(row.project_id)).filter(Boolean));
@@ -324,6 +330,8 @@ export async function GET(request: NextRequest) {
         total_hours: round2(totalHours),
         deduction_total: deductionTotal,
         payable_amount: payableAmount,
+        paid_amount: round2(paidMap.get(Number(settlement.id)) || 0),
+        unpaid_amount: round2(Math.max(0, payableAmount - (paidMap.get(Number(settlement.id)) || 0))),
       };
     });
 
@@ -336,6 +344,8 @@ export async function GET(request: NextRequest) {
         total_hours: round2(rows.reduce((sum, row) => sum + row.total_hours, 0)),
         deduction_total: round2(rows.reduce((sum, row) => sum + row.deduction_total, 0)),
         payable_amount: round2(rows.reduce((sum, row) => sum + row.payable_amount, 0)),
+        paid_amount: round2(rows.reduce((sum, row) => sum + row.paid_amount, 0)),
+        unpaid_amount: round2(rows.reduce((sum, row) => sum + row.unpaid_amount, 0)),
       },
       item_totals: itemTotals,
     });

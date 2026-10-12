@@ -106,6 +106,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/miscellaneous-materials/recognize': { permission: 'miscellaneous_materials:view' },
   '/api/team-groups': { permission: 'team_groups:view' },
   '/api/team-settlements': { permission: 'team_settlements:view' },
+  '/api/team-settlement-payments': { permission: 'team_settlements:view' },
   '/api/evidence-chain': { permission: 'evidence_chain:view' },
 
   // === 新导航容器页 ===
@@ -282,6 +283,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/miscellaneous-materials': 'miscellaneous_materials:edit',
   '/api/team-groups': 'team_groups:edit',
   '/api/team-settlements': 'team_settlements:edit',
+  '/api/team-settlement-payments': 'team_settlements:edit',
 
   // 审核操作
   '/api/review': 'system:manage',
@@ -465,6 +467,10 @@ export function checkApiWritePermission(
   }
 
   if (pathname === '/api/team-settlements' && method === 'POST') {
+    return userPermissions.includes('team_settlements:create') || userPermissions.includes('team_settlements:edit');
+  }
+
+  if (pathname === '/api/team-settlement-payments' && (method === 'POST' || method === 'DELETE')) {
     return userPermissions.includes('team_settlements:create') || userPermissions.includes('team_settlements:edit');
   }
 
