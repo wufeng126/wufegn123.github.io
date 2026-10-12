@@ -1202,6 +1202,11 @@ export const teamSettlements = pgTable("team_settlements", {
 	periodEnd: date("period_end").notNull(),
 	status: varchar({ length: 20 }).default('draft'),
 	remark: text(),
+	// 班组结算扣除款项（借支/劳保/帮工/安全基金），从结算应付中扣减
+	advanceDeduct: numeric("advance_deduct", { precision: 14, scale: 2 }).default('0'),
+	laborInsuranceDeduct: numeric("labor_insurance_deduct", { precision: 14, scale: 2 }).default('0'),
+	helperDeduct: numeric("helper_deduct", { precision: 14, scale: 2 }).default('0'),
+	safetyFundDeduct: numeric("safety_fund_deduct", { precision: 14, scale: 2 }).default('0'),
 	createdBy: integer("created_by"),
 	createdByName: varchar("created_by_name", { length: 100 }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),

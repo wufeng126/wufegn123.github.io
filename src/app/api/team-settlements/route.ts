@@ -306,6 +306,13 @@ export async function GET(request: NextRequest) {
       const quantityAmount = settlementItems.reduce<number>((sum, item) => sum + toNumber(item.amount), 0);
       const splitAmount = settlementSplits.reduce<number>((sum, split) => sum + toNumber(split.amount), 0);
       const totalHours = settlementSplits.reduce<number>((sum, split) => sum + toNumber(split.work_hours), 0);
+      const deductionTotal = round2(
+        toNumber(settlement.advance_deduct) +
+          toNumber(settlement.labor_insurance_deduct) +
+          toNumber(settlement.helper_deduct) +
+          toNumber(settlement.safety_fund_deduct),
+      );
+      const payableAmount = round2(Math.max(0, quantityAmount - deductionTotal));
       return {
         ...settlement,
         project_name: projectNameMap.get(Number(settlement.project_id)) || '',
@@ -315,6 +322,8 @@ export async function GET(request: NextRequest) {
         quantity_amount: round2(quantityAmount),
         split_amount: round2(splitAmount),
         total_hours: round2(totalHours),
+        deduction_total: deductionTotal,
+        payable_amount: payableAmount,
       };
     });
 
@@ -325,6 +334,8 @@ export async function GET(request: NextRequest) {
         quantity_amount: round2(rows.reduce((sum, row) => sum + row.quantity_amount, 0)),
         split_amount: round2(rows.reduce((sum, row) => sum + row.split_amount, 0)),
         total_hours: round2(rows.reduce((sum, row) => sum + row.total_hours, 0)),
+        deduction_total: round2(rows.reduce((sum, row) => sum + row.deduction_total, 0)),
+        payable_amount: round2(rows.reduce((sum, row) => sum + row.payable_amount, 0)),
       },
       item_totals: itemTotals,
     });
@@ -376,6 +387,11 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const settlementNo = `BZJS-${month.replace('-', '')}-${String(now.getTime()).slice(-6)}`;
 
+    const advanceDeduct = round2(toNumber(body?.advance_deduct));
+    const laborInsuranceDeduct = round2(toNumber(body?.labor_insurance_deduct));
+    const helperDeduct = round2(toNumber(body?.helper_deduct));
+    const safetyFundDeduct = round2(toNumber(body?.safety_fund_deduct));
+
     const { data: settlementRows, error: settlementError } = await insertWithSequenceFix('team_settlements', {
       project_id: projectId,
       team_id: teamId,
@@ -385,6 +401,10 @@ export async function POST(request: NextRequest) {
       period_end: end,
       status: body?.status || 'confirmed',
       remark: body?.remark || null,
+      advance_deduct: advanceDeduct,
+      labor_insurance_deduct: laborInsuranceDeduct,
+      helper_deduct: helperDeduct,
+      safety_fund_deduct: safetyFundDeduct,
       created_by: auth.user.id,
       created_by_name: auth.user.name || auth.user.username,
       updated_at: now.toISOString(),
@@ -444,17 +464,27 @@ export async function POST(request: NextRequest) {
         settlement_month: month,
         item_amount: round2(itemRows.reduce((sum, item) => sum + toNumber(item.amount), 0)),
         split_amount: round2(splitRows.reduce((sum, split) => sum + toNumber(split.amount), 0)),
+        advance_deduct: advanceDeduct,
+        labor_insurance_deduct: laborInsuranceDeduct,
+        helper_deduct: helperDeduct,
+        safety_fund_deduct: safetyFundDeduct,
       },
       request,
     });
+
+    const quantityAmount = round2(itemRows.reduce((sum, item) => sum + toNumber(item.amount), 0));
+    const deductionTotal = round2(advanceDeduct + laborInsuranceDeduct + helperDeduct + safetyFundDeduct);
+    const payableAmount = round2(Math.max(0, quantityAmount - deductionTotal));
 
     return apiSuccess({
       settlement: {
         ...settlement,
         items: itemRows,
         splits: splitRows,
-        quantity_amount: round2(itemRows.reduce((sum, item) => sum + toNumber(item.amount), 0)),
+        quantity_amount: quantityAmount,
         split_amount: round2(splitRows.reduce((sum, split) => sum + toNumber(split.amount), 0)),
+        deduction_total: deductionTotal,
+        payable_amount: payableAmount,
       },
     });
   } catch (error: unknown) {
