@@ -784,6 +784,7 @@ export function TeamSettlementNewPageClient() {
   const workerMap = useMemo(() => new Map(workers.map((worker) => [Number(worker.id), worker])), [workers]);
   const usedWorkerIds = useMemo(() => new Set(splitRows.map((row) => Number(row.worker_id)).filter(Boolean)), [splitRows]);
 
+  // 工种筛选下拉（顶部筛选栏）
   const filteredWorkers = useMemo(() => {
     const text = keyword.trim().toLowerCase();
     return workers.filter((worker) => {
@@ -794,6 +795,17 @@ export function TeamSettlementNewPageClient() {
         .some((value) => String(value).toLowerCase().includes(text));
     });
   }, [keyword, workType, workers]);
+
+  // 分账明细的工人选择：展示该项目所有在场工人（不受班组工种强过滤），仅按关键字筛选
+  const splitWorkers = useMemo(() => {
+    const text = keyword.trim().toLowerCase();
+    if (!text) return workers;
+    return workers.filter((worker) =>
+      [worker.name, worker.id_card, worker.work_type, worker.team_name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(text)),
+    );
+  }, [keyword, workers]);
 
   const quantityPreview = useMemo(() => quantityRows.map((row) => {
     const quantity = toNumber(row.quantity);
@@ -1072,11 +1084,12 @@ export function TeamSettlementNewPageClient() {
                     <td className="px-3 py-2">
                       <select value={row.worker_id} onChange={(event) => updateSplit(row.rowId, 'worker_id', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 outline-none focus:border-[#165DFF]">
                         <option value="">请选择工人</option>
-                        {filteredWorkers.map((worker) => (
+                        {splitWorkers.map((worker) => (
                           <option key={worker.id} value={String(worker.id)} disabled={usedWorkerIds.has(worker.id) && String(worker.id) !== row.worker_id}>
                             {worker.name} / {worker.work_type || '未填工种'} / {formatNumber(worker.attendance_hours)} 小时
                           </option>
                         ))}
+                        {splitWorkers.length === 0 && <option value="" disabled>当前项目暂无在场工人</option>}
                       </select>
                     </td>
                     <td className="px-3 py-2 text-[#4E5969]">{[row.worker?.work_type, row.worker?.team_name].filter(Boolean).join(' / ') || '-'}</td>
