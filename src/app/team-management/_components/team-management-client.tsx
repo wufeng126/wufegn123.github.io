@@ -94,7 +94,7 @@ type QuantityRow = {
 type SplitRow = {
   rowId: string;
   worker_id: string;
-  unit_price: string;
+  amount: string;
 };
 
 const emptySummary = { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0 };
@@ -108,7 +108,7 @@ function newQuantityRow(): QuantityRow {
 }
 
 function newSplitRow(): SplitRow {
-  return { rowId: createRowId(), worker_id: '', unit_price: '' };
+  return { rowId: createRowId(), worker_id: '', amount: '' };
 }
 
 function currentMonth() {
@@ -818,9 +818,9 @@ export function TeamSettlementNewPageClient() {
 
   const splitPreview = useMemo(() => splitRows.map((row) => {
     const worker = workerMap.get(Number(row.worker_id));
-    const unitPrice = toNumber(row.unit_price);
     const hours = round2(toNumber(worker?.attendance_hours));
-    return { ...row, worker, unitPrice, hours, amount: round2(hours * unitPrice) };
+    const amount = round2(toNumber(row.amount));
+    return { ...row, worker, hours, amount };
   }), [splitRows, workerMap]);
 
   const quantityTotal = useMemo(() => round2(quantityPreview.reduce((sum, row) => sum + row.amount, 0)), [quantityPreview]);
@@ -896,7 +896,7 @@ export function TeamSettlementNewPageClient() {
       .map((row) => ({ content: row.content.trim(), unit: row.unit.trim(), quantity: toNumber(row.quantity), unit_price: toNumber(row.unit_price) }))
       .filter((row) => row.content && row.quantity > 0);
     const splits = splitRows
-      .map((row) => ({ worker_id: Number(row.worker_id), unit_price: toNumber(row.unit_price) }))
+      .map((row) => ({ worker_id: Number(row.worker_id), amount: toNumber(row.amount) }))
       .filter((row) => row.worker_id > 0);
 
     if (items.length === 0) {
@@ -1038,7 +1038,7 @@ export function TeamSettlementNewPageClient() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EEF0F5] p-4">
           <div>
             <h2 className="font-semibold">分账明细</h2>
-            <p className="mt-1 text-xs text-[#86909C]">选择工人后自动显示结算周期内出勤总工时，分账金额 = 出勤总工时 × 单价。</p>
+            <p className="mt-1 text-xs text-[#86909C]">选择工人后自动显示结算周期内出勤总工时，分账金额可自由填写（不再按出勤×单价自动计算）。</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="relative">
@@ -1060,7 +1060,6 @@ export function TeamSettlementNewPageClient() {
                   <th className="px-3 py-3 text-left">工种/班组</th>
                   <th className="px-3 py-3 text-left">身份证</th>
                   <th className="px-3 py-3 text-right">周期出勤总工时</th>
-                  <th className="px-3 py-3 text-right">分账单价</th>
                   <th className="px-3 py-3 text-right">分账金额</th>
                   <th className="px-3 py-3 text-center">操作</th>
                 </tr>
@@ -1083,8 +1082,7 @@ export function TeamSettlementNewPageClient() {
                     <td className="px-3 py-2 text-[#4E5969]">{[row.worker?.work_type, row.worker?.team_name].filter(Boolean).join(' / ') || '-'}</td>
                     <td className="px-3 py-2 text-[#4E5969]">{maskIdCard(row.worker?.id_card)}</td>
                     <td className="px-3 py-2 text-right font-semibold text-[#165DFF]">{formatNumber(row.hours)}</td>
-                    <td className="px-3 py-2"><input value={row.unit_price} onChange={(event) => updateSplit(row.rowId, 'unit_price', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[#165DFF]" inputMode="decimal" /></td>
-                    <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.amount)}</td>
+                    <td className="px-3 py-2"><input value={row.amount} placeholder="0.00" onChange={(event) => updateSplit(row.rowId, 'amount', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[#165DFF]" inputMode="decimal" /></td>
                     <td className="px-3 py-2 text-center">
                       <button onClick={() => setSplitRows((rows) => rows.length > 1 ? rows.filter((item) => item.rowId !== row.rowId) : rows)} aria-label="删除分账人员" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#86909C] hover:bg-[#FFF1F0] hover:text-[#F53F3F]">
                         <Trash2 className="h-4 w-4" />
@@ -1097,7 +1095,6 @@ export function TeamSettlementNewPageClient() {
                 <tr>
                   <td className="px-3 py-3" colSpan={3}>分账明细合计</td>
                   <td className="px-3 py-3 text-right text-[#165DFF]">{formatNumber(totalHours)}</td>
-                  <td className="px-3 py-3"></td>
                   <td className="px-3 py-3 text-right">{formatMoney(splitTotal)}</td>
                   <td className="px-3 py-3"></td>
                 </tr>

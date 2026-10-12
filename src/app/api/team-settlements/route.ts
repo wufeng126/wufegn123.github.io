@@ -17,6 +17,7 @@ type TeamSettlementItemInput = {
 type TeamSettlementSplitInput = {
   worker_id?: number | string;
   unit_price?: number | string;
+  amount?: number | string;
 };
 
 type LogRow = {
@@ -95,7 +96,7 @@ function normalizeSplits(splits: unknown): TeamSettlementSplitInput[] {
     seen.add(workerId);
     result.push({
       worker_id: workerId,
-      unit_price: toNumber(row.unit_price),
+      amount: toNumber(row.amount),
     });
   });
   return result;
@@ -408,7 +409,8 @@ export async function POST(request: NextRequest) {
       const workerId = Number(split.worker_id);
       const worker = workerMap.get(workerId);
       const workHours = round2(attendanceTotals.get(workerId) || 0);
-      const unitPrice = toNumber(split.unit_price);
+      const amount = round2(toNumber(split.amount));
+      const unitPrice = workHours > 0 ? round2(amount / workHours) : 0;
       return {
         settlement_id: settlementId,
         project_id: projectId,
@@ -419,7 +421,7 @@ export async function POST(request: NextRequest) {
         team_name: worker?.team_name || null,
         work_hours: workHours,
         unit_price: unitPrice,
-        amount: round2(workHours * unitPrice),
+        amount,
       };
     });
 
