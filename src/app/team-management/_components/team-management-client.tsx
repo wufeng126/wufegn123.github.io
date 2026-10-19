@@ -1020,6 +1020,7 @@ export function TeamSettlementNewPageClient() {
   const [month, setMonth] = useState(currentMonth());
   const [workType, setWorkType] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [splitKeyword, setSplitKeyword] = useState('');
   const [periodText, setPeriodText] = useState('');
   const [remark, setRemark] = useState('');
   const [deductAdvance, setDeductAdvance] = useState('');
@@ -1055,16 +1056,21 @@ export function TeamSettlementNewPageClient() {
     });
   }, [keyword, workType, workers]);
 
-  // 分账明细的工人选择：展示该项目所有在场工人（不受班组工种强过滤），仅按关键字筛选
+  // 分账明细的工人选择：严格匹配所选班组工种（班组未设工种则不限），并支持在分账区内搜索
+  const splitTeamWorkType = selectedTeam?.work_type?.trim() || '';
   const splitWorkers = useMemo(() => {
-    const text = keyword.trim().toLowerCase();
-    if (!text) return workers;
-    return workers.filter((worker) =>
-      [worker.name, worker.id_card, worker.work_type, worker.team_name]
+    const text = splitKeyword.trim().toLowerCase();
+    return workers.filter((worker) => {
+      if (splitTeamWorkType) {
+        const workerType = String(worker.work_type || '').trim();
+        if (workerType !== splitTeamWorkType) return false;
+      }
+      if (!text) return true;
+      return [worker.name, worker.id_card, worker.work_type, worker.team_name]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(text)),
-    );
-  }, [keyword, workers]);
+        .some((value) => String(value).toLowerCase().includes(text));
+    });
+  }, [splitKeyword, splitTeamWorkType, workers]);
 
   const quantityPreview = useMemo(() => quantityRows.map((row) => {
     const quantity = toNumber(row.quantity);
@@ -1230,7 +1236,7 @@ export function TeamSettlementNewPageClient() {
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-[#86909C]">班组</span>
-          <select value={teamId} onChange={(event) => setTeamId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+          <select value={teamId} onChange={(event) => { setTeamId(event.target.value); setSplitKeyword(''); }} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
             <option value="">请选择班组</option>
             {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
           </select>
@@ -1319,7 +1325,7 @@ export function TeamSettlementNewPageClient() {
           <div className="flex flex-wrap gap-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#86909C]" />
-              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索工人" className="h-8 w-44 rounded-md border border-[#DDE2EB] pl-8 pr-2 text-xs outline-none focus:border-[#165DFF]" />
+              <input value={splitKeyword} onChange={(event) => setSplitKeyword(event.target.value)} placeholder={splitTeamWorkType ? `搜索${splitTeamWorkType}工人` : '搜索工人姓名/身份证'} className="h-8 w-44 rounded-md border border-[#DDE2EB] pl-8 pr-2 text-xs outline-none focus:border-[#165DFF]" />
             </div>
             <button onClick={() => setSplitRows((rows) => [...rows, newSplitRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[#165DFF]">
               <Plus className="h-3.5 w-3.5" />
@@ -1353,7 +1359,15 @@ export function TeamSettlementNewPageClient() {
                             {worker.name} / {worker.work_type || '未填工种'} / {formatNumber(worker.attendance_hours)} 小时
                           </option>
                         ))}
-                        {splitWorkers.length === 0 && <option value="" disabled>当前项目暂无在场工人</option>}
+                        {splitWorkers.length === 0 && (
+                          <option value="" disabled>
+                            {splitKeyword
+                              ? `未搜索到${splitTeamWorkType || ''}工人`
+                              : splitTeamWorkType
+                                ? `当前项目暂无${splitTeamWorkType}工人`
+                                : '当前项目暂无在场工人'}
+                          </option>
+                        )}
                       </select>
                     </td>
                     <td className="px-3 py-2 text-[#4E5969]">{[row.worker?.work_type, row.worker?.team_name].filter(Boolean).join(' / ') || '-'}</td>
