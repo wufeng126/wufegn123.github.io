@@ -475,7 +475,7 @@ export function checkApiWritePermission(
     return userPermissions.includes('team_settlements:create') || userPermissions.includes('team_settlements:edit');
   }
 
-  if (pathname === '/api/evidence-chain') {
+  if (pathname === '/api/evidence-chain' || pathname.startsWith('/api/evidence-chain/')) {
     if (method === 'POST') {
       return userPermissions.includes('evidence_chain:create') || userPermissions.includes('evidence_chain:edit');
     }

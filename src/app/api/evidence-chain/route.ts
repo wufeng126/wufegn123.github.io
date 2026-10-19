@@ -228,12 +228,33 @@ export async function GET(request: NextRequest) {
       throw new Error(error.message);
     }
 
+    const recordIds = (data || []).map((record: any) => Number(record.id)).filter(Boolean);
+    const followUpMap = new Map<number, { latest: Record<string, unknown>; count: number }>();
+    if (recordIds.length > 0) {
+      const { data: followUps, error: followError } = await supabase
+        .from('settlement_evidence_follow_ups')
+        .select('id, evidence_id, follow_date, follow_status, confirmed_quantity, quantity_unit, confirmed_amount, settlement_method')
+        .in('evidence_id', recordIds)
+        .order('follow_date', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (!followError && Array.isArray(followUps)) {
+        followUps.forEach((item: any) => {
+          const eid = Number(item.evidence_id);
+          const entry = followUpMap.get(eid);
+          if (!entry) followUpMap.set(eid, { latest: item, count: 1 });
+          else entry.count += 1;
+        });
+      }
+    }
+
     const records = await Promise.all((data || []).map(async (record: any) => ({
       ...record,
       project_name: record.projects?.name || '',
       attachments: await attachSignedUrls(record.attachments),
       related: Array.isArray(record.related) ? record.related : [],
       tags: Array.isArray(record.tags) ? record.tags : [],
+      follow_up_count: followUpMap.get(Number(record.id))?.count || 0,
+      latest_follow_up: followUpMap.get(Number(record.id))?.latest || null,
     })));
 
     return apiSuccess({

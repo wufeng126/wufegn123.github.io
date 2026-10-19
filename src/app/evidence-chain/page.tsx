@@ -83,6 +83,15 @@ type EvidenceRecord = {
   owner_name: string | null;
   created_by_name: string | null;
   created_at: string;
+  follow_up_count?: number;
+  latest_follow_up?: {
+    follow_date?: string;
+    follow_status?: string;
+    confirmed_quantity?: number | null;
+    quantity_unit?: string | null;
+    confirmed_amount?: number | null;
+    settlement_method?: string | null;
+  } | null;
 };
 
 type EvidenceSummary = {
@@ -90,6 +99,34 @@ type EvidenceSummary = {
   risk_count: number;
   required_count: number;
   estimated_amount: number;
+};
+
+type EvidenceFollowUp = {
+  id: number;
+  evidence_id: number;
+  project_id: number | null;
+  follow_date: string;
+  content: string | null;
+  follow_status: string;
+  confirmed_quantity: number | null;
+  quantity_unit: string | null;
+  confirmed_amount: number | null;
+  settlement_method: string | null;
+  created_by_name: string | null;
+  created_at: string;
+};
+
+const FOLLOW_STATUS_OPTIONS = ['未处理', '待补资料', '跟进中', '已形成签证', '已进入结算', '已关闭'];
+const SETTLEMENT_METHOD_OPTIONS = ['按签证结算', '计入下期进度结算', '单独协议结算', '现金支付', '抵账扣款'];
+
+type FollowUpForm = {
+  follow_date: string;
+  content: string;
+  follow_status: string;
+  confirmed_quantity: string;
+  quantity_unit: string;
+  confirmed_amount: string;
+  settlement_method: string;
 };
 
 type EvidenceForm = {
@@ -343,6 +380,19 @@ export default function EvidenceChainPage() {
   const [form, setForm] = useState<EvidenceForm>(emptyForm);
   const [visaOptions, setVisaOptions] = useState<VisaOption[]>([]);
   const [loadingVisas, setLoadingVisas] = useState(false);
+  const [followUps, setFollowUps] = useState<EvidenceFollowUp[]>([]);
+  const [followUpsLoading, setFollowUpsLoading] = useState(false);
+  const [followFormOpen, setFollowFormOpen] = useState(false);
+  const [followSaving, setFollowSaving] = useState(false);
+  const [followForm, setFollowForm] = useState<FollowUpForm>({
+    follow_date: new Date().toISOString().slice(0, 10),
+    content: '',
+    follow_status: '跟进中',
+    confirmed_quantity: '',
+    quantity_unit: '',
+    confirmed_amount: '',
+    settlement_method: '',
+  });
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => {
@@ -460,6 +510,99 @@ export default function EvidenceChainPage() {
     const timer = window.setTimeout(loadRecords, 250);
     return () => window.clearTimeout(timer);
   }, [loadRecords]);
+
+  const selectedEvidenceId = selectedRecord?.id || null;
+
+  const loadFollowUps = useCallback(async (evidenceId: number) => {
+    setFollowUpsLoading(true);
+    try {
+      const res = await fetch(`/api/evidence-chain/follow-ups?evidenceId=${evidenceId}`);
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.error || '跟进记录加载失败');
+      setFollowUps(Array.isArray(data.data?.follow_ups) ? data.data.follow_ups : []);
+    } catch (error) {
+      console.error('加载跟进记录失败:', error);
+      setFollowUps([]);
+    } finally {
+      setFollowUpsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedEvidenceId) {
+      void loadFollowUps(selectedEvidenceId);
+    } else {
+      setFollowUps([]);
+    }
+  }, [selectedEvidenceId, loadFollowUps]);
+
+  const resetFollowForm = useCallback(() => {
+    setFollowForm({
+      follow_date: new Date().toISOString().slice(0, 10),
+      content: '',
+      follow_status: '跟进中',
+      confirmed_quantity: '',
+      quantity_unit: '',
+      confirmed_amount: '',
+      settlement_method: '',
+    });
+  }, []);
+
+  async function submitFollowUp() {
+    if (!selectedEvidenceId) return;
+    if (!followForm.content.trim() && !followForm.confirmed_amount && !followForm.confirmed_quantity) {
+      toast({ title: '请填写跟进情况或确认的工程量/金额', variant: 'error' });
+      return;
+    }
+    setFollowSaving(true);
+    try {
+      const res = await fetch('/api/evidence-chain/follow-ups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          evidence_id: selectedEvidenceId,
+          follow_date: followForm.follow_date,
+          content: followForm.content.trim(),
+          follow_status: followForm.follow_status,
+          confirmed_quantity: followForm.confirmed_quantity === '' ? null : Number(followForm.confirmed_quantity),
+          quantity_unit: followForm.quantity_unit.trim() || null,
+          confirmed_amount: followForm.confirmed_amount === '' ? null : Number(followForm.confirmed_amount),
+          settlement_method: followForm.settlement_method || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.error || '跟进记录保存失败');
+      toast({ title: '跟进已记录' });
+      setFollowFormOpen(false);
+      resetFollowForm();
+      await Promise.all([loadFollowUps(selectedEvidenceId), loadRecords()]);
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : '跟进记录保存失败',
+        variant: 'error',
+      });
+    } finally {
+      setFollowSaving(false);
+    }
+  }
+
+  async function deleteFollowUp(id: number) {
+    if (!selectedEvidenceId) return;
+    try {
+      const res = await fetch(`/api/evidence-chain/follow-ups?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.error || '删除失败');
+      toast({ title: '跟进记录已删除' });
+      await Promise.all([loadFollowUps(selectedEvidenceId), loadRecords()]);
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : '删除失败', variant: 'error' });
+    }
+  }
+
+  function formatConfirmedMoney(value: number | null | undefined) {
+    if (value === null || value === undefined) return null;
+    return `¥${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -911,6 +1054,29 @@ export default function EvidenceChainPage() {
                                   </div>
                                   <p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{record.summary || '暂无事件说明'}</p>
 
+                                  {record.latest_follow_up ? (() => {
+                                    const latest = record.latest_follow_up!;
+                                                    const latestMoney = latest.confirmed_amount !== null && latest.confirmed_amount !== undefined
+                              ? `¥${Number(latest.confirmed_amount).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+                              : null;
+                            return (
+                              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-blue-50/60 px-2.5 py-1.5 text-[11px]">
+                                <MessageSquareText className="h-3 w-3 text-blue-600" />
+                                <span className="font-medium text-blue-700">
+                                  最近跟进 {formatDate(latest.follow_date)}
+                                  {(record.follow_up_count || 0) > 1 ? `（共 ${record.follow_up_count} 次）` : ''}
+                                </span>
+                                {latest.confirmed_quantity !== null && latest.confirmed_quantity !== undefined && (
+                                  <span className="text-emerald-700">
+                                    工程量 {Number(latest.confirmed_quantity).toLocaleString('zh-CN')}{latest.quantity_unit || ''}
+                                  </span>
+                                )}
+                                {latestMoney && <span className="font-semibold text-blue-700">{latestMoney}</span>}
+                                {latest.settlement_method && <span className="text-violet-700">{latest.settlement_method}</span>}
+                              </div>
+                            );
+                          })() : null}
+
                                   {/* 跟进动作轨（支轨）：记录 → 留证 → 处置 */}
                                   <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2.5 text-[11px] text-muted-foreground">
                                     <span className="inline-flex items-center gap-1">
@@ -1009,6 +1175,192 @@ export default function EvidenceChainPage() {
                     <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm leading-6 text-foreground">
                       {selectedRecord.summary || '暂无事件说明'}
                     </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        后续跟进
+                        {followUps.length > 0 && (
+                          <span className="ml-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                            {followUps.length}
+                          </span>
+                        )}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => { resetFollowForm(); setFollowFormOpen(true); }}
+                        className="inline-flex h-7 items-center gap-1 rounded-md bg-blue-600 px-2.5 text-xs font-medium text-white hover:bg-blue-700"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        追加跟进
+                      </button>
+                    </div>
+
+                    {followFormOpen ? (
+                      <div className="mb-3 space-y-2 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block">
+                            <span className="mb-1 block text-xs text-muted-foreground">跟进日期</span>
+                            <input
+                              type="date"
+                              value={followForm.follow_date}
+                              onChange={(event) => setFollowForm((prev) => ({ ...prev, follow_date: event.target.value }))}
+                              className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-blue-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-xs text-muted-foreground">跟进后状态</span>
+                            <select
+                              value={followForm.follow_status}
+                              onChange={(event) => setFollowForm((prev) => ({ ...prev, follow_status: event.target.value }))}
+                              className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-blue-400"
+                            >
+                              {FOLLOW_STATUS_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        <textarea
+                          value={followForm.content}
+                          onChange={(event) => setFollowForm((prev) => ({ ...prev, content: event.target.value }))}
+                          placeholder="跟进情况：与甲方沟通进展、对方回复、资料提交情况等"
+                          rows={3}
+                          className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block">
+                            <span className="mb-1 block text-xs text-muted-foreground">确认工程量</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={followForm.confirmed_quantity}
+                              onChange={(event) => setFollowForm((prev) => ({ ...prev, confirmed_quantity: event.target.value }))}
+                              placeholder="如 120"
+                              className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-blue-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-xs text-muted-foreground">单位</span>
+                            <input
+                              type="text"
+                              value={followForm.quantity_unit}
+                              onChange={(event) => setFollowForm((prev) => ({ ...prev, quantity_unit: event.target.value }))}
+                              placeholder="如 m²、m³、项"
+                              className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-blue-400"
+                            />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block">
+                            <span className="mb-1 block text-xs text-muted-foreground">确认金额（元）</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={followForm.confirmed_amount}
+                              onChange={(event) => setFollowForm((prev) => ({ ...prev, confirmed_amount: event.target.value }))}
+                              placeholder="如 36000"
+                              className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-blue-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-xs text-muted-foreground">结算方式</span>
+                            <select
+                              value={followForm.settlement_method}
+                              onChange={(event) => setFollowForm((prev) => ({ ...prev, settlement_method: event.target.value }))}
+                              className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-blue-400"
+                            >
+                              <option value="">暂不确定</option>
+                              {SETTLEMENT_METHOD_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setFollowFormOpen(false)}
+                            className="h-8 rounded-md border border-border bg-white px-3 text-sm text-muted-foreground hover:bg-muted/50"
+                          >
+                            取消
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void submitFollowUp()}
+                            disabled={followSaving}
+                            className="inline-flex h-8 items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {followSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                            保存跟进
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {followUpsLoading ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        跟进记录加载中...
+                      </div>
+                    ) : followUps.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                        暂无跟进记录，事项确定工程量/金额/结算方式后可在此追加
+                      </div>
+                    ) : (
+                      <ol className="relative space-y-3 border-l-2 border-border pl-4">
+                        {followUps.map((item) => {
+                          const money = formatConfirmedMoney(item.confirmed_amount);
+                          return (
+                            <li key={item.id} className="relative">
+                              <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-blue-500 bg-white" />
+                              <div className="rounded-lg border border-border bg-white p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-muted-foreground">{formatDate(item.follow_date)}</span>
+                                    <span className={cx('rounded-md px-2 py-0.5 text-xs font-medium ring-1', toneForStatus(item.follow_status))}>
+                                      {item.follow_status || '未处理'}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm('确认删除该条跟进记录？')) void deleteFollowUp(item.id);
+                                    }}
+                                    className="text-muted-foreground hover:text-rose-600"
+                                    aria-label="删除跟进记录"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                                {(item.confirmed_quantity !== null || money || item.settlement_method) ? (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {item.confirmed_quantity !== null && (
+                                      <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">
+                                        工程量 {Number(item.confirmed_quantity).toLocaleString('zh-CN')}{item.quantity_unit || ''}
+                                      </span>
+                                    )}
+                                    {money && (
+                                      <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
+                                        金额 {money}
+                                      </span>
+                                    )}
+                                    {item.settlement_method && (
+                                      <span className="rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-100">
+                                        {item.settlement_method}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : null}
+                                {item.content ? (
+                                  <div className="mt-2 text-sm leading-6 text-foreground">{item.content}</div>
+                                ) : null}
+                                {item.created_by_name ? (
+                                  <div className="mt-2 text-xs text-muted-foreground">记录人：{item.created_by_name}</div>
+                                ) : null}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
                   </div>
 
                   <div>
