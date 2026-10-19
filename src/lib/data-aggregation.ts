@@ -193,10 +193,19 @@ async function getSupplierSettlementMetricsByProjects(
   const result = new Map<number, SupplierSettlementMetrics>();
   if (projectIds.length === 0) return result;
   const projectFingerprints = new Map<number, Set<string>>();
+  // 宽松指纹集合：supplierId|projectId|amount（忽略日期/类型差异）
+  // 用于识别"老表迁移到新表"的重复记录——历史迁移常导致同一笔结算在两表
+  // 各记一次，但日期可能差1天、类型字段中英文不一致（材料费 vs progress），
+  // 导致严格指纹（含日期+类型）去重失效。此处以"同供应商+同项目+同金额"判重，
+  // 新表为权威来源，老表命中即视为重复丢弃，避免材料机械成本被算两遍。
+  const projectLooseFingerprints = new Map<number, Set<string>>();
+  const looseFingerprint = (supplierId: number, projectId: number, amount: number) =>
+    `${supplierId}|${projectId}|${round2(amount)}`;
   const ensure = (pid: number) => {
     if (!result.has(pid)) {
       result.set(pid, { settlementAmount: 0, supplierPayableBaseAmount: 0 });
       projectFingerprints.set(pid, new Set());
+      projectLooseFingerprints.set(pid, new Set());
     }
     return result.get(pid)!;
   };
@@ -238,13 +247,16 @@ async function getSupplierSettlementMetricsByProjects(
       const m = ensure(pid);
       m.settlementAmount += amount;
       m.supplierPayableBaseAmount += getSupplierSettlementPayableBase(s);
+      const supplierId = contractToSupplier.get(Number(s.contract_id)) || 0;
       projectFingerprints.get(pid)!.add(supplierSettlementFingerprint({
-        supplierId: contractToSupplier.get(Number(s.contract_id)) || 0,
+        supplierId,
         projectId: pid,
         amount,
         date: s.settlement_date ? String(s.settlement_date) : null,
         type: s.settlement_type ? String(s.settlement_type) : null,
       }));
+      // 同时写入宽松指纹（供老表迁移重复判重）
+      projectLooseFingerprints.get(pid)!.add(looseFingerprint(supplierId, pid, amount));
     }
   }
 
@@ -262,6 +274,9 @@ async function getSupplierSettlementMetricsByProjects(
       if (!inRange(s.settlement_date)) continue;
       const sid = Number(s.supplier_id);
       const amount = parseNumeric(s.settlement_amount);
+      // 1) 宽松判重：新表已存在同供应商+同项目+同金额，视为迁移重复，丢弃
+      if (projectLooseFingerprints.get(pid)!.has(looseFingerprint(sid, pid, amount))) continue;
+      // 2) 严格判重（同 supplier 同额同日同类型），避免老表自身/多次重复并入
       const fp = supplierSettlementFingerprint({
         supplierId: sid,
         projectId: pid,
@@ -270,7 +285,7 @@ async function getSupplierSettlementMetricsByProjects(
         type: s.settlement_type ? String(s.settlement_type) : null,
       });
       const fps = projectFingerprints.get(pid)!;
-      if (fps.has(fp)) continue; // 新表已有同 supplier 同额同日同类型，视为重复
+      if (fps.has(fp)) continue;
       fps.add(fp);
       const m = result.get(pid)!;
       m.settlementAmount += amount;
