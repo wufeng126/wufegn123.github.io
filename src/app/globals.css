@@ -42,6 +42,19 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  /* 报量管理对比版新增：功能色与阴影 utility（值与 :root 保持一致） */
+  --color-success: #00B42A;
+  --color-warning: #FF7D00;
+  --color-danger: #F53F3F;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(22, 93, 255, 0.02);
+  --shadow-float: 0 10px 25px rgba(15, 23, 42, 0.12);
+  /* 原型骨架补充变量（报量对比版页面未直接使用，保持与原型 token 体系完整） */
+  --color-primary-container: #E8F1FC;
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-high: #E9EDF2;
+  --color-surface-container-highest: #E2E7EE;
+  --radius-full: 9999px;
+  --shadow-dialog: 0 25px 50px rgba(15, 23, 42, 0.18);
   --font-sans:
     'Source Han Sans SC', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 
     'Microsoft YaHei', '微软雅黑', ui-sans-serif, system-ui, -apple-system, 
