@@ -617,7 +617,7 @@ function SettlementFilters({
         </select>
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-medium text-[#86909C]">结算月份</span>
+        <span className="mb-1 block text-xs font-medium text-[#86909C]">结算月份 <span className="text-[#C0C6CF]">（留空=全部）</span></span>
         <input type="month" value={month} onChange={(event) => onMonth(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
       </label>
     </section>
@@ -633,7 +633,8 @@ export function TeamSettlementLedgerPageClient() {
   const [viewMode, setViewMode] = useState<'summary' | 'detail'>(searchParams.get('view') === 'detail' ? 'detail' : 'summary');
   const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
   const [teamId, setTeamId] = useState(searchParams.get('teamId') || '');
-  const [month, setMonth] = useState(searchParams.get('month') || currentMonth());
+  // 月份默认空（全部月份），仅用户主动选择时才按月份筛选
+  const [month, setMonth] = useState(searchParams.get('month') || '');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [paySettlement, setPaySettlement] = useState<TeamSettlement | null>(null);
