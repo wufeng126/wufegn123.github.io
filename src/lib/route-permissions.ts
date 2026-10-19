@@ -117,6 +117,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/team-management/groups': { permission: 'team_groups:view' },
   '/team-management/settlements/new': { permission: 'team_settlements:create' },
   '/team-management/settlements': { permission: 'team_settlements:view' },
+  '/team-management/payments': { permission: 'team_settlements:view' },
   '/team-management': { permission: 'team_groups:view' },
   '/team-settlement': { permission: 'team_settlements:view' },
   '/business-analysis': {},

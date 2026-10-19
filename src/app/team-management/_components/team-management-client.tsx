@@ -75,6 +75,8 @@ type TeamSettlement = {
   payable_amount?: number;
   paid_amount?: number;
   unpaid_amount?: number;
+  team_paid_total?: number;
+  team_unpaid_total?: number;
   items?: SettlementItem[];
   splits?: SettlementSplit[];
 };
@@ -686,13 +688,25 @@ export function TeamSettlementLedgerPageClient() {
 
   const projectSummary = useMemo(() => {
     const map = new Map<string, { project_name: string; count: number; quantity_amount: number; paid_amount: number; unpaid_amount: number }>();
+    const teamSeen = new Map<string, Set<number>>();
     settlements.forEach((row) => {
       const name = row.project_name || '未分配项目';
       const entry = map.get(name) || { project_name: name, count: 0, quantity_amount: 0, paid_amount: 0, unpaid_amount: 0 };
       entry.count += 1;
       entry.quantity_amount += toNumber(row.quantity_amount);
-      entry.paid_amount += toNumber(row.paid_amount);
-      entry.unpaid_amount += toNumber(row.unpaid_amount);
+      const tid = Number(row.team_id || 0);
+      if (tid > 0) {
+        const seen = teamSeen.get(name) || new Set<number>();
+        if (!seen.has(tid)) {
+          seen.add(tid);
+          teamSeen.set(name, seen);
+          entry.paid_amount += toNumber(row.team_paid_total);
+          entry.unpaid_amount += toNumber(row.team_unpaid_total);
+        }
+      } else {
+        entry.paid_amount += toNumber(row.paid_amount);
+        entry.unpaid_amount += toNumber(row.unpaid_amount);
+      }
       map.set(name, entry);
     });
     return Array.from(map.values()).sort((a, b) => b.unpaid_amount - a.unpaid_amount);
@@ -719,6 +733,7 @@ export function TeamSettlementLedgerPageClient() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          team_id: paySettlement.team_id,
           settlement_id: paySettlement.id,
           payment_amount: amount,
           method: payMethod,
@@ -878,8 +893,8 @@ export function TeamSettlementLedgerPageClient() {
                 <th className="px-4 py-3 text-right">结算金额</th>
                 <th className="px-4 py-3 text-right">扣款合计</th>
                 <th className="px-4 py-3 text-right">实付金额</th>
-                <th className="px-4 py-3 text-right">已付</th>
-                <th className="px-4 py-3 text-right">未付</th>
+                <th className="px-4 py-3 text-right">班组已付</th>
+                <th className="px-4 py-3 text-right">班组未付</th>
                 <th className="px-4 py-3 text-right">分账金额</th>
                 <th className="px-4 py-3 text-right">总工时</th>
                 <th className="px-4 py-3 text-center">状态</th>
@@ -901,8 +916,8 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.deduction_total)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.payable_amount)}</td>
-                  <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.paid_amount || 0)}</td>
-                  <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.unpaid_amount || 0)}</td>
+                  <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.team_paid_total ?? row.paid_amount ?? 0)}</td>
+                  <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatMoney(row.split_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.total_hours)}</td>
                   <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{statusText(row.status)}</span></td>
@@ -1468,6 +1483,10 @@ export function TeamSettlementDetailPageClient() {
       setPaymentMessage('请输入有效的付款金额');
       return;
     }
+    if (!settlement?.team_id) {
+      setPaymentMessage('结算单缺少班组信息，无法登记付款');
+      return;
+    }
     setPaymentLoading(true);
     setPaymentMessage('');
     try {
@@ -1476,6 +1495,7 @@ export function TeamSettlementDetailPageClient() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          team_id: settlement.team_id,
           settlement_id: Number(id),
           payment_amount: amount,
           method: paymentMethod,

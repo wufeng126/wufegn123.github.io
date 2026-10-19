@@ -1298,12 +1298,12 @@ export const teamSettlementSplits = pgTable("team_settlement_splits", {
 		}).onDelete("cascade"),
 ]);
 
-// 班组结算付款记录（挂结算单，多笔付款累计为已付金额）
+// 班组付款记录（挂班组，可选关联结算单核销；多笔付款累计为班组已付金额）
 export const teamSettlementPayments = pgTable("team_settlement_payments", {
 	id: serial("id").primaryKey(),
-	settlementId: integer("settlement_id").notNull(),
+	settlementId: integer("settlement_id"),
 	projectId: integer("project_id").notNull(),
-	teamId: integer("team_id"),
+	teamId: integer("team_id").notNull(),
 	paymentAmount: numeric("payment_amount", { precision: 14, scale: 2 }).default('0'),
 	method: varchar("method", { length: 30 }).default('bank'),
 	methodDesc: varchar("method_desc", { length: 50 }),
@@ -1320,7 +1320,7 @@ export const teamSettlementPayments = pgTable("team_settlement_payments", {
 			columns: [table.settlementId],
 			foreignColumns: [teamSettlements.id],
 			name: "team_settlement_payments_settlement_id_fkey"
-		}).onDelete("cascade"),
+		}).onDelete("set null"),
 	foreignKey({
 			columns: [table.projectId],
 			foreignColumns: [projects.id],
