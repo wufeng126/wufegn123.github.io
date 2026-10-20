@@ -12,6 +12,7 @@ type LogRow = {
 };
 
 type AttendanceRow = {
+  id: number;
   log_id: number;
   project_id: number;
   worker_id: number;
@@ -107,14 +108,29 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let attendanceQuery = supabase
-      .from('construction_log_attendance')
-      .select('log_id,project_id,worker_id,worker_name,work_type,team_name,work_hours')
-      .in('log_id', logIds);
-    if (workType) attendanceQuery = attendanceQuery.eq('work_type', workType);
+    // 原实现把整月 logIds（单月可达数千个）拼进 .in()，URL 超 PostgREST 上限报 URI too long。
+    // 改为 !inner join construction_logs 直接按日志日期过滤，消除大 IN 列表；
+    // attendance 行数同样可能超 1000，按 id 分页拉全量。
+    const ATT_PAGE_SIZE = 1000;
+    const attendance: AttendanceRow[] = [];
+    for (let offset = 0; ; offset += ATT_PAGE_SIZE) {
+      let pageQuery = supabase
+        .from('construction_log_attendance')
+        .select('id,log_id,project_id,worker_id,worker_name,work_type,team_name,work_hours,construction_logs!inner(log_date)')
+        .gte('construction_logs.log_date', start)
+        .lte('construction_logs.log_date', end)
+        .order('id', { ascending: true })
+        .range(offset, offset + ATT_PAGE_SIZE - 1);
+      if (parsedProjectId) pageQuery = pageQuery.eq('project_id', parsedProjectId);
+      else if (Array.isArray(accessibleProjectIds)) pageQuery = pageQuery.in('project_id', accessibleProjectIds);
+      if (workType) pageQuery = pageQuery.eq('work_type', workType);
 
-    const { data: attendance, error: attendanceError } = await attendanceQuery;
-    if (attendanceError) throw new Error(attendanceError.message);
+      const { data: pageRows, error: attendanceError } = await pageQuery;
+      if (attendanceError) throw new Error(attendanceError.message);
+      const rows = (pageRows || []) as unknown as AttendanceRow[];
+      attendance.push(...rows);
+      if (rows.length < ATT_PAGE_SIZE) break;
+    }
 
     const projectIds = Array.from(new Set(logRows.map(log => Number(log.project_id)).filter(Boolean)));
     const { data: projects } = await supabase
