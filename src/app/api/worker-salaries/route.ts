@@ -75,6 +75,34 @@ function parsePositiveId(value: unknown): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+// PostgREST 单次查询默认上限 1000 行，工资记录随月份累积会超出上限，
+// 导致无分页查询只返回最近部分记录（个人明细缺月、汇总金额偏低）。
+// 统一用 range 循环取全量；按 id 稳定排序，避免 offset 翻页时漏行/重复。
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  client: ReturnType<typeof getSupabaseClient>,
+  table: string,
+  selectColumns: string,
+  applyFilters?: (q: any) => any
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+    let q = client
+      .from(table)
+      .select(selectColumns)
+      .order('id', { ascending: false })
+      .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+    if (applyFilters) q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data || []) as T[];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 // 安全解析 numeric 类型
 function parseNumeric(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -172,53 +200,65 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    let query = client
-      .from('worker_salaries')
-      .select(`
-        id,
-        worker_id,
-        project_id,
-        year_month,
-        work_hours,
-        hourly_rate,
-        contract_work_pay,
-        gross_pay,
-        income_tax,
-        advance_pay,
-        labor_insurance,
-        fine,
-        net_pay,
-        remark,
-        payment_status,
-        workers (
-          name
-        ),
-        projects (
-          name
-        )
-      `)
-      .order('year_month', { ascending: false });
+    const buildSalaryQuery = () =>
+      client
+        .from('worker_salaries')
+        .select(`
+          id,
+          worker_id,
+          project_id,
+          year_month,
+          work_hours,
+          hourly_rate,
+          contract_work_pay,
+          gross_pay,
+          income_tax,
+          advance_pay,
+          labor_insurance,
+          fine,
+          net_pay,
+          remark,
+          payment_status,
+          workers (
+            name
+          ),
+          projects (
+            name
+          )
+        `)
+        // id 稳定排序用于 range 分页；最终在内存中按月份倒序呈现
+        .order('id', { ascending: false });
 
-    if (parsedWorkerId !== null) {
-      query = query.eq('worker_id', parsedWorkerId);
-    }
-    
-    if (parsedProjectId !== null) {
-      query = query.eq('project_id', parsedProjectId);
-    } else if (!isSuperAdmin) {
-      query = query.in('project_id', accessibleProjects);
-    }
+    const applySalaryFilters = (q: ReturnType<typeof buildSalaryQuery>) => {
+      let filtered = q;
+      if (parsedWorkerId !== null) {
+        filtered = filtered.eq('worker_id', parsedWorkerId);
+      }
+      if (parsedProjectId !== null) {
+        filtered = filtered.eq('project_id', parsedProjectId);
+      } else if (!isSuperAdmin) {
+        filtered = filtered.in('project_id', accessibleProjects);
+      }
+      if (month) {
+        // ilike 兼容 YYYY-MM 与历史 YYYY-MM-DD 格式
+        filtered = filtered.ilike('year_month', `${month}%`);
+      }
+      return filtered;
+    };
 
-    if (month) {
-      // 使用 ilike 进行模糊匹配，支持 YYYY-MM 和 YYYY-MM-DD 格式
-      query = query.ilike('year_month', `${month}%`);
+    // range 分页取全量，规避 1000 行默认上限
+    let allSalaryData: WorkerSalaryRow[] = [];
+    for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+      const { data, error } = await applySalaryFilters(buildSalaryQuery())
+        .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`查询工资记录失败: ${error.message}`);
+      }
+      const rows = (data || []) as WorkerSalaryRow[];
+      allSalaryData = allSalaryData.concat(rows);
+      if (rows.length < SUPABASE_PAGE_SIZE) break;
     }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`查询工资记录失败: ${error.message}`);
-    }
+    const data = allSalaryData;
 
     // 数据权限过滤（查询层已过滤，内存层保留作为防御性校验）
     let filteredData = ((data || []) as WorkerSalaryRow[]);
@@ -234,42 +274,30 @@ export async function GET(request: NextRequest) {
     let salaryPaymentsData: SalaryPaymentRow[] = [];
 
     if (isSuperAdmin) {
-      const { data: paymentRows, error: paymentError } = await client
-        .from('salary_payments')
-        .select('salary_id, worker_id, project_id, year_month, payment_amount');
-
-      if (paymentError) {
-        throw new Error(`查询工资发放记录失败: ${paymentError.message}`);
-      }
-      salaryPaymentsData = (paymentRows || []) as SalaryPaymentRow[];
+      salaryPaymentsData = await fetchAllRows<SalaryPaymentRow>(
+        client,
+        'salary_payments',
+        'salary_id, worker_id, project_id, year_month, payment_amount'
+      );
     } else {
       let linkedPayments: SalaryPaymentRow[] = [];
       if (visibleSalaryIds.length > 0) {
-        const { data: linkedRows, error: linkedError } = await client
-          .from('salary_payments')
-          .select('salary_id, worker_id, project_id, year_month, payment_amount')
-          .in('salary_id', visibleSalaryIds);
-
-        if (linkedError) {
-          throw new Error(`查询工资发放记录失败: ${linkedError.message}`);
-        }
-        linkedPayments = (linkedRows || []) as SalaryPaymentRow[];
+        linkedPayments = await fetchAllRows<SalaryPaymentRow>(
+          client,
+          'salary_payments',
+          'salary_id, worker_id, project_id, year_month, payment_amount',
+          (q) => q.in('salary_id', visibleSalaryIds)
+        );
       }
 
-      const { data: unlinkedRows, error: unlinkedError } = await client
-        .from('salary_payments')
-        .select('salary_id, worker_id, project_id, year_month, payment_amount')
-        .is('salary_id', null)
-        .in('project_id', accessibleProjects);
+      const unlinkedRows = await fetchAllRows<SalaryPaymentRow>(
+        client,
+        'salary_payments',
+        'salary_id, worker_id, project_id, year_month, payment_amount',
+        (q) => q.is('salary_id', null).in('project_id', accessibleProjects)
+      );
 
-      if (unlinkedError) {
-        throw new Error(`查询工资发放记录失败: ${unlinkedError.message}`);
-      }
-
-      salaryPaymentsData = [
-        ...linkedPayments,
-        ...((unlinkedRows || []) as SalaryPaymentRow[]),
-      ];
+      salaryPaymentsData = [...linkedPayments, ...unlinkedRows];
     }
 
     const paidAmountBySalaryId = new Map<number, number>();
@@ -320,6 +348,13 @@ export async function GET(request: NextRequest) {
       const unlinkedShare = keyCount > 0 ? unlinkedTotal / keyCount : 0;
       return Math.round((linkedPaid + unlinkedShare) * 100) / 100;
     };
+
+    // 分页按 id 翻页；返回前恢复业务排序：月份倒序，同月按 id 倒序
+    filteredData.sort((a, b) => {
+      const monthCmp = String(b.year_month || '').localeCompare(String(a.year_month || ''));
+      if (monthCmp !== 0) return monthCmp;
+      return b.id - a.id;
+    });
 
     // 格式化返回数据，关联已付金额，确保所有金额字段为数字类型
     const salaries = filteredData.map(record => {

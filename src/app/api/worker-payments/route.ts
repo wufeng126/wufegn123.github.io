@@ -189,49 +189,62 @@ export async function GET(request: NextRequest) {
     }
     
     // 查询工资发放记录
-    let query = client
-      .from('salary_payments')
-      .select(`
-        id,
-        salary_id,
-        worker_id,
-        project_id,
-        year_month,
-        payment_amount,
-        payment_date,
-        payment_type,
-        remark,
-        created_at,
-        workers (
-          name
-        ),
-        projects (
-          name
-        )
-      `)
-      .order('payment_date', { ascending: false });
+    // PostgREST 单次默认上限 1000 行，按 id 稳定分页取全量，
+    // 内存中再按 payment_date 倒序呈现（保持原排序行为）。
+    const PAYMENT_PAGE_SIZE = 1000;
+    const buildQuery = () =>
+      client
+        .from('salary_payments')
+        .select(`
+          id,
+          salary_id,
+          worker_id,
+          project_id,
+          year_month,
+          payment_amount,
+          payment_date,
+          payment_type,
+          remark,
+          created_at,
+          workers (
+            name
+          ),
+          projects (
+            name
+          )
+        `)
+        .order('id', { ascending: false });
 
-    if (parsedWorkerId !== null) {
-      query = query.eq('worker_id', parsedWorkerId);
+    const applyFilters = (q: ReturnType<typeof buildQuery>) => {
+      let filtered = q;
+      if (parsedWorkerId !== null) {
+        filtered = filtered.eq('worker_id', parsedWorkerId);
+      }
+      if (startDate) {
+        filtered = filtered.gte('payment_date', startDate);
+      }
+      if (endDate) {
+        filtered = filtered.lte('payment_date', endDate);
+      }
+      if (!isSuperAdmin) {
+        filtered = filtered.in('project_id', accessibleProjectIds);
+      }
+      return filtered;
+    };
+
+    const allData: any[] = [];
+    for (let offset = 0; ; offset += PAYMENT_PAGE_SIZE) {
+      const { data: rows, error } = await applyFilters(buildQuery())
+        .range(offset, offset + PAYMENT_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`查询工资发放记录失败: ${error.message}`);
+      }
+      allData.push(...(rows || []));
+      if ((rows || []).length < PAYMENT_PAGE_SIZE) break;
     }
-
-    if (startDate) {
-      query = query.gte('payment_date', startDate);
-    }
-
-    if (endDate) {
-      query = query.lte('payment_date', endDate);
-    }
-
-    if (!isSuperAdmin) {
-      query = query.in('project_id', accessibleProjectIds);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`查询工资发放记录失败: ${error.message}`);
-    }
+    // 保持原有 payment_date 倒序呈现
+    allData.sort((a, b) => String(b.payment_date || '').localeCompare(String(a.payment_date || '')));
+    const data = allData;
 
     // 格式化返回数据
     const payments = data?.map(record => ({
