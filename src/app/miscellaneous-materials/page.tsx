@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plus, Pencil, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight,
-  Package, FileSpreadsheet, Loader2, Camera, Mic, Sparkles,
+  Package, Loader2, Camera, Mic, Sparkles,
   CheckCircle2, RotateCcw, Ban
 } from 'lucide-react';
 import { MISC_MATERIAL_CATEGORIES, guessMiscCategory, type MiscMaterialCategory } from '@/lib/misc-material-categories';
@@ -973,7 +973,7 @@ function MiscMaterialsContent() {
       </div>
 
       {/* 汇总卡片 */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -981,29 +981,14 @@ function MiscMaterialsContent() {
                 <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
               </div>
               <div>
-                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>已审核金额</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>已计入成本金额</p>
                 <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.reviewedAmount)}</p>
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>{stats.reviewedCount} 笔进入成本</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg" style={{ backgroundColor: '#FFF7E8' }}>
-                <FileSpreadsheet className="h-5 w-5" style={{ color: '#D46B08' }} />
-              </div>
-              <div>
-                <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>待审核金额</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>¥{formatAmount(stats.draftAmount)}</p>
-                <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>{stats.draftCount} 笔待核对</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
