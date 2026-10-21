@@ -805,6 +805,7 @@ export const miscellaneousMaterials = pgTable("miscellaneous_materials", {
 	id: serial().primaryKey().notNull(),
 	projectId: integer("project_id").notNull(),
 	materialName: varchar("material_name", { length: 200 }).notNull(),
+	category: varchar({ length: 50 }),
 	specification: varchar({ length: 100 }),
 	unit: varchar({ length: 20 }),
 	quantity: numeric({ precision: 12, scale: 2 }).notNull(),
@@ -820,6 +821,7 @@ export const miscellaneousMaterials = pgTable("miscellaneous_materials", {
 }, (table) => [
 	index("miscellaneous_materials_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 	index("miscellaneous_materials_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("miscellaneous_materials_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
 ]);
 
 export const monthlyReportSnapshots = pgTable("monthly_report_snapshots", {

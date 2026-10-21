@@ -9,6 +9,7 @@ import {
   calculateMiscellaneousMaterialAmount,
   parsePositiveMiscellaneousMaterialNumber,
 } from '@/lib/miscellaneous-materials';
+import { DEFAULT_MISC_CATEGORY, guessMiscCategory, MISC_CATEGORY_VALUES, type MiscMaterialCategory } from '@/lib/misc-material-categories';
 
 type XlsxModule = {
   read: (data: Uint8Array, options: { type: 'array' }) => {
@@ -36,6 +37,7 @@ type MiscellaneousMaterialImportRecord = {
   purchase_date: string;
   purchaser: string | null;
   remark: string | null;
+  category: string;
   status: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -131,6 +133,7 @@ export async function POST(request: NextRequest) {
     const dateIdx = findIndex(['采购日期', '日期']);
     const purchaserIdx = findIndex(['采购人']);
     const remarkIdx = findIndex(['备注']);
+    const categoryIdx = findIndex(['材料分类', '分类', '类别']);
 
     if (projectIdx < 0 || materialIdx < 0 || quantityIdx < 0 || priceIdx < 0) {
       return NextResponse.json(
@@ -223,9 +226,22 @@ export async function POST(request: NextRequest) {
       }
       duplicates.push(duplicateKey);
 
+      const trimmedMaterialName = materialName.trim();
+      // 分类：Excel 文本精确匹配字典，其次包含匹配，仍无法识别则按材料名推断
+      const rawCategory = categoryIdx >= 0 ? (values[categoryIdx] || '').trim() : '';
+      let finalCategory: MiscMaterialCategory = guessMiscCategory(trimmedMaterialName);
+      if (rawCategory) {
+        if (MISC_CATEGORY_VALUES.includes(rawCategory)) {
+          finalCategory = rawCategory as MiscMaterialCategory;
+        } else {
+          const fuzzy = MISC_CATEGORY_VALUES.find(c => c.includes(rawCategory) || rawCategory.includes(c));
+          if (fuzzy) finalCategory = fuzzy as MiscMaterialCategory;
+        }
+      }
+
       records.push({
         project_id: projectId,
-        material_name: materialName.trim(),
+        material_name: trimmedMaterialName,
         specification: values[specIdx] || null,
         unit: values[unitIdx] || null,
         quantity,
@@ -234,6 +250,7 @@ export async function POST(request: NextRequest) {
         purchase_date: purchaseDate,
         purchaser: values[purchaserIdx] || null,
         remark: values[remarkIdx] || null,
+        category: finalCategory || DEFAULT_MISC_CATEGORY,
         // 零星材料免审核：导入即已审核并计入成本
         status: REVIEW_STATUS.REVIEWED,
         reviewed_at: new Date().toISOString(),

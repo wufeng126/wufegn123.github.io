@@ -3,9 +3,11 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { REVIEW_STATUS } from '@/lib/business-logic';
+import { DEFAULT_MISC_CATEGORY } from '@/lib/misc-material-categories';
 
 const EXPORT_HEADERS: { key: string; label: string }[] = [
   { key: 'project_name', label: '项目名称' },
+  { key: 'category', label: '材料分类' },
   { key: 'material_name', label: '材料名称' },
   { key: 'specification', label: '规格型号' },
   { key: 'unit', label: '单位' },
@@ -34,6 +36,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || searchParams.get('start_date');
     const endDate = searchParams.get('endDate') || searchParams.get('end_date');
     const status = searchParams.get('status');
+    const category = searchParams.get('category');
     let rows: any[] = [];
 
     const client = getSupabaseClient();
@@ -66,6 +69,9 @@ export async function GET(request: NextRequest) {
         ? query.or('status.eq.draft,status.is.null')
         : query.eq('status', status);
     }
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
 
     // 数据权限：非超管仅导出其可访问项目的数据（防止越权导出全量）
     const auth = await requireAuth(request);
@@ -92,6 +98,7 @@ export async function GET(request: NextRequest) {
 
       return {
       project_name: item.projects?.name || item.project?.name || '',
+      category: item.category || DEFAULT_MISC_CATEGORY,
       material_name: item.material_name || '',
       specification: item.specification || '',
       unit: item.unit || '',

@@ -9,12 +9,14 @@ import {
   calculateMiscellaneousMaterialAmount,
   parsePositiveMiscellaneousMaterialNumber,
 } from '@/lib/miscellaneous-materials';
+import { DEFAULT_MISC_CATEGORY, guessMiscCategory, MISC_CATEGORY_VALUES } from '@/lib/misc-material-categories';
 
 interface MiscMaterialStatsRow {
   quantity: string | number | null;
   unit_price: string | number | null;
   amount?: string | number | null;
   status: string | null;
+  category: string | null;
   projects?: { name?: string | null } | null;
 }
 
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const status = searchParams.get('status');
+    const category = searchParams.get('category');
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
 
@@ -53,6 +56,7 @@ export async function GET(request: NextRequest) {
         voidedCount: 0,
         voidedAmount: 0,
         projectStats: {},
+        categoryStats: {},
       },
     };
     if (accessibleProjects !== null && accessibleProjects.length === 0) {
@@ -94,6 +98,9 @@ export async function GET(request: NextRequest) {
       countQuery = status === REVIEW_STATUS.DRAFT
         ? countQuery.or('status.eq.draft,status.is.null')
         : countQuery.eq('status', status);
+    }
+    if (category && category !== 'all') {
+      countQuery = countQuery.eq('category', category);
     }
 
     const { count, error: countError } = await countQuery;
@@ -137,6 +144,9 @@ export async function GET(request: NextRequest) {
         ? query.or('status.eq.draft,status.is.null')
         : query.eq('status', status);
     }
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
 
     const { data, error } = await query;
 
@@ -154,6 +164,7 @@ export async function GET(request: NextRequest) {
         unit_price,
         amount,
         status,
+        category,
         projects(id, name)
       `);
 
@@ -182,6 +193,9 @@ export async function GET(request: NextRequest) {
         ? statsQuery.or('status.eq.draft,status.is.null')
         : statsQuery.eq('status', status);
     }
+    if (category && category !== 'all') {
+      statsQuery = statsQuery.eq('category', category);
+    }
 
     const { data: statsData, error: statsError } = await statsQuery;
     if (statsError) {
@@ -204,6 +218,7 @@ export async function GET(request: NextRequest) {
     const draftAmount = sumAmount(draftData);
     const voidedAmount = sumAmount(voidedData);
     const projectStats: Record<string, number> = {};
+    const categoryStats: Record<string, { count: number; amount: number }> = {};
 
     reviewedData.forEach(item => {
       const amount = calculateMiscellaneousMaterialAmount(item.quantity, item.unit_price);
@@ -212,6 +227,13 @@ export async function GET(request: NextRequest) {
         projectStats[projectName] = 0;
       }
       projectStats[projectName] += amount;
+
+      const cat = item.category || DEFAULT_MISC_CATEGORY;
+      if (!categoryStats[cat]) {
+        categoryStats[cat] = { count: 0, amount: 0 };
+      }
+      categoryStats[cat].count += 1;
+      categoryStats[cat].amount += amount;
     });
 
     const materials = (data || []).map((item: any) => {
@@ -229,6 +251,7 @@ export async function GET(request: NextRequest) {
         supplier: item.purchaser,
         remark: item.remark,
         status: item.status || REVIEW_STATUS.DRAFT,
+        category: item.category || DEFAULT_MISC_CATEGORY,
         reviewed_at: item.reviewed_at,
         reviewed_by: item.reviewed_by,
         created_at: item.created_at,
@@ -257,6 +280,7 @@ export async function GET(request: NextRequest) {
         voidedCount: voidedData.length,
         voidedAmount,
         projectStats,
+        categoryStats,
       }
     });
   } catch (error: any) {
@@ -323,7 +347,7 @@ export async function POST(request: NextRequest) {
     const insertData = records.flatMap((record, index) => {
       const {
         project_id, material_name, specification, unit,
-        quantity, unit_price, purchase_date, supplier, remark
+        quantity, unit_price, purchase_date, supplier, remark, category
       } = record;
 
       const qty = parsePositiveMiscellaneousMaterialNumber(quantity);
@@ -337,10 +361,16 @@ export async function POST(request: NextRequest) {
         return [];
       }
       const amount = calculateMiscellaneousMaterialAmount(qty, price);
+      const trimmedName = material_name?.trim() || '未命名材料';
+      // 分类：显式传入且在字典内则采用，否则按材料名智能推断
+      const finalCategory = category && MISC_CATEGORY_VALUES.includes(category)
+        ? category
+        : guessMiscCategory(trimmedName);
 
       return [{
         project_id: parseInt(project_id),
-        material_name: material_name?.trim() || '未命名材料',
+        material_name: trimmedName,
+        category: finalCategory,
         specification: specification?.trim() || null,
         unit: unit?.trim() || null,
         quantity: qty,
@@ -399,7 +429,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { id, project_id, material_name, specification, unit, quantity, unit_price, purchase_date, supplier, remark, status } = body;
+    const { id, project_id, material_name, specification, unit, quantity, unit_price, purchase_date, supplier, remark, status, category } = body;
 
     if (!id) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
@@ -410,7 +440,7 @@ export async function PUT(request: NextRequest) {
 
     const { data: currentMaterial, error: currentError } = await client
       .from('miscellaneous_materials')
-      .select('id, project_id, status, material_name, specification, unit, quantity, unit_price, amount, purchase_date, purchaser, remark')
+      .select('id, project_id, status, material_name, specification, unit, quantity, unit_price, amount, purchase_date, purchaser, remark, category')
       .eq('id', materialId)
       .single();
 
@@ -432,6 +462,7 @@ export async function PUT(request: NextRequest) {
       'purchase_date',
       'supplier',
       'remark',
+      'category',
     ] as const;
     const contentFieldsProvided = contentFields.filter((field) => body[field] !== undefined);
     const isStatusChange = status !== undefined;
@@ -537,6 +568,9 @@ export async function PUT(request: NextRequest) {
         : purchase_date || new Date().toISOString().split('T')[0],
       purchaser: supplier === undefined ? currentMaterial.purchaser || null : supplier?.trim() || null,
       remark: remark === undefined ? currentMaterial.remark || null : remark?.trim() || null,
+      category: category === undefined
+        ? currentMaterial.category || guessMiscCategory(currentMaterial.material_name)
+        : (MISC_CATEGORY_VALUES.includes(category) ? category : DEFAULT_MISC_CATEGORY),
       updated_at: new Date().toISOString(),
     };
 

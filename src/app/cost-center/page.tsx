@@ -1285,6 +1285,7 @@ function CostCenterContent() {
                     <thead>
                       <tr className="border-b" style={{ color: 'var(--color-text-3)' }}>
                         <th className="px-2 py-2 text-left font-medium">采购日期</th>
+                        <th className="px-2 py-2 text-left font-medium">分类</th>
                         <th className="px-2 py-2 text-left font-medium">材料名称</th>
                         <th className="px-2 py-2 text-left font-medium">规格</th>
                         <th className="px-2 py-2 text-right font-medium">数量</th>
@@ -1297,6 +1298,14 @@ function CostCenterContent() {
                       {miscDrillItems.map((item: any) => (
                         <tr key={item.id} className="border-b last:border-0">
                           <td className="px-2 py-2 whitespace-nowrap">{item.purchase_date}</td>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span
+                              className="inline-block rounded-full px-2 py-0.5 text-xs"
+                              style={{ backgroundColor: 'var(--color-muted)', color: 'var(--color-text-2)' }}
+                            >
+                              {item.category || '其他材料'}
+                            </span>
+                          </td>
                           <td className="px-2 py-2">{item.material_name}</td>
                           <td className="px-2 py-2">{item.specification || '-'}</td>
                           <td className="px-2 py-2 text-right">{item.quantity}{item.unit || ''}</td>

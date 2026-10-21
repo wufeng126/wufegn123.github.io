@@ -25,8 +25,43 @@ import {
   Package, FileSpreadsheet, Loader2, Camera, Mic, Sparkles,
   CheckCircle2, RotateCcw, Ban
 } from 'lucide-react';
+import { MISC_MATERIAL_CATEGORIES, guessMiscCategory, type MiscMaterialCategory } from '@/lib/misc-material-categories';
 
 type MaterialStatus = 'draft' | 'reviewed' | 'voided';
+
+const CATEGORY_OPTIONS: string[] = MISC_MATERIAL_CATEGORIES.map(c => c.value);
+
+// 分类配色（圆点 + 浅底）
+const CATEGORY_STYLES: Record<string, { dot: string; bg: string; color: string }> = {
+  '五金电料': { dot: '#722ED1', bg: '#F5EDFF', color: '#531DAB' },
+  '电线电气': { dot: '#165DFF', bg: '#E8F3FF', color: '#0E42D2' },
+  '水暖管件': { dot: '#0FC6C2', bg: '#E8FFFB', color: '#0B8A87' },
+  '焊接耗材': { dot: '#F77234', bg: '#FFF3E8', color: '#C45418' },
+  '工具器具': { dot: '#86909C', bg: '#F2F3F5', color: '#4E5969' },
+  '劳保防护': { dot: '#00B42A', bg: '#E8FFEA', color: '#008A39' },
+  '安全文明': { dot: '#F53F3F', bg: '#FFECE8', color: '#CB272D' },
+  '油料化工': { dot: '#D4A017', bg: '#FFF9E0', color: '#8A6D0B' },
+  '其他材料': { dot: '#A9AEB8', bg: '#F7F8FA', color: '#6B7280' },
+};
+
+function categoryStyle(cat: string | null | undefined) {
+  const key = cat || '其他材料';
+  return CATEGORY_STYLES[key] || CATEGORY_STYLES['其他材料'];
+}
+
+function CategoryBadge({ category }: { category: string | null | undefined }) {
+  const cat = category || '其他材料';
+  const s = categoryStyle(cat);
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+      style={{ backgroundColor: s.bg, color: s.color }}
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.dot }} />
+      {cat}
+    </span>
+  );
+}
 
 const statusMeta: Record<MaterialStatus, { label: string; color: string; background: string }> = {
   draft: { label: '草稿', color: '#D46B08', background: '#FFF7E8' },
@@ -48,6 +83,7 @@ interface MiscMaterial {
   supplier: string | null;
   remark: string | null;
   status: MaterialStatus;
+  category?: string | null;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   created_at: string;
@@ -71,6 +107,7 @@ interface Stats {
   voidedCount: number;
   voidedAmount: number;
   projectStats: Record<string, number>;
+  categoryStats?: Record<string, { count: number; amount: number }>;
 }
 
 type AssistMode = 'image' | 'voice' | 'text';
@@ -78,6 +115,7 @@ type AssistMode = 'image' | 'voice' | 'text';
 interface RecognitionDraft {
   project_id?: string;
   material_name?: string;
+  category?: string;
   specification?: string;
   unit?: string;
   quantity?: string;
@@ -143,6 +181,7 @@ function MiscMaterialsContent() {
     voidedCount: 0,
     voidedAmount: 0,
     projectStats: {},
+    categoryStats: {},
   });
   
   // 筛选条件
@@ -151,6 +190,7 @@ function MiscMaterialsContent() {
   const [specification, setSpecification] = useState('');
   const [purchaser, setPurchaser] = useState('');
   const [status, setStatus] = useState<'all' | MaterialStatus>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -182,6 +222,7 @@ function MiscMaterialsContent() {
   const [form, setForm] = useState({
     project_id: '',
     material_name: '',
+    category: '' as MiscMaterialCategory | '',
     specification: '',
     unit: '',
     quantity: '',
@@ -207,7 +248,7 @@ function MiscMaterialsContent() {
 
   useEffect(() => {
     fetchMaterials(1);
-  }, [selectedProjectId, startDate, endDate]);
+  }, [selectedProjectId, startDate, endDate, selectedCategory]);
 
   const buildFilterParams = (includePaging = false, page = 1) => {
     const params = new URLSearchParams();
@@ -220,6 +261,7 @@ function MiscMaterialsContent() {
     if (specification.trim()) params.append('specification', specification.trim());
     if (purchaser.trim()) params.append('purchaser', purchaser.trim());
     if (status !== 'all') params.append('status', status);
+    if (selectedCategory !== 'all') params.append('category', selectedCategory);
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     return params;
@@ -284,6 +326,7 @@ function MiscMaterialsContent() {
     setForm({
       project_id: '',
       material_name: '',
+      category: '',
       specification: '',
       unit: '',
       quantity: '',
@@ -311,6 +354,7 @@ function MiscMaterialsContent() {
     setForm({
       project_id: draft.project_id || (selectedProjectId !== 'all' ? selectedProjectId : ''),
       material_name: draft.material_name || '',
+      category: (draft.category as MiscMaterialCategory) || guessMiscCategory(draft.material_name),
       specification: draft.specification || '',
       unit: draft.unit || '',
       quantity: draft.quantity || '',
@@ -434,6 +478,7 @@ function MiscMaterialsContent() {
         body: JSON.stringify({
           project_id: parseInt(form.project_id),
           material_name: form.material_name,
+          category: form.category || guessMiscCategory(form.material_name),
           specification: form.specification || null,
           unit: form.unit || null,
           quantity: parseFloat(form.quantity),
@@ -495,6 +540,7 @@ function MiscMaterialsContent() {
           id: currentMaterial.id,
           project_id: parseInt(form.project_id),
           material_name: form.material_name,
+          category: form.category || currentMaterial.category || guessMiscCategory(form.material_name),
           specification: form.specification || null,
           unit: form.unit || null,
           quantity: parseFloat(form.quantity),
@@ -715,6 +761,7 @@ function MiscMaterialsContent() {
     setForm({
       project_id: material.project_id.toString(),
       material_name: material.material_name,
+      category: (material.category as MiscMaterialCategory) || guessMiscCategory(material.material_name),
       specification: material.specification || '',
       unit: material.unit || '',
       quantity: material.quantity,
@@ -734,9 +781,9 @@ function MiscMaterialsContent() {
 
   // 下载导入模板
   const downloadTemplate = () => {
-    const headers = ['项目名称', '材料名称', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'];
-    const example1 = ['XX项目', 'C30混凝土', 'C30商品混凝土', 'm³', '100', '380', '2024-01-15', '张三', '主体结构用'];
-    const example2 = ['XX项目', '钢筋', 'HRB400 Φ12', '吨', '5', '4200', '2024-01-16', '李四', ''];
+    const headers = ['项目名称', '材料分类', '材料名称', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'];
+    const example1 = ['XX项目', '焊接耗材', '焊条', 'J422 3.2mm', '包', '10', '25', '2024-01-15', '张三', ''];
+    const example2 = ['XX项目', '劳保防护', '劳保手套', '棉纱加厚', '双', '50', '3.5', '2024-01-16', '李四', ''];
     const csvContent = '\uFEFF' + [headers.join(','), example1.join(','), example2.join(',')].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -1040,6 +1087,21 @@ function MiscMaterialsContent() {
             </div>
 
             <div className="space-y-1.5">
+              <Label style={{ color: 'var(--color-text-3)' }}>材料分类</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="全部分类" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部分类</SelectItem>
+                  {CATEGORY_OPTIONS.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label style={{ color: 'var(--color-text-3)' }}>状态</Label>
               <Select value={status} onValueChange={(value) => setStatus(value as 'all' | MaterialStatus)}>
                 <SelectTrigger className="w-full">
@@ -1094,6 +1156,7 @@ function MiscMaterialsContent() {
                 setSpecification('');
                 setPurchaser('');
                 setStatus('all');
+                setSelectedCategory('all');
                 setStartDate('');
                 setEndDate('');
                 setTimeout(() => {
@@ -1141,6 +1204,66 @@ function MiscMaterialsContent() {
         </Card>
       )}
 
+      {/* 分类统计（仅已审核计入成本的金额） */}
+      {stats.categoryStats && Object.keys(stats.categoryStats).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base" style={{ color: 'var(--foreground)' }}>
+              分类金额统计
+              <span className="ml-2 text-sm font-normal" style={{ color: 'var(--color-text-3)' }}>
+                点击分类可快速筛选
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const entries = Object.entries(stats.categoryStats)
+                .sort((a, b) => b[1].amount - a[1].amount);
+              const grandTotal = entries.reduce((s, [, v]) => s + v.amount, 0);
+              return (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {entries.map(([cat, v]) => {
+                    const s = categoryStyle(cat);
+                    const pct = grandTotal > 0 ? (v.amount / grandTotal) * 100 : 0;
+                    const active = selectedCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setSelectedCategory(active ? 'all' : cat)}
+                        className="rounded-lg border p-3 text-left transition-all hover:shadow-sm"
+                        style={{
+                          backgroundColor: active ? s.bg : 'var(--color-muted)',
+                          borderColor: active ? s.dot : 'var(--border)',
+                          borderWidth: active ? 1.5 : 1,
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.dot }} />
+                            {cat}
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                            ¥{formatAmount(v.amount)}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border)' }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: s.dot }} />
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between text-xs" style={{ color: 'var(--color-text-3)' }}>
+                          <span>{v.count} 笔</span>
+                          <span>{pct.toFixed(1)}%</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
       {/* 材料列表 */}
       <Card>
         <CardHeader className="pb-2">
@@ -1170,7 +1293,10 @@ function MiscMaterialsContent() {
                   <div key={material.id} className="rounded-xl border bg-card p-3" style={{ borderColor: 'var(--border)' }}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{material.material_name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{material.material_name}</p>
+                          <CategoryBadge category={material.category} />
+                        </div>
                         {material.specification && (
                           <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-text-3)' }}>
                             {material.specification}
@@ -1214,6 +1340,7 @@ function MiscMaterialsContent() {
                   <thead>
                     <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
                       <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>项目名称</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>分类</th>
                       <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>材料名称</th>
                       <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>规格型号</th>
                       <th className="text-center py-3 px-4 text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>单位</th>
@@ -1233,6 +1360,9 @@ function MiscMaterialsContent() {
                           <span className="text-sm" style={{ color: 'var(--foreground)' }}>
                             {material.projects?.name || '-'}
                           </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <CategoryBadge category={material.category} />
                         </td>
                         <td className="py-3 px-4">
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
@@ -1423,7 +1553,7 @@ function MiscMaterialsContent() {
             <DialogTitle>新增零星材料</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>项目 *</Label>
                 <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
@@ -1440,11 +1570,35 @@ function MiscMaterialsContent() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                <Select
+                  value={form.category || guessMiscCategory(form.material_name)}
+                  onValueChange={(v) => setForm({ ...form, category: v as MiscMaterialCategory })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择分类" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
                 <Input
                   placeholder="请输入材料名称"
                   value={form.material_name}
-                  onChange={(e) => setForm({ ...form, material_name: e.target.value })}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    // 未手动固定分类时随名称智能识别
+                    setForm(prev => ({
+                      ...prev,
+                      material_name: name,
+                      category: prev.category || guessMiscCategory(name),
+                    }));
+                  }}
                 />
               </div>
             </div>
@@ -1541,7 +1695,7 @@ function MiscMaterialsContent() {
             <DialogTitle>编辑零星材料</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>项目 *</Label>
                 <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
@@ -1558,11 +1712,35 @@ function MiscMaterialsContent() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                <Select
+                  value={form.category || guessMiscCategory(form.material_name)}
+                  onValueChange={(v) => setForm({ ...form, category: v as MiscMaterialCategory })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择分类" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
                 <Input
                   placeholder="请输入材料名称"
                   value={form.material_name}
-                  onChange={(e) => setForm({ ...form, material_name: e.target.value })}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    // 未手动固定分类时随名称智能识别
+                    setForm(prev => ({
+                      ...prev,
+                      material_name: name,
+                      category: prev.category || guessMiscCategory(name),
+                    }));
+                  }}
                 />
               </div>
             </div>
@@ -1702,7 +1880,8 @@ function MiscMaterialsContent() {
               <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-3)' }}>
                 <li>• 第一行为表头，数据从第二行开始</li>
                 <li>• 必填列：项目名称、材料名称、数量、单价</li>
-                <li>• 可选列：规格型号、单位、采购日期、采购人、备注</li>
+                <li>• 可选列：材料分类、规格型号、单位、采购日期、采购人、备注</li>
+                <li>• 材料分类支持：{CATEGORY_OPTIONS.join('、')}；留空或无法识别时按材料名称自动归类</li>
                 <li>• 金额由系统按“数量 × 单价”自动计算，旧模板中的金额列会被忽略</li>
                 <li>• 导入记录默认进入草稿，审核后才计入成本统计</li>
                 <li>• 采购日期格式：YYYY-MM-DD（如：2024-01-15）</li>

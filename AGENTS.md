@@ -368,6 +368,15 @@
 
 ## 最近更新
 
+### 2026-06 零星材料分类统计
+- `miscellaneous_materials` 新增 `category varchar(50)` 列+索引，迁移 `migrations/add_miscellaneous_materials_category.sql`（双环境已执行，存量按材料名启发式归类，无法识别归"其他材料"）
+- 分类字典单一事实来源：`src/lib/misc-material-categories.ts`（9 类：五金电料/电线电气/水暖管件/焊接耗材/工具器具/劳保防护/安全文明/油料化工/其他材料），含 `guessMiscCategory()` 关键词推断
+- 录入：新增/编辑表单增加"材料分类"选择，未手动指定时随材料名智能识别；POST 显式分类校验字典，非法值按名推断
+- Excel 导入支持"材料分类/分类/类别"列（精确→包含匹配→名称推断）；导出 CSV 新增材料分类列；导入模板含分类示例
+- GET 支持 `category` 筛选，stats 新增 `categoryStats`（按分类聚合笔数/金额，仅 reviewed）；录入页新增"分类金额统计"卡片（占比条+点击联动筛选）、表格/移动端卡片显示分类徽章
+- 成本中心零星材料下钻明细增加分类列
+- API：`GET /api/miscellaneous-materials?category=X`、`GET /api/miscellaneous-materials/export?category=X`
+
 ### 2026-06 三问题修复：已付为0、零星材料免审核计入+项目下钻
 - **工人成本看板已付=0（回归修复）**：上轮给 salary_payments/worker_salaries 加 team_id 只加列未加外键，GET /api/worker-payments 的 `team_groups(name)` 嵌入查询依赖 FK → PostgREST 报 "Could not find a relationship ... in the schema cache" → 接口 500 → 前端已付=0。修复：双环境补 3 个外键（salary_payments.team_id、worker_salaries.team_id→team_groups、worker_salaries.settlement_id→team_settlements，ON DELETE SET NULL），迁移已并入 `migrations/add_team_settlement_split_salary_pipeline.sql`。**教训：加列做嵌入查询必须同时加 FK**
 - **零星材料免审核、录入即计入**：成本聚合只统计 status='reviewed'，而 POST/import 原默认 draft 导致不计入。现已改为新录入/导入默认 reviewed（带 reviewed_at/reviewed_by=当前操作人），存量双环境 UPDATE 转 reviewed（迁移 `migrations/miscellaneous_materials_auto_review.sql`，生产 10 条 2300 元）。作废/反审核能力保留
