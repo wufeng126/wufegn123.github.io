@@ -377,6 +377,12 @@
 - 成本中心零星材料下钻明细增加分类列
 - API：`GET /api/miscellaneous-materials?category=X`、`GET /api/miscellaneous-materials/export?category=X`
 
+### 2026-06 施工日志历史记录无法查看（修复）
+- **根因1（主要）**：GET /api/construction-logs 用 apiSuccess(data, { meta: { pagination } }) 把分页**展开到响应顶层**（`{ pagination: { total } }`），而前端读 `json.meta?.pagination?.total` → 恒 undefined → fallback logs.length → logTotal=已加载数 → `hasMoreLogs` 恒 false → "加载更多历史日志"按钮从不显示，用户只能看第一页 200 条（生产 3275 条）
+- **根因2**：项目与日期筛选只做前端过滤已加载数据，选历史日期但没加载到 → 提示"没有符合筛选条件的日志"
+- 修复：前端三处 total 读取兼容顶层 `json.pagination?.total`（loadBase/reloadLogs/loadMoreLogs）；项目+日期筛选下推到服务端（API 本就支持 projectId/dateFrom/dateTo 参数），筛选变化防抖 250ms 重新拉取第一页，`buildLogFilterQuery` 统一构造；风险/迟交/待审批状态与关键词仍为前端过滤
+- **教训：apiSuccess 的 meta 选项是展开式（顶层），读取端务必按 `json.pagination` 取；分页接口联调必须验证 total 非 0 场景**
+
 ### 2026-06 三问题修复：已付为0、零星材料免审核计入+项目下钻
 - **工人成本看板已付=0（回归修复）**：上轮给 salary_payments/worker_salaries 加 team_id 只加列未加外键，GET /api/worker-payments 的 `team_groups(name)` 嵌入查询依赖 FK → PostgREST 报 "Could not find a relationship ... in the schema cache" → 接口 500 → 前端已付=0。修复：双环境补 3 个外键（salary_payments.team_id、worker_salaries.team_id→team_groups、worker_salaries.settlement_id→team_settlements，ON DELETE SET NULL），迁移已并入 `migrations/add_team_settlement_split_salary_pipeline.sql`。**教训：加列做嵌入查询必须同时加 FK**
 - **零星材料免审核、录入即计入**：成本聚合只统计 status='reviewed'，而 POST/import 原默认 draft 导致不计入。现已改为新录入/导入默认 reviewed（带 reviewed_at/reviewed_by=当前操作人），存量双环境 UPDATE 转 reviewed（迁移 `migrations/miscellaneous_materials_auto_review.sql`，生产 10 条 2300 元）。作废/反审核能力保留

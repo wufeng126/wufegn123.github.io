@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -382,13 +382,23 @@ export default function ConstructionLogsClient() {
     return currentUserId ? `&userId=${currentUserId}` : '';
   }, [mineOnly]);
 
+  // 项目与日期筛选下推到服务端（历史日志无需先全部加载到前端再过滤）
+  const buildLogFilterQuery = useCallback(function buildLogFilterQuery() {
+    const params = new URLSearchParams();
+    if (logProjectId !== 'all') params.append('projectId', logProjectId);
+    if (logDateFrom) params.append('dateFrom', logDateFrom);
+    if (logDateTo) params.append('dateTo', logDateTo);
+    const query = params.toString();
+    return query ? `&${query}` : '';
+  }, [logProjectId, logDateFrom, logDateTo]);
+
   const loadBase = useCallback(async function loadBase() {
     setLoading(true);
     try {
       const userFilter = await buildLogUserFilter();
 
       const [logRes, statsRes, projRes] = await Promise.all([
-        fetch(`/api/construction-logs?page=1&pageSize=${LOG_PAGE_SIZE}${userFilter}`),
+        fetch(`/api/construction-logs?page=1&pageSize=${LOG_PAGE_SIZE}${userFilter}${buildLogFilterQuery()}`),
         fetch(`/api/construction-logs/stats?month=${month}${statsProjectId !== 'all' ? `&projectId=${statsProjectId}` : ''}`),
         fetch('/api/projects?includePublicLog=1'),
       ]);
@@ -401,7 +411,7 @@ export default function ConstructionLogsClient() {
       const nextLogs = Array.isArray(logJson.data) ? logJson.data : [];
       setLogs(nextLogs);
       setLogPage(1);
-      setLogTotal(Number(logJson.meta?.pagination?.total || nextLogs.length || 0));
+      setLogTotal(Number(logJson.pagination?.total ?? logJson.meta?.pagination?.total ?? nextLogs.length ?? 0));
       setStats(Array.isArray(statsJson.data) ? statsJson.data : []);
       const nextProjectStats = (
         Array.isArray(statsJson.project_stats)
@@ -428,7 +438,36 @@ export default function ConstructionLogsClient() {
     } finally {
       setLoading(false);
     }
-  }, [buildLogUserFilter, month, statsProjectId]);
+  }, [buildLogUserFilter, buildLogFilterQuery, month, statsProjectId]);
+
+  // 筛选条件变化时仅重新拉取日志列表（防抖，跳过首次挂载，由 loadBase 完成初始加载）
+  const reloadLogs = useCallback(async function reloadLogs() {
+    try {
+      const userFilter = await buildLogUserFilter();
+      const res = await fetch(`/api/construction-logs?page=1&pageSize=${LOG_PAGE_SIZE}${userFilter}${buildLogFilterQuery()}`);
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '施工日志加载失败');
+      const nextLogs = Array.isArray(json.data) ? json.data : [];
+      setLogs(nextLogs);
+      setLogPage(1);
+      setLogTotal(Number(json.pagination?.total ?? json.meta?.pagination?.total ?? nextLogs.length ?? 0));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '施工日志加载失败');
+    }
+  }, [buildLogUserFilter, buildLogFilterQuery]);
+
+  const didInitLogsRef = useRef(false);
+
+  useEffect(() => {
+    if (!didInitLogsRef.current) {
+      didInitLogsRef.current = true;
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      void reloadLogs();
+    }, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [reloadLogs]);
 
   const loadMoreLogs = useCallback(async function loadMoreLogs() {
     if (loadingMoreLogs) return;
@@ -437,7 +476,7 @@ export default function ConstructionLogsClient() {
     try {
       const nextPage = logPage + 1;
       const userFilter = await buildLogUserFilter();
-      const res = await fetch(`/api/construction-logs?page=${nextPage}&pageSize=${LOG_PAGE_SIZE}${userFilter}`);
+      const res = await fetch(`/api/construction-logs?page=${nextPage}&pageSize=${LOG_PAGE_SIZE}${userFilter}${buildLogFilterQuery()}`);
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '更多日志加载失败');
       const nextLogs = Array.isArray(json.data) ? json.data : [];
@@ -450,13 +489,13 @@ export default function ConstructionLogsClient() {
         return merged;
       });
       setLogPage(nextPage);
-      setLogTotal(Number(json.meta?.pagination?.total || logTotal || nextLogs.length || 0));
+      setLogTotal(Number(json.pagination?.total ?? json.meta?.pagination?.total ?? logTotal ?? nextLogs.length ?? 0));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '更多日志加载失败');
     } finally {
       setLoadingMoreLogs(false);
     }
-  }, [buildLogUserFilter, loadingMoreLogs, logPage, logTotal]);
+  }, [buildLogUserFilter, buildLogFilterQuery, loadingMoreLogs, logPage, logTotal]);
 
   const loadSubmitters = useCallback(async function loadSubmitters(projectId: string) {
     if (!projectId || !canManageSubmitters) return;
