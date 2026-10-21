@@ -37,6 +37,8 @@ type MiscellaneousMaterialImportRecord = {
   purchaser: string | null;
   remark: string | null;
   status: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 };
 
 export async function POST(request: NextRequest) {
@@ -232,7 +234,10 @@ export async function POST(request: NextRequest) {
         purchase_date: purchaseDate,
         purchaser: values[purchaserIdx] || null,
         remark: values[remarkIdx] || null,
-        status: REVIEW_STATUS.DRAFT,
+        // 零星材料免审核：导入即已审核并计入成本
+        status: REVIEW_STATUS.REVIEWED,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: auth.user.name || auth.user.username || 'system',
       });
     }
 

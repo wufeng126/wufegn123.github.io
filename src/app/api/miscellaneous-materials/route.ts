@@ -349,7 +349,10 @@ export async function POST(request: NextRequest) {
         purchase_date: purchase_date || new Date().toISOString().split('T')[0],
         purchaser: supplier?.trim() || null,
         remark: remark?.trim() || null,
-        status: REVIEW_STATUS.DRAFT,
+        // 零星材料免审核：录入即已审核并计入成本
+        status: REVIEW_STATUS.REVIEWED,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: auth.user.name || auth.user.username || 'system',
       }];
     }).filter(item => item.project_id && item.material_name);
 

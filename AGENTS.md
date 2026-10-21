@@ -368,6 +368,11 @@
 
 ## 最近更新
 
+### 2026-06 三问题修复：已付为0、零星材料免审核计入+项目下钻
+- **工人成本看板已付=0（回归修复）**：上轮给 salary_payments/worker_salaries 加 team_id 只加列未加外键，GET /api/worker-payments 的 `team_groups(name)` 嵌入查询依赖 FK → PostgREST 报 "Could not find a relationship ... in the schema cache" → 接口 500 → 前端已付=0。修复：双环境补 3 个外键（salary_payments.team_id、worker_salaries.team_id→team_groups、worker_salaries.settlement_id→team_settlements，ON DELETE SET NULL），迁移已并入 `migrations/add_team_settlement_split_salary_pipeline.sql`。**教训：加列做嵌入查询必须同时加 FK**
+- **零星材料免审核、录入即计入**：成本聚合只统计 status='reviewed'，而 POST/import 原默认 draft 导致不计入。现已改为新录入/导入默认 reviewed（带 reviewed_at/reviewed_by=当前操作人），存量双环境 UPDATE 转 reviewed（迁移 `migrations/miscellaneous_materials_auto_review.sql`，生产 10 条 2300 元）。作废/反审核能力保留
+- **零星材料按项目分类下钻**（成本中心 `/cost-center`）：零星材料 KPI 卡点击进入"按项目分类"列表（金额降序）→ 点项目下钻明细（采购日期/材料/规格/数量/单价/金额/供应商）；项目表格零星材料列单元格（>0 时）可直接点击下钻。数据源 `GET /api/miscellaneous-materials?projectId=X&pageSize=200`（已支持按项目过滤）
+
 ### 2026-06 班组分账→工资应发+发放 完整闭环
 - 迁移 `migrations/add_team_settlement_split_salary_pipeline.sql`，双环境已执行
   - `worker_salaries` 新增 `source varchar(20) default 'manual'`、`settlement_id integer`、`team_id integer`

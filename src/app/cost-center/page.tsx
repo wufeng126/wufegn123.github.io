@@ -12,6 +12,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DollarSign,
   TrendingUp,
   TrendingDown,
@@ -215,6 +221,30 @@ function CostCenterContent() {
   const [showContent, setShowContent] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview', 'table', 'warnings']));
+
+  // 零星材料下钻：summary=按项目分类汇总列表；project=单项目明细
+  const [miscDrill, setMiscDrill] = useState<
+    | { mode: 'summary' }
+    | { mode: 'project'; projectId: number; projectName: string }
+    | null
+  >(null);
+  const [miscDrillItems, setMiscDrillItems] = useState<any[]>([]);
+  const [miscDrillLoading, setMiscDrillLoading] = useState(false);
+
+  const openMiscProjectDrill = async (projectId: number, projectName: string) => {
+    setMiscDrill({ mode: 'project', projectId, projectName });
+    setMiscDrillLoading(true);
+    setMiscDrillItems([]);
+    try {
+      const res = await fetch(`/api/miscellaneous-materials?projectId=${projectId}&pageSize=200`, { credentials: 'include' });
+      const json = await res.json();
+      setMiscDrillItems(Array.isArray(json.materials) ? json.materials : []);
+    } catch (e) {
+      console.error('加载零星材料明细失败:', e);
+    } finally {
+      setMiscDrillLoading(false);
+    }
+  };
 
   // 处理 URL 参数
   useEffect(() => {
@@ -717,7 +747,11 @@ function CostCenterContent() {
         </Card>
 
         {/* 零星材料 */}
-        <Card className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative" style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}>
+        <Card
+          className="group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 relative cursor-pointer"
+          style={{ background: '#FFFFFF', border: '1px solid var(--border)' }}
+          onClick={() => setMiscDrill({ mode: 'summary' })}
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -729,7 +763,7 @@ function CostCenterContent() {
                         <HelpCircle className="w-3.5 h-3.5 cursor-help" style={{ color: 'var(--color-text-3)' }} />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
-                        <p className="text-xs">零星材料成本，自动计入项目总成本</p>
+                        <p className="text-xs">零星材料成本，自动计入项目总成本。点击查看按项目分类，可下钻明细</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -896,7 +930,16 @@ function CostCenterContent() {
                             {project.taxAmount > 0 ? formatWanYuan(project.taxAmount) : '暂无数据'}
                           </td>
                           <td className="px-4 py-3 text-right text-sm" style={{ color: 'var(--color-text-3)' }}>
-                            {(project.miscMaterialAmount || 0) > 0 ? formatWanYuan(project.miscMaterialAmount || 0) : '暂无数据'}
+                            {(project.miscMaterialAmount || 0) > 0 ? (
+                              <button
+                                type="button"
+                                className="underline decoration-dotted underline-offset-4 hover:text-primary transition-colors cursor-pointer"
+                                title="点击查看零星材料明细"
+                                onClick={() => openMiscProjectDrill(Number(project.id), project.name)}
+                              >
+                                {formatWanYuan(project.miscMaterialAmount || 0)}
+                              </button>
+                            ) : '暂无数据'}
                           </td>
                           <td className="px-4 py-3 text-right text-sm font-medium" style={{ color: project.profit >= 0 ? '#00B42A' : '#F53F3F' }}>
                             {project.profit !== 0 ? `${project.profit < 0 ? '-' : ''}${formatWanYuan(Math.abs(project.profit))}` : '暂无数据'}
@@ -1186,6 +1229,90 @@ function CostCenterContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 零星材料下钻弹窗：按项目分类 → 项目明细 */}
+      <Dialog open={miscDrill !== null} onOpenChange={(open) => { if (!open) setMiscDrill(null); }}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {miscDrill?.mode === 'summary' && '零星材料 · 按项目分类'}
+              {miscDrill?.mode === 'project' && `零星材料明细 · ${miscDrill.projectName}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          {miscDrill?.mode === 'summary' && (
+            <div className="space-y-2">
+              {(filteredData?.projects || [])
+                .filter(p => (p.miscMaterialAmount || 0) > 0)
+                .sort((a, b) => (b.miscMaterialAmount || 0) - (a.miscMaterialAmount || 0))
+                .map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg border hover:border-primary hover:bg-muted/50 transition-colors cursor-pointer text-left"
+                    onClick={() => openMiscProjectDrill(p.id, p.name)}
+                  >
+                    <span className="text-sm font-medium">{p.name}</span>
+                    <span className="flex items-center gap-2 text-sm">
+                      <span className="font-semibold">¥{formatAmountSmart(p.miscMaterialAmount || 0)}</span>
+                      <ChevronRight className="w-4 h-4" style={{ color: 'var(--color-text-3)' }} />
+                    </span>
+                  </button>
+                ))}
+              {(filteredData?.projects || []).filter(p => (p.miscMaterialAmount || 0) > 0).length === 0 && (
+                <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-3)' }}>暂无零星材料记录</p>
+              )}
+            </div>
+          )}
+
+          {miscDrill?.mode === 'project' && (
+            <div>
+              <button
+                type="button"
+                className="text-xs mb-3 underline underline-offset-2 hover:text-primary cursor-pointer"
+                style={{ color: 'var(--color-text-3)' }}
+                onClick={() => setMiscDrill({ mode: 'summary' })}
+              >
+                ← 返回按项目分类
+              </button>
+              {miscDrillLoading ? (
+                <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-3)' }}>加载中...</p>
+              ) : miscDrillItems.length === 0 ? (
+                <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-3)' }}>该项目暂无零星材料明细</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b" style={{ color: 'var(--color-text-3)' }}>
+                        <th className="px-2 py-2 text-left font-medium">采购日期</th>
+                        <th className="px-2 py-2 text-left font-medium">材料名称</th>
+                        <th className="px-2 py-2 text-left font-medium">规格</th>
+                        <th className="px-2 py-2 text-right font-medium">数量</th>
+                        <th className="px-2 py-2 text-right font-medium">单价</th>
+                        <th className="px-2 py-2 text-right font-medium">金额</th>
+                        <th className="px-2 py-2 text-left font-medium">供应商</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {miscDrillItems.map((item: any) => (
+                        <tr key={item.id} className="border-b last:border-0">
+                          <td className="px-2 py-2 whitespace-nowrap">{item.purchase_date}</td>
+                          <td className="px-2 py-2">{item.material_name}</td>
+                          <td className="px-2 py-2">{item.specification || '-'}</td>
+                          <td className="px-2 py-2 text-right">{item.quantity}{item.unit || ''}</td>
+                          <td className="px-2 py-2 text-right">¥{formatAmountSmart(Number(item.unit_price) || 0)}</td>
+                          <td className="px-2 py-2 text-right font-medium">¥{formatAmountSmart(Number(item.total_price) || 0)}</td>
+                          <td className="px-2 py-2">{item.supplier || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
