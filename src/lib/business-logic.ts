@@ -972,10 +972,13 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
   }
 
   // 4. 工人工资（应发工资总额）
+  // L5 修复（P0-1）：排除班组分账自动生成的工资（source='team_settlement'），
+  // 其金额已包含在班组结算成本 teamSettlementAmount 中，再叠加会双重计算人工成本。
   const { data: salaries } = await client
     .from('worker_salaries')
     .select('gross_pay')
-    .eq('project_id', projectId);
+    .eq('project_id', projectId)
+    .or('source.is.null,source.neq.team_settlement');
 
   const workerSalaryAmount = (salaries || []).reduce((sum: number, s: WorkerSalaryLikeRow) => sum + parseNumeric(s.gross_pay), 0);
   let teamSettlementAmount = 0;

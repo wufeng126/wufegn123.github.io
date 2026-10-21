@@ -669,10 +669,14 @@ export async function getProjectFinancialSummary(
   const supplierPayableBaseAmount = supplierSettle.supplierPayableBaseAmount;
 
   // 4. 工人工资（应发总额用于成本；实发 net 用于未付口径，与工人工资模块一致）
+  // L5 修复（P0-1）：排除班组分账自动生成的工资（source='team_settlement'），
+  // 其金额已包含在班组结算成本 teamSettlementAmount 中，再叠加会双重计算人工成本。
+  // 兼容历史数据（source 为 NULL 的手工录入工资正常计入）。
   let salariesQuery = client
     .from('worker_salaries')
     .select('gross_pay, net_pay, year_month')
-    .eq('project_id', projectId);
+    .eq('project_id', projectId)
+    .or('source.is.null,source.neq.team_settlement');
 
   if (dateRange) {
     // year_month 是 YYYY-MM 格式，转换为范围查询
@@ -937,7 +941,9 @@ async function getMultiProjectFinancialSummariesImpl(
       let q = client
         .from('worker_salaries')
         .select('project_id, gross_pay, net_pay, year_month')
-        .in('project_id', validProjectIds);
+        .in('project_id', validProjectIds)
+        // P0-1 修复：排除班组分账生成的工资，避免与班组结算成本双重计算
+        .or('source.is.null,source.neq.team_settlement');
       if (dateRange) {
         q = q
           .gte('year_month', dateRange.start.substring(0, 7))

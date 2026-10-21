@@ -602,9 +602,11 @@ export async function GET(request: Request) {
       }
     });
 
+    // P0-1 修复：排除班组分账生成的工资，下方班组结算成本已包含该部分
     const { data: allSalaries } = await client
       .from('worker_salaries')
-      .select('gross_pay, year_month, project_id');
+      .select('gross_pay, year_month, project_id, source')
+      .or('source.is.null,source.neq.team_settlement');
     (allSalaries || []).forEach(r => {
       if (!r.year_month) return;
       if (projectId && r.project_id !== parseInt(projectId)) return;

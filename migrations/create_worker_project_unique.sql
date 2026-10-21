@@ -1,5 +1,5 @@
 -- ============================================================
--- 花名册同步去重（v2：修复级联删子表风险）
+-- 花名册同步去重（v3：补齐生活费台账两张子表，防止级联删/孤儿）
 -- 同一个项目内，身份证号唯一（防止同名同证重复导入）
 -- id_card 为 NULL 的记录不受影响（PostgreSQL 唯一索引允许多个 NULL）
 -- ============================================================
@@ -41,6 +41,12 @@ BEGIN
       UPDATE team_settlement_splits SET worker_id = dup.keep_id
         WHERE worker_id = ANY(dup_ids);
       UPDATE worker_assignments SET worker_id = dup.keep_id
+        WHERE worker_id = ANY(dup_ids);
+      -- v3 补齐：生活费台账两表，否则 living_allowance_records 因 ON DELETE CASCADE
+      -- 被静默删除、receipt_items 因 ON DELETE SET NULL 留下无法归属的孤儿明细
+      UPDATE living_allowance_records SET worker_id = dup.keep_id
+        WHERE worker_id = ANY(dup_ids);
+      UPDATE living_allowance_receipt_items SET worker_id = dup.keep_id
         WHERE worker_id = ANY(dup_ids);
 
       -- 2. 再删除重复工人（此时子表已无引用，不会级联删数据）

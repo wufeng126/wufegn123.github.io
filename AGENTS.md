@@ -377,6 +377,12 @@
 - 成本中心零星材料下钻明细增加分类列
 - API：`GET /api/miscellaneous-materials?category=X`、`GET /api/miscellaneous-materials/export?category=X`
 
+### 2026-06 专项审查 P0 第一批修复：人工成本双重计算 + 去重迁移删生活费台账
+- **P0-1 人工成本双重计算**：班组结算确认→分账生成 `worker_salaries`(source='team_settlement') 后，成本聚合"工人应发工资 + 班组结算实付"把同一笔钱算两遍。修复：所有用于成本叠加的 worker_salaries 查询加 `.or('source.is.null,source.neq.team_settlement')`（兼容历史 source=NULL 手工数据）。共 5 个聚合点：`data-aggregation.ts` 单项目/多项目各一处、`business-logic.ts` getProjectCostBreakdown、`api/dashboard` 趋势、`api/reports/monthly/summary` 4 个工资查询
+- **口径说明（重要）**：人工成本 = 手工工资应发（source≠team_settlement 或 NULL）+ 班组结算实付（confirmed，扣四项扣款后）；工人成本看板的"应发工资"是独立口径（包含分账生成），不改。已发现金流出（salary_payments）不存在双算，不改
+- **P0-3 迁移风险**：`migrations/create_worker_project_unique.sql` 升级 v3——删除重复 workers 前先迁移 `living_allowance_records`（ON DELETE CASCADE 否则生活费台账被静默删）和 `living_allowance_receipt_items`（ON DELETE SET NULL 否则留孤儿）的 worker_id
+- 验证：develop 走真实链路造"确认结算单3000+分账工资3000"，成本中心/月报/首页趋势三处人工成本均=3000（修复前=6000），验证后数据已清理
+
 ### 2026-06 工资发放支持退场项目补发
 - 问题：一人多项目（方案A 多 worker 行 / worker_assignments 任职），其一项目退场后，工资发放滞后，新增发放记录时项目锁死为 worker.project_id（只读），无法为已退场项目补发工资
 - 后端无需改：POST /api/worker-payments 的归属校验 `getWorkerProjectRelations()`（lib/worker-project-access.ts）本就合并 worker.project_id + worker_assignments 全部 project_id 且**不过滤 status**，退场项目可过校验
