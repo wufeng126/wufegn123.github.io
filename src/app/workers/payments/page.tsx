@@ -22,6 +22,9 @@ interface Worker {
   work_type?: string;
   project_id?: number;
   project_name?: string;
+  person_id?: number | null;
+  status?: string;
+  person_project_ids?: number[] | null;
 }
 
 interface Project {
@@ -146,6 +149,57 @@ export default function WorkerPaymentsPage() {
   const [filterYearMonth, setFilterYearMonth] = useState(monthFromUrl || 'all');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [workerSearchOpen, setWorkerSearchOpen] = useState(false);
+  // 当前选中工人可发放工资的项目（含已退场任职，工资发放可能滞后于退场）
+  const [workerProjectOptions, setWorkerProjectOptions] = useState<{ id: number; name: string; status?: string }[]>([]);
+  const [workerProjectsLoading, setWorkerProjectsLoading] = useState(false);
+
+  // 选择工人后，汇总其全部项目任职（当前项目 + 同一人其他项目任职 + 任职历史），
+  // 已退场项目也保留可选（标注状态），解决"退场后补发工资无法匹配项目"的问题
+  const loadWorkerProjectOptions = async (worker: Worker) => {
+    const optionMap = new Map<number, { id: number; name: string; status?: string }>();
+    const addOption = (id?: number | null, status?: string) => {
+      if (!id || optionMap.has(id)) return;
+      const proj = projects.find(p => p.id === id);
+      optionMap.set(id, { id, name: proj?.name || worker.project_name || `项目${id}`, status });
+    };
+
+    // 1) 当前工人行所在项目
+    addOption(worker.project_id, worker.status);
+    // 2) 同一人（person）在其他项目的任职行
+    if (worker.person_id) {
+      workers.forEach(w => {
+        if (w.person_id === worker.person_id) addOption(w.project_id, w.status);
+      });
+    }
+    setWorkerProjectOptions(Array.from(optionMap.values()));
+
+    // 3) 任职分配历史（worker_assignments，含已退场项目）
+    try {
+      setWorkerProjectsLoading(true);
+      const res = await fetch(`/api/worker-assignments?worker_id=${worker.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        (data.assignments || []).forEach((a: { project_id?: number; status?: string }) => {
+          addOption(a.project_id, a.status === 'left' ? 'left' : a.status);
+        });
+        setWorkerProjectOptions(Array.from(optionMap.values()));
+      }
+    } catch {
+      // 任职历史加载失败不阻塞，保留已收集的项目选项
+    } finally {
+      setWorkerProjectsLoading(false);
+    }
+  };
+
+  const handleSelectWorker = (worker: Worker) => {
+    setFormData({
+      ...formData,
+      worker_id: worker.id.toString(),
+      project_id: worker.project_id?.toString() || '',
+    });
+    setWorkerSearchOpen(false);
+    void loadWorkerProjectOptions(worker);
+  };
 
   useEffect(() => {
     fetchData();
@@ -630,14 +684,7 @@ export default function WorkerPaymentsPage() {
                                 <CommandItem
                                   key={w.id}
                                   value={`${w.name} ${w.id}`}
-                                  onSelect={() => {
-                                    setFormData({ 
-                                      ...formData, 
-                                      worker_id: w.id.toString(),
-                                      project_id: w.project_id?.toString() || ''
-                                    });
-                                    setWorkerSearchOpen(false);
-                                  }}
+                                  onSelect={() => handleSelectWorker(w)}
                                 >
                                   <CheckCircle
                                     className={`mr-2 h-4 w-4 ${formData.worker_id === w.id.toString() ? "opacity-100" : "opacity-0"}`}
@@ -655,12 +702,24 @@ export default function WorkerPaymentsPage() {
                     </Popover>
                   </div>
                   <div>
-                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目</Label>
-                    <div className="mt-1.5 flex h-10 items-center px-3 py-2 rounded-md border border-input bg-gray-50 text-sm text-gray-600">
-                      {formData.project_id
-                        ? projects.find(p => p.id.toString() === formData.project_id)?.name || '未知项目'
-                        : '选择工人后自动确定'}
-                    </div>
+                    <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目 *</Label>
+                    <Select
+                      value={formData.project_id}
+                      onValueChange={v => setFormData({ ...formData, project_id: v })}
+                      disabled={!formData.worker_id || workerProjectsLoading}
+                    >
+                      <SelectTrigger className="mt-1.5 h-10 bg-white">
+                        <SelectValue placeholder={workerProjectsLoading ? '加载项目任职...' : (formData.worker_id ? '选择项目' : '请先选择工人')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workerProjectOptions.map(p => (
+                          <SelectItem key={p.id} value={p.id.toString()}>
+                            {p.name}{p.status === 'left' ? '（已退场）' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs mt-1" style={{ color: 'var(--color-text-3)' }}>可选该工人任职过的全部项目，已退场项目也可补发工资</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

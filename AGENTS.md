@@ -377,6 +377,12 @@
 - 成本中心零星材料下钻明细增加分类列
 - API：`GET /api/miscellaneous-materials?category=X`、`GET /api/miscellaneous-materials/export?category=X`
 
+### 2026-06 工资发放支持退场项目补发
+- 问题：一人多项目（方案A 多 worker 行 / worker_assignments 任职），其一项目退场后，工资发放滞后，新增发放记录时项目锁死为 worker.project_id（只读），无法为已退场项目补发工资
+- 后端无需改：POST /api/worker-payments 的归属校验 `getWorkerProjectRelations()`（lib/worker-project-access.ts）本就合并 worker.project_id + worker_assignments 全部 project_id 且**不过滤 status**，退场项目可过校验
+- 前端修复（workers/payments/page.tsx）：选择工人后"项目"从只读自动带出改为下拉选择，选项 = 该工人当前项目 + 同 person 其他项目任职 + worker_assignments 任职历史（`loadWorkerProjectOptions`，含 GET /api/worker-assignments?worker_id=X），已退场项目标注"（已退场）"但仍可选
+- 注意：跨任职行仍受校验（选工人行A + 项目B 若 B 不在 A 的 relations 内会 400"该工人与所选项目不匹配"）——发退场项目工资应选该工人在退场项目的任职行
+
 ### 2026-06 施工日志历史记录无法查看（修复）
 - **根因1（主要）**：GET /api/construction-logs 用 apiSuccess(data, { meta: { pagination } }) 把分页**展开到响应顶层**（`{ pagination: { total } }`），而前端读 `json.meta?.pagination?.total` → 恒 undefined → fallback logs.length → logTotal=已加载数 → `hasMoreLogs` 恒 false → "加载更多历史日志"按钮从不显示，用户只能看第一页 200 条（生产 3275 条）
 - **根因2**：项目与日期筛选只做前端过滤已加载数据，选历史日期但没加载到 → 提示"没有符合筛选条件的日志"
