@@ -18,6 +18,16 @@ function parsePositiveId(value: unknown): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function parsedId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizePayerType(value?: unknown): string {
+  const v = String(value || '').trim();
+  return v === '甲方代付' || v === '公司支付' ? v : '公司支付';
+}
+
 function isStandalonePaymentType(paymentType?: string | null) {
   return ['预支款', '借支款', '其他'].includes(paymentType || '');
 }
@@ -204,12 +214,16 @@ export async function GET(request: NextRequest) {
           payment_amount,
           payment_date,
           payment_type,
+          payer_type,
           remark,
           created_at,
           workers (
             name
           ),
           projects (
+            name
+          ),
+          team_groups (
             name
           )
         `)
@@ -256,7 +270,10 @@ export async function GET(request: NextRequest) {
       project_name: (record.projects as any)?.name || '未知项目',
       year_month: record.year_month,
       payment_date: record.payment_date,
-      payment_type: record.payment_type || '甲方代付',
+      payment_type: record.payment_type,
+      payer_type: record.payer_type || '公司支付',
+      team_id: record.team_id,
+      team_name: (record.team_groups as any)?.name || null,
       amount: record.payment_amount,
       payment_method: record.payment_type === '甲方代付' ? '甲方代付' : '银行转账',
       status: 'completed', // 已发放
@@ -286,7 +303,7 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { salary_id, worker_id, project_id, year_month, amount, payment_date, payment_type, remark } = body;
+    const { salary_id, worker_id, project_id, year_month, amount, payment_date, payment_type, payer_type, team_id, remark } = body;
 
     if (worker_id == null || project_id == null || amount == null || !payment_date || !year_month) {
       return NextResponse.json({ error: '请填写完整信息：工人、项目、工资所属月份、实发金额和发放日期均为必填' }, { status: 400 });
@@ -314,7 +331,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: workerRecord, error: workerError }, { data: projectRecord, error: projectError }] = await Promise.all([
-      client.from('workers').select('id, project_id').eq('id', workerId).maybeSingle(),
+      client.from('workers').select('id, project_id, team_name').eq('id', workerId).maybeSingle(),
       client.from('projects').select('id').eq('id', projectId).maybeSingle(),
     ]);
 
@@ -351,14 +368,34 @@ export async function POST(request: NextRequest) {
       payment_type,
       amount: paymentAmount,
     });
-    
+
+    // 付款主体（A/B 方案：payer_type 前端传入；默认公司支付）
+    const resolvedPayerType = normalizePayerType(payer_type);
+
+    // 班组归属：A 自动带出 —— 按 工人团队名+项目 匹配班组；若前端显式传入 team_id 则以传入为准（B 兜底）
+    let resolvedTeamId: number | null = null;
+    if (parsePositiveId(team_id) !== null) {
+      resolvedTeamId = parsePositiveId(team_id);
+    } else if (workerRecord?.team_name) {
+      const { data: matchedTeam } = await client
+        .from('team_groups')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('name', String(workerRecord.team_name))
+        .limit(1)
+        .maybeSingle();
+      resolvedTeamId = parsedId(matchedTeam?.id);
+    }
+
     const insertData: any = {
       salary_id: matchedSalary.salaryId,
       worker_id: workerId,
       project_id: projectId,
       payment_amount: paymentAmount,
       payment_date,
-      payment_type: payment_type || '甲方代付',
+      payment_type: payment_type || '月度工资',
+      payer_type: resolvedPayerType,
+      team_id: resolvedTeamId,
       year_month: matchedSalary.yearMonth || year_month || null,
       remark,
     };

@@ -6,6 +6,7 @@ import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessag
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
 import { getSettlementPeriod } from '@/lib/settlement-period';
+import { generateWorkerSalariesFromSplits } from '@/lib/team-settlement-salary';
 
 type TeamSettlementItemInput = {
   content?: string;
@@ -503,6 +504,23 @@ export async function POST(request: NextRequest) {
     if (itemError) throw new Error(itemError.message);
     if (splitError) throw new Error(splitError.message);
 
+    // 仅为已确认（confirmed）的结算单自动生成分账应发工资，draft 草稿不生成
+    let generatedSalary = { created: 0, skipped: 0 };
+    if ((body?.status || 'confirmed') === 'confirmed' && splitRows.length > 0) {
+      try {
+        generatedSalary = await generateWorkerSalariesFromSplits({
+          settlementId,
+          settlementMonth: month,
+          projectId,
+          teamId,
+          splits: splitRows,
+        });
+      } catch (genError) {
+        // 应发生成失败不应阻断结算保存，但需记录，供排查
+        console.error(`[team-settlement] 分账应发工资生成失败 settlementId=${settlementId}:`, genError);
+      }
+    }
+
     await auditLog({
       operationType: 'create',
       resourceType: 'team_settlement',
@@ -540,6 +558,7 @@ export async function POST(request: NextRequest) {
         payment_ratio: paymentRatio,
         planned_payment: plannedPayment,
         retained_amount: retainedAmount,
+        generated_salary: generatedSalary,
       },
     });
   } catch (error: unknown) {

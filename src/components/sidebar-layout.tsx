@@ -110,6 +110,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   '/team-management/groups': [
     { name: '班组列表', href: '/team-management/groups', icon: 'worker' },
     { name: '班组结算', href: '/team-management/settlements', icon: 'chart' },
+    { name: '工人工资台账', href: '/team-management/salary-ledger', icon: 'money' },
     { name: '班组付款', href: '/team-management/payments', icon: 'money' },
   ],
   '/business-analysis': [

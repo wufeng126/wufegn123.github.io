@@ -110,6 +110,9 @@ export const workerSalaries = pgTable("worker_salaries", {
 	fine: numeric("fine", { precision: 10, scale:  2 }).default('0'),
 	netPay: numeric("net_pay", { precision: 12, scale:  2 }).notNull(),
 	paymentStatus: varchar("payment_status", { length: 20 }).default('unpaid'), // unpaid: 未发放, partial: 部分发放, paid: 已发放
+	source: varchar("source", { length: 20 }).default('manual'), // manual: 手工录入 / team_settlement: 班组分账生成
+	settlementId: integer("settlement_id"),
+	teamId: integer("team_id"),
 }, (table) => [
 	index("worker_salaries_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("int4_ops")),
 	index("worker_salaries_worker_id_idx").using("btree", table.workerId.asc().nullsLast().op("int4_ops")),
@@ -275,6 +278,8 @@ export const salaryPayments = pgTable("salary_payments", {
 	paymentAmount: numeric("payment_amount", { precision: 12, scale:  2 }).notNull(),
 	paymentDate: varchar("payment_date", { length: 20 }).notNull(),
 	paymentType: varchar("payment_type", { length: 20 }).default('甲方代付'),
+	payerType: varchar("payer_type", { length: 20 }).default('公司支付'),
+	teamId: integer("team_id"),
 	remark: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [

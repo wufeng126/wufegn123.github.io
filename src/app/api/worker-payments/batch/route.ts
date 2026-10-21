@@ -33,6 +33,7 @@ type ParsedPaymentRow = {
   payment_amount: number;
   payment_date: string;
   payment_type: string;
+  payer_type: string;
   remark?: string | null;
   create_worker?: boolean;
 };
@@ -72,6 +73,11 @@ function parseAmount(value: unknown): number {
 
 function normalizeText(value?: string | null) {
   return String(value || '').trim().replace(/\s+/g, '');
+}
+
+function normalizePayerType(value?: unknown): string {
+  const v = String(value || '').trim();
+  return v === '甲方代付' || v === '公司支付' ? v : '公司支付';
 }
 
 function normalizeIdCard(value?: string | null) {
@@ -250,6 +256,7 @@ async function analyzeRows(
   const paymentDateIdx = findIndex(headers, ['付款日期', '发放日期', '日期', '支付日期', '发放时间', '付款时间']);
   const amountIdx = findIndex(headers, ['实发金额', '付款金额', '金额', '发放金额', '支付金额', '发放额', '付款额']);
   const paymentTypeIdx = findIndex(headers, ['付款类型', '发放类型', '类型', '付款方式', '支付方式']);
+  const payerTypeIdx = findIndex(headers, ['付款主体', '付款方', '付款来源', '代发方']);
   const yearMonthIdx = findIndex(headers, ['工资所属月份', '所属月份', '工资月份', '年月', '核算月份', '月份', '核算周期']);
   const remarkIdx = findIndex(headers, ['备注', '说明', '备注说明']);
 
@@ -321,6 +328,7 @@ async function analyzeRows(
     const amount = parseAmount(rawAmount);
     const paymentDate = normalizeDate(getCell(paymentDateIdx), yearMonth);
     const paymentType = getCell(paymentTypeIdx) || '月度工资';
+    const payerType = normalizePayerType(getCell(payerTypeIdx));
     const remark = getCell(remarkIdx);
     let blocked = false;
 
@@ -375,6 +383,7 @@ async function analyzeRows(
       payment_amount: amount,
       payment_date: paymentDate,
       payment_type: paymentType,
+      payer_type: payerType,
       remark: remark || null,
       create_worker: !worker,
     };
@@ -626,6 +635,7 @@ async function validateConfirmRows(
       payment_amount: paymentAmount,
       payment_date: paymentDate,
       payment_type: String(raw.payment_type || '月度工资').trim() || '月度工资',
+      payer_type: normalizePayerType(raw.payer_type),
       remark: raw.remark == null ? null : String(raw.remark).trim() || null,
       create_worker: raw.create_worker === true && !workerId,
     };
@@ -863,6 +873,7 @@ async function confirmImport(
     payment_amount: row.payment_amount,
     payment_date: row.payment_date,
     payment_type: row.payment_type || '月度工资',
+    payer_type: row.payer_type || '公司支付',
     remark: [
       row.remark || '',
       row.create_worker ? '导入时自动新增工人档案' : '',

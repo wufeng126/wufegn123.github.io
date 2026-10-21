@@ -368,6 +368,23 @@
 
 ## 最近更新
 
+### 2026-06 班组分账→工资应发+发放 完整闭环
+- 迁移 `migrations/add_team_settlement_split_salary_pipeline.sql`，双环境已执行
+  - `worker_salaries` 新增 `source varchar(20) default 'manual'`、`settlement_id integer`、`team_id integer`
+    - source 取值：manual（手工录入）/ team_settlement（班组分账生成）
+    - 部分唯一索引 `worker_salaries_settlement_worker_uq`(settlement_id, worker_id) 防同一结算单同一工人重复生成应发
+  - `salary_payments` 新增 `payer_type varchar(20) default '公司支付'`（公司支付/甲方代付）、`team_id integer`
+- 分账→应发自动生成（`lib/team-settlement-salary.ts`）：结算单确认（status=confirmed）时，为每个分账工人生成一条 `worker_salaries`（source=team_settlement，gross=net=分账金额，payment_status=unpaid），幂等（DB唯一索引兜底）；生成失败不阻断结算保存，仅 console 记录
+- 工资发放闭环（`api/worker-payments`）：
+  - 单条 POST：支持 `payer_type`（默认公司支付）、`team_id`；A自动带出——未传 team_id 时按 工人.team_name + 项目 匹配 team_groups 取名 → 兜底 B 由前端显式传 team_id
+  - 批量导入：支持 Excel"付款主体"列（payer_type 透传）；team_id 保持 null，台账靠发放核销的 worker_salaries 关联班组归属
+  - GET/导出/详情展示新增 付款主体(payer_type)、班组(team_name) 列
+- 班组工人工资台账（新页面 `/team-management/salary-ledger` + API `/api/team-settlements/salary-ledger`）
+  - 以 source=team_settlement 的应发为基础，联查该应发对应的发放（salary_id 核销），按工人聚合：应得 due / 已发 paid（拆 公司支付 paid_company / 甲方代付 paid_client）/ 未发 unpaid = due − paid
+  - 返回班组汇总 teams + 工人明细 workers；支持 project_id / team_id / 姓名过滤
+  - 前端组件 `team-salary-ledger-client.tsx`，侧边栏"班组管理"下新增"工人工资台账"入口
+- 注意：`worker_salaries` 的 (worker_id, project_id, year_month) 唯一约束在 DB 实际不存在（工时+包活会产生两条分录），故分账应发不与其冲突；否则会重复生成而违反，需改用 settlement_id+worker_id 部分唯一
+
 ### 2026-06 班组结算新增付款比例
 - `team_settlements` 新增 `payment_ratio numeric(5,2) NOT NULL DEFAULT 100`（0~100，CHECK 约束），迁移文件 `migrations/add_team_settlement_payment_ratio.sql`，双环境已执行
 - 派生口径（均为前端展示/API 计算字段，不落库）：计划付款 planned_payment = 实付金额 payable_amount × payment_ratio / 100；尾款（预留款）retained_amount = payable_amount − planned_payment；已付比例 paid_ratio = 已付/实付

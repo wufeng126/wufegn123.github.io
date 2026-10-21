@@ -37,6 +37,9 @@ interface Payment {
   project_name?: string;
   payment_date: string;
   payment_type: string;
+  payer_type?: string;
+  team_id?: number | null;
+  team_name?: string | null;
   amount: string;
   payment_method: string;
   year_month?: string;
@@ -134,6 +137,7 @@ export default function WorkerPaymentsPage() {
     amount: '',
     payment_type: '月度工资',
     payment_method: '银行转账',
+    payer_type: '公司支付',
     year_month: '',
     remark: '',
   });
@@ -200,6 +204,7 @@ export default function WorkerPaymentsPage() {
       amount: '',
       payment_type: '月度工资',
       payment_method: '银行转账',
+      payer_type: '公司支付',
       year_month: '',
       remark: '',
     });
@@ -224,6 +229,7 @@ export default function WorkerPaymentsPage() {
           amount: parseFloat(formData.amount),
           payment_type: formData.payment_type,
           payment_method: formData.payment_method,
+          payer_type: formData.payer_type,
           year_month: formData.year_month || null,
           remark: formData.remark || null,
         }),
@@ -412,8 +418,8 @@ export default function WorkerPaymentsPage() {
   };
 
   const handleExport = () => {
-    const headers = ['项目', '年月', '工人姓名', '付款日期', '付款类型', '金额', '付款方式', '备注'];
-    const rows = filteredPayments.map(p => [p.project_name || '-', p.year_month || '-', p.worker_name, p.payment_date, p.payment_type, p.amount, p.payment_method, p.remark || '']);
+    const headers = ['项目', '年月', '工人姓名', '付款日期', '付款类型', '付款主体', '金额', '付款方式', '班组', '备注'];
+    const rows = filteredPayments.map(p => [p.project_name || '-', p.year_month || '-', p.worker_name, p.payment_date, p.payment_type || '月度工资', p.payer_type || '公司支付', p.amount, p.payment_method, p.team_name || '-', p.remark || '']);
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -673,6 +679,15 @@ export default function WorkerPaymentsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>付款主体 *</Label>
+                    <Select value={formData.payer_type} onValueChange={(v) => setFormData({ ...formData, payer_type: v })}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="公司支付">公司支付</SelectItem>
+                        <SelectItem value="甲方代付">甲方代付</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>付款方式</Label>
                     <Select value={formData.payment_method} onValueChange={(v) => setFormData({ ...formData, payment_method: v })}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -874,8 +889,10 @@ export default function WorkerPaymentsPage() {
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>工人</TableHead>
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款日期</TableHead>
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款类型</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款主体</TableHead>
                                         <TableHead className="text-xs text-right" style={{ color: 'var(--color-text-3)' }}>金额</TableHead>
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款方式</TableHead>
+                                        <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>班组</TableHead>
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>备注</TableHead>
                                       </TableRow>
                                     </TableHeader>
@@ -888,17 +905,23 @@ export default function WorkerPaymentsPage() {
                                             <TableCell className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{payment.worker_name}</TableCell>
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_date}</TableCell>
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_type}</TableCell>
+                                            <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>
+                                              {payment.payer_type === '甲方代付'
+                                                ? <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: '#E8F3FF', color: 'var(--color-primary)' }}>甲方代付</span>
+                                                : <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: 'var(--color-muted)', color: 'var(--color-text-2)' }}>公司支付</span>}
+                                            </TableCell>
                                             <TableCell className="text-sm text-right font-medium" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(parseFloat(payment.amount))}</TableCell>
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_method}</TableCell>
+                                            <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.team_name || '-'}</TableCell>
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.remark || '-'}</TableCell>
                                           </TableRow>
                                         );
                                       })}
                                       {/* 批次合计行 */}
                                       <TableRow style={{ background: 'var(--color-muted)', borderBottom: '1px solid #E5E6EB' }}>
-                                        <TableCell colSpan={4} className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>本批次合计</TableCell>
+                                        <TableCell colSpan={5} className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>本批次合计</TableCell>
                                         <TableCell className="text-sm text-right font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(batch.totalAmount)}</TableCell>
-                                        <TableCell colSpan={2} />
+                                        <TableCell colSpan={3} />
                                       </TableRow>
                                     </TableBody>
                                   </Table>
@@ -924,11 +947,15 @@ export default function WorkerPaymentsPage() {
                                               <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
                                                   <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{payment.worker_name}</p>
-                                                  <p className="mt-0.5 text-xs" style={{ color: 'var(--color-text-3)' }}>{payment.payment_date} · {payment.payment_type}</p>
+                                                  <p className="mt-0.5 text-xs" style={{ color: 'var(--color-text-3)' }}>{payment.payment_date} · {payment.payment_type} · {payment.payer_type || '公司支付'}</p>
                                                 </div>
                                                 <p className="shrink-0 text-base font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrencyFull(parseFloat(payment.amount))}</p>
                                               </div>
                                               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                  <p style={{ color: 'var(--color-text-3)' }}>班组</p>
+                                                  <p style={{ color: 'var(--color-text-2)' }}>{payment.team_name || '-'}</p>
+                                                </div>
                                                 <div>
                                                   <p style={{ color: 'var(--color-text-3)' }}>付款方式</p>
                                                   <p style={{ color: 'var(--color-text-2)' }}>{payment.payment_method}</p>
