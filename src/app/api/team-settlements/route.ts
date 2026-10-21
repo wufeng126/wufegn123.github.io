@@ -45,6 +45,16 @@ function round2(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+/** 解析付款比例：0~100，空值/非法值默认 100（全额付款） */
+function normalizePaymentRatio(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 100;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 100;
+  if (num < 0) return 0;
+  if (num > 100) return 100;
+  return round2(num);
+}
+
 function isMissingTableError(error: { message?: string; code?: string } | null) {
   const message = (error?.message || '').toLowerCase();
   return (
@@ -247,7 +257,7 @@ export async function GET(request: NextRequest) {
     if (!projectId && Array.isArray(accessibleProjectIds) && accessibleProjectIds.length === 0) {
       return apiSuccess({
         settlements: [],
-        summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, paid_amount: 0, unpaid_amount: 0 },
+        summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, planned_payment: 0, retained_amount: 0, paid_amount: 0, unpaid_amount: 0 },
         item_totals: [],
       });
     }
@@ -267,7 +277,7 @@ export async function GET(request: NextRequest) {
       if (isMissingTableError(error)) {
         return apiSuccess({
           settlements: [],
-          summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, paid_amount: 0, unpaid_amount: 0 },
+          summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, planned_payment: 0, retained_amount: 0, paid_amount: 0, unpaid_amount: 0 },
           item_totals: [],
           needs_migration: true,
         });
@@ -332,8 +342,12 @@ export async function GET(request: NextRequest) {
           toNumber(settlement.safety_fund_deduct),
       );
       const payableAmount = round2(Math.max(0, quantityAmount - deductionTotal));
+      const paymentRatio = normalizePaymentRatio(settlement.payment_ratio);
+      const plannedPayment = round2((payableAmount * paymentRatio) / 100);
+      const retainedAmount = round2(Math.max(0, payableAmount - plannedPayment));
       const teamPaidTotal = settlement.team_id ? paidByTeamMap.get(Number(settlement.team_id)) || 0 : 0;
       const teamUnpaidTotal = round2(Math.max(0, payableAmount - teamPaidTotal));
+      const paidForSettlement = round2(paidMap.get(Number(settlement.id)) || 0);
       return {
         ...settlement,
         project_name: projectNameMap.get(Number(settlement.project_id)) || '',
@@ -345,8 +359,12 @@ export async function GET(request: NextRequest) {
         total_hours: round2(totalHours),
         deduction_total: deductionTotal,
         payable_amount: payableAmount,
-        paid_amount: round2(paidMap.get(Number(settlement.id)) || 0),
-        unpaid_amount: round2(Math.max(0, payableAmount - (paidMap.get(Number(settlement.id)) || 0))),
+        payment_ratio: paymentRatio,
+        planned_payment: plannedPayment,
+        retained_amount: retainedAmount,
+        paid_amount: paidForSettlement,
+        unpaid_amount: round2(Math.max(0, payableAmount - paidForSettlement)),
+        paid_ratio: payableAmount > 0 ? round2((paidForSettlement / payableAmount) * 100) : 0,
         team_paid_total: round2(teamPaidTotal),
         team_unpaid_total: teamUnpaidTotal,
       };
@@ -361,6 +379,8 @@ export async function GET(request: NextRequest) {
         total_hours: round2(rows.reduce((sum, row) => sum + row.total_hours, 0)),
         deduction_total: round2(rows.reduce((sum, row) => sum + row.deduction_total, 0)),
         payable_amount: round2(rows.reduce((sum, row) => sum + row.payable_amount, 0)),
+        planned_payment: round2(rows.reduce((sum, row) => sum + row.planned_payment, 0)),
+        retained_amount: round2(rows.reduce((sum, row) => sum + row.retained_amount, 0)),
         paid_amount: paidAllInScope,
         unpaid_amount: round2(Math.max(0, rows.reduce((sum, row) => sum + row.payable_amount, 0) - paidAllInScope)),
       },
@@ -418,6 +438,7 @@ export async function POST(request: NextRequest) {
     const laborInsuranceDeduct = round2(toNumber(body?.labor_insurance_deduct));
     const helperDeduct = round2(toNumber(body?.helper_deduct));
     const safetyFundDeduct = round2(toNumber(body?.safety_fund_deduct));
+    const paymentRatio = normalizePaymentRatio(body?.payment_ratio);
 
     const { data: settlementRows, error: settlementError } = await insertWithSequenceFix('team_settlements', {
       project_id: projectId,
@@ -432,6 +453,7 @@ export async function POST(request: NextRequest) {
       labor_insurance_deduct: laborInsuranceDeduct,
       helper_deduct: helperDeduct,
       safety_fund_deduct: safetyFundDeduct,
+      payment_ratio: paymentRatio,
       created_by: auth.user.id,
       created_by_name: auth.user.name || auth.user.username,
       updated_at: now.toISOString(),
@@ -495,6 +517,7 @@ export async function POST(request: NextRequest) {
         labor_insurance_deduct: laborInsuranceDeduct,
         helper_deduct: helperDeduct,
         safety_fund_deduct: safetyFundDeduct,
+        payment_ratio: paymentRatio,
       },
       request,
     });
@@ -502,6 +525,8 @@ export async function POST(request: NextRequest) {
     const quantityAmount = round2(itemRows.reduce((sum, item) => sum + toNumber(item.amount), 0));
     const deductionTotal = round2(advanceDeduct + laborInsuranceDeduct + helperDeduct + safetyFundDeduct);
     const payableAmount = round2(Math.max(0, quantityAmount - deductionTotal));
+    const plannedPayment = round2((payableAmount * paymentRatio) / 100);
+    const retainedAmount = round2(Math.max(0, payableAmount - plannedPayment));
 
     return apiSuccess({
       settlement: {
@@ -512,6 +537,9 @@ export async function POST(request: NextRequest) {
         split_amount: round2(splitRows.reduce((sum, split) => sum + toNumber(split.amount), 0)),
         deduction_total: deductionTotal,
         payable_amount: payableAmount,
+        payment_ratio: paymentRatio,
+        planned_payment: plannedPayment,
+        retained_amount: retainedAmount,
       },
     });
   } catch (error: unknown) {

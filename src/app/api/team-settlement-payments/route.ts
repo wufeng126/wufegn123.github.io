@@ -37,6 +37,13 @@ function calcPayable(quantityAmount: number, settlement: Record<string, unknown>
   return round2(Math.max(0, quantityAmount - deductionTotal));
 }
 
+function normalizePaymentRatio(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 100;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 100;
+  return Math.min(100, Math.max(0, num));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -100,7 +107,7 @@ export async function GET(request: NextRequest) {
         const hasAccess = await assertProjectAccess(supabase, auth.user, projectId);
         if (!hasAccess) return apiForbidden('无权查看该项目');
       }
-      let settleQuery = supabase.from('team_settlements').select('id, project_id, team_id, advance_deduct, labor_insurance_deduct, helper_deduct, safety_fund_deduct');
+      let settleQuery = supabase.from('team_settlements').select('id, project_id, team_id, advance_deduct, labor_insurance_deduct, helper_deduct, safety_fund_deduct, payment_ratio');
       if (projectId) settleQuery = settleQuery.eq('project_id', projectId);
       if (teamId) settleQuery = settleQuery.eq('team_id', teamId);
       const { data: settlements, error: settleError } = await settleQuery;
@@ -123,6 +130,7 @@ export async function GET(request: NextRequest) {
       }
 
       const payableByTeam = new Map<number, number>();
+      const plannedByTeam = new Map<number, number>();
       const projectByTeam = new Map<number, number>();
       for (const s of settlements || []) {
         const tid = Number(s.team_id);
@@ -130,6 +138,8 @@ export async function GET(request: NextRequest) {
         projectByTeam.set(tid, Number(s.project_id));
         const payable = calcPayable(itemAmountBySettlement.get(Number(s.id)) || 0, s as unknown as Record<string, unknown>);
         payableByTeam.set(tid, (payableByTeam.get(tid) || 0) + payable);
+        const planned = round2((payable * normalizePaymentRatio(s.payment_ratio)) / 100);
+        plannedByTeam.set(tid, (plannedByTeam.get(tid) || 0) + planned);
       }
 
       let payQuery = supabase.from('team_settlement_payments').select('team_id, project_id, payment_amount');
@@ -163,6 +173,7 @@ export async function GET(request: NextRequest) {
       const rows = allTeamIds.map((tid) => {
         const payable = round2(payableByTeam.get(tid) || 0);
         const paid = round2(paidByTeam.get(tid) || 0);
+        const planned = round2(plannedByTeam.get(tid) || 0);
         return {
           team_id: tid,
           team_name: teamNameMap.get(tid) || `班组#${tid}`,
@@ -170,6 +181,8 @@ export async function GET(request: NextRequest) {
           project_id: projectByTeam.get(tid) || 0,
           project_name: projectNameMap.get(projectByTeam.get(tid) || 0) || '',
           payable_amount: payable,
+          planned_payment: planned,
+          retained_amount: round2(Math.max(0, payable - planned)),
           paid_amount: paid,
           unpaid_amount: round2(payable - paid),
         };

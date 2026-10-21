@@ -33,6 +33,8 @@ type TeamSummaryRow = {
   project_id?: number;
   project_name?: string;
   payable_amount: number;
+  planned_payment?: number;
+  retained_amount?: number;
   paid_amount: number;
   unpaid_amount: number;
 };
@@ -382,6 +384,8 @@ export function TeamPaymentsPageClient() {
                 <th className="px-4 py-2 text-left font-medium">工种</th>
                 <th className="px-4 py-2 text-left font-medium">所属项目</th>
                 <th className="px-4 py-2 text-right font-medium">应付</th>
+                <th className="px-4 py-2 text-right font-medium">本期计划付</th>
+                <th className="px-4 py-2 text-right font-medium">尾款/预留</th>
                 <th className="px-4 py-2 text-right font-medium">已付</th>
                 <th className="px-4 py-2 text-right font-medium">未付</th>
               </tr>
@@ -389,14 +393,14 @@ export function TeamPaymentsPageClient() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
                     加载中...
                   </td>
                 </tr>
               ) : filteredSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     暂无班组结算/付款数据
                   </td>
                 </tr>
@@ -407,6 +411,8 @@ export function TeamPaymentsPageClient() {
                     <td className="px-4 py-2 text-muted-foreground">{row.work_type || '-'}</td>
                     <td className="px-4 py-2 text-muted-foreground">{row.project_name || '-'}</td>
                     <td className="px-4 py-2 text-right text-foreground">{formatMoney(row.payable_amount)}</td>
+                    <td className="px-4 py-2 text-right text-emerald-600">{formatMoney(row.planned_payment ?? row.payable_amount)}</td>
+                    <td className="px-4 py-2 text-right text-orange-600">{formatMoney(row.retained_amount ?? 0)}</td>
                     <td className="px-4 py-2 text-right text-emerald-600">{formatMoney(row.paid_amount)}</td>
                     <td className="px-4 py-2 text-right font-medium text-amber-600">{formatMoney(row.unpaid_amount)}</td>
                   </tr>

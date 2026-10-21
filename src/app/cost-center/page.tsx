@@ -638,7 +638,7 @@ function CostCenterContent() {
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>工人工资总额</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>人工总成本</p>
                 <div className="flex items-baseline gap-1 mt-2">
                   <span className="text-2xl font-bold" style={{ color: '#722ED1' }}>
                     {formatWanYuan(filteredData?.summary.totalSalary || 0).replace('¥', '')}
@@ -646,7 +646,7 @@ function CostCenterContent() {
                   <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
                 </div>
                 <p className="text-xs mt-1" style={{ color: filteredData?.summary.avgLaborCostRate && filteredData.summary.avgLaborCostRate > 60 ? '#FF7D00' : 'var(--color-text-3)' }}>
-                  占比 {formatPercent(filteredData?.summary.avgLaborCostRate || 0)}%
+                  含班组结算 · 占比 {formatPercent(filteredData?.summary.avgLaborCostRate || 0)}%
                   {filteredData?.summary.avgLaborCostRate && filteredData.summary.avgLaborCostRate > 60 && ' · 偏高'}
                 </p>
               </div>

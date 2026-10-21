@@ -73,8 +73,12 @@ type TeamSettlement = {
   safety_fund_deduct?: number;
   deduction_total?: number;
   payable_amount?: number;
+  payment_ratio?: number;
+  planned_payment?: number;
+  retained_amount?: number;
   paid_amount?: number;
   unpaid_amount?: number;
+  paid_ratio?: number;
   team_paid_total?: number;
   team_unpaid_total?: number;
   items?: SettlementItem[];
@@ -120,7 +124,7 @@ type SplitRow = {
   amount: string;
 };
 
-const emptySummary = { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0 };
+const emptySummary = { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, planned_payment: 0, retained_amount: 0, paid_amount: 0, unpaid_amount: 0 };
 
 function createRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -834,7 +838,7 @@ export function TeamSettlementLedgerPageClient() {
         </section>
       ) : null}
 
-      <section className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <section className="grid gap-3 md:grid-cols-4 lg:grid-cols-8">
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
           <div className="text-xs text-[#86909C]">结算单数</div>
           <div className="mt-2 text-2xl font-semibold">{summary.count}</div>
@@ -858,6 +862,14 @@ export function TeamSettlementLedgerPageClient() {
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
           <div className="text-xs text-[#86909C]">实付金额</div>
           <div className="mt-2 text-2xl font-semibold">{formatMoney(summary.payable_amount)}</div>
+        </div>
+        <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
+          <div className="text-xs text-[#86909C]">本期计划付款</div>
+          <div className="mt-2 text-2xl font-semibold text-[#00B42A]">{formatMoney(summary.planned_payment)}</div>
+        </div>
+        <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
+          <div className="text-xs text-[#86909C]">尾款/预留款</div>
+          <div className="mt-2 text-2xl font-semibold text-[#FF7D00]">{formatMoney(summary.retained_amount)}</div>
         </div>
       </section>
 
@@ -893,6 +905,9 @@ export function TeamSettlementLedgerPageClient() {
                 <th className="px-4 py-3 text-right">结算金额</th>
                 <th className="px-4 py-3 text-right">扣款合计</th>
                 <th className="px-4 py-3 text-right">实付金额</th>
+                <th className="px-4 py-3 text-right">付款比例</th>
+                <th className="px-4 py-3 text-right">本期计划付</th>
+                <th className="px-4 py-3 text-right">尾款/预留</th>
                 <th className="px-4 py-3 text-right">班组已付</th>
                 <th className="px-4 py-3 text-right">班组未付</th>
                 <th className="px-4 py-3 text-right">分账金额</th>
@@ -903,9 +918,9 @@ export function TeamSettlementLedgerPageClient() {
             </thead>
             <tbody className="divide-y divide-[#EEF0F5]">
               {loading ? (
-                <tr><td colSpan={14} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
+                <tr><td colSpan={17} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
               ) : settlements.length === 0 ? (
-                <tr><td colSpan={14} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
+                <tr><td colSpan={17} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
               ) : settlements.map((row) => (
                 <tr key={row.id} className="hover:bg-[#FAFBFF]">
                   <td className="px-4 py-3 font-medium">{row.settlement_no || `#${row.id}`}</td>
@@ -916,6 +931,9 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.deduction_total)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.payable_amount)}</td>
+                  <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.payment_ratio ?? 100)}%</td>
+                  <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.planned_payment ?? row.payable_amount)}</td>
+                  <td className="px-4 py-3 text-right text-[#FF7D00]">{formatMoney(row.retained_amount ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.team_paid_total ?? row.paid_amount ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatMoney(row.split_amount)}</td>
@@ -924,7 +942,7 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-3">
                       <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[#165DFF] hover:underline">查看详情</Link>
-                      <button onClick={() => { setPaySettlement(row); setPayAmount(''); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
+                      <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
                     </div>
                   </td>
                 </tr>
@@ -950,13 +968,15 @@ export function TeamSettlementLedgerPageClient() {
                 <div><dt className="text-xs text-[#86909C]">结算金额</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.quantity_amount)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">扣款合计</dt><dd className="mt-0.5 text-[#F53F3F]">{formatMoney(row.deduction_total)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">实付金额</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.payable_amount)}</dd></div>
+                <div><dt className="text-xs text-[#86909C]">付款比例/计划付</dt><dd className="mt-0.5 text-[#00B42A]">{formatNumber(row.payment_ratio ?? 100)}% / {formatMoney(row.planned_payment ?? row.payable_amount)}</dd></div>
+                <div><dt className="text-xs text-[#86909C]">尾款/预留</dt><dd className="mt-0.5 text-[#FF7D00]">{formatMoney(row.retained_amount ?? 0)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">分账金额</dt><dd className="mt-0.5 text-[#4E5969]">{formatMoney(row.split_amount)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">总工时</dt><dd className="mt-0.5 text-[#4E5969]">{formatNumber(row.total_hours)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">周期</dt><dd className="mt-0.5 text-[#4E5969]">{row.period_start} 至 {row.period_end}</dd></div>
               </dl>
               <div className="flex items-center gap-3">
                 <Link href={`/team-management/settlements/${row.id}`} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-sm font-medium text-[#165DFF]">查看详情</Link>
-                <button onClick={() => { setPaySettlement(row); setPayAmount(''); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
+                <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
               </div>
             </article>
           ))}
@@ -970,6 +990,9 @@ export function TeamSettlementLedgerPageClient() {
             <p className="mt-1 text-sm text-[#86909C]">
               {paySettlement.team_name || `#${paySettlement.id}`} · {paySettlement.settlement_month} ·
               待付 <b className={Number(paySettlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(paySettlement.unpaid_amount || 0)}</b>
+              {Number(paySettlement.payment_ratio ?? 100) < 100 && (
+                <> · 约定 {formatNumber(paySettlement.payment_ratio ?? 100)}%，本期计划付 <b className="text-[#00B42A]">{formatMoney(paySettlement.planned_payment)}</b>，尾款 <b className="text-[#FF7D00]">{formatMoney(paySettlement.retained_amount)}</b></>
+              )}
             </p>
             {payMessage && <div className="mt-3 rounded-md bg-[#FFF7E8] px-3 py-2 text-xs text-[#E88012]">{payMessage}</div>}
             <div className="mt-4 space-y-3">
@@ -1027,6 +1050,7 @@ export function TeamSettlementNewPageClient() {
   const [deductLaborInsurance, setDeductLaborInsurance] = useState('');
   const [deductHelper, setDeductHelper] = useState('');
   const [deductSafetyFund, setDeductSafetyFund] = useState('');
+  const [paymentRatio, setPaymentRatio] = useState('100');
   const [quantityRows, setQuantityRows] = useState<QuantityRow[]>([newQuantityRow()]);
   const [splitRows, setSplitRows] = useState<SplitRow[]>([newSplitRow()]);
   const [loading, setLoading] = useState(true);
@@ -1108,6 +1132,13 @@ export function TeamSettlementNewPageClient() {
     [deductAdvance, deductLaborInsurance, deductHelper, deductSafetyFund],
   );
   const payableAmount = useMemo(() => round2(Math.max(0, quantityTotal - deductionTotal)), [quantityTotal, deductionTotal]);
+  const normalizedRatio = useMemo(() => {
+    const num = toNumber(paymentRatio);
+    if (!Number.isFinite(num)) return 100;
+    return Math.min(100, Math.max(0, num));
+  }, [paymentRatio]);
+  const plannedPayment = useMemo(() => round2((payableAmount * normalizedRatio) / 100), [payableAmount, normalizedRatio]);
+  const retainedAmount = useMemo(() => round2(Math.max(0, payableAmount - plannedPayment)), [payableAmount, plannedPayment]);
 
   const loadGroups = useCallback(async () => {
     const params = new URLSearchParams();
@@ -1193,7 +1224,7 @@ export function TeamSettlementNewPageClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund) }),
+        body: JSON.stringify({ project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }),
       }));
       const settlementId = json.data?.settlement?.id;
       if (settlementId) router.push(`/team-management/settlements/${settlementId}`);
@@ -1410,10 +1441,27 @@ export function TeamSettlementNewPageClient() {
             <DeductField label="帮工" value={deductHelper} onChange={setDeductHelper} placeholder="帮工金额" />
             <DeductField label="安全基金" value={deductSafetyFund} onChange={setDeductSafetyFund} placeholder="安全基金金额" />
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg bg-[#F7F8FA] px-4 py-3 text-sm">
-            <span className="text-[#4E5969]">结算金额：<b className="text-[#165DFF]">{formatMoney(quantityTotal)}</b></span>
-            <span className="text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(deductionTotal)}</b></span>
-            <span className="text-[#4E5969]">实付金额：<b className="text-[#165DFF]">{formatMoney(payableAmount)}</b></span>
+          <div className="mt-4 grid gap-4 rounded-lg border border-[#E5E8EF] bg-[#FAFBFF] p-4 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="block max-w-xs">
+              <span className="mb-1 block text-xs font-medium text-[#86909C]">本期付款比例（%）</span>
+              <div className="relative">
+                <input value={paymentRatio} onChange={(event) => {
+                  const v = event.target.value;
+                  if (v === '') { setPaymentRatio(''); return; }
+                  const num = Number(v);
+                  if (Number.isFinite(num)) setPaymentRatio(String(Math.min(100, Math.max(0, num))));
+                }} placeholder="100" inputMode="decimal" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 pr-9 text-sm outline-none focus:border-[#165DFF]" />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#86909C]">%</span>
+              </div>
+              <span className="mt-1 block text-[11px] text-[#86909C]">按合同约定填写，如本期付 80%；尾款下期或完工后支付</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span className="text-[#4E5969]">结算金额：<b className="text-[#165DFF]">{formatMoney(quantityTotal)}</b></span>
+              <span className="text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(deductionTotal)}</b></span>
+              <span className="text-[#4E5969]">实付金额：<b className="text-[#165DFF]">{formatMoney(payableAmount)}</b></span>
+              <span className="text-[#4E5969]">本期计划付款（{formatNumber(normalizedRatio)}%）：<b className="text-[#00B42A]">{formatMoney(plannedPayment)}</b></span>
+              <span className="text-[#4E5969]">尾款/预留款：<b className="text-[#FF7D00]">{formatMoney(retainedAmount)}</b></span>
+            </div>
           </div>
         </div>
       </section>
@@ -1601,6 +1649,9 @@ export function TeamSettlementDetailPageClient() {
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#E5E8EF] pt-3">
                 <span className="text-sm text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(settlement.deduction_total)}</b></span>
                 <span className="text-sm text-[#4E5969]">实付金额：<b className="text-[#165DFF]">{formatMoney(settlement.payable_amount)}</b></span>
+                <span className="text-sm text-[#4E5969]">付款比例：<b className="text-[#4E5969]">{formatNumber(settlement.payment_ratio ?? 100)}%</b></span>
+                <span className="text-sm text-[#4E5969]">本期计划付：<b className="text-[#00B42A]">{formatMoney(settlement.planned_payment ?? settlement.payable_amount)}</b></span>
+                <span className="text-sm text-[#4E5969]">尾款/预留：<b className="text-[#FF7D00]">{formatMoney(settlement.retained_amount ?? 0)}</b></span>
                 <span className="text-sm text-[#4E5969]">已付：<b className="text-[#00B42A]">{formatMoney(settlement.paid_amount || 0)}</b></span>
                 <span className="text-sm text-[#4E5969]">未付：<b className={Number(settlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(settlement.unpaid_amount || 0)}</b></span>
               </div>

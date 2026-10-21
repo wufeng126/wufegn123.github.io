@@ -166,7 +166,15 @@
 
 9. **notification_settings** - 通知设置表
 
-10. **ai_configs** - AI全局配置表
+10. **team_groups / team_settlements 等 - 班组管理表**
+   - `team_groups`：班组（id/name/work_type/leader/phone/bank_card/bank_name/project_id/status）
+   - `team_settlements`：班组结算单（settlement_no/settlement_month/period_start/period_end/status:draft|confirmed，advance_deduct 预付抵扣、labor_insurance_deduct 劳保、helper_deduct 帮工、safety_fund_deduct 安全基金/质保金，**payment_ratio 本期付款比例%默认100**）
+   - `team_settlement_items`：结算分项（content/unit/quantity/unit_price/amount/remark/order_index，支持点工/包工/计时/计件）
+   - `team_settlement_payments`：班组付款（挂班组+项目，可选关联 settlement_id，payment_method 含工资专户/抵房款，payee_type/name/card/bank）
+   - `team_settlement_splits`：结算分账到工人
+   - 派生口径：实付=分项金额合计−四项扣款；计划付款=实付×payment_ratio/100；尾款=实付−计划付款；班组未付=该班组结算实付累计−付款累计
+
+11. **ai_configs** - AI全局配置表
    - id: 主键
    - model_id: 模型ID
    - api_endpoint: API地址
@@ -359,6 +367,14 @@
 - 参考 `/skills/public/prod/supabase/references/typescript/database.md`
 
 ## 最近更新
+
+### 2026-06 班组结算新增付款比例
+- `team_settlements` 新增 `payment_ratio numeric(5,2) NOT NULL DEFAULT 100`（0~100，CHECK 约束），迁移文件 `migrations/add_team_settlement_payment_ratio.sql`，双环境已执行
+- 派生口径（均为前端展示/API 计算字段，不落库）：计划付款 planned_payment = 实付金额 payable_amount × payment_ratio / 100；尾款（预留款）retained_amount = payable_amount − planned_payment；已付比例 paid_ratio = 已付/实付
+- 结算录入页支持付款比例输入（默认 100%），实时计算计划付款/尾款；台账新增"付款比例""计划付款""尾款（预留）"列，尾款>0 显示黄色徽章；结算单登记付款默认金额改为 min(计划付款, 剩余应付)
+- 付款管理班组汇总（mode=team-summary）与班组列表同步返回 planned_payment/retained_amount，表格新增两列
+- 班组成本口径（既有，本次核对确认）：成本中心、月度经营月报、首页趋势的人工成本 = 工人应发工资 + 班组结算实付（仅确认单，扣四项扣款后），统一在 `lib/data-aggregation.ts` 的 `getTeamSettlementCostByProjects` / `getTeamSettlementCostAmount`；资金看板的供应商成本不包含班组结算（班组维度应付在班组管理-付款管理内）
+- 班组结算 API：`GET/POST /api/team-settlements`；付款：`GET/POST /api/team-settlement-payments`
 
 ### 2026-06 钉钉企业内部应用集成
 - 新增钉钉企业内部应用配置模块 (`lib/dingtalk-config.ts`)
