@@ -368,6 +368,10 @@
 
 ## 最近更新
 
+### 2026-06 班组付款"记付款"弹窗项目/班组下拉为空（修复）
+- **根因**：`/api/projects` 列表接口返回顶层 `{projects:[...]}`（非标准 `{data:[...]}` 包裹），而 `team-payments-client.tsx` 的 loadProjects 误读 `json.data`（恒为 undefined）→ 项目下拉空；同页 `/api/team-groups` 返回 `{success,data:{groups:[...]}}`，loadTeams 误把 `json.data` 当数组 → 班组下拉也空。修复：projects 兼容 `json.projects`/`json.data`，teams 兼容 `data.groups`/顶层 `groups`/数组
+- 教训：项目列表接口响应结构为顶层 `projects` 数组（与多数业务接口的 `data` 包裹不同），前端读取优先 `json.projects`；新页面接入项目下拉时直接复用 team-management-client 的写法
+
 ### 2026-06 零星材料 AI 智能分类
 - 新增 `src/lib/ai-material-classify.ts`：`classifyMaterialWithAI()` 单条分类（复用 ai-service 的 getAIConfig/createConfiguredLLMClient，9 类关键词指南提示词、temperature 0、15 秒超时、输出清洗后 includes 匹配，任何失败返回 null）；`classifyMaterialsWithAI()` 批量（并发 3）
 - 新增 `POST /api/ai/classify-material`：请求体 `{name}`，AI 分类失败自动回退 `guessMiscCategory()` 关键词匹配，返回 `{category, source: 'ai'|'keyword'}`；未配置 AI 时也能正常工作（source 恒 keyword）

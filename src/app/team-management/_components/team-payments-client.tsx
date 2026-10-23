@@ -106,13 +106,30 @@ export function TeamPaymentsPageClient() {
   const [loadingSettlements, setLoadingSettlements] = useState(false);
 
   const loadProjects = useCallback(async () => {
-    const json = await readJson<ApiResp<Project[]>>(await fetch('/api/projects', { credentials: 'include' }));
-    setProjects(Array.isArray(json?.data) ? json.data : []);
+    const json = await readJson<ApiResp<Project[]> & { projects?: Project[] }>(
+      await fetch('/api/projects', { credentials: 'include' }),
+    );
+    const list = Array.isArray(json?.projects)
+      ? json.projects
+      : Array.isArray(json?.data)
+        ? json.data
+        : [];
+    setProjects(list);
   }, []);
 
   const loadTeams = useCallback(async () => {
-    const json = await readJson<ApiResp<TeamGroup[]>>(await fetch('/api/team-groups', { credentials: 'include' }));
-    setTeams(Array.isArray(json?.data) ? json.data : []);
+    const json = await readJson<ApiResp<TeamGroup[] | { groups: TeamGroup[] }> & { groups?: TeamGroup[] }>(
+      await fetch('/api/team-groups', { credentials: 'include' }),
+    );
+    const payload = json?.data;
+    const list = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.groups)
+        ? payload.groups
+        : Array.isArray(json?.groups)
+          ? json.groups
+          : [];
+    setTeams(list);
   }, []);
 
   const loadSummaries = useCallback(async () => {
