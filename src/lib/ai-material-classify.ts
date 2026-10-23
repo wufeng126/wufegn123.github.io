@@ -39,7 +39,7 @@ export async function classifyMaterialWithAI(
         [
           {
             role: 'system',
-            content: `你是建筑劳务企业的材料分类助手。根据用户给出的材料名称，从以下 9 个类别中选出最贴切的一个。只输出类别名称本身，禁止输出任何解释、标点或其他文字。\n${CATEGORY_GUIDE}`,
+                        content: `你是建筑劳务企业的材料分类助手。根据用户给出的材料名称，从以下 ${MISC_MATERIAL_CATEGORIES.length} 个类别中选出最贴切的一个。只输出类别名称本身，禁止输出任何解释、标点或其他文字。\n${CATEGORY_GUIDE}`,
           },
           { role: 'user', content: name },
         ],
