@@ -368,6 +368,12 @@
 
 ## 最近更新
 
+### 2026-06 零星材料 AI 智能分类
+- 新增 `src/lib/ai-material-classify.ts`：`classifyMaterialWithAI()` 单条分类（复用 ai-service 的 getAIConfig/createConfiguredLLMClient，9 类关键词指南提示词、temperature 0、15 秒超时、输出清洗后 includes 匹配，任何失败返回 null）；`classifyMaterialsWithAI()` 批量（并发 3）
+- 新增 `POST /api/ai/classify-material`：请求体 `{name}`，AI 分类失败自动回退 `guessMiscCategory()` 关键词匹配，返回 `{category, source: 'ai'|'keyword'}`；未配置 AI 时也能正常工作（source 恒 keyword）
+- 智能录入统一受益：`MiscMaterialDraft` 加 `category` 字段，recognize 接口（拍照/语音/文字识别）解析后用批量 AI 分类 enrich 所有草稿
+- 前端：新增/编辑两个表单的"材料分类"标签右侧加"AI识别"按钮（Sparkles/Loader2 图标，加载中 spin，材料名为空时禁用），识别成功 toast 区分 ai/keyword 来源
+
 ### 2026-06 零星材料分类统计
 - `miscellaneous_materials` 新增 `category varchar(50)` 列+索引，迁移 `migrations/add_miscellaneous_materials_category.sql`（双环境已执行，存量按材料名启发式归类，无法识别归"其他材料"）
 - 分类字典单一事实来源：`src/lib/misc-material-categories.ts`（9 类：五金电料/电线电气/水暖管件/焊接耗材/工具器具/劳保防护/安全文明/油料化工/其他材料），含 `guessMiscCategory()` 关键词推断

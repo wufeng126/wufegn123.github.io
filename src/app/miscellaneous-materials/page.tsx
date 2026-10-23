@@ -204,6 +204,7 @@ function MiscMaterialsContent() {
   const [saving, setSaving] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [recognizing, setRecognizing] = useState(false);
+  const [aiClassifying, setAiClassifying] = useState(false);
   const [listening, setListening] = useState(false);
   
   // 导入相关
@@ -365,6 +366,35 @@ function MiscMaterialsContent() {
     });
     setAssistDialogOpen(false);
     setAddDialogOpen(true);
+  };
+
+  const handleAiClassify = async () => {
+    const name = form.material_name.trim();
+    if (!name) {
+      toast({ title: '请先输入材料名称', variant: 'error' });
+      return;
+    }
+    try {
+      setAiClassifying(true);
+      const response = await fetch('/api/ai/classify-material', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.category) {
+        throw new Error(json.error || '识别失败');
+      }
+      setForm(prev => ({ ...prev, category: json.category as MiscMaterialCategory }));
+      toast({
+        title: `已识别为「${json.category}」`,
+        description: json.source === 'ai' ? '由 AI 判断，保存前可手动调整' : '按名称关键词匹配，保存前可手动调整',
+      });
+    } catch (error: unknown) {
+      toast({ title: '分类识别失败', description: getClientErrorMessage(error, '请手动选择分类'), variant: 'error' });
+    } finally {
+      setAiClassifying(false);
+    }
   };
 
   const handleRecognizeMaterial = async () => {
@@ -1549,7 +1579,21 @@ function MiscMaterialsContent() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                <div className="flex items-center justify-between">
+                  <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAiClassify}
+                    disabled={aiClassifying || !form.material_name.trim()}
+                    className="h-6 gap-1 px-2 text-xs"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {aiClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    AI识别
+                  </Button>
+                </div>
                 <Select
                   value={form.category || guessMiscCategory(form.material_name)}
                   onValueChange={(v) => setForm({ ...form, category: v as MiscMaterialCategory })}
@@ -1691,7 +1735,21 @@ function MiscMaterialsContent() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                <div className="flex items-center justify-between">
+                  <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAiClassify}
+                    disabled={aiClassifying || !form.material_name.trim()}
+                    className="h-6 gap-1 px-2 text-xs"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {aiClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    AI识别
+                  </Button>
+                </div>
                 <Select
                   value={form.category || guessMiscCategory(form.material_name)}
                   onValueChange={(v) => setForm({ ...form, category: v as MiscMaterialCategory })}

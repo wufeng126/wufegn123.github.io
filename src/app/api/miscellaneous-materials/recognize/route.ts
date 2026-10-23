@@ -4,6 +4,8 @@ import { OSSStorage } from '@/lib/oss-storage';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { extractForwardHeaders } from '@/lib/ai-service';
+import { classifyMaterialsWithAI } from '@/lib/ai-material-classify';
+import { guessMiscCategory } from '@/lib/misc-material-categories';
 import { parseMiscMaterialText } from '@/lib/misc-material-recognition';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
@@ -116,6 +118,18 @@ export async function POST(request: NextRequest) {
     if (!rawText) return apiBadRequest('请提供照片、语音或文字内容');
 
     const parsed = parseMiscMaterialText(rawText, projects);
+
+    // AI 材料分类（失败自动回退关键词推断），智能录入各入口统一受益
+    if (parsed.drafts.length > 0) {
+      const aiCategories = await classifyMaterialsWithAI(
+        extractForwardHeaders(request.headers),
+        parsed.drafts.map(draft => draft.material_name),
+      );
+      parsed.drafts.forEach((draft, index) => {
+        draft.category = aiCategories[index] || guessMiscCategory(draft.material_name);
+      });
+    }
+
     return apiSuccess({
       rawText,
       drafts: parsed.drafts,
