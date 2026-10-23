@@ -376,7 +376,7 @@
 
 ### 2026-06 零星材料分类统计
 - `miscellaneous_materials` 新增 `category varchar(50)` 列+索引，迁移 `migrations/add_miscellaneous_materials_category.sql`（双环境已执行，存量按材料名启发式归类，无法识别归"其他材料"）
-- 分类字典单一事实来源：`src/lib/misc-material-categories.ts`（10 类：五金电料/电线电气/水暖管件/焊接耗材/工具器具/劳保防护/安全文明/油料化工/运费/其他材料），含 `guessMiscCategory()` 关键词推断
+- 分类字典单一事实来源：`src/lib/misc-material-categories.ts`（9 类：五金电料/电线电气/水暖管件/焊接耗材/工具器具/劳保安全/油料化工/运费/其他材料；后"劳保防护"与"安全文明"合并为"劳保安全"，迁移 `migrations/merge_misc_categories_labor_safety.sql` 双环境已执行，product 存量 2 条已改写），含 `guessMiscCategory()` 关键词推断
 - 录入：新增/编辑表单增加"材料分类"选择，未手动指定时随材料名智能识别；POST 显式分类校验字典，非法值按名推断
 - Excel 导入支持"材料分类/分类/类别"列（精确→包含匹配→名称推断）；导出 CSV 新增材料分类列；导入模板含分类示例
 - GET 支持 `category` 筛选，stats 新增 `categoryStats`（按分类聚合笔数/金额，仅 reviewed）；录入页新增"分类金额统计"卡片（占比条+点击联动筛选）、表格/移动端卡片显示分类徽章

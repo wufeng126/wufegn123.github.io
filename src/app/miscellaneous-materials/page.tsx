@@ -38,8 +38,7 @@ const CATEGORY_STYLES: Record<string, { dot: string; bg: string; color: string }
   '水暖管件': { dot: '#0FC6C2', bg: '#E8FFFB', color: '#0B8A87' },
   '焊接耗材': { dot: '#F77234', bg: '#FFF3E8', color: '#C45418' },
   '工具器具': { dot: '#86909C', bg: '#F2F3F5', color: '#4E5969' },
-  '劳保防护': { dot: '#00B42A', bg: '#E8FFEA', color: '#008A39' },
-  '安全文明': { dot: '#F53F3F', bg: '#FFECE8', color: '#CB272D' },
+  '劳保安全': { dot: '#00B42A', bg: '#E8FFEA', color: '#008A39' },
   '油料化工': { dot: '#D4A017', bg: '#FFF9E0', color: '#8A6D0B' },
   '其他材料': { dot: '#A9AEB8', bg: '#F7F8FA', color: '#6B7280' },
 };
@@ -812,7 +811,7 @@ function MiscMaterialsContent() {
     const rows = [
       ['项目名称', '材料名称', '材料分类', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'],
       ['XX项目', '焊条', '焊接耗材', 'J422 3.2mm', '包', 10, 25, '2026-01-15', '张三', '示例行，导入前请删除'],
-      ['XX项目', '劳保手套', '劳保防护', '棉纱加厚', '双', 50, 3.5, '2026-01-16', '李四', ''],
+      ['XX项目', '劳保手套', '劳保安全', '棉纱加厚', '双', 50, 3.5, '2026-01-16', '李四', ''],
       ['XX项目', 'PPR管', '', 'DN25', '米', 20, 8, '2026-01-16', '王五', '分类留空按材料名自动识别'],
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
