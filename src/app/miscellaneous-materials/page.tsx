@@ -44,7 +44,7 @@ const CATEGORY_STYLES: Record<string, { dot: string; bg: string; color: string }
   '大型机具': { dot: '#F53F3F', bg: '#FFECE8', color: '#CB272D' },
   '小型工具': { dot: '#86909C', bg: '#F2F3F5', color: '#4E5969' },
   '运费': { dot: '#0E7FA8', bg: '#E3F4FB', color: '#0A5F80' },
-  '施工杂': { dot: '#D9735B', bg: '#FDEEE9', color: '#A84E38' },
+  '施工杂费': { dot: '#D9735B', bg: '#FDEEE9', color: '#A84E38' },
 };
 
 function categoryStyle(cat: string | null | undefined) {
