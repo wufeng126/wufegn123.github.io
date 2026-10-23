@@ -34,6 +34,32 @@ import {
   Package,
   Database,
   FileSignature,
+  CalendarDays,
+  CalendarCheck,
+  Coins,
+  Banknote,
+  IdCard,
+  Truck,
+  ScrollText,
+  CreditCard,
+  HardHat,
+  NotebookText,
+  Landmark,
+  PieChart,
+  TrendingUp,
+  Gauge,
+  UserCheck,
+  Wallet,
+  FileBarChart,
+  Target,
+  Archive,
+  UserCog,
+  Link2,
+  Workflow,
+  RefreshCw,
+  Bot,
+  History,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hasCompatiblePermission } from '@/lib/route-permissions';
@@ -67,7 +93,7 @@ const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; 
   { name: '施工管理', href: '/construction-logs', icon: 'crane', group: '业务' },
   { name: '人力与工资', href: '/hr-salary', icon: 'worker', group: '业务' },
   { name: '供应商与费用', href: '/supplier-expense', icon: 'wrench', group: '业务' },
-  { name: '班组管理', href: '/team-management/groups', icon: 'chart', group: '业务' },
+  { name: '班组管理', href: '/team-management/groups', icon: 'hardhat', group: '业务' },
   { name: '经营分析', href: '/business-analysis', icon: 'chart', group: '决策' },
   { name: '投标测算', href: '/cost-estimation/bid', icon: 'calculator', group: '决策' },
   { name: '知识库', href: '/knowledge', icon: 'book', group: '决策' },
@@ -75,67 +101,68 @@ const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; 
 ];
 
 // 二级菜单（子页面显性化；不设 permissions 即按一级菜单可见性控制）
-const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: BrandIconName; permissions?: string[] }>> = {
+// 图标统一使用 lucide 单色线性图标（小尺寸下比品牌渐变图标更清晰），保证全局不重复
+const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: LucideIcon; permissions?: string[] }>> = {
   '/construction-logs': [
-    { name: '施工日志', href: '/construction-logs', icon: 'crane' },
-    { name: '项目日报', href: '/construction-daily-reports', icon: 'doc' },
-    { name: '进度计划', href: '/progress-management', icon: 'trend' },
-    { name: '日历视图', href: '/construction-logs?tab=calendar', icon: 'doc' },
-    { name: '出勤统计', href: '/construction-attendance', icon: 'worker' },
+    { name: '施工日志', href: '/construction-logs', icon: ClipboardList },
+    { name: '项目日报', href: '/construction-daily-reports', icon: FileText },
+    { name: '进度计划', href: '/progress-management', icon: CalendarClock },
+    { name: '日历视图', href: '/construction-logs?tab=calendar', icon: CalendarDays },
+    { name: '出勤统计', href: '/construction-attendance', icon: CalendarCheck },
   ],
   '/project-center': [
-    { name: '项目管理', href: '/project-center', icon: 'building' },
-    { name: '报量管理', href: '/quantity-reporting', icon: 'crane' },
-    { name: '签证管理', href: '/visas', icon: 'doc' },
-    { name: '甲方报量', href: '/client-reports', icon: 'chart' },
-    { name: '甲方回款', href: '/client-payments', icon: 'money' },
-    { name: '结算证据链', href: '/evidence-chain', icon: 'doc' },
+    { name: '项目管理', href: '/project-center', icon: Building2 },
+    { name: '报量管理', href: '/quantity-reporting', icon: FileSpreadsheet },
+    { name: '签证管理', href: '/visas', icon: FileSignature },
+    { name: '甲方报量', href: '/client-reports', icon: BarChart3 },
+    { name: '甲方回款', href: '/client-payments', icon: HandCoins },
+    { name: '结算证据链', href: '/evidence-chain', icon: FileCheck2 },
   ],
   '/hr-salary': [
-    { name: '花名册', href: '/workers/roster', icon: 'worker' },
-    { name: '月度工资', href: '/workers/salaries', icon: 'money' },
-    { name: '生活费台账', href: '/workers/living-allowances', icon: 'money', permissions: ['salaries:pay'] },
-    { name: '工资发放', href: '/workers/payments', icon: 'money' },
-    { name: '工资查询', href: '/workers/query', icon: 'doc' },
-    { name: '证件管理', href: '/certificates', icon: 'doc' },
+    { name: '花名册', href: '/workers/roster', icon: Users },
+    { name: '月度工资', href: '/workers/salaries', icon: ReceiptText },
+    { name: '生活费台账', href: '/workers/living-allowances', icon: Coins, permissions: ['salaries:pay'] },
+    { name: '工资发放', href: '/workers/payments', icon: Banknote },
+    { name: '工资查询', href: '/workers/query', icon: Search },
+    { name: '证件管理', href: '/certificates', icon: IdCard },
   ],
   '/supplier-expense': [
-    { name: '供应商库', href: '/supplier-expense?tab=suppliers', icon: 'building' },
-    { name: '合同管理', href: '/supplier-contracts', icon: 'doc' },
-    { name: '结算管理', href: '/supplier-expense?tab=settlements', icon: 'chart' },
-    { name: '付款记录', href: '/payments', icon: 'money' },
-    { name: '综合费用', href: '/comprehensive-expenses', icon: 'wrench' },
-    { name: '零星材料', href: '/miscellaneous-materials', icon: 'wrench' },
+    { name: '供应商库', href: '/supplier-expense?tab=suppliers', icon: Truck },
+    { name: '合同管理', href: '/supplier-contracts', icon: ScrollText },
+    { name: '结算管理', href: '/supplier-expense?tab=settlements', icon: Calculator },
+    { name: '付款记录', href: '/payments', icon: CreditCard },
+    { name: '综合费用', href: '/comprehensive-expenses', icon: WalletCards },
+    { name: '零星材料', href: '/miscellaneous-materials', icon: Package },
   ],
   '/team-management/groups': [
-    { name: '班组列表', href: '/team-management/groups', icon: 'worker' },
-    { name: '班组结算', href: '/team-management/settlements', icon: 'chart' },
-    { name: '工人工资台账', href: '/team-management/salary-ledger', icon: 'money' },
-    { name: '班组付款', href: '/team-management/payments', icon: 'money' },
+    { name: '班组列表', href: '/team-management/groups', icon: HardHat },
+    { name: '班组结算', href: '/team-management/settlements', icon: ClipboardCheck },
+    { name: '工人工资台账', href: '/team-management/salary-ledger', icon: NotebookText },
+    { name: '班组付款', href: '/team-management/payments', icon: Landmark },
   ],
   '/business-analysis': [
-    { name: '经营分析', href: '/business-analysis', icon: 'chart' },
-    { name: '成本利润中心', href: '/cost-center', icon: 'calculator' },
-    { name: '供应商成本看板', href: '/data-board/supplier-cost', icon: 'wrench' },
-    { name: '工人成本看板', href: '/data-board/worker-cost', icon: 'worker' },
-    { name: '资金管理看板', href: '/data-board/fund-management', icon: 'money' },
-    { name: '月度经营月报', href: '/reports/monthly', icon: 'doc' },
+    { name: '经营分析', href: '/business-analysis', icon: PieChart },
+    { name: '成本利润中心', href: '/cost-center', icon: TrendingUp },
+    { name: '供应商成本看板', href: '/data-board/supplier-cost', icon: Gauge },
+    { name: '工人成本看板', href: '/data-board/worker-cost', icon: UserCheck },
+    { name: '资金管理看板', href: '/data-board/fund-management', icon: Wallet },
+    { name: '月度经营月报', href: '/reports/monthly', icon: FileBarChart },
   ],
   '/cost-estimation/bid': [
-    { name: '测算中心', href: '/cost-estimation/bid', icon: 'calculator' },
-    { name: '历史标段库', href: '/cost-estimation/bid/library', icon: 'book' },
+    { name: '测算中心', href: '/cost-estimation/bid', icon: Target },
+    { name: '历史标段库', href: '/cost-estimation/bid/library', icon: Archive },
   ],
   '/knowledge': [],
   '/system-management': [
-    { name: '权限中心', href: '/system-management?tab=permission', icon: 'doc', permissions: ['system:permission_manage'] },
-    { name: '后台账号', href: '/system-management?tab=admin', icon: 'doc', permissions: ['system:manage'] },
-    { name: '钉钉绑定', href: '/system-management?tab=dingtalk', icon: 'doc', permissions: ['system:dingtalk_manage'] },
-    { name: '审批流程', href: '/system-management?tab=approval', icon: 'doc', permissions: ['system:manage'] },
-    { name: '通知中心', href: '/system-management?tab=notifications', icon: 'alert', permissions: ['notifications:view'] },
-    { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: 'doc', permissions: ['system:manage'] },
-    { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: 'doc', permissions: ['system:ai_manage'] },
-    { name: '数据备份', href: '/settings/backup', icon: 'doc', permissions: ['system:manage'] },
-    { name: '日志管理', href: '/system-management?tab=audit-logs', icon: 'doc', permissions: ['audit:view'] },
+    { name: '权限中心', href: '/system-management?tab=permission', icon: ShieldCheck, permissions: ['system:permission_manage'] },
+    { name: '后台账号', href: '/system-management?tab=admin', icon: UserCog, permissions: ['system:manage'] },
+    { name: '钉钉绑定', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
+    { name: '审批流程', href: '/system-management?tab=approval', icon: Workflow, permissions: ['system:manage'] },
+    { name: '通知中心', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
+    { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
+    { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },
+    { name: '数据备份', href: '/settings/backup', icon: Database, permissions: ['system:manage'] },
+    { name: '日志管理', href: '/system-management?tab=audit-logs', icon: History, permissions: ['audit:view'] },
   ],
 };
 
@@ -652,10 +679,11 @@ export default function SidebarLayout({
                               }}
                               onClick={() => { setSidebarOpen(false); setHoverExpanded(false); }}
                             >
-                              <BrandIconContainer
-                                name={item.icon}
-                                size={13}
-                                className="rounded p-0.5 shadow-none"
+                              <item.icon
+                                size={14}
+                                strokeWidth={1.8}
+                                className="shrink-0"
+                                style={{ color: isSubActive ? 'var(--color-primary)' : '#94A3B8' }}
                               />
                               <span>{item.name}</span>
                             </Link>

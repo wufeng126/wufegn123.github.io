@@ -368,6 +368,12 @@
 
 ## 最近更新
 
+### 2026-06 侧边栏菜单图标去重改造
+- **一级菜单**（保持品牌渐变图标体系 BrandIconContainer）：班组管理 chart→hardhat（消除与经营分析的 chart 重复，hardhat 此前未被使用）
+- **二级菜单**（35 项全部改为 lucide 单色线性图标，全局唯一）：品牌图标库仅 12 个可选值，34+ 菜单项必然重复（doc 曾重复 12 次、money 7 次）；二级图标渲染尺寸小（13px），单色线性图标更清晰。`SECONDARY_MENUS` 的 icon 字段类型由 `BrandIconName` 改为 `LucideIcon`，渲染处改为 `<item.icon size={14} strokeWidth={1.8}>`，颜色 currentColor 跟随激活态（激活 var(--color-primary)/未激活 #94A3B8）
+- 图标语义分配示例：签证管理 FileSignature、甲方回款 HandCoins、生活费台账 Coins、工资发放 Banknote、证件管理 IdCard、合同管理 ScrollText、零星材料 Package、班组列表 HardHat、审批流程 Workflow、AI 助手配置 Bot、日志管理 History 等
+- 注意：文件顶部 import 的 lucide 图标（LayoutDashboard/Zap/BookOpen 等少数）仍未使用，lint 配置不检查未使用 import；移动端底部导航（mobileBottomMenus）沿用一级品牌图标不受影响
+
 ### 2026-06 班组付款"记付款"弹窗项目/班组下拉为空（修复）
 - **根因**：`/api/projects` 列表接口返回顶层 `{projects:[...]}`（非标准 `{data:[...]}` 包裹），而 `team-payments-client.tsx` 的 loadProjects 误读 `json.data`（恒为 undefined）→ 项目下拉空；同页 `/api/team-groups` 返回 `{success,data:{groups:[...]}}`，loadTeams 误把 `json.data` 当数组 → 班组下拉也空。修复：projects 兼容 `json.projects`/`json.data`，teams 兼容 `data.groups`/顶层 `groups`/数组
 - 教训：项目列表接口响应结构为顶层 `projects` 数组（与多数业务接口的 `data` 包裹不同），前端读取优先 `json.projects`；新页面接入项目下拉时直接复用 team-management-client 的写法
