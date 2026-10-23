@@ -8,6 +8,7 @@ export interface MiscMaterialDraft {
   project_name: string;
   material_name: string;
   category?: string;
+  subcategory?: string | null;
   unit: string;
   quantity: string;
   unit_price: string;

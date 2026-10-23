@@ -8,6 +8,7 @@ import { DEFAULT_MISC_CATEGORY } from '@/lib/misc-material-categories';
 const EXPORT_HEADERS: { key: string; label: string }[] = [
   { key: 'project_name', label: '项目名称' },
   { key: 'category', label: '材料分类' },
+  { key: 'subcategory', label: '材料子类' },
   { key: 'material_name', label: '材料名称' },
   { key: 'specification', label: '规格型号' },
   { key: 'unit', label: '单位' },
@@ -99,6 +100,7 @@ export async function GET(request: NextRequest) {
       return {
       project_name: item.projects?.name || item.project?.name || '',
       category: item.category || DEFAULT_MISC_CATEGORY,
+      subcategory: item.subcategory || '',
       material_name: item.material_name || '',
       specification: item.specification || '',
       unit: item.unit || '',

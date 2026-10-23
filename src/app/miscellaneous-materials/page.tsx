@@ -25,11 +25,18 @@ import {
   Package, Loader2, Camera, Mic, Sparkles,
   CheckCircle2, Ban
 } from 'lucide-react';
-import { MISC_MATERIAL_CATEGORIES, guessMiscCategory, type MiscMaterialCategory } from '@/lib/misc-material-categories';
+import {
+  MISC_MATERIAL_CATEGORIES,
+  MISC_MATERIAL_SUBCATEGORY_MAP,
+  guessMiscCategory,
+  isValidSubcategory,
+  shouldSuggestLargeMachinery,
+  type MiscMaterialCategory,
+} from '@/lib/misc-material-categories';
 
 type MaterialStatus = 'draft' | 'reviewed' | 'voided';
 
-const CATEGORY_OPTIONS: string[] = MISC_MATERIAL_CATEGORIES.map(c => c.value);
+const CATEGORY_OPTIONS: string[] = [...MISC_MATERIAL_CATEGORIES];
 
 // 分类配色（圆点 + 浅底）
 const CATEGORY_STYLES: Record<string, { dot: string; bg: string; color: string }> = {
@@ -52,7 +59,7 @@ function categoryStyle(cat: string | null | undefined) {
   return CATEGORY_STYLES[key] || CATEGORY_STYLES['其他材料'];
 }
 
-function CategoryBadge({ category }: { category: string | null | undefined }) {
+function CategoryBadge({ category, subcategory }: { category: string | null | undefined; subcategory?: string | null }) {
   const cat = category || '其他材料';
   const s = categoryStyle(cat);
   return (
@@ -62,6 +69,7 @@ function CategoryBadge({ category }: { category: string | null | undefined }) {
     >
       <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.dot }} />
       {cat}
+      {subcategory && <span className="opacity-70">/{subcategory}</span>}
     </span>
   );
 }
@@ -87,6 +95,7 @@ interface MiscMaterial {
   remark: string | null;
   status: MaterialStatus;
   category?: string | null;
+  subcategory?: string | null;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   created_at: string;
@@ -119,6 +128,7 @@ interface RecognitionDraft {
   project_id?: string;
   material_name?: string;
   category?: string;
+  subcategory?: string | null;
   specification?: string;
   unit?: string;
   quantity?: string;
@@ -194,6 +204,7 @@ function MiscMaterialsContent() {
   const [purchaser, setPurchaser] = useState('');
   const [status, setStatus] = useState<'all' | MaterialStatus>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -227,6 +238,7 @@ function MiscMaterialsContent() {
     project_id: '',
     material_name: '',
     category: '' as MiscMaterialCategory | '',
+    subcategory: '',
     specification: '',
     unit: '',
     quantity: '',
@@ -252,7 +264,7 @@ function MiscMaterialsContent() {
 
   useEffect(() => {
     fetchMaterials(1);
-  }, [selectedProjectId, startDate, endDate, selectedCategory]);
+  }, [selectedProjectId, startDate, endDate, selectedCategory, selectedSubcategory]);
 
   const buildFilterParams = (includePaging = false, page = 1) => {
     const params = new URLSearchParams();
@@ -266,6 +278,7 @@ function MiscMaterialsContent() {
     if (purchaser.trim()) params.append('purchaser', purchaser.trim());
     if (status !== 'all') params.append('status', status);
     if (selectedCategory !== 'all') params.append('category', selectedCategory);
+    if (selectedCategory !== 'all' && selectedSubcategory !== 'all') params.append('subcategory', selectedSubcategory);
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     return params;
@@ -331,6 +344,7 @@ function MiscMaterialsContent() {
       project_id: '',
       material_name: '',
       category: '',
+      subcategory: '',
       specification: '',
       unit: '',
       quantity: '',
@@ -355,10 +369,17 @@ function MiscMaterialsContent() {
   };
 
   const applyRecognitionDraft = (draft: RecognitionDraft) => {
+    const guessed = guessMiscCategory(draft.material_name || '');
+    const category = (draft.category as MiscMaterialCategory) || guessed.category;
+    const subcategory =
+      draft.subcategory && isValidSubcategory(category, draft.subcategory)
+        ? draft.subcategory
+        : (draft.category ? null : guessed.subcategory) || '';
     setForm({
       project_id: draft.project_id || (selectedProjectId !== 'all' ? selectedProjectId : ''),
       material_name: draft.material_name || '',
-      category: (draft.category as MiscMaterialCategory) || guessMiscCategory(draft.material_name),
+      category,
+      subcategory: subcategory || '',
       specification: draft.specification || '',
       unit: draft.unit || '',
       quantity: draft.quantity || '',
@@ -388,9 +409,13 @@ function MiscMaterialsContent() {
       if (!response.ok || !json.category) {
         throw new Error(json.error || '识别失败');
       }
-      setForm(prev => ({ ...prev, category: json.category as MiscMaterialCategory }));
+      setForm(prev => ({
+        ...prev,
+        category: json.category as MiscMaterialCategory,
+        subcategory: json.subcategory && isValidSubcategory(json.category, json.subcategory) ? json.subcategory : '',
+      }));
       toast({
-        title: `已识别为「${json.category}」`,
+        title: `已识别为「${json.category}${json.subcategory ? `/${json.subcategory}` : ''}」`,
         description: json.source === 'ai' ? '由 AI 判断，保存前可手动调整' : '按名称关键词匹配，保存前可手动调整',
       });
     } catch (error: unknown) {
@@ -511,7 +536,11 @@ function MiscMaterialsContent() {
         body: JSON.stringify({
           project_id: parseInt(form.project_id),
           material_name: form.material_name,
-          category: form.category || guessMiscCategory(form.material_name),
+          category: form.category || guessMiscCategory(form.material_name).category,
+          subcategory:
+            form.category && form.subcategory && isValidSubcategory(form.category, form.subcategory)
+              ? form.subcategory
+              : null,
           specification: form.specification || null,
           unit: form.unit || null,
           quantity: parseFloat(form.quantity),
@@ -573,7 +602,11 @@ function MiscMaterialsContent() {
           id: currentMaterial.id,
           project_id: parseInt(form.project_id),
           material_name: form.material_name,
-          category: form.category || currentMaterial.category || guessMiscCategory(form.material_name),
+          category: form.category || currentMaterial.category || guessMiscCategory(form.material_name).category,
+          subcategory:
+            form.category && form.subcategory && isValidSubcategory(form.category, form.subcategory)
+              ? form.subcategory
+              : null,
           specification: form.specification || null,
           unit: form.unit || null,
           quantity: parseFloat(form.quantity),
@@ -788,10 +821,15 @@ function MiscMaterialsContent() {
     }
     // 免审核策略：草稿/已审核均可直接修改（已作废除外）
     setCurrentMaterial(material);
+    const editCategory = (material.category as MiscMaterialCategory) || guessMiscCategory(material.material_name).category;
     setForm({
       project_id: material.project_id.toString(),
       material_name: material.material_name,
-      category: (material.category as MiscMaterialCategory) || guessMiscCategory(material.material_name),
+      category: editCategory,
+      subcategory:
+        material.subcategory && isValidSubcategory(editCategory, material.subcategory)
+          ? material.subcategory
+          : '',
       specification: material.specification || '',
       unit: material.unit || '',
       quantity: material.quantity,
@@ -813,16 +851,16 @@ function MiscMaterialsContent() {
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
     const rows = [
-      ['项目名称', '材料名称', '材料分类', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'],
-      ['XX项目', '焊条', '焊接耗材', 'J422 3.2mm', '包', 10, 25, '2026-01-15', '张三', '示例行，导入前请删除'],
-      ['XX项目', '劳保手套', '劳保安全', '棉纱加厚', '双', 50, 3.5, '2026-01-16', '李四', ''],
-      ['XX项目', '扣件租赁费', '周转辅材', '十字扣件', '个', 100, 0.5, '2026-01-17', '赵六', ''],
-      ['XX项目', 'PPR管', '', 'DN25', '米', 20, 8, '2026-01-16', '王五', '分类留空按材料名自动识别'],
+      ['项目名称', '材料名称', '材料分类', '材料子类', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'],
+      ['XX项目', '铁丝', '五金电料', '钢丝·绳·网', '8#镀锌', '公斤', 10, 25, '2026-01-15', '张三', '示例行，导入前请删除'],
+      ['XX项目', '劳保手套', '劳保安全', '防护服装', '棉纱加厚', '双', 50, 3.5, '2026-01-16', '李四', ''],
+      ['XX项目', '扣件租赁费', '周转辅材', '周转其他', '十字扣件', '个', 100, 0.5, '2026-01-17', '赵六', ''],
+      ['XX项目', 'PPR管', '', '', 'DN25', '米', 20, 8, '2026-01-16', '王五', '分类留空按材料名自动识别；也支持"一级/二级"合并写法，如：水暖管件/PPR·PE管材'],
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet['!cols'] = [
-      { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 8 },
-      { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 26 },
+      { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8 },
+      { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 40 },
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, '零星材料导入');
@@ -1101,7 +1139,13 @@ function MiscMaterialsContent() {
 
             <div className="space-y-1.5">
               <Label style={{ color: 'var(--color-text-3)' }}>材料分类</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select
+                value={selectedCategory}
+                onValueChange={(v) => {
+                  setSelectedCategory(v);
+                  setSelectedSubcategory('all');
+                }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="全部分类" />
                 </SelectTrigger>
@@ -1113,6 +1157,24 @@ function MiscMaterialsContent() {
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedCategory !== 'all' &&
+              (MISC_MATERIAL_SUBCATEGORY_MAP[selectedCategory as MiscMaterialCategory]?.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <Label style={{ color: 'var(--color-text-3)' }}>材料子类</Label>
+                <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="全部子类" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部子类</SelectItem>
+                    {(MISC_MATERIAL_SUBCATEGORY_MAP[selectedCategory as MiscMaterialCategory] || []).map(sub => (
+                      <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label style={{ color: 'var(--color-text-3)' }}>状态</Label>
@@ -1243,7 +1305,10 @@ function MiscMaterialsContent() {
                       <button
                         key={cat}
                         type="button"
-                        onClick={() => setSelectedCategory(active ? 'all' : cat)}
+                        onClick={() => {
+                          setSelectedCategory(active ? 'all' : cat);
+                          setSelectedSubcategory('all');
+                        }}
                         className="rounded-lg border p-3 text-left transition-all hover:shadow-sm"
                         style={{
                           backgroundColor: active ? s.bg : 'var(--color-muted)',
@@ -1308,7 +1373,7 @@ function MiscMaterialsContent() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{material.material_name}</p>
-                          <CategoryBadge category={material.category} />
+                          <CategoryBadge category={material.category} subcategory={material.subcategory} />
                         </div>
                         {material.specification && (
                           <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-text-3)' }}>
@@ -1375,7 +1440,7 @@ function MiscMaterialsContent() {
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <CategoryBadge category={material.category} />
+                          <CategoryBadge category={material.category} subcategory={material.subcategory} />
                         </td>
                         <td className="py-3 px-4">
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
@@ -1599,8 +1664,15 @@ function MiscMaterialsContent() {
                   </Button>
                 </div>
                 <Select
-                  value={form.category || guessMiscCategory(form.material_name)}
-                  onValueChange={(v) => setForm({ ...form, category: v as MiscMaterialCategory })}
+                  value={form.category || guessMiscCategory(form.material_name).category}
+                  onValueChange={(v) => {
+                    const cat = v as MiscMaterialCategory;
+                    setForm(prev => ({
+                      ...prev,
+                      category: cat,
+                      subcategory: prev.subcategory && isValidSubcategory(cat, prev.subcategory) ? prev.subcategory : '',
+                    }));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="选择分类" />
@@ -1611,6 +1683,22 @@ function MiscMaterialsContent() {
                     ))}
                   </SelectContent>
                 </Select>
+                {form.category && (MISC_MATERIAL_SUBCATEGORY_MAP[form.category]?.length ?? 0) > 0 && (
+                  <Select
+                    value={form.subcategory || '__none__'}
+                    onValueChange={(v) => setForm({ ...form, subcategory: v === '__none__' ? '' : v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="选择子类（可选）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">未细分</SelectItem>
+                      {(MISC_MATERIAL_SUBCATEGORY_MAP[form.category] || []).map(sub => (
+                        <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
@@ -1619,11 +1707,13 @@ function MiscMaterialsContent() {
                   value={form.material_name}
                   onChange={(e) => {
                     const name = e.target.value;
-                    // 未手动固定分类时随名称智能识别
+                    // 未手动固定分类时随名称智能识别（两级）
+                    const guessed = guessMiscCategory(name);
                     setForm(prev => ({
                       ...prev,
                       material_name: name,
-                      category: prev.category || guessMiscCategory(name),
+                      category: prev.category || guessed.category,
+                      subcategory: prev.category ? prev.subcategory : (guessed.subcategory || ''),
                     }));
                   }}
                 />
@@ -1705,6 +1795,16 @@ function MiscMaterialsContent() {
             <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
               金额由系统按“数量 × 单价”自动计算，保存后以系统计算结果为准。
             </p>
+            {(() => {
+              const amount = (parseFloat(form.quantity) || 0) * (parseFloat(form.unit_price) || 0);
+              const cat = (form.category || guessMiscCategory(form.material_name).category) as MiscMaterialCategory;
+              if (!shouldSuggestLargeMachinery(cat, amount)) return null;
+              return (
+                <p className="text-xs rounded-md px-2 py-1.5" style={{ backgroundColor: '#FFF7E8', color: '#D46B08' }}>
+                  提示：该笔金额较大（≥5000元），如为机械设备/台班费用，建议归入「大型机具」分类。
+                </p>
+              );
+            })()}
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>取消</Button>
@@ -1755,8 +1855,15 @@ function MiscMaterialsContent() {
                   </Button>
                 </div>
                 <Select
-                  value={form.category || guessMiscCategory(form.material_name)}
-                  onValueChange={(v) => setForm({ ...form, category: v as MiscMaterialCategory })}
+                  value={form.category || guessMiscCategory(form.material_name).category}
+                  onValueChange={(v) => {
+                    const cat = v as MiscMaterialCategory;
+                    setForm(prev => ({
+                      ...prev,
+                      category: cat,
+                      subcategory: prev.subcategory && isValidSubcategory(cat, prev.subcategory) ? prev.subcategory : '',
+                    }));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="选择分类" />
@@ -1767,6 +1874,22 @@ function MiscMaterialsContent() {
                     ))}
                   </SelectContent>
                 </Select>
+                {form.category && (MISC_MATERIAL_SUBCATEGORY_MAP[form.category]?.length ?? 0) > 0 && (
+                  <Select
+                    value={form.subcategory || '__none__'}
+                    onValueChange={(v) => setForm({ ...form, subcategory: v === '__none__' ? '' : v })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="选择子类（可选）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">未细分</SelectItem>
+                      {(MISC_MATERIAL_SUBCATEGORY_MAP[form.category] || []).map(sub => (
+                        <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
@@ -1775,11 +1898,13 @@ function MiscMaterialsContent() {
                   value={form.material_name}
                   onChange={(e) => {
                     const name = e.target.value;
-                    // 未手动固定分类时随名称智能识别
+                    // 未手动固定分类时随名称智能识别（两级）
+                    const guessed = guessMiscCategory(name);
                     setForm(prev => ({
                       ...prev,
                       material_name: name,
-                      category: prev.category || guessMiscCategory(name),
+                      category: prev.category || guessed.category,
+                      subcategory: prev.category ? prev.subcategory : (guessed.subcategory || ''),
                     }));
                   }}
                 />
@@ -1861,6 +1986,16 @@ function MiscMaterialsContent() {
             <p className="text-xs" style={{ color: 'var(--color-text-3)' }}>
               金额由系统按“数量 × 单价”自动计算，保存后以系统计算结果为准。
             </p>
+            {(() => {
+              const amount = (parseFloat(form.quantity) || 0) * (parseFloat(form.unit_price) || 0);
+              const cat = (form.category || guessMiscCategory(form.material_name).category) as MiscMaterialCategory;
+              if (!shouldSuggestLargeMachinery(cat, amount)) return null;
+              return (
+                <p className="text-xs rounded-md px-2 py-1.5" style={{ backgroundColor: '#FFF7E8', color: '#D46B08' }}>
+                  提示：该笔金额较大（≥5000元），如为机械设备/台班费用，建议归入「大型机具」分类。
+                </p>
+              );
+            })()}
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
@@ -1921,8 +2056,9 @@ function MiscMaterialsContent() {
               <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-3)' }}>
                 <li>• 第一行为表头，数据从第二行开始</li>
                 <li>• 必填列：项目名称、材料名称、数量、单价</li>
-                <li>• 可选列：材料分类、规格型号、单位、采购日期、采购人、备注</li>
-                <li>• 材料分类支持：{CATEGORY_OPTIONS.join('、')}；留空或无法识别时按材料名称自动归类</li>
+                <li>• 可选列：材料分类、材料子类、规格型号、单位、采购日期、采购人、备注</li>
+                <li>• 材料分类支持：{CATEGORY_OPTIONS.join('、')}；留空或无法识别时按材料名称自动归类（含子类）</li>
+                <li>• 材料子类须属于所选一级分类，也支持在材料分类列直接写“一级/二级”组合（如：五金电料/紧固件）</li>
                 <li>• 金额由系统按“数量 × 单价”自动计算，旧模板中的金额列会被忽略</li>
                 <li>• 导入即计入成本统计（无需审核），可直接点击“下载导入模板”获取 Excel 模板</li>
                 <li>• 采购日期格式：YYYY-MM-DD（如：2024-01-15）</li>

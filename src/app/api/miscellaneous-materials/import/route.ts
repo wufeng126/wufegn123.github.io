@@ -9,7 +9,7 @@ import {
   calculateMiscellaneousMaterialAmount,
   parsePositiveMiscellaneousMaterialNumber,
 } from '@/lib/miscellaneous-materials';
-import { DEFAULT_MISC_CATEGORY, guessMiscCategory, MISC_CATEGORY_VALUES, type MiscMaterialCategory } from '@/lib/misc-material-categories';
+import { DEFAULT_MISC_CATEGORY, guessMiscCategory, isValidSubcategory, MISC_CATEGORY_VALUES, type MiscMaterialCategory } from '@/lib/misc-material-categories';
 
 type XlsxModule = {
   read: (data: Uint8Array, options: { type: 'array' }) => {
@@ -38,6 +38,7 @@ type MiscellaneousMaterialImportRecord = {
   purchaser: string | null;
   remark: string | null;
   category: string;
+  subcategory: string | null;
   status: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
     const purchaserIdx = findIndex(['采购人']);
     const remarkIdx = findIndex(['备注']);
     const categoryIdx = findIndex(['材料分类', '分类', '类别']);
+    const subcategoryIdx = findIndex(['材料子类', '子类', '子类别']);
 
     if (projectIdx < 0 || materialIdx < 0 || quantityIdx < 0 || priceIdx < 0) {
       return NextResponse.json(
@@ -227,16 +229,39 @@ export async function POST(request: NextRequest) {
       duplicates.push(duplicateKey);
 
       const trimmedMaterialName = materialName.trim();
-      // 分类：Excel 文本精确匹配字典，其次包含匹配，仍无法识别则按材料名推断
-      const rawCategory = categoryIdx >= 0 ? (values[categoryIdx] || '').trim() : '';
-      let finalCategory: MiscMaterialCategory = guessMiscCategory(trimmedMaterialName);
+      // 分类（两级）：分类列支持"一级/二级"组合文本；子类列独立指定；
+      // 均无法识别时按材料名推断（guessMiscCategory 返回一级+二级）
+      const rawCategoryCell = categoryIdx >= 0 ? (values[categoryIdx] || '').trim() : '';
+      const rawSubcategory = subcategoryIdx >= 0 ? (values[subcategoryIdx] || '').trim() : '';
+      // 拆分"一级/二级"或"一级-二级"组合写法
+      let rawCategory = rawCategoryCell;
+      let subFromCell = '';
+      const splitMatch = rawCategoryCell.match(/^([^/\-—]+)[/\-—](.+)$/);
+      if (splitMatch) {
+        rawCategory = splitMatch[1].trim();
+        subFromCell = splitMatch[2].trim();
+      }
+      const guessed = guessMiscCategory(trimmedMaterialName);
+      let finalCategory: MiscMaterialCategory = guessed.category;
+      let finalSubcategory: string | null = guessed.subcategory;
       if (rawCategory) {
-        if (MISC_CATEGORY_VALUES.includes(rawCategory)) {
-          finalCategory = rawCategory as MiscMaterialCategory;
+        let matched: MiscMaterialCategory | null = null;
+        if (MISC_CATEGORY_VALUES.includes(rawCategory as MiscMaterialCategory)) {
+          matched = rawCategory as MiscMaterialCategory;
         } else {
           const fuzzy = MISC_CATEGORY_VALUES.find(c => c.includes(rawCategory) || rawCategory.includes(c));
-          if (fuzzy) finalCategory = fuzzy as MiscMaterialCategory;
+          if (fuzzy) matched = fuzzy;
         }
+        if (matched) {
+          finalCategory = matched;
+          // 一级被显式指定后，仅保留仍属于该一级的推断子类
+          finalSubcategory = finalSubcategory && isValidSubcategory(matched, finalSubcategory) ? finalSubcategory : null;
+        }
+      }
+      // 显式子类（独立列或"一级/二级"组合中的二级部分）优先，必须属于最终一级
+      const explicitSub = rawSubcategory || subFromCell;
+      if (explicitSub) {
+        finalSubcategory = isValidSubcategory(finalCategory, explicitSub) ? explicitSub : finalSubcategory;
       }
 
       records.push({
@@ -251,6 +276,7 @@ export async function POST(request: NextRequest) {
         purchaser: values[purchaserIdx] || null,
         remark: values[remarkIdx] || null,
         category: finalCategory || DEFAULT_MISC_CATEGORY,
+        subcategory: finalSubcategory,
         // 零星材料免审核：导入即已审核并计入成本
         status: REVIEW_STATUS.REVIEWED,
         reviewed_at: new Date().toISOString(),

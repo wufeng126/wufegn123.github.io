@@ -119,14 +119,16 @@ export async function POST(request: NextRequest) {
 
     const parsed = parseMiscMaterialText(rawText, projects);
 
-    // AI 材料分类（失败自动回退关键词推断），智能录入各入口统一受益
+    // AI 材料分类（两级，失败自动回退关键词推断），智能录入各入口统一受益
     if (parsed.drafts.length > 0) {
-      const aiCategories = await classifyMaterialsWithAI(
+      const aiGuesses = await classifyMaterialsWithAI(
         extractForwardHeaders(request.headers),
         parsed.drafts.map(draft => draft.material_name),
       );
       parsed.drafts.forEach((draft, index) => {
-        draft.category = aiCategories[index] || guessMiscCategory(draft.material_name);
+        const guessed = aiGuesses[index] || guessMiscCategory(draft.material_name);
+        draft.category = guessed.category;
+        draft.subcategory = guessed.subcategory;
       });
     }
 

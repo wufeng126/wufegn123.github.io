@@ -368,6 +368,15 @@
 
 ## 最近更新
 
+### 2026-06 零星材料两级分类体系落地（12类×60+子类）
+- 依据用户提供的《材料分类清单-系统录入版.xlsx》落地两级分类：12 个一级分类（编码 01~12，名称与清单一致）+ 60+ 二级子类（编码如 01-04 紧固件、07-06 篷布与苫盖）；`miscellaneous_materials` 新增 `subcategory varchar(50)` 列+索引，迁移 `migrations/add_miscellaneous_materials_subcategory.sql` 双环境已执行，存量留 NULL 由界面补选
+- **7 条业务裁决（用户确认）**：①覆盖类（彩条布/篷布/编织袋）归 07 周转辅材 ②跑腿费/车费归 11 运费 ③PVC/线管归 02 电气 vs PPR/PE/水管归 03 水暖 ④不设"待归位"暂存桶，兜底仅 08-14 笼统待补明细+未分类待确认(subcategory=NULL) ⑤**方木/模板拆出**（07-02 编号保留不启用，木方/模板/胶合板/竹胶板/铝模/架板关键词不参与识别——属单独供应商供应）⑥脚手架/扣件/架管归 07-08，爬架/吊篮归 10-06 ⑦大型机具按金额≥5000 辅助区分（`shouldSuggestLargeMachinery` 前端提示，非硬规则）
+- 字典（`lib/misc-material-categories.ts`）：`MISC_MATERIAL_CATEGORY_DEFS` 两级定义、`MiscMaterialSubcategory{code,value,keywords}`、`MiscCategoryGuess{category,subcategory}`、`MISC_MATERIAL_SUBCATEGORY_MAP`、`isValidSubcategory()`；**`guessMiscCategory()` 签名变更为返回 MiscCategoryGuess 对象**（二级关键词全局最长优先→一级→其他材料兜底），所有调用方须用 `.category`/`.subcategory`
+- 后端：GET 支持 `?subcategory=` 筛选+`subcategoryStats` 聚合；POST/PUT 显式子类 `isValidSubcategory` 校验（不属于一级则置 null），PUT 一级变更时原子类不属于新一级自动置空；导入支持"材料子类"列及"一级/二级"组合写法（如 五金电料/紧固件）；导出 CSV 增子类列
+- AI 分类两级化：`lib/ai-material-classify.ts` 提示词含方木模板排除说明，输出"一级/二级"解析；`/api/ai/classify-material` 返回 `{category,subcategory,source}`；recognize 链路草稿带 subcategory
+- 前端（miscellaneous-materials/page.tsx）：表单"材料分类"下增加联动"材料子类"下拉（一级变更自动清空不匹配子类；智能识别/AI识别/识别草稿全链路回填两级）；筛选区子类下拉随一级联动；分类徽章显示"一级/子类"；分类统计卡点击重置子类筛选；金额≥5000 且分类为小型工具时显示 amber 提示建议归大型机具；导入模板增"材料子类"列
+- **教训**：字典常量结构变更后须全局检查引用点（MISC_MATERIAL_CATEGORIES 由对象数组改为字符串数组导致 ts-check TS2551）；test_run 同批 commands 并发执行，先写后读的断言需分轮次验证（首轮 GET 空是并发时序非缺陷）
+
 ### 2026-06 知识库收口为经验类内容（停用业务数据同步）
 - 背景：知识库混入 auto_sync 业务文档（工人工资台账×5、花名册、项目台账、甲方/供应商付款台账、供应商合同清单共 10 条），用户要求只保留经验类内容
 - 存量清理：`ai_knowledge_docs` 中 source_type='auto_sync' 全部软删（status='deleted'），product 10 条；保留 manual/upload 经验类

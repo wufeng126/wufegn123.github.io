@@ -7,8 +7,9 @@ import { DEFAULT_MISC_CATEGORY, guessMiscCategory } from '@/lib/misc-material-ca
 export const runtime = 'nodejs';
 
 /**
- * 零星材料 AI 分类识别
+ * 零星材料 AI 分类识别（两级）
  * 优先调用 AI 模型判断分类；AI 未启用/无凭据/调用失败/超时均自动回退本地关键词推断。
+ * 返回 { category, subcategory, source: 'ai' | 'keyword' }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -28,14 +29,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请提供材料名称' }, { status: 400 });
     }
 
-    const aiCategory = await classifyMaterialWithAI(extractForwardHeaders(request.headers), materialName);
-    if (aiCategory) {
-      return NextResponse.json({ category: aiCategory, source: 'ai' });
+    const aiGuess = await classifyMaterialWithAI(extractForwardHeaders(request.headers), materialName);
+    if (aiGuess) {
+      return NextResponse.json({ category: aiGuess.category, subcategory: aiGuess.subcategory, source: 'ai' });
     }
 
-    return NextResponse.json({ category: guessMiscCategory(materialName), source: 'keyword' });
+    const guessed = guessMiscCategory(materialName);
+    return NextResponse.json({ category: guessed.category, subcategory: guessed.subcategory, source: 'keyword' });
   } catch (error) {
     console.error('AI 材料分类失败:', error);
-    return NextResponse.json({ category: DEFAULT_MISC_CATEGORY, source: 'keyword' });
+    return NextResponse.json({ category: DEFAULT_MISC_CATEGORY, subcategory: null, source: 'keyword' });
   }
 }

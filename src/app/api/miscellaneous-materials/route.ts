@@ -9,7 +9,7 @@ import {
   calculateMiscellaneousMaterialAmount,
   parsePositiveMiscellaneousMaterialNumber,
 } from '@/lib/miscellaneous-materials';
-import { DEFAULT_MISC_CATEGORY, guessMiscCategory, MISC_CATEGORY_VALUES } from '@/lib/misc-material-categories';
+import { DEFAULT_MISC_CATEGORY, guessMiscCategory, isValidSubcategory, MISC_CATEGORY_VALUES, type MiscMaterialCategory } from '@/lib/misc-material-categories';
 
 interface MiscMaterialStatsRow {
   quantity: string | number | null;
@@ -17,6 +17,7 @@ interface MiscMaterialStatsRow {
   amount?: string | number | null;
   status: string | null;
   category: string | null;
+  subcategory: string | null;
   projects?: { name?: string | null } | null;
 }
 
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const status = searchParams.get('status');
     const category = searchParams.get('category');
+    const subcategory = searchParams.get('subcategory');
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
 
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
         voidedAmount: 0,
         projectStats: {},
         categoryStats: {},
+        subcategoryStats: {},
       },
     };
     if (accessibleProjects !== null && accessibleProjects.length === 0) {
@@ -101,6 +104,9 @@ export async function GET(request: NextRequest) {
     }
     if (category && category !== 'all') {
       countQuery = countQuery.eq('category', category);
+    }
+    if (subcategory && subcategory !== 'all') {
+      countQuery = countQuery.eq('subcategory', subcategory);
     }
 
     const { count, error: countError } = await countQuery;
@@ -147,6 +153,9 @@ export async function GET(request: NextRequest) {
     if (category && category !== 'all') {
       query = query.eq('category', category);
     }
+    if (subcategory && subcategory !== 'all') {
+      query = query.eq('subcategory', subcategory);
+    }
 
     const { data, error } = await query;
 
@@ -165,6 +174,7 @@ export async function GET(request: NextRequest) {
         amount,
         status,
         category,
+        subcategory,
         projects(id, name)
       `);
 
@@ -196,6 +206,9 @@ export async function GET(request: NextRequest) {
     if (category && category !== 'all') {
       statsQuery = statsQuery.eq('category', category);
     }
+    if (subcategory && subcategory !== 'all') {
+      statsQuery = statsQuery.eq('subcategory', subcategory);
+    }
 
     const { data: statsData, error: statsError } = await statsQuery;
     if (statsError) {
@@ -219,6 +232,7 @@ export async function GET(request: NextRequest) {
     const voidedAmount = sumAmount(voidedData);
     const projectStats: Record<string, number> = {};
     const categoryStats: Record<string, { count: number; amount: number }> = {};
+    const subcategoryStats: Record<string, { count: number; amount: number }> = {};
 
     reviewedData.forEach(item => {
       const amount = calculateMiscellaneousMaterialAmount(item.quantity, item.unit_price);
@@ -234,6 +248,14 @@ export async function GET(request: NextRequest) {
       }
       categoryStats[cat].count += 1;
       categoryStats[cat].amount += amount;
+
+      if (item.subcategory) {
+        if (!subcategoryStats[item.subcategory]) {
+          subcategoryStats[item.subcategory] = { count: 0, amount: 0 };
+        }
+        subcategoryStats[item.subcategory].count += 1;
+        subcategoryStats[item.subcategory].amount += amount;
+      }
     });
 
     const materials = (data || []).map((item: any) => {
@@ -252,6 +274,7 @@ export async function GET(request: NextRequest) {
         remark: item.remark,
         status: item.status || REVIEW_STATUS.DRAFT,
         category: item.category || DEFAULT_MISC_CATEGORY,
+        subcategory: item.subcategory || null,
         reviewed_at: item.reviewed_at,
         reviewed_by: item.reviewed_by,
         created_at: item.created_at,
@@ -281,6 +304,7 @@ export async function GET(request: NextRequest) {
         voidedAmount,
         projectStats,
         categoryStats,
+        subcategoryStats,
       }
     });
   } catch (error: any) {
@@ -347,7 +371,7 @@ export async function POST(request: NextRequest) {
     const insertData = records.flatMap((record, index) => {
       const {
         project_id, material_name, specification, unit,
-        quantity, unit_price, purchase_date, supplier, remark, category
+        quantity, unit_price, purchase_date, supplier, remark, category, subcategory
       } = record;
 
       const qty = parsePositiveMiscellaneousMaterialNumber(quantity);
@@ -362,15 +386,20 @@ export async function POST(request: NextRequest) {
       }
       const amount = calculateMiscellaneousMaterialAmount(qty, price);
       const trimmedName = material_name?.trim() || '未命名材料';
-      // 分类：显式传入且在字典内则采用，否则按材料名智能推断
-      const finalCategory = category && MISC_CATEGORY_VALUES.includes(category)
+      // 分类（两级）：显式传入且在字典内则采用（子类需属于该一级），否则按材料名智能推断
+      const guessed = guessMiscCategory(trimmedName);
+      const finalCategory: MiscMaterialCategory = category && MISC_CATEGORY_VALUES.includes(category)
         ? category
-        : guessMiscCategory(trimmedName);
+        : guessed.category;
+      const finalSubcategory = typeof subcategory === 'string' && subcategory.trim() && isValidSubcategory(finalCategory, subcategory.trim())
+        ? subcategory.trim()
+        : (guessed.category === finalCategory ? guessed.subcategory : null);
 
       return [{
         project_id: parseInt(project_id),
         material_name: trimmedName,
         category: finalCategory,
+        subcategory: finalSubcategory,
         specification: specification?.trim() || null,
         unit: unit?.trim() || null,
         quantity: qty,
@@ -429,7 +458,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { id, project_id, material_name, specification, unit, quantity, unit_price, purchase_date, supplier, remark, status, category } = body;
+    const { id, project_id, material_name, specification, unit, quantity, unit_price, purchase_date, supplier, remark, status, category, subcategory } = body;
 
     if (!id) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
@@ -440,7 +469,7 @@ export async function PUT(request: NextRequest) {
 
     const { data: currentMaterial, error: currentError } = await client
       .from('miscellaneous_materials')
-      .select('id, project_id, status, material_name, specification, unit, quantity, unit_price, amount, purchase_date, purchaser, remark, category')
+      .select('id, project_id, status, material_name, specification, unit, quantity, unit_price, amount, purchase_date, purchaser, remark, category, subcategory')
       .eq('id', materialId)
       .single();
 
@@ -566,9 +595,23 @@ export async function PUT(request: NextRequest) {
         : purchase_date || new Date().toISOString().split('T')[0],
       purchaser: supplier === undefined ? currentMaterial.purchaser || null : supplier?.trim() || null,
       remark: remark === undefined ? currentMaterial.remark || null : remark?.trim() || null,
+      // 分类（两级）：一级未传则保留现值；一级变更后子类必须属于新一级（不匹配则置空，避免脏组合）
       category: category === undefined
-        ? currentMaterial.category || guessMiscCategory(currentMaterial.material_name)
+        ? currentMaterial.category || guessMiscCategory(currentMaterial.material_name).category
         : (MISC_CATEGORY_VALUES.includes(category) ? category : DEFAULT_MISC_CATEGORY),
+      subcategory: (() => {
+        const finalCat: MiscMaterialCategory = category === undefined
+          ? (currentMaterial.category as MiscMaterialCategory) || DEFAULT_MISC_CATEGORY
+          : (MISC_CATEGORY_VALUES.includes(category) ? category : DEFAULT_MISC_CATEGORY);
+        if (subcategory !== undefined) {
+          return typeof subcategory === 'string' && subcategory.trim() && isValidSubcategory(finalCat, subcategory.trim())
+            ? subcategory.trim()
+            : null;
+        }
+        // 子类未提交：一级未变则保留现值；一级变更则校验现子类是否仍属于新一级
+        const currentSub = currentMaterial.subcategory as string | null;
+        return currentSub && isValidSubcategory(finalCat, currentSub) ? currentSub : null;
+      })(),
     };
 
     const { data, error } = await client
