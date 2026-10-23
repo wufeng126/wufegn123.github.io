@@ -114,7 +114,9 @@ export function extractForwardHeaders(headers: Headers): Record<string, string> 
 
 // ============ 知识库客户端 ============
 
-export const DATASET_NAME = 'labor_ai_kb';
+// 经验类知识库数据集（v2）：知识库定位为经验沉淀，业务台账数据（花名册/工资台账/付款等）不再入库；
+// 旧数据集 labor_ai_kb 中残留的业务同步文档随之废弃隔离
+export const DATASET_NAME = 'labor_ai_kb_exp';
 
 export function createKnowledgeClient(
   customHeaders?: Record<string, string>,
@@ -161,6 +163,7 @@ export async function searchSystemKnowledge(query: string): Promise<string> {
       .select('title, content, category, tags, created_at, source_type, source_ref')
       .eq('status', 'active')
       .neq('source_type', 'construction_log')
+      .neq('source_type', 'auto_sync') // 业务台账同步文档已下线，知识库仅保留经验类内容
       .limit(5)
       .order('created_at', { ascending: false });
 

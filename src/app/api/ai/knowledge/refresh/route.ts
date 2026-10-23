@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addKnowledgeDoc, extractForwardHeaders, createKnowledgeClient, DATASET_NAME } from '@/lib/ai-service';
-import { syncAllBusinessData, getSyncStatus } from '@/lib/ai-knowledge-sync';
+import { addKnowledgeDoc, extractForwardHeaders } from '@/lib/ai-service';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { Config, KnowledgeClient } from 'coze-coding-dev-sdk';
 import { requirePermission } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
@@ -20,10 +18,9 @@ export async function POST(request: NextRequest) {
 
     const forwardHeaders = extractForwardHeaders(request.headers);
 
-    // Step 1: 全量同步业务数据
-    const syncResult = await syncAllBusinessData(forwardHeaders);
-
-    // Step 2: 重新入库所有上传文档（从DB读取content，重新add到向量库）
+    // 业务数据同步已下线：知识库仅保留经验类内容，此处只做经验类文档的向量索引重建
+    // （旧业务同步文档已隔离在废弃数据集 labor_ai_kb，新数据集 labor_ai_kb_exp 只含经验内容）
+    // 重新入库所有经验类文档（从DB读取content，重新add到向量库）
     const supabase = getSupabaseClient();
     const { data: docs } = await supabase
       .from('ai_knowledge_docs')
@@ -49,11 +46,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: syncResult.success,
+      success: true,
       data: {
-        synced: syncResult.synced,
         reIndexed,
-        syncErrors: syncResult.errors,
       },
     });
   } catch (e: any) {

@@ -107,14 +107,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 惰性自动同步：距上次同步超过阈值时自动刷新业务知识库
-    try {
-      const { maybeAutoSyncBusinessData } = await import('@/lib/ai-knowledge-sync');
-      await maybeAutoSyncBusinessData(forwardHeaders);
-    } catch (e) {
-      console.warn('[Chat] auto sync skipped:', e);
-    }
-
     // 获取知识库上下文
     let knowledgeContext = '';
     try {

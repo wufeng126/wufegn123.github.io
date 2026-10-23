@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncAllBusinessData, getSyncStatus } from '@/lib/ai-knowledge-sync';
-import { extractForwardHeaders } from '@/lib/ai-service';
+import { getSyncStatus } from '@/lib/ai-knowledge-sync';
 import { requirePermission } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
@@ -23,14 +22,11 @@ export async function POST(request: NextRequest) {
       if (!auth.ok) return auth.response;
     }
 
-    const forwardHeaders = extractForwardHeaders(request.headers);
-    const result = await syncAllBusinessData(forwardHeaders);
-
+    // 业务数据同步已下线：知识库仅保留经验类内容（花名册/台账/付款等业务数据不再入库）
     return NextResponse.json({
-      success: result.success,
-      data: result.synced,
-      errors: result.errors.length > 0 ? result.errors : undefined,
-    });
+      success: false,
+      error: '业务数据同步已停用，知识库仅保留经验类内容',
+    }, { status: 410 });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

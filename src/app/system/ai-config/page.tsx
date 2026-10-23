@@ -108,7 +108,6 @@ export default function AIConfigPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState<string | null>(null);
   const [storageChecking, setStorageChecking] = useState(false);
   const [storageStatus, setStorageStatus] = useState('');
 
@@ -236,29 +235,6 @@ export default function AIConfigPage() {
     }
   };
 
-  // 同步业务数据到知识库
-  const syncBusinessData = async (dataType: string) => {
-    setSyncing(dataType);
-    try {
-      const res = await fetch('/api/ai/knowledge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_business', data_type: dataType }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`已同步${dataType}数据到知识库`);
-        await loadDocs();
-      } else {
-        toast.error(data.error || '同步失败');
-      }
-    } catch (e) {
-      toast.error('同步失败');
-    } finally {
-      setSyncing(null);
-    }
-  };
-
   // 添加手动文档
   const addManualDoc = async () => {
     if (!newDoc.title || !newDoc.content) {
@@ -334,29 +310,6 @@ export default function AIConfigPage() {
       }
     } catch (e) {
       toast.error('删除失败');
-    }
-  };
-
-  // 全量刷新知识库
-  const refreshAllKnowledge = async () => {
-    setSyncing('all');
-    try {
-      const res = await fetch('/api/ai/knowledge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'refresh_all' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('知识库全量刷新完成');
-        await loadDocs();
-      } else {
-        toast.error(data.error || '刷新失败');
-      }
-    } catch (e) {
-      toast.error('刷新失败');
-    } finally {
-      setSyncing(null);
     }
   };
 
@@ -560,41 +513,6 @@ export default function AIConfigPage() {
         {/* 知识库管理 */}
         <TabsContent value="knowledge">
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle>业务数据同步</CardTitle>
-                  <Button variant="outline" size="sm" onClick={refreshAllKnowledge} disabled={syncing === 'all'}>
-                    {syncing === 'all' ? '刷新中...' : '全量刷新'}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {[
-                    { key: 'worker_salary', label: '工人工资台账', icon: '💰' },
-                    { key: 'salary_payment', label: '工资发放记录', icon: '💵' },
-                    { key: 'project_contract', label: '项目合同', icon: '📑' },
-                    { key: 'supplier', label: '供应商合同', icon: '📋' },
-                    { key: 'supplier_settlement', label: '供应商结算', icon: '🧾' },
-                    { key: 'supplier_payment', label: '供应商付款', icon: '🏦' },
-                    { key: 'certificate', label: '证件台账', icon: '🪪' },
-                    { key: 'settlement', label: '结算台账', icon: '📊' },
-                    { key: 'visa', label: '签证变更', icon: '📝' },
-                  ].map(item => (
-                    <Button
-                      key={item.key} variant="outline" className="h-auto py-3 flex-col gap-1"
-                      onClick={() => syncBusinessData(item.key)}
-                      disabled={syncing === item.key}
-                    >
-                      <span className="text-lg">{item.icon}</span>
-                      <span className="text-sm">{item.label}</span>
-                      {syncing === item.key && <span className="text-xs text-muted-foreground">同步中...</span>}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader>

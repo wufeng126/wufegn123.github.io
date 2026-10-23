@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { addKnowledgeDoc, extractForwardHeaders } from '@/lib/ai-service';
-import { syncAllBusinessData, syncSingleDataType } from '@/lib/ai-knowledge-sync';
 import { requireApiWritePermission, requireAuth, requirePermission } from '@/lib/api-auth';
-import { apiBadRequest, apiResult, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
+import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getKnowledgeQuality, normalizeKnowledgeTags, upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 
 // GET /api/ai/knowledge - 获取知识库文档列表
@@ -23,7 +22,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('ai_knowledge_docs')
       .select('*', { count: 'exact' })
-      .neq('source_type', 'construction_log');
+      .neq('source_type', 'construction_log')
+      .neq('source_type', 'auto_sync'); // 业务台账同步文档已下线，知识库仅保留经验类内容
 
     if (category) query = query.eq('category', category);
     if (status) query = query.eq('status', status);
@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
     }
 
     const filteredData = (data || []).filter((doc: any) =>
-      doc.source_type !== 'construction_log' && !String(doc.source_ref || '').startsWith('cl:'),
+      doc.source_type !== 'construction_log'
+      && doc.source_type !== 'auto_sync'
+      && !String(doc.source_ref || '').startsWith('cl:'),
     );
 
     return apiSuccess(filteredData, {
@@ -159,26 +161,11 @@ export async function PUT(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { action, data_type } = body;
+    const { action } = body;
 
-    if (action === 'sync_business') {
-      const forwardHeaders = extractForwardHeaders(request.headers);
-      const result = await syncSingleDataType(data_type || 'all', forwardHeaders);
-      return apiResult(result.success, result.synced, {
-        code: result.success ? 'OK' : 'SYNC_FAILED',
-        error: '业务数据同步未完全成功',
-        meta: { errors: result.errors },
-      });
-    }
-
-    if (action === 'refresh_all') {
-      const forwardHeaders = extractForwardHeaders(request.headers);
-      const result = await syncAllBusinessData(forwardHeaders);
-      return apiResult(result.success, result.synced, {
-        code: result.success ? 'OK' : 'SYNC_FAILED',
-        error: '知识库刷新未完全成功',
-        meta: { errors: result.errors },
-      });
+    // 业务数据同步已下线：知识库仅保留经验类内容（花名册/台账/付款等业务数据不再入库）
+    if (action === 'sync_business' || action === 'refresh_all') {
+      return apiBadRequest('业务数据同步已停用，知识库仅保留经验类内容');
     }
 
     return apiBadRequest('未知操作');

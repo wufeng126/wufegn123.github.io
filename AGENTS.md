@@ -368,6 +368,15 @@
 
 ## 最近更新
 
+### 2026-06 知识库收口为经验类内容（停用业务数据同步）
+- 背景：知识库混入 auto_sync 业务文档（工人工资台账×5、花名册、项目台账、甲方/供应商付款台账、供应商合同清单共 10 条），用户要求只保留经验类内容
+- 存量清理：`ai_knowledge_docs` 中 source_type='auto_sync' 全部软删（status='deleted'），product 10 条；保留 manual/upload 经验类
+- 源头封堵：① `/api/ai/chat` 移除 maybeAutoSyncBusinessData 惰性自动同步（关键：否则聊天会重新同步回来）；② `POST /api/ai/knowledge/sync`、`PUT /api/ai/knowledge` 的 sync_business/refresh_all 均返回"已停用"；③ `POST /api/ai/knowledge/refresh` 移除业务同步步骤，仅重建经验类文档向量索引
+- 向量库净化：SDK 无删除文档能力，DATASET_NAME 由 labor_ai_kb 切换为 labor_ai_kb_exp（新空数据集），旧库脏数据自然废弃；经验类文档通过 refresh 重新灌入
+- 检索过滤：GET /api/ai/knowledge 与 ai-service.searchSystemKnowledge 均排除 source_type='auto_sync'
+- 前端：AI 配置页（system/ai-config）移除"业务数据同步"卡片及 syncBusinessData/refreshAllKnowledge/syncing 相关代码
+- 注意：lib/ai-knowledge-sync.ts 文件保留（getSyncStatus 仍被引用），syncAllBusinessData 已无调用方
+
 ### 2026-06 侧边栏菜单图标去重改造
 - **一级菜单**（保持品牌渐变图标体系 BrandIconContainer）：班组管理 chart→hardhat（消除与经营分析的 chart 重复，hardhat 此前未被使用）
 - **二级菜单**（35 项全部改为 lucide 单色线性图标，全局唯一）：品牌图标库仅 12 个可选值，34+ 菜单项必然重复（doc 曾重复 12 次、money 7 次）；二级图标渲染尺寸小（13px），单色线性图标更清晰。`SECONDARY_MENUS` 的 icon 字段类型由 `BrandIconName` 改为 `LucideIcon`，渲染处改为 `<item.icon size={14} strokeWidth={1.8}>`，颜色 currentColor 跟随激活态（激活 var(--color-primary)/未激活 #94A3B8）
