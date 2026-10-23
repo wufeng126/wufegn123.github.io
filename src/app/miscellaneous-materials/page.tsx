@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Plus, Pencil, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight, ChevronDown,
   Package, Loader2, Camera, Mic, Sparkles,
   CheckCircle2, Ban
 } from 'lucide-react';
@@ -120,6 +120,7 @@ interface Stats {
   voidedAmount: number;
   projectStats: Record<string, number>;
   categoryStats?: Record<string, { count: number; amount: number }>;
+  subcategoryStats?: Record<string, { count: number; amount: number }>;
 }
 
 type AssistMode = 'image' | 'voice' | 'text';
@@ -195,6 +196,7 @@ function MiscMaterialsContent() {
     voidedAmount: 0,
     projectStats: {},
     categoryStats: {},
+    subcategoryStats: {},
   });
   
   // 筛选条件
@@ -205,6 +207,13 @@ function MiscMaterialsContent() {
   const [status, setStatus] = useState<'all' | MaterialStatus>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
+  // 分类统计卡下钻展开的一级分类
+  const [expandedStatCategory, setExpandedStatCategory] = useState<string | null>(null);
+  // 看板统计（不随分类/子类/状态筛选变化，保证下钻面板数据完整）
+  const [boardStats, setBoardStats] = useState<{
+    categoryStats?: Record<string, { count: number; amount: number }>;
+    subcategoryStats?: Record<string, { count: number; amount: number }>;
+  }>({});
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -248,6 +257,10 @@ function MiscMaterialsContent() {
     remark: '',
   });
 
+  // 表单当前生效分类（未手动选择时按名称智能识别）与可选子类
+  const formEffectiveCategory = (form.category || guessMiscCategory(form.material_name).category) as MiscMaterialCategory;
+  const formSubOptions = MISC_MATERIAL_SUBCATEGORY_MAP[formEffectiveCategory] || [];
+
   useEffect(() => {
     // 从URL获取项目ID
     queueMicrotask(() => {
@@ -259,12 +272,18 @@ function MiscMaterialsContent() {
     fetchProjects();
     fetchMaterials();
     fetchStats();
+    fetchBoardStats();
     });
   }, [searchParams]);
 
   useEffect(() => {
     fetchMaterials(1);
   }, [selectedProjectId, startDate, endDate, selectedCategory, selectedSubcategory]);
+
+  // 看板统计仅随项目/日期范围变化
+  useEffect(() => {
+    fetchBoardStats();
+  }, [selectedProjectId, startDate, endDate]);
 
   const buildFilterParams = (includePaging = false, page = 1) => {
     const params = new URLSearchParams();
@@ -335,6 +354,28 @@ function MiscMaterialsContent() {
       }
     } catch (error) {
       console.error('获取统计数据失败:', error);
+    }
+  };
+
+  // 获取看板统计（仅项目+日期范围，不随分类/子类/状态筛选变化）
+  async function fetchBoardStats() {
+    try {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('pageSize', '1');
+      if (selectedProjectId !== 'all') params.append('projectId', selectedProjectId);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const response = await fetch(`/api/miscellaneous-materials?${params}`);
+      const data = await response.json();
+      if (data.stats) {
+        setBoardStats({
+          categoryStats: data.stats.categoryStats || {},
+          subcategoryStats: data.stats.subcategoryStats || {},
+        });
+      }
+    } catch (error) {
+      console.error('获取看板统计失败:', error);
     }
   };
 
@@ -562,6 +603,7 @@ function MiscMaterialsContent() {
         resetForm();
         fetchMaterials();
         fetchStats();
+        fetchBoardStats();
       } else {
         toast({
           title: '添加失败',
@@ -629,6 +671,7 @@ function MiscMaterialsContent() {
         resetForm();
         fetchMaterials();
         fetchStats();
+        fetchBoardStats();
       } else {
         toast({
           title: '修改失败',
@@ -676,6 +719,7 @@ function MiscMaterialsContent() {
       });
       await fetchMaterials(pagination.page);
       await fetchStats();
+      await fetchBoardStats();
     } catch (error: unknown) {
       toast({
         title: '状态更新失败',
@@ -707,6 +751,7 @@ function MiscMaterialsContent() {
         setCurrentMaterial(null);
         fetchMaterials();
         fetchStats();
+        fetchBoardStats();
       } else {
         toast({
           title: '删除失败',
@@ -1232,6 +1277,8 @@ function MiscMaterialsContent() {
                 setPurchaser('');
                 setStatus('all');
                 setSelectedCategory('all');
+                setSelectedSubcategory('all');
+                setExpandedStatCategory(null);
                 setStartDate('');
                 setEndDate('');
                 setTimeout(() => {
@@ -1279,63 +1326,178 @@ function MiscMaterialsContent() {
         </Card>
       )}
 
-      {/* 分类统计（仅已审核计入成本的金额） */}
-      {stats.categoryStats && Object.keys(stats.categoryStats).length > 0 && (
+      {/* 分类统计（仅已审核计入成本的金额；不随分类筛选变化，保证下钻数据完整） */}
+      {boardStats.categoryStats && Object.keys(boardStats.categoryStats).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base" style={{ color: 'var(--foreground)' }}>
               分类金额统计
               <span className="ml-2 text-sm font-normal" style={{ color: 'var(--color-text-3)' }}>
-                点击分类可快速筛选
+                点击分类查看子类明细，点击子类快速筛选
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {(() => {
-              const entries = Object.entries(stats.categoryStats)
+              const entries = Object.entries(boardStats.categoryStats || {})
                 .sort((a, b) => b[1].amount - a[1].amount);
               const grandTotal = entries.reduce((s, [, v]) => s + v.amount, 0);
               return (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {entries.map(([cat, v]) => {
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {entries.map(([cat, v]) => {
+                      const s = categoryStyle(cat);
+                      const pct = grandTotal > 0 ? (v.amount / grandTotal) * 100 : 0;
+                      const active = selectedCategory === cat;
+                      const hasSubs = (MISC_MATERIAL_SUBCATEGORY_MAP[cat as MiscMaterialCategory]?.length ?? 0) > 0;
+                      const expanded = expandedStatCategory === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            if (hasSubs) {
+                              setExpandedStatCategory(expanded ? null : cat);
+                            } else {
+                              setSelectedCategory(active ? 'all' : cat);
+                              setSelectedSubcategory('all');
+                            }
+                          }}
+                          className="rounded-lg border p-3 text-left transition-all hover:shadow-sm"
+                          style={{
+                            backgroundColor: active || expanded ? s.bg : 'var(--color-muted)',
+                            borderColor: active || expanded ? s.dot : 'var(--border)',
+                            borderWidth: active || expanded ? 1.5 : 1,
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.dot }} />
+                              {cat}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                                ¥{formatAmount(v.amount)}
+                              </span>
+                              {hasSubs && (
+                                <ChevronDown
+                                  className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                                  style={{ color: 'var(--color-text-3)' }}
+                                />
+                              )}
+                            </span>
+                          </div>
+                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border)' }}>
+                            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: s.dot }} />
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between text-xs" style={{ color: 'var(--color-text-3)' }}>
+                            <span>{v.count} 笔</span>
+                            <span>{pct.toFixed(1)}%</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 子类下钻面板 */}
+                  {expandedStatCategory && (() => {
+                    const cat = expandedStatCategory as MiscMaterialCategory;
                     const s = categoryStyle(cat);
-                    const pct = grandTotal > 0 ? (v.amount / grandTotal) * 100 : 0;
-                    const active = selectedCategory === cat;
+                    const catStats = boardStats.categoryStats?.[cat] || { count: 0, amount: 0 };
+                    const subs = (MISC_MATERIAL_SUBCATEGORY_MAP[cat] || [])
+                      .map(sub => ({
+                        ...sub,
+                        count: boardStats.subcategoryStats?.[sub.value]?.count || 0,
+                        amount: boardStats.subcategoryStats?.[sub.value]?.amount || 0,
+                      }))
+                      .sort((a, b) => b.amount - a.amount);
+                    const classifiedCount = subs.reduce((sum, x) => sum + x.count, 0);
+                    const classifiedAmount = subs.reduce((sum, x) => sum + x.amount, 0);
+                    const unclassCount = catStats.count - classifiedCount;
+                    const unclassAmount = catStats.amount - classifiedAmount;
                     return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCategory(active ? 'all' : cat);
-                          setSelectedSubcategory('all');
-                        }}
-                        className="rounded-lg border p-3 text-left transition-all hover:shadow-sm"
-                        style={{
-                          backgroundColor: active ? s.bg : 'var(--color-muted)',
-                          borderColor: active ? s.dot : 'var(--border)',
-                          borderWidth: active ? 1.5 : 1,
-                        }}
+                      <div
+                        className="mt-3 rounded-lg border p-3"
+                        style={{ borderColor: s.dot, backgroundColor: s.bg }}
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                           <span className="flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                             <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.dot }} />
-                            {cat}
+                            {cat} · 子类明细
                           </span>
-                          <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                            ¥{formatAmount(v.amount)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              style={{ color: 'var(--color-primary)' }}
+                              onClick={() => {
+                                setSelectedCategory(cat);
+                                setSelectedSubcategory('all');
+                              }}
+                            >
+                              筛选该分类全部
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setExpandedStatCategory(null)}
+                            >
+                              收起
+                            </Button>
+                          </div>
                         </div>
-                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border)' }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: s.dot }} />
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {subs.map(sub => {
+                            const subPct = catStats.amount > 0 ? (sub.amount / catStats.amount) * 100 : 0;
+                            const subActive = selectedCategory === cat && selectedSubcategory === sub.value;
+                            return (
+                              <button
+                                key={sub.code}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCategory(cat);
+                                  setSelectedSubcategory(sub.value);
+                                }}
+                                className="rounded-md border p-2.5 text-left transition-all hover:shadow-sm"
+                                style={{
+                                  backgroundColor: 'var(--color-background, #fff)',
+                                  borderColor: subActive ? s.dot : 'var(--border)',
+                                  borderWidth: subActive ? 1.5 : 1,
+                                }}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
+                                    <span className="mr-1 opacity-60">{sub.code}</span>
+                                    {sub.value}
+                                  </span>
+                                  <span className="text-xs font-semibold" style={{ color: 'var(--foreground)' }}>
+                                    ¥{formatAmount(sub.amount)}
+                                  </span>
+                                </div>
+                                <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border)' }}>
+                                  <div className="h-full rounded-full transition-all" style={{ width: `${subPct}%`, backgroundColor: s.dot }} />
+                                </div>
+                                <div className="mt-1 flex items-center justify-between text-xs" style={{ color: 'var(--color-text-3)' }}>
+                                  <span>{sub.count} 笔</span>
+                                  <span>{subPct.toFixed(1)}%</span>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <div className="mt-1.5 flex items-center justify-between text-xs" style={{ color: 'var(--color-text-3)' }}>
-                          <span>{v.count} 笔</span>
-                          <span>{pct.toFixed(1)}%</span>
-                        </div>
-                      </button>
+                        {unclassCount > 0 && (
+                          <p className="mt-2 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                            未细分：{unclassCount} 笔 · ¥{formatAmount(unclassAmount)}（编辑记录可补选子类）
+                          </p>
+                        )}
+                      </div>
                     );
-                  })}
-                </div>
+                  })()}
+                </>
               );
             })()}
           </CardContent>
@@ -1631,7 +1793,7 @@ function MiscMaterialsContent() {
             <DialogTitle>新增零星材料</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>项目 *</Label>
                 <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
@@ -1646,59 +1808,6 @@ function MiscMaterialsContent() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleAiClassify}
-                    disabled={aiClassifying || !form.material_name.trim()}
-                    className="h-6 gap-1 px-2 text-xs"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    {aiClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    AI识别
-                  </Button>
-                </div>
-                <Select
-                  value={form.category || guessMiscCategory(form.material_name).category}
-                  onValueChange={(v) => {
-                    const cat = v as MiscMaterialCategory;
-                    setForm(prev => ({
-                      ...prev,
-                      category: cat,
-                      subcategory: prev.subcategory && isValidSubcategory(cat, prev.subcategory) ? prev.subcategory : '',
-                    }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择分类" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_OPTIONS.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.category && (MISC_MATERIAL_SUBCATEGORY_MAP[form.category]?.length ?? 0) > 0 && (
-                  <Select
-                    value={form.subcategory || '__none__'}
-                    onValueChange={(v) => setForm({ ...form, subcategory: v === '__none__' ? '' : v })}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="选择子类（可选）" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">未细分</SelectItem>
-                      {(MISC_MATERIAL_SUBCATEGORY_MAP[form.category] || []).map(sub => (
-                        <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
               </div>
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
@@ -1717,6 +1826,72 @@ function MiscMaterialsContent() {
                     }));
                   }}
                 />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex h-6 items-center justify-between">
+                  <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAiClassify}
+                    disabled={aiClassifying || !form.material_name.trim()}
+                    className="h-6 gap-1 px-2 text-xs"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {aiClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    AI识别
+                  </Button>
+                </div>
+                <Select
+                  value={formEffectiveCategory}
+                  onValueChange={(v) => {
+                    const cat = v as MiscMaterialCategory;
+                    setForm(prev => ({
+                      ...prev,
+                      category: cat,
+                      subcategory: prev.subcategory && isValidSubcategory(cat, prev.subcategory) ? prev.subcategory : '',
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择分类" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <div className="flex h-6 items-center justify-between">
+                  <Label style={{ color: 'var(--foreground)' }}>材料子类</Label>
+                  {formSubOptions.length > 0 && (
+                    <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>{formSubOptions.length} 项可选</span>
+                  )}
+                </div>
+                <Select
+                  value={
+                    formSubOptions.length === 0
+                      ? ''
+                      : (form.subcategory && isValidSubcategory(formEffectiveCategory, form.subcategory) ? form.subcategory : '__none__')
+                  }
+                  onValueChange={(v) => setForm({ ...form, subcategory: v === '__none__' ? '' : v })}
+                  disabled={formSubOptions.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formSubOptions.length === 0 ? '该分类暂不细分子类' : '选择子类（可选）'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">未细分</SelectItem>
+                    {formSubOptions.map(sub => (
+                      <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-4">
@@ -1822,7 +1997,7 @@ function MiscMaterialsContent() {
             <DialogTitle>编辑零星材料</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>项目 *</Label>
                 <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })}>
@@ -1837,59 +2012,6 @@ function MiscMaterialsContent() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleAiClassify}
-                    disabled={aiClassifying || !form.material_name.trim()}
-                    className="h-6 gap-1 px-2 text-xs"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    {aiClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    AI识别
-                  </Button>
-                </div>
-                <Select
-                  value={form.category || guessMiscCategory(form.material_name).category}
-                  onValueChange={(v) => {
-                    const cat = v as MiscMaterialCategory;
-                    setForm(prev => ({
-                      ...prev,
-                      category: cat,
-                      subcategory: prev.subcategory && isValidSubcategory(cat, prev.subcategory) ? prev.subcategory : '',
-                    }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择分类" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_OPTIONS.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.category && (MISC_MATERIAL_SUBCATEGORY_MAP[form.category]?.length ?? 0) > 0 && (
-                  <Select
-                    value={form.subcategory || '__none__'}
-                    onValueChange={(v) => setForm({ ...form, subcategory: v === '__none__' ? '' : v })}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="选择子类（可选）" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">未细分</SelectItem>
-                      {(MISC_MATERIAL_SUBCATEGORY_MAP[form.category] || []).map(sub => (
-                        <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
               </div>
               <div className="space-y-2">
                 <Label style={{ color: 'var(--foreground)' }}>材料名称 *</Label>
@@ -1908,6 +2030,72 @@ function MiscMaterialsContent() {
                     }));
                   }}
                 />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex h-6 items-center justify-between">
+                  <Label style={{ color: 'var(--foreground)' }}>材料分类</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAiClassify}
+                    disabled={aiClassifying || !form.material_name.trim()}
+                    className="h-6 gap-1 px-2 text-xs"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {aiClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    AI识别
+                  </Button>
+                </div>
+                <Select
+                  value={formEffectiveCategory}
+                  onValueChange={(v) => {
+                    const cat = v as MiscMaterialCategory;
+                    setForm(prev => ({
+                      ...prev,
+                      category: cat,
+                      subcategory: prev.subcategory && isValidSubcategory(cat, prev.subcategory) ? prev.subcategory : '',
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择分类" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <div className="flex h-6 items-center justify-between">
+                  <Label style={{ color: 'var(--foreground)' }}>材料子类</Label>
+                  {formSubOptions.length > 0 && (
+                    <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>{formSubOptions.length} 项可选</span>
+                  )}
+                </div>
+                <Select
+                  value={
+                    formSubOptions.length === 0
+                      ? ''
+                      : (form.subcategory && isValidSubcategory(formEffectiveCategory, form.subcategory) ? form.subcategory : '__none__')
+                  }
+                  onValueChange={(v) => setForm({ ...form, subcategory: v === '__none__' ? '' : v })}
+                  disabled={formSubOptions.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formSubOptions.length === 0 ? '该分类暂不细分子类' : '选择子类（可选）'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">未细分</SelectItem>
+                    {formSubOptions.map(sub => (
+                      <SelectItem key={sub.code} value={sub.value}>{sub.code} {sub.value}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-4">
