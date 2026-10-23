@@ -377,6 +377,11 @@
 - 成本中心零星材料下钻明细增加分类列
 - API：`GET /api/miscellaneous-materials?category=X`、`GET /api/miscellaneous-materials/export?category=X`
 
+### 2026-06 零星材料已审核可直接编辑
+- 背景：免审核策略下新录入即为 reviewed，旧规则"已审核必须先反审核才能改"导致录入后无法修改。已放开：PUT 内容编辑不再拒绝 reviewed（仅 voided 不可改），编辑后状态保持 reviewed、金额即时重算并计入成本
+- 前端：列表 reviewed 行的"反审核"按钮替换为"编辑"按钮（作废保留）；openEditDialog 移除 reviewed 拦截
+- 顺带修复：PUT 更新数据误写表中不存在的 `updated_at` 列导致 500（miscellaneous_materials 只有 created_at），内容更新与状态更新两处均移除
+
 ### 2026-06 专项审查 P0 第一批修复：人工成本双重计算 + 去重迁移删生活费台账
 - **P0-1 人工成本双重计算**：班组结算确认→分账生成 `worker_salaries`(source='team_settlement') 后，成本聚合"工人应发工资 + 班组结算实付"把同一笔钱算两遍。修复：所有用于成本叠加的 worker_salaries 查询加 `.or('source.is.null,source.neq.team_settlement')`（兼容历史 source=NULL 手工数据）。共 5 个聚合点：`data-aggregation.ts` 单项目/多项目各一处、`business-logic.ts` getProjectCostBreakdown、`api/dashboard` 趋势、`api/reports/monthly/summary` 4 个工资查询
 - **口径说明（重要）**：人工成本 = 手工工资应发（source≠team_settlement 或 NULL）+ 班组结算实付（confirmed，扣四项扣款后）；工人成本看板的"应发工资"是独立口径（包含分账生成），不改。已发现金流出（salary_payments）不存在双算，不改

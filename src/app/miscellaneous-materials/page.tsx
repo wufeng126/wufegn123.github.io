@@ -23,7 +23,7 @@ import {
 import {
   Plus, Pencil, Trash2, Search, Download, Upload, ChevronLeft, ChevronRight,
   Package, Loader2, Camera, Mic, Sparkles,
-  CheckCircle2, RotateCcw, Ban
+  CheckCircle2, Ban
 } from 'lucide-react';
 import { MISC_MATERIAL_CATEGORIES, guessMiscCategory, type MiscMaterialCategory } from '@/lib/misc-material-categories';
 
@@ -753,10 +753,7 @@ function MiscMaterialsContent() {
       toast({ title: '记录已作废', description: '已作废记录不可编辑', variant: 'error' });
       return;
     }
-    if (material.status === 'reviewed') {
-      toast({ title: '请先反审核', description: '已审核记录需要先反审核，才能修改数量和金额', variant: 'error' });
-      return;
-    }
+    // 免审核策略：草稿/已审核均可直接修改（已作废除外）
     setCurrentMaterial(material);
     setForm({
       project_id: material.project_id.toString(),
@@ -882,17 +879,12 @@ function MiscMaterialsContent() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleStatusChange(material, 'draft')}
-              disabled={isUpdating}
+              onClick={() => openEditDialog(material)}
               className="h-8 px-2"
-              title="反审核"
-              aria-label="反审核"
+              title="编辑"
+              aria-label="编辑"
             >
-              {isUpdating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RotateCcw className="h-4 w-4" style={{ color: '#D46B08' }} />
-              )}
+              <Pencil className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
             </Button>
             <Button
               variant="ghost"

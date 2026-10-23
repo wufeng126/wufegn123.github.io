@@ -478,9 +478,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '请提交要修改的材料内容' }, { status: 400 });
     }
 
-    if (!isStatusChange && isReviewedStatus(currentMaterial.status)) {
-      return NextResponse.json({ error: '已审核记录不可直接编辑，请先单独反审核' }, { status: 400 });
-    }
+    // 免审核策略：已审核（reviewed）记录也允许直接修改内容，状态保持 reviewed 不变，
+    // 修改后金额即时反映到成本；仅已作废记录禁止修改（见上方 isVoidedStatus 校验）
 
     const targetProjectId = project_id === undefined
       ? Number(currentMaterial.project_id)
@@ -505,7 +504,6 @@ export async function PUT(request: NextRequest) {
 
       const statusUpdate: Record<string, unknown> = {
         status,
-        updated_at: new Date().toISOString(),
       };
       if (status === REVIEW_STATUS.REVIEWED) {
         statusUpdate.reviewed_at = new Date().toISOString();
@@ -571,7 +569,6 @@ export async function PUT(request: NextRequest) {
       category: category === undefined
         ? currentMaterial.category || guessMiscCategory(currentMaterial.material_name)
         : (MISC_CATEGORY_VALUES.includes(category) ? category : DEFAULT_MISC_CATEGORY),
-      updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await client
