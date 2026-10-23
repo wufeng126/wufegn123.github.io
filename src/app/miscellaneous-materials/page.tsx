@@ -777,20 +777,22 @@ function MiscMaterialsContent() {
   };
 
   // 下载导入模板
-  const downloadTemplate = () => {
-    const headers = ['项目名称', '材料分类', '材料名称', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'];
-    const example1 = ['XX项目', '焊接耗材', '焊条', 'J422 3.2mm', '包', '10', '25', '2024-01-15', '张三', ''];
-    const example2 = ['XX项目', '劳保防护', '劳保手套', '棉纱加厚', '双', '50', '3.5', '2024-01-16', '李四', ''];
-    const csvContent = '\uFEFF' + [headers.join(','), example1.join(','), example2.join(',')].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = '零星材料导入模板.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const rows = [
+      ['项目名称', '材料名称', '材料分类', '规格型号', '单位', '数量', '单价', '采购日期', '采购人', '备注'],
+      ['XX项目', '焊条', '焊接耗材', 'J422 3.2mm', '包', 10, 25, '2026-01-15', '张三', '示例行，导入前请删除'],
+      ['XX项目', '劳保手套', '劳保防护', '棉纱加厚', '双', 50, 3.5, '2026-01-16', '李四', ''],
+      ['XX项目', 'PPR管', '', 'DN25', '米', 20, 8, '2026-01-16', '王五', '分类留空按材料名自动识别'],
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    worksheet['!cols'] = [
+      { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 8 },
+      { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 26 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '零星材料导入');
+    XLSX.writeFile(workbook, '零星材料导入模板.xlsx');
   };
 
   // 格式化日期
@@ -1860,7 +1862,7 @@ function MiscMaterialsContent() {
                 <li>• 可选列：材料分类、规格型号、单位、采购日期、采购人、备注</li>
                 <li>• 材料分类支持：{CATEGORY_OPTIONS.join('、')}；留空或无法识别时按材料名称自动归类</li>
                 <li>• 金额由系统按“数量 × 单价”自动计算，旧模板中的金额列会被忽略</li>
-                <li>• 导入记录默认进入草稿，审核后才计入成本统计</li>
+                <li>• 导入即计入成本统计（无需审核），可直接点击“下载导入模板”获取 Excel 模板</li>
                 <li>• 采购日期格式：YYYY-MM-DD（如：2024-01-15）</li>
               </ul>
             </div>
