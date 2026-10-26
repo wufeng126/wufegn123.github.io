@@ -368,6 +368,17 @@
 
 ## 最近更新
 
+### 2026-10 综合费用录入后统计卡片无数据（修复：免审核直计统计）
+- **现象**：综合费用页面录入费用后，上方统计卡片（笔数/总金额/分类金额）始终为 0。
+- **根因**：`af17122`（2026-09-23）把统计口径从"排除作废"改为"只算 reviewed"，但 POST 录入仍写 `status='draft'`，且综合费用页面**没有审核/反审核入口**，记录永远无法进入统计；成本聚合（business-logic）、data-aggregation、月报（summary）同样只算 reviewed。
+- **修复**（对齐零星材料免审核模式，见 `miscellaneous_materials_auto_review.sql` 先例）：
+  - POST `/api/comprehensive-expenses`：录入即 `status=reviewed` + reviewed_at/reviewed_by；
+  - PUT `[id]/route.ts`：移除"已审核不可修改金额"保护（页面无反审核入口，否则编辑死锁）；
+  - DELETE `[id]/route.ts`：移除"已审核不可删除"，仅保留已作废不可删除；
+  - 存量迁移 `migrations/comprehensive_expenses_auto_review.sql`：draft→reviewed（双环境，product 20 条/¥317,791.49）。
+- **验证**：新增即 reviewed 且统计立即包含；PUT 改金额正常、DELETE 正常；lint/ts-check 通过。
+- **教训**：有审核状态机但无审核 UI 的模块必须"录入即 reviewed"；改统计口径时必须同步检查写入默认值。test_run 同批 commands 并发执行，有依赖的写后读断言需分轮次（此前 PUT 报 single() 0 行实为同批 DELETE 先执行的时序问题）。
+
 ### 2026-10 零星材料批量导入畸形日期崩溃（修复）
 - **现象**：导入含被 Excel 破坏的日期串（如 `+202504-05-01`、`2025040501`）时整批导入 500，报 `time zone displacement out of range: "+202504-05-01"`。
 - **根因**：导入路由用裸 `new Date(str).toISOString()` 处理采购日期，JS 把该串当 ISO 时区偏移（+202504）解析，toISOString 抛 RangeError 且未捕获，直接中断整批。

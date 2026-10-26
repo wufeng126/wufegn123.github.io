@@ -235,7 +235,10 @@ export async function POST(request: NextRequest) {
         remark: remark || null,
         attachments: attachments || null,
         created_by: created_by || auth.user.name || auth.user.username || 'admin',
-        status: REVIEW_STATUS.DRAFT,
+        // 综合费用免审核（页面无审核流程）：录入即已审核并计入统计
+        status: REVIEW_STATUS.REVIEWED,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: auth.user.name || auth.user.username || 'admin',
       },
       client
     );

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
-import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
+import { isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { assertProjectAccess, badProjectIdResponse } from '@/lib/api-project-scope';
 
 // 费用类型
@@ -99,10 +99,8 @@ export async function PUT(
     const currentAccess = await assertProjectAccess(client, auth.user, currentExpense.project_id);
     if (!currentAccess.ok) return currentAccess.response;
 
-    if (isReviewedStatus(currentExpense.status) && amount !== undefined && status !== REVIEW_STATUS.DRAFT) {
-      return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
-    }
-
+    // 免审核策略（对齐零星材料）：综合费用录入即已审核，页面无审核/反审核流程，
+    // 已审核记录允许直接修改内容（金额即时反映到统计）；仅已作废记录禁止修改（见上方校验）
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (project_id !== undefined) {
       const normalizedProjectId = project_id ? Number(project_id) : null;
@@ -194,8 +192,9 @@ export async function DELETE(
     const access = await assertProjectAccess(client, auth.user, existingData.project_id);
     if (!access.ok) return access.response;
 
-    if (isReviewedStatus(existingData?.status) || isVoidedStatus(existingData?.status)) {
-      return NextResponse.json({ error: '已审核或已作废记录不可删除' }, { status: 400 });
+    // 免审核策略：已审核记录允许删除（页面无作废/反审核流程）；已作废记录保留痕迹不可物理删除
+    if (isVoidedStatus(existingData?.status)) {
+      return NextResponse.json({ error: '已作废记录不可删除' }, { status: 400 });
     }
 
     const { error } = await client
