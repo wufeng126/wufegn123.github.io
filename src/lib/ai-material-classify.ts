@@ -66,7 +66,6 @@ export async function classifyMaterialWithAI(
             role: 'system',
             content: `你是建筑劳务企业的材料分类助手。根据用户给出的材料名称，从以下分类体系中选出最贴切的一级分类和二级子类。
 输出格式：一级分类/二级子类（无合适子类时只输出一级分类）。禁止输出任何解释、标点或其他文字。
-注意：方木、模板、胶合板、竹胶板等大宗板材不属于零星材料（由单独供应商供应），遇到此类名称请输出"其他材料"。
 ${CATEGORY_GUIDE}`,
           },
           { role: 'user', content: name },
