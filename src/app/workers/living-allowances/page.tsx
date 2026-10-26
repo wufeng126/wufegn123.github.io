@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Save,
   Scissors,
+  Sparkles,
   Upload,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -297,6 +298,21 @@ export default function LivingAllowancesPage() {
   const [saving, setSaving] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRow | null>(null);
   const [splitRows, setSplitRows] = useState<SplitRow[]>([]);
+  const [autoSplitting, setAutoSplitting] = useState(false);
+  const [autoSplitInfo, setAutoSplitInfo] = useState<{
+    source: string;
+    warnings: string[];
+    declaredTotal: number | null;
+    declaredCount: number | null;
+    amountMatched: boolean;
+    amountDiff: number;
+    itemCountMatched: boolean;
+    itemCountDiff: number;
+    itemsTotal: number;
+    autoMatched: number;
+    unmatched: number;
+    purpose: string | null;
+  } | null>(null);
 
   const [recordForm, setRecordForm] = useState({
     worker_id: '',
@@ -477,10 +493,23 @@ export default function LivingAllowancesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '上传回单失败');
 
-      toast({ title: '回单已上传，可以开始拆分并核对工资' });
+      toast({ title: '回单已上传，正在打开拆分界面' });
       setReceiptDialogOpen(false);
       setReceiptForm({ project_id: 'none', receipt_date: getToday(), payer_account: '', remark: '', file: null });
       await fetchData();
+      const uploaded = data.data?.receipt || data.receipt;
+      if (uploaded?.id) {
+        await openSplitDialog({
+          id: Number(uploaded.id),
+          project_id: uploaded.project_id ? Number(uploaded.project_id) : (receiptForm.project_id !== 'none' ? Number(receiptForm.project_id) : null),
+          receipt_date: uploaded.receipt_date || receiptForm.receipt_date,
+          file_name: uploaded.file_name || receiptForm.file?.name,
+          file_type: uploaded.file_type,
+          split_status: uploaded.split_status || 'pending',
+          url: uploaded.url || null,
+          remark: uploaded.remark || null,
+        });
+      }
     } catch (error) {
       toast({ title: error instanceof Error ? error.message : '上传失败', variant: 'error' });
     } finally {
@@ -491,6 +520,7 @@ export default function LivingAllowancesPage() {
   const openSplitDialog = async (receipt: ReceiptRow) => {
     setSelectedReceipt(receipt);
     setSplitDialogOpen(true);
+    setAutoSplitInfo(null);
     try {
       const res = await fetch(`/api/living-allowances/receipt-items?receipt_id=${receipt.id}`, { credentials: 'include' });
       const data = await res.json();
@@ -588,6 +618,89 @@ export default function LivingAllowancesPage() {
     const data = await res.json();
     if (!res.ok && !data?.match_status) throw new Error(data.error || '核对工资失败');
     return data;
+  };
+
+  const handleAutoSplit = async () => {
+    if (!selectedReceipt) return;
+    if (splitRows.some(isProtectedSplitRow)) {
+      toast({ title: '该回单已有核对结果，不能重新智能拆分', variant: 'error' });
+      return;
+    }
+    setAutoSplitting(true);
+    try {
+      const res = await fetch('/api/living-allowances/receipts/auto-split', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receipt_id: selectedReceipt.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '智能拆分失败，请改用手工拆分');
+      }
+      const payload = data.data || data;
+      const items: Array<Record<string, unknown>> = payload.items || [];
+      const nextRows: SplitRow[] = items.map(item => ({
+        receipt_id: selectedReceipt.id,
+        worker_id: item.worker_id ? Number(item.worker_id) : '',
+        worker_name: item.worker_name ? String(item.worker_name) : '',
+        project_id: selectedReceipt.project_id || '',
+        recipient_name: String(item.recipient_name || ''),
+        bank_card_tail: item.bank_card_tail ? String(item.bank_card_tail) : '',
+        amount: Number(item.amount),
+        payment_date: payload.header?.paymentDate || selectedReceipt.receipt_date || getToday(),
+        transaction_no: '',
+        match_status: item.worker_id ? 'auto_matched' : 'unmatched',
+        match_score: Number(item.match_score || 0),
+        remark: item.match_type === 'card'
+          ? '智能拆分：卡号匹配'
+          : item.match_type === 'name'
+            ? '智能拆分：姓名匹配'
+            : '',
+      }));
+      if (nextRows.length === 0) throw new Error('未识别到有效明细');
+      const validation = payload.validation || {};
+      const summary = payload.summary || {};
+      setAutoSplitInfo({
+        source: String(payload.source || 'ai'),
+        warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
+        declaredTotal: payload.header?.totalAmount ?? null,
+        declaredCount: payload.header?.itemCount ?? null,
+        amountMatched: validation.amountMatched !== false,
+        amountDiff: Number(validation.amountDiff || 0),
+        itemCountMatched: validation.itemCountMatched !== false,
+        itemCountDiff: Number(validation.itemCountDiff || 0),
+        itemsTotal: Number(summary.items_total || nextRows.reduce((sum, row) => sum + parseAmount(row.amount), 0)),
+        autoMatched: Number(summary.auto_matched || 0),
+        unmatched: Number(summary.unmatched || 0),
+        purpose: payload.header?.purpose || null,
+      });
+      // 落库后重新拉取服务端明细（带 id / project_id / 真实 match_status），
+      // 否则本地预览行无 id，"一键核对"会报"请先保存拆分明细"。
+      try {
+        const itemsRes = await fetch(`/api/living-allowances/receipt-items?receipt_id=${selectedReceipt.id}`, { credentials: 'include' });
+        const itemsData = await itemsRes.json();
+        if (itemsRes.ok && Array.isArray(itemsData.items) && itemsData.items.length > 0) {
+          setSplitRows(itemsData.items as SplitRow[]);
+        } else {
+          setSplitRows(nextRows);
+        }
+      } catch {
+        setSplitRows(nextRows);
+      }
+      await fetchData();
+      toast({
+        title: `智能拆分完成：识别 ${nextRows.length} 笔，自动匹配 ${summary.auto_matched ?? 0} 人`,
+        description: validation.amountMatched === false
+          ? `识别合计与回单总金额不一致（差额 ${validation.amountDiff}），请逐行核对`
+          : '请核对明细后点击"一键核对工资"',
+        variant: validation.amountMatched === false ? 'error' : 'default',
+      });
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : '智能拆分失败', variant: 'error' });
+    } finally {
+      setAutoSplitting(false);
+    }
   };
 
   const handleMatchRow = async (row: SplitRow) => {
@@ -869,10 +982,17 @@ export default function LivingAllowancesPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button size="sm" variant="outline" onClick={() => void openSplitDialog(receipt)}>
-                                <Scissors className="mr-1.5 h-3.5 w-3.5" />
-                                查看/核对
-                              </Button>
+                              {(receipt.split_status === 'pending' || (receipt.pending_count || 0) > 0) ? (
+                                <Button size="sm" onClick={() => void openSplitDialog(receipt)}>
+                                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                                  智能拆分
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => void openSplitDialog(receipt)}>
+                                  <Scissors className="mr-1.5 h-3.5 w-3.5" />
+                                  查看/核对
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1024,14 +1144,70 @@ export default function LivingAllowancesPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
               <span className="inline-flex items-center gap-2 text-slate-600">
                 <FileImage className="h-4 w-4 text-blue-600" />
-                先打开原图录入收款人和金额，保存后再进行工资核对
+                可使用智能拆分自动识别回单明细，也可手工录入
               </span>
-              <a href={selectedReceipt.url} target="_blank" rel="noreferrer">
-                <Button variant="outline" size="sm">
-                  查看原图
-                  <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => void handleAutoSplit()}
+                  disabled={saving || autoSplitting || splitRows.some(isProtectedSplitRow)}
+                >
+                  {autoSplitting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                  {autoSplitting ? '正在识别回单…' : '智能拆分'}
                 </Button>
-              </a>
+                <a href={selectedReceipt.url} target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm">
+                    查看原图
+                    <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                  </Button>
+                </a>
+              </div>
+            </div>
+          )}
+
+          {autoSplitInfo && (
+            <div className={`space-y-1.5 rounded-lg border px-3 py-2 text-sm ${
+              autoSplitInfo.amountMatched && autoSplitInfo.itemCountMatched
+                ? 'border-emerald-200 bg-emerald-50'
+                : 'border-amber-200 bg-amber-50'
+            }`}>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  {autoSplitInfo.amountMatched && autoSplitInfo.itemCountMatched
+                    ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                  识别 {splitRows.length} 笔，合计 ¥{money(autoSplitInfo.itemsTotal)}
+                  {autoSplitInfo.declaredTotal !== null && (
+                    <span className={autoSplitInfo.amountMatched ? 'text-emerald-700' : 'text-amber-700'}>
+                      （回单总金额 ¥{money(autoSplitInfo.declaredTotal)}
+                      {!autoSplitInfo.amountMatched && `，差额 ${autoSplitInfo.amountDiff > 0 ? '+' : ''}${money(autoSplitInfo.amountDiff)}`}）
+                    </span>
+                  )}
+                </span>
+                {autoSplitInfo.declaredCount !== null && !autoSplitInfo.itemCountMatched && (
+                  <span className="text-amber-700">
+                    回单笔数 {autoSplitInfo.declaredCount}，识别 {splitRows.length} 笔（差 {autoSplitInfo.itemCountDiff > 0 ? '+' : ''}{autoSplitInfo.itemCountDiff}）
+                  </span>
+                )}
+                <span className="text-slate-600">
+                  自动匹配 {autoSplitInfo.autoMatched} 人，{autoSplitInfo.unmatched} 人待人工选择
+                </span>
+                <span className="text-xs text-slate-500">
+                  {autoSplitInfo.source === 'ai' ? 'AI 识别' : '规则识别'}
+                  {autoSplitInfo.purpose ? ` · 用途：${autoSplitInfo.purpose}` : ''}
+                </span>
+              </div>
+              {autoSplitInfo.warnings.length > 0 && (
+                <ul className="list-disc pl-5 text-xs text-amber-700">
+                  {autoSplitInfo.warnings.slice(0, 3).map((warning, index) => (
+                    <li key={index}>{warning}</li>
+                  ))}
+                </ul>
+              )}
+              {(!autoSplitInfo.amountMatched || !autoSplitInfo.itemCountMatched) && (
+                <p className="text-xs text-amber-700">金额或笔数对账不一致，请对照原图逐行核对后再保存、核对工资。</p>
+              )}
             </div>
           )}
 

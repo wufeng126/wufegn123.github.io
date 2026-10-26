@@ -98,13 +98,21 @@ export async function createConfiguredLLMClient(
 ): Promise<LLMClient | null> {
   const aiConfig = await getAIConfig();
   const apiKey = overrides?.apiKey ?? aiConfig?.api_key ?? null;
-  if (!apiKey) return null;
   const baseUrl = overrides?.baseUrl ?? aiConfig?.api_endpoint ?? null;
-  return createLLMClient(customHeaders, {
-    apiKey,
-    baseUrl: baseUrl || undefined,
-    modelBaseUrl: baseUrl || undefined,
-  });
+  // 显式配置了凭据/端点：按用户配置走
+  if (apiKey || baseUrl) {
+    return createLLMClient(customHeaders, {
+      ...(apiKey ? { apiKey } : {}),
+      ...(baseUrl ? { baseUrl, modelBaseUrl: baseUrl } : {}),
+    });
+  }
+  // 托管模式：表中未配置 api_key/api_endpoint 时，回退 SDK 默认 Config
+  // （从 COZE_INTEGRATION_MODEL_BASE_URL 等环境变量读取托管端点，靠 customHeaders 鉴权），
+  // 否则仅因表里 key 为空就返回 null，会导致托管环境下所有 AI 功能（聊天/OCR/分类）不可用。
+  if (process.env.COZE_INTEGRATION_MODEL_BASE_URL) {
+    return createLLMClient(customHeaders);
+  }
+  return null;
 }
 
 // 从NextRequest提取转发头

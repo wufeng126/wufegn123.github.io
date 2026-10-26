@@ -368,6 +368,18 @@
 
 ## 最近更新
 
+### 2026-10 银行回单智能拆分（生活费台账上传回单后 OCR 自动拆分+自动匹配工人）
+- **链路**：上传回单（living_allowance_receipts，OSS+file_hash 防重）→ `POST /api/living-allowances/receipts/auto-split`（body `{receipt_id, previewOnly?}`）→ 多模态 LLM 视觉 OCR → LLM 结构化 JSON（失败回退正则规则解析）→ 三层校验 → 批量预匹配工人 → 落 living_allowance_receipt_items（match_status='auto_matched'，只存 bank_card_tail 不存完整卡号）→ 前端复核 → 复用现有 `/api/living-allowances/match` 一键核对工资
+- **核心模块**：`src/lib/bank-receipt-parser.ts`（extractReceiptOcrText/parseBankReceipt/parseBankReceiptText/validateReceiptParse，AI 优先+规则回退；校验：明细合计 vs 回单总金额、行数 vs 笔数，0.01 容差，只留"成功"状态行，失败行进 failedItems 并 warning）
+- **工人匹配优先级**（matchItemToWorker）：①同名+同项目+卡号尾号=100 ②卡号尾号全库唯一（姓名 OCR 错兜底）=90 ③同项目姓名唯一=80 ④重名/无命中→unmatched 带 candidates；项目关系统一走 getWorkerProjectRelations
+- **迁移**：`migrations/add_living_allowance_receipt_parse_fields.sql`（living_allowance_receipts 增 declared_total_amount/declared_item_count/payment_purpose/parse_status，双环境已执行）
+- **auto_matched 状态语义**：已预匹配工人但"尚未核对生成生活费记录"，**不在** FINAL_LIVING_ALLOWANCE_MATCH_STATUSES，故可重新智能拆分/编辑；列表统计 buildLivingAllowanceReconciliation 实时重算为 salary_not_found/record_not_found 等待核对态并计入 pending_count；核对后才转最终态
+- **OCR 取图关键坑**：OSS SigV4 签名 URL 只允许 GET，coze-coding-dev-sdk 的 FetchClient 抓取前发 HEAD 校验会 403（URL is not reachable）。最终方案：服务端用签名 URL GET 下载图片→base64 data URI→多模态 LLM（client.stream + image_url content，temperature 0），签名 URL 直连作为回退；**不要用 FetchClient.fetch 抓该 OSS 域名**
+- **托管模型凭据坑**：ai_configs 表 api_key/api_endpoint 为空时（托管 doubao 模型），createConfiguredLLMClient 原逻辑直接返回 null 导致所有 AI 功能 403。已修复为：无显式配置且存在 `COZE_INTEGRATION_MODEL_BASE_URL` 时回退 `new Config()`（SDK 自动读 COZE_WORKLOAD_IDENTITY_API_KEY + 托管 baseUrl）；透传头必须用 extractForwardHeaders（仅 x-tt-*/rpc-persist-* 白名单），**切勿手透传浏览器 Authorization/Cookie**，否则覆盖托管 Bearer 致 token validation failed
+- **前端**（workers/living-allowances/page.tsx）：拆分对话框顶部"智能拆分"主按钮（Sparkles）+绿色/黄色对账信息条（识别笔数合计/金额差/笔数差/自动匹配数/AI 或规则来源/用途/warnings）；handleAutoSplit 落库后**重新 GET receipt-items** 拿带 id/project_id 的服务端行（本地预览行无 id，否则一键核对报"请先保存拆分明细"）；回单未绑项目时明细 project_id 回退匹配工人所属项目；上传成功自动弹出拆分框
+- **验证**：构造含真实工人卡号的招行回单图走全链路，AI 识别 3 笔×1000，卡号尾号唯一自动匹配 2 人（90 分）、1 人 unmatched，金额/笔数双对账 diff=0，落库 project_id 正确回退；测试后数据已清理
+- **规则解析曾修 3 bug**：①过滤词含"成功"等宽泛词致 0 明细→收窄 NON_DETAIL_KEYWORDS ②千分位正则逗号组用 * 致 1000.00 截成 100→改 + ③金额正则无捕获组却取 [1] 致 undefined→取 [0] 并校验 index
+
 ### 2026-06 零星材料分类按 V2 清单完善（《材料分类清单-系统录入版-V2.xlsx》）
 - **子类结构调整**：03 水暖管件由无子类改为 3 子类（03-01 管材管件/03-02 管件配件/03-03 水暖其他）；04 焊接耗材改为 4 子类（焊条焊丝/切割打磨片/焊把与配件/焊接其他）；09 大型机具改为 5 子类（钢筋/混凝土/起重与运输/测量与仪器/其他）；12 施工杂费改为 8 子类（维修保养/检测与校准/租赁费/加工与人工/机械与吊装/税费规费/餐饮招待/其他杂费）
 - **08 其他材料压缩为 4 子类**：08-01 水泥建材/08-02 办公与生活/08-03 笼统待补明细/08-04 未分类待确认（原 08-03 税费规费→12-06、08-11 标识印字→05-05、08-12 临设与板房→07-08、08-13 五金杂件拆分归 01/10）；11 运费子类顺序调整为 材料运输/装卸叉车费/机械运输/物流快递/车费差旅
