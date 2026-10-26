@@ -44,6 +44,120 @@ type MiscellaneousMaterialImportRecord = {
   reviewed_by: string | null;
 };
 
+/**
+ * 将导入单元格中的日期归一化为 YYYY-MM-DD。
+ * 容错：Date 对象、Excel 5 位序列号、时间戳、YYYY-MM-DD、YYYY/MM/DD、YYYYMMDD、
+ * YYYY年M月D日（允许空格），以及模板被 Excel 破坏产生的畸形串
+ * （如 "202504-05-01" / "2025-0405-01" / "2025040501"，多余位多为粘连的小时）。
+ * 任何无法可靠识别的输入返回 null，绝不抛错（避免 new Date 误判时区偏移后
+ * toISOString 抛 RangeError: time zone displacement out of range 崩掉整批导入）。
+ */
+function normalizeImportDate(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+
+  // xlsx 在 cellDates 模式下可能直接返回 Date 对象
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return raw.toISOString().split('T')[0];
+  }
+
+  let s = String(raw).trim();
+  if (!s) return null;
+
+  // 纯数字：Excel 日期序列号（5 位）或毫秒时间戳（12-13 位）
+  if (/^\d+$/.test(s)) {
+    if (s.length === 5) {
+      return new Date(Date.UTC(1899, 11, 30) + Number(s) * 86400000).toISOString().split('T')[0];
+    }
+    if (s.length >= 12 && s.length <= 13) {
+      const ms = new Date(Number(s));
+      if (!Number.isNaN(ms.getTime())) return ms.toISOString().split('T')[0];
+    }
+  }
+
+  // 中文日期：2025年4月5日 / 2025 年 4 月 5 日（保留空格，不预先截断）
+  const cnMatch = /(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/.exec(s);
+  if (cnMatch) {
+    const iso = toIsoDate(cnMatch[1], cnMatch[2], cnMatch[3]);
+    if (iso) return iso;
+  }
+
+  // 截取可能附带的时间部分（ISO 或 "2025-04-05 00:00:00"），仅当日期本身是分隔格式时
+  const datePart = s.split(/[ Tt]/)[0] || s;
+
+  // 标准分隔：YYYY-MM-DD / YYYY/M/D / YYYY.M.D（严格 3 段）
+  const sepMatch = /^(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D*$/.exec(datePart);
+  if (sepMatch) {
+    const iso = toIsoDate(sepMatch[1], sepMatch[2], sepMatch[3]);
+    if (iso) return iso;
+  }
+
+  // 紧凑/畸形数字串：Excel 有时会在日期里插入多余分隔符或粘连小时，
+  // 如 "202504-05-01"→["202504","05","01"]、"2025-0405-01"→["2025","0405","01"]、
+  // "2025040501"→["2025040501"]（8 位日期 + 2 位小时）。
+  const segments = s.match(/\d+/g);
+  if (segments) {
+    const yearIdx = segments.findIndex(seg =>
+      /^\d{4}/.test(seg) && Number(seg.slice(0, 4)) >= 1900 && Number(seg.slice(0, 4)) <= 2100,
+    );
+    if (yearIdx >= 0) {
+      const seg = segments[yearIdx];
+      const year = seg.slice(0, 4);
+      // 年份段内可能粘连月份（如 202504），把年之后的数字全部拼成"月日+多余位"
+      const tailDigits = seg.slice(4) + segments.slice(yearIdx + 1).join('');
+      const iso = pickMonthDay(year, tailDigits);
+      if (iso) return iso;
+    }
+    // 纯 8 位连续数字 YYYYMMDD
+    const joined = segments.join('');
+    const m8 = /^(\d{4})(\d{2})(\d{2})$/.exec(joined);
+    if (m8) {
+      const iso = toIsoDate(m8[1], m8[2], m8[3]);
+      if (iso) return iso;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从年份之后的数字串中切分月日。
+ * 4 位→MMDD；3 位→MDD/MMD；5-6 位（日期后粘连小时/分钟）→取前 4 位 MMDD。
+ */
+function pickMonthDay(year: string, tail: string): string | null {
+  if (!tail) return null;
+  const candidates: Array<[string, string]> = [];
+  if (tail.length === 4) {
+    candidates.push([tail.slice(0, 2), tail.slice(2, 4)]);
+  } else if (tail.length === 3) {
+    candidates.push([tail.slice(0, 1), tail.slice(1, 3)]);
+    candidates.push([tail.slice(0, 2), tail.slice(2, 3)]);
+  } else if (tail.length >= 5) {
+    // 粘连了小时/分钟（如 040501=04-05 +01 时），优先按前 4 位 MMDD
+    candidates.push([tail.slice(0, 2), tail.slice(2, 4)]);
+  }
+  for (const [m, d] of candidates) {
+    const iso = toIsoDate(year, m, d);
+    if (iso) return iso;
+  }
+  return null;
+}
+
+/** 组装并校验合法公历日期，非法（如 13 月、32 日）返回 null */
+function toIsoDate(yearStr: string, monthStr: string, dayStr: string): string | null {
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const paddedMonth = String(month).padStart(2, '0');
+  const paddedDay = String(day).padStart(2, '0');
+  // 用 Date.UTC 反向校验，防止 2 月 30 日等不存在日期
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
+    return null;
+  }
+  return `${year}-${paddedMonth}-${paddedDay}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiWritePermission(request);
@@ -204,19 +318,10 @@ export async function POST(request: NextRequest) {
 
       const amount = calculateMiscellaneousMaterialAmount(quantity, unitPrice);
 
-      // 处理日期格式 - Excel 可能返回数字序列号
-      let purchaseDate = values[dateIdx] || '';
-      if (purchaseDate && /^\d{5}$/.test(purchaseDate)) {
-        // Excel 日期序列号转换
-        const excelEpoch = Date.UTC(1899, 11, 30);
-        purchaseDate = new Date(excelEpoch + Number(purchaseDate) * 86400000).toISOString().split('T')[0];
-      } else if (purchaseDate) {
-        // 尝试解析常见日期格式
-        const parsed = new Date(purchaseDate);
-        if (!isNaN(parsed.getTime())) {
-          purchaseDate = parsed.toISOString().split('T')[0];
-        }
-      }
+      // 处理日期格式 - Excel 可能返回数字序列号，模板也可能出现被破坏的畸形日期串。
+      // 禁止用裸 new Date(str)：像 "202504-05-01" 会被当成 ISO 时区偏移 "+202504"，
+      // 随后 toISOString() 抛 RangeError（time zone displacement out of range）导致整批导入失败。
+      let purchaseDate = normalizeImportDate(values[dateIdx]);
       if (!purchaseDate) {
         purchaseDate = new Date().toISOString().split('T')[0];
       }

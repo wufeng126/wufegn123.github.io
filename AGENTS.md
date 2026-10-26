@@ -368,6 +368,15 @@
 
 ## 最近更新
 
+### 2026-10 零星材料批量导入畸形日期崩溃（修复）
+- **现象**：导入含被 Excel 破坏的日期串（如 `+202504-05-01`、`2025040501`）时整批导入 500，报 `time zone displacement out of range: "+202504-05-01"`。
+- **根因**：导入路由用裸 `new Date(str).toISOString()` 处理采购日期，JS 把该串当 ISO 时区偏移（+202504）解析，toISOString 抛 RangeError 且未捕获，直接中断整批。
+- **修复**：`src/app/api/miscellaneous-materials/import/route.ts` 新增 `normalizeImportDate()` 严格归一化（绝不抛错，无法识别返回 null 回退当天日期）：
+  - 支持 Date 对象、Excel 5 位序列号、12-13 位毫秒时间戳、YYYY-MM-DD/YYYY/M/D/YYYY.M.D、YYYYMMDD、YYYY年M月D日（含空格）、带时间的 ISO；
+  - 畸形数字串（`202504-05-01` / `2025-0405-01` / `2025040501` 等）定位 4 位年份锚点，年之后数字经 `pickMonthDay()` 切 MMDD（4 位）/MDD/MMD（3 位）/粘连小时取前 4 位（5-6 位）；
+  - `toIsoDate()` 用 Date.UTC 反向校验 13 月、2 月 30 日等非法日期。
+- **教训**：处理外部 Excel 单元格日期严禁裸 `new Date(任意字符串)`（会把畸形串误判为时区偏移而抛错）；19 个日期用例 + 含 3 种格式的真实 xlsx 导入冒烟全过。
+
 ### 2026-10 银行回单智能拆分（生活费台账上传回单后 OCR 自动拆分+自动匹配工人）
 - **链路**：上传回单（living_allowance_receipts，OSS+file_hash 防重）→ `POST /api/living-allowances/receipts/auto-split`（body `{receipt_id, previewOnly?}`）→ 多模态 LLM 视觉 OCR → LLM 结构化 JSON（失败回退正则规则解析）→ 三层校验 → 批量预匹配工人 → 落 living_allowance_receipt_items（match_status='auto_matched'，只存 bank_card_tail 不存完整卡号）→ 前端复核 → 复用现有 `/api/living-allowances/match` 一键核对工资
 - **核心模块**：`src/lib/bank-receipt-parser.ts`（extractReceiptOcrText/parseBankReceipt/parseBankReceiptText/validateReceiptParse，AI 优先+规则回退；校验：明细合计 vs 回单总金额、行数 vs 笔数，0.01 容差，只留"成功"状态行，失败行进 failedItems 并 warning）
