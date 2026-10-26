@@ -150,11 +150,21 @@ const isVoidedSettlement = (status?: string | null) => {
   return normalized === 'voided' || normalized === 'cancelled' || normalized === '作废' || normalized === '已作废';
 };
 
+// 与后端 normalizeReviewStatus 口径一致：已提交/已审核/已结算/approved/complete/completed/paid 视为已审核
+const isReviewedSettlement = (status?: string | null) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  return ['reviewed', '已提交', '已审核', '已结算', 'approved', 'complete', 'completed', 'paid'].includes(normalized);
+};
+
 const calculateStatsFromSettlements = (rows: Settlement[]): Stats => {
   const activeRows = rows.filter((s) => !isVoidedSettlement(s.status));
   const totalsByContract = new Map<number, { amount: number; payable: number; paid: number }>();
 
+  // 合同累计字段（contract_total_*）仅对已审核结算计算，草稿行的累计恒为 0。
+  // 列表按结算日期降序，新增的草稿结算（尤其总结算）常排在合同第一条，
+  // 若误取其累计会把整个合同统计抹成 0。故取每个合同最新一条「已审核」结算的累计值。
   activeRows.forEach((settlement) => {
+    if (!isReviewedSettlement(settlement.status)) return;
     const contractId = Number(settlement.contract_id);
     if (!contractId || totalsByContract.has(contractId)) return;
     totalsByContract.set(contractId, {

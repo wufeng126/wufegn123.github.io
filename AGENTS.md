@@ -368,6 +368,13 @@
 
 ## 最近更新
 
+### 2026-10 供应商结算新增草稿后统计卡片变0（修复：统计取每合同最新已审核累计）
+- **现象**：结算管理页（`/supplier-contracts/settlement`，标题"供应商结算台账"）新增一条结算后，上方统计卡片（结算总额/进度应付/已付/未付等）金额全部变成 0。
+- **根因**：页面统计卡片用的是**前端** `calculateStatsFromSettlements(filteredSettlements)`（非接口 `summary`）。该函数对每个合同**只取列表排序后第一条**结算的 `contract_total_settlement_amount/payable/paid` 作为该合同累计口径（`if (totalsByContract.has(contractId)) return`）。而接口 GET 中 `buildSupplierSettlementCumulativeMap` **只为 reviewed（已提交/已审核…）结算**构建累计 map，草稿（draft）结算的 `contract_total_*` 落默认值全 0；列表又按 `settlement_date desc` 排序，**新增的草稿（尤其总结算 final，日期通常最新）排在合同第一条** → 其累计 0 覆盖了该合同真实累计 → 整个合同统计被抹成 0。接口 `summary`（基于 reviewed）本身算得对，但页面没用它渲染卡片。
+- **修复**（`src/app/supplier-contracts/settlement/page.tsx`）：`calculateStatsFromSettlements` 改为取每个合同最新一条**已审核**结算的累计值，forEach 中 `if (!isReviewedSettlement(status)) return` 跳过草稿；新增 `isReviewedSettlement()`（口径与后端 `normalizeReviewStatus` 一致：已提交/已审核/已结算/approved/complete/completed/paid）。`totalSettlements` 笔数仍按非作废计。同时顺带修复了存量问题：某合同最新一条是草稿时其累计长期被错误归 0（如生产合同7 最新 id=40 为草稿）。
+- **关键认知**：供应商结算是**有审核流程**的模块（新建 draft→审核→付款，未审核不计入统计，见 ai-assistant-config），与综合费用/零星材料的"免审核、录入即 reviewed"不同，**不要**对它套用免审核改造；本次问题是前端统计取错行，非审核口径本身。列表页（`/supplier-settlements` 结算记录）统计是直接对每条 `amount` 求和、不取 `contract_total_*`，不受影响。
+- **教训**：①接口里"按合同累计"的字段只挂在已审核行上时，前端取"第一条"必须先过滤到已审核行，否则草稿行（累计恒为0）会污染统计；②页面统计卡片要分清数据源是接口 `summary` 还是前端二次计算，二者口径可能不一致（本例接口对、前端错）。
+
 ### 2026-10 综合费用录入后统计卡片无数据（修复：免审核直计统计）
 - **现象**：综合费用页面录入费用后，上方统计卡片（笔数/总金额/分类金额）始终为 0。
 - **根因**：`af17122`（2026-09-23）把统计口径从"排除作废"改为"只算 reviewed"，但 POST 录入仍写 `status='draft'`，且综合费用页面**没有审核/反审核入口**，记录永远无法进入统计；成本聚合（business-logic）、data-aggregation、月报（summary）同样只算 reviewed。
