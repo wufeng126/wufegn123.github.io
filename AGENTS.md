@@ -368,6 +368,16 @@
 
 ## 最近更新
 
+### 2026-10 零星材料重复数据去重（product 1191 条冗余，删除方案交付）
+- **底数**：product 零星材料 3576 条全部 reviewed，其中 1191 条落在 407 个重复组里属冗余（集中 project13=745 条 / project11=446 条，大量整行重复 4 次、采购人陈维花、id 间距约 400，典型 Excel 同一文件重复导入），虚增金额 ¥6,094.22。
+- **重复判定键**：项目 + 材料名称 + 采购日期 + 数量 + 单价（金额=数量×单价），与系统导入查重口径一致；不含规格/采购人。SQL 验证两口径冗余数一致都是 1191。
+- **去重 SQL**：`DELETE FROM miscellaneous_materials a USING miscellaneous_materials b WHERE a.id>b.id AND 键全等`，每个重复组保留最小 id。已在 develop 造测试数据验证正确（X×3/Y×2/Z×1 → 精确删 3 条保留各组最小 id），develop 测试数据已清理。
+- **product 执行卡点**：沙箱内**无法直接写 product**——`exec_sql` product 仅 SELECT；localhost:5000 是 develop（COZE_PROJECT_ENV=DEV，所有 Supabase/PG 连接指向 develop）；`coze deploy` login=missing；git push 无凭证。且 product 站点当前部署的是旧代码（reviewed 记录禁删），即使能访问也删不动。
+- **交付物**（在 `public/backups/`）：
+  - `misc_materials_dedup_backup_20261027.csv`：1191 条冗余记录完整字段备份（金额按分存储，BigNum 显示）。
+  - `misc_materials_dedup_20261027.sql`：可直接在 product Supabase 控制台 SQL Editor 执行的「事务包裹 + CREATE 备份表留档 + DELETE 去重 + 验证」整段脚本。
+- **注意**：去重是纯数据 SQL（不经应用层），不会写审计日志/刷聚合缓存；删除后 product 总记录 3576→2385。备份表 `misc_materials_dedup_backup_20261027` 确认无误后可手动 DROP。
+
 ### 2026-10 零星材料项目金额统计"未筛选≠筛选后"（根因：PostgREST 1000 行上限截断统计查询）
 - **现象**：同一项目「南京中交智慧港」未筛选时项目金额统计卡显示 ¥719,837.70，筛选该项目后却显示 ¥1,377,244.78，未筛选明显漏算。
 - **根因**：`api/miscellaneous-materials/route.ts` GET 的统计用一次 `statsQuery` 拉全量行后在 JS 里聚合（`projectStats`/`categoryStats`/reviewed/draft/voided），但 **PostgREST 单次请求有默认行数上限（1000 行）**，超上限被**静默截断**。未筛选时全表 reviewed 行数（product 2789 行）被截到 1000 行 → 各项目统计漏算；筛选单项目后行数 <1000 → 完整。两场景口径不同导致不一致。
