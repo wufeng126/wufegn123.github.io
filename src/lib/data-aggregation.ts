@@ -113,10 +113,26 @@ export async function getSupplierSettlementTotal(
     const sid = Number(c.supplier_id);
     if (cid && pid) contractToProject.set(cid, pid);
     if (cid && sid) contractToSupplier.set(cid, sid);
+    if (pid && sid) {
+      const sids = projectSupplierIds.get(pid) || new Set<number>();
+      sids.add(sid);
+      projectSupplierIds.set(pid, sids);
+    }
   });
 
   let total = 0;
   const newFingerprints = new Set<string>();
+  const projectAmountFingerprints = new Map<number, Set<number>>();
+  const projectSupplierIds = new Map<number, Set<number>>();
+  (contracts || []).forEach((c: ContractRow) => {
+    const pid = Number(c.project_id);
+    const sid = Number(c.supplier_id);
+    if (pid && sid) {
+      const sids = projectSupplierIds.get(pid) || new Set<number>();
+      sids.add(sid);
+      projectSupplierIds.set(pid, sids);
+    }
+  });
 
   if (contractIds.length > 0) {
     let settleQuery = db
@@ -141,6 +157,9 @@ export async function getSupplierSettlementTotal(
         date: s.settlement_date ? String(s.settlement_date) : null,
         type: s.settlement_type ? String(s.settlement_type) : null,
       }));
+      const amtSet = projectAmountFingerprints.get(pid) || new Set<number>();
+      amtSet.add(round2(amount));
+      projectAmountFingerprints.set(pid, amtSet);
     }
   }
 
@@ -158,7 +177,7 @@ export async function getSupplierSettlementTotal(
       if (startDate && s.settlement_date && String(s.settlement_date) < startDate) continue;
       if (endDate && s.settlement_date && String(s.settlement_date) > endDate) continue;
       const amount = parseNumeric(s.settlement_amount);
-      // 与同 supplier 的新表记录按指纹去重
+      // 1) 宽松判重：与同 supplier 的新表记录按指纹去重
       const fp = supplierSettlementFingerprint({
         supplierId: sid,
         projectId: pid,
@@ -167,6 +186,13 @@ export async function getSupplierSettlementTotal(
         type: s.settlement_type ? String(s.settlement_type) : null,
       });
       if (newFingerprints.has(fp)) continue;
+      // 2) 跨供应商改挂判重（安全网：仅当老表供应商已不在本项目合同中才丢弃）
+      const currentSuppliers = projectSupplierIds.get(pid);
+      if (
+        projectAmountFingerprints.get(pid)?.has(round2(amount)) === true &&
+        currentSuppliers &&
+        !currentSuppliers.has(sid)
+      ) continue;
       total += amount;
     }
   } catch {
@@ -201,12 +227,20 @@ async function getSupplierSettlementMetricsByProjects(
   const projectLooseFingerprints = new Map<number, Set<string>>();
   const looseFingerprint = (supplierId: number, projectId: number, amount: number) =>
     `${supplierId}|${projectId}|${round2(amount)}`;
+  // 跨供应商改挂判重：同项目+同额集合（忽略供应商），配合合同供应商名单做安全网，
+  // 用于识别"结算从旧供应商改挂到新供应商"后老表残留仍按旧供应商计数导致的双计。
+  // 仅当老表该供应商已不在该项目现有合同中（已被改挂/弃用）时才丢弃，避免误删同项目
+  // 下不同供应商的真实同额结算。
+  const projectAmountFingerprints = new Map<number, Set<number>>();
+  const projectSupplierIds = new Map<number, Set<number>>();
   const ensure = (pid: number) => {
     if (!result.has(pid)) {
       result.set(pid, { settlementAmount: 0, supplierPayableBaseAmount: 0 });
       projectFingerprints.set(pid, new Set());
       projectLooseFingerprints.set(pid, new Set());
     }
+    if (!projectAmountFingerprints.has(pid)) projectAmountFingerprints.set(pid, new Set());
+    if (!projectSupplierIds.has(pid)) projectSupplierIds.set(pid, new Set());
     return result.get(pid)!;
   };
   const inRange = (date: unknown): boolean => {
@@ -257,6 +291,7 @@ async function getSupplierSettlementMetricsByProjects(
       }));
       // 同时写入宽松指纹（供老表迁移重复判重）
       projectLooseFingerprints.get(pid)!.add(looseFingerprint(supplierId, pid, amount));
+      projectAmountFingerprints.get(pid)!.add(round2(amount));
     }
   }
 
@@ -276,6 +311,15 @@ async function getSupplierSettlementMetricsByProjects(
       const amount = parseNumeric(s.settlement_amount);
       // 1) 宽松判重：新表已存在同供应商+同项目+同金额，视为迁移重复，丢弃
       if (projectLooseFingerprints.get(pid)!.has(looseFingerprint(sid, pid, amount))) continue;
+      // 1.5) 跨供应商改挂判重：新表存在同项目+同金额记录，且老表该供应商已不在该项目
+      //     现有合同供应商名单中（该结算可能已从旧供应商改挂到新供应商），视为改挂残留丢弃。
+      //     带安全网：若该供应商仍在本项目有合同，则可能是真实的不同供应商同额结算，不丢弃。
+      const currentSuppliers = projectSupplierIds.get(pid);
+      if (
+        projectAmountFingerprints.get(pid)!.has(round2(amount)) &&
+        currentSuppliers &&
+        !currentSuppliers.has(sid)
+      ) continue;
       // 2) 严格判重（同 supplier 同额同日同类型），避免老表自身/多次重复并入
       const fp = supplierSettlementFingerprint({
         supplierId: sid,
