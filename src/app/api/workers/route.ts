@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
       project_name: getProjectName(worker.projects),
       person_id: worker.person_id ?? null,
       person_project_ids: null as number[] | null,
+      person_projects: null as Array<{ id: number; name: string | null; status: string | null }> | null,
       status: worker.status || 'in_service',
       left_at: worker.left_at,
       created_at: worker.created_at,
@@ -202,10 +203,13 @@ export async function GET(request: NextRequest) {
       });
       formattedWorkers.forEach((w) => {
         if (w.person_id && personWorkersMap.has(w.person_id)) {
-          w.person_project_ids = personWorkersMap
-            .get(w.person_id)!
+          const personRows = personWorkersMap.get(w.person_id)!;
+          w.person_project_ids = personRows
             .map((pw) => pw.project_id)
             .filter((pid): pid is number => pid !== null);
+          w.person_projects = personRows
+            .map((pw) => ({ id: pw.project_id, name: pw.project_name, status: pw.status }))
+            .filter((p): p is { id: number; name: string | null; status: string | null } => p.id !== null);
         }
       });
     }

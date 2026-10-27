@@ -31,6 +31,7 @@ interface Worker {
   project_name?: string;
   person_id?: number | null;
   person_project_ids?: number[] | null;
+  person_projects?: Array<{ id: number; name: string | null; status: string | null }> | null;
   status: string;
   left_at: string | null;
   created_at: string;
@@ -120,6 +121,8 @@ export default function WorkerRosterPage() {
   const [transferProjectId, setTransferProjectId] = useState<string>('');
   const [transferAssignments, setTransferAssignments] = useState<any[]>([]);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  // 同身份证多项目弹窗
+  const [multiProjectWorker, setMultiProjectWorker] = useState<Worker | null>(null);
 
   // 饼图颜色
   const PIE_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#F53F3F', 'var(--color-cyan)', '#FF7D00'];
@@ -1222,13 +1225,16 @@ export default function WorkerRosterPage() {
                                       <LinkableCell href={`/workers/salaries?worker_id=${worker.id}&worker_name=${encodeURIComponent(worker.name)}`} className="font-medium text-foreground">
                                         {worker.name}
                                       </LinkableCell>
-                                      {(worker.person_project_ids?.length ?? 0) > 1 && (
-                                        <span
-                                          title={`同身份证人员同时在职于 ${worker.person_project_ids!.length} 个项目`}
-                                          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary"
+                                      {(worker.person_projects?.length ?? 0) > 1 && (
+                                        <button
+                                          type="button"
+                                          title={`同身份证人员同时任职于 ${worker.person_projects!.length} 个项目，点击查看项目列表`}
+                                          onClick={(event) => { event.stopPropagation(); setMultiProjectWorker(worker); }}
+                                          className="inline-flex cursor-pointer items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary transition hover:bg-primary/20"
                                         >
-                                          跨{worker.person_project_ids!.length}项目
-                                        </span>
+                                          <ChevronDown className="w-3 h-3" />
+                                          跨{worker.person_projects!.length}项目
+                                        </button>
                                       )}
                                       {worker.is_blacklist && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600">黑</span>}
                                     </div>
@@ -1443,6 +1449,59 @@ export default function WorkerRosterPage() {
           <DialogFooter className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>取消</Button>
             <Button onClick={handleTransfer} disabled={!transferProjectId} style={{ background: 'var(--color-primary)' }}>确认调动</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 同身份证多项目任职弹窗 */}
+      <Dialog open={!!multiProjectWorker} onOpenChange={(open) => { if (!open) setMultiProjectWorker(null); }}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>{multiProjectWorker?.name}</span>
+              的项目任职
+            </DialogTitle>
+            <DialogDescription>
+              该人员（身份证 {multiProjectWorker?.id_card || '-'}）同时任职于 {multiProjectWorker?.person_projects?.length ?? 0} 个项目
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {multiProjectWorker?.person_projects?.map((project, idx) => {
+              if (!project.id) return null;
+              const current = project.id === multiProjectWorker.project_id;
+              return (
+                <Link
+                  key={`${project.id}-${idx}`}
+                  href={`/workers/salaries?project_id=${project.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 transition hover:bg-muted/60"
+                  style={{ background: current ? 'var(--color-primary)/8' : 'var(--color-muted)', borderBottom: '1px solid var(--border)' }}
+                  onClick={() => setMultiProjectWorker(null)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Building2 className="w-4 h-4 shrink-0" style={{ color: 'var(--color-primary)' }} />
+                    <span className="truncate text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      {project.name || '(未分配项目)'}
+                    </span>
+                    {current && (
+                      <span className="shrink-0 rounded px-1.5 py-0.5 text-xs" style={{ background: 'var(--color-primary)/15', color: 'var(--color-primary)' }}>
+                        当前
+                      </span>
+                    )}
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
+                    project.status === 'left' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                  }`}>
+                    {project.status === 'left' ? '退场' : '在场'}
+                  </span>
+                </Link>
+              );
+            })}
+            {(multiProjectWorker?.person_projects?.length ?? 0) === 0 && (
+              <div className="py-6 text-center text-sm" style={{ color: 'var(--color-text-3)' }}>暂无项目任职记录</div>
+            )}
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setMultiProjectWorker(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
