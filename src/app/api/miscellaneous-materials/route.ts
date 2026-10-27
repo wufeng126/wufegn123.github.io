@@ -164,58 +164,71 @@ export async function GET(request: NextRequest) {
     }
 
     // 统计基于全部筛选结果，不能只按当前分页计算。
-    let statsQuery = client
-      .from('miscellaneous_materials')
-      .select(`
-        id,
-        project_id,
-        quantity,
-        unit_price,
-        amount,
-        status,
-        category,
-        subcategory,
-        projects(id, name)
-      `);
+    // 注意：PostgREST 单次请求有默认行数上限（self-host/Supabase 通常为 1000 行），
+    // 数据量超过上限时一次查询会被静默截断，导致"未筛选"全量统计漏算、数值小于"筛选后"。
+    // 这里按 id 稳定排序分页循环拉取所有匹配行后再聚合，保证各筛选场景口径一致。
+    const buildStatsQuery = () => {
+      let q = client
+        .from('miscellaneous_materials')
+        .select(`
+          id,
+          project_id,
+          quantity,
+          unit_price,
+          amount,
+          status,
+          category,
+          subcategory,
+          projects(id, name)
+        `)
+        .order('id', { ascending: true });
 
-    if (projectId && projectId !== 'all') {
-      statsQuery = statsQuery.eq('project_id', parseInt(projectId));
-    } else if (accessibleProjects !== null) {
-      statsQuery = statsQuery.in('project_id', accessibleProjects);
-    }
-    if (materialName) {
-      statsQuery = statsQuery.ilike('material_name', `%${materialName}%`);
-    }
-    if (specification) {
-      statsQuery = statsQuery.ilike('specification', `%${specification}%`);
-    }
-    if (purchaser) {
-      statsQuery = statsQuery.ilike('purchaser', `%${purchaser}%`);
-    }
-    if (startDate) {
-      statsQuery = statsQuery.gte('purchase_date', startDate);
-    }
-    if (endDate) {
-      statsQuery = statsQuery.lte('purchase_date', endDate);
-    }
-    if (status && status !== 'all') {
-      statsQuery = status === REVIEW_STATUS.DRAFT
-        ? statsQuery.or('status.eq.draft,status.is.null')
-        : statsQuery.eq('status', status);
-    }
-    if (category && category !== 'all') {
-      statsQuery = statsQuery.eq('category', category);
-    }
-    if (subcategory && subcategory !== 'all') {
-      statsQuery = statsQuery.eq('subcategory', subcategory);
-    }
+      if (projectId && projectId !== 'all') {
+        q = q.eq('project_id', parseInt(projectId));
+      } else if (accessibleProjects !== null) {
+        q = q.in('project_id', accessibleProjects);
+      }
+      if (materialName) {
+        q = q.ilike('material_name', `%${materialName}%`);
+      }
+      if (specification) {
+        q = q.ilike('specification', `%${specification}%`);
+      }
+      if (purchaser) {
+        q = q.ilike('purchaser', `%${purchaser}%`);
+      }
+      if (startDate) {
+        q = q.gte('purchase_date', startDate);
+      }
+      if (endDate) {
+        q = q.lte('purchase_date', endDate);
+      }
+      if (status && status !== 'all') {
+        q = status === REVIEW_STATUS.DRAFT
+          ? q.or('status.eq.draft,status.is.null')
+          : q.eq('status', status);
+      }
+      if (category && category !== 'all') {
+        q = q.eq('category', category);
+      }
+      if (subcategory && subcategory !== 'all') {
+        q = q.eq('subcategory', subcategory);
+      }
+      return q;
+    };
 
-    const { data: statsData, error: statsError } = await statsQuery;
-    if (statsError) {
-      throw new Error(`查询零星材料统计失败: ${statsError.message}`);
+    const STATS_PAGE_SIZE = 1000;
+    const allStatsData: MiscMaterialStatsRow[] = [];
+    for (let from = 0; ; from += STATS_PAGE_SIZE) {
+      const { data: pageRows, error: statsError } = await buildStatsQuery().range(from, from + STATS_PAGE_SIZE - 1);
+      if (statsError) {
+        throw new Error(`查询零星材料统计失败: ${statsError.message}`);
+      }
+      const rows = (pageRows || []) as MiscMaterialStatsRow[];
+      if (rows.length === 0) break;
+      allStatsData.push(...rows);
+      if (rows.length < STATS_PAGE_SIZE) break;
     }
-
-    const allStatsData = (statsData || []) as MiscMaterialStatsRow[];
     const reviewedData = allStatsData.filter(item => isReviewedStatus(item.status || undefined));
     const draftData = allStatsData.filter(item => !isReviewedStatus(item.status || undefined) && !isVoidedStatus(item.status || undefined));
     const voidedData = allStatsData.filter(item => isVoidedStatus(item.status || undefined));
