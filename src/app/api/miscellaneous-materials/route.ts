@@ -674,8 +674,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '当前账号无权删除该项目材料记录' }, { status: 403 });
     }
 
-    if (isReviewedStatus(currentMaterial?.status) || isVoidedStatus(currentMaterial?.status)) {
-      return NextResponse.json({ error: '已审核或已作废记录不可删除' }, { status: 400 });
+    // 零星材料免审核（录入即 reviewed），已审核记录允许删除；仅已作废记录禁止删除（对齐综合费用先例）
+    if (isVoidedStatus(currentMaterial?.status)) {
+      return NextResponse.json({ error: '已作废记录不可删除' }, { status: 400 });
     }
 
     const { error } = await client

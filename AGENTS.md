@@ -368,6 +368,12 @@
 
 ## 最近更新
 
+### 2026-10 零星材料录入数据放开删除 + 导入错误全量展示
+- **需求**：①批量导入的错误项全部展示提醒；②录入的数据可删除。
+- **删除放开**（`api/miscellaneous-materials/route.ts` DELETE）：零星材料是**免审核**模式（POST 录入即 `status=reviewed`+reviewed_at，见 412-413 行），但 DELETE 此前 `isReviewedStatus || isVoidedStatus` 双重拦截 → 所有录入数据（都是 reviewed）永远删不掉。修复：移除"已审核不可删除"，仅保留"已作废不可删除"（对齐综合费用先例 `comprehensive-expenses/[id]/route.ts` DELETE 196-198）。效果：已审核可删、已作废仍禁删。
+- **导入错误全量展示**（`miscellaneous-materials/page.tsx`）：后端 import 本就返回全部 `errors`（无截断），前端此前 `errors.slice(0,5)` 只显示前 5 条并折叠"...还有 N 条"。改为 `errors.map` 全量渲染，外层加 `max-h-48 overflow-y-auto` 滚动容器，避免错误条数多时撑爆对话框。
+- **验证**：reviewed 删除返回 `{"success":true}`、voided 删除拦截"已作废记录不可删除"、lint/ts-check 通过；测试数据已清理。
+
 ### 2026-10 供应商结算新增草稿后统计卡片变0（修复：统计取每合同最新已审核累计）
 - **现象**：结算管理页（`/supplier-contracts/settlement`，标题"供应商结算台账"）新增一条结算后，上方统计卡片（结算总额/进度应付/已付/未付等）金额全部变成 0。
 - **根因**：页面统计卡片用的是**前端** `calculateStatsFromSettlements(filteredSettlements)`（非接口 `summary`）。该函数对每个合同**只取列表排序后第一条**结算的 `contract_total_settlement_amount/payable/paid` 作为该合同累计口径（`if (totalsByContract.has(contractId)) return`）。而接口 GET 中 `buildSupplierSettlementCumulativeMap` **只为 reviewed（已提交/已审核…）结算**构建累计 map，草稿（draft）结算的 `contract_total_*` 落默认值全 0；列表又按 `settlement_date desc` 排序，**新增的草稿（尤其总结算 final，日期通常最新）排在合同第一条** → 其累计 0 覆盖了该合同真实累计 → 整个合同统计被抹成 0。接口 `summary`（基于 reviewed）本身算得对，但页面没用它渲染卡片。

@@ -2259,13 +2259,10 @@ function MiscMaterialsContent() {
                   导入完成：成功 {importResult.success} 条，失败 {importResult.failed} 条
                 </p>
                 {importResult.errors.length > 0 && (
-                  <div className="mt-2 text-xs space-y-1" style={{ color: '#F53F3F' }}>
-                    {importResult.errors.slice(0, 5).map((err, idx) => (
+                  <div className="mt-2 max-h-48 overflow-y-auto text-xs space-y-1 pr-1" style={{ color: '#F53F3F' }}>
+                    {importResult.errors.map((err, idx) => (
                       <p key={idx}>{err}</p>
                     ))}
-                    {importResult.errors.length > 5 && (
-                      <p>... 还有 {importResult.errors.length - 5} 条错误</p>
-                    )}
                   </div>
                 )}
               </div>
