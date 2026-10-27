@@ -17,6 +17,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
+import { DatePickerField } from './date-picker-field';
 
 type ProjectStatus = '正常推进' | '轻微滞后' | '重点关注';
 type EditorMode = 'plan' | 'quantity';
@@ -1648,7 +1649,7 @@ function PlanEditor({
         <div className="rounded-lg border border-border p-4">
           <PlanSectionTitle title="计划排程" subtitle="直接选择开始和结束日期，甘特图自动生成计划条" />
           <div className="mt-3 space-y-3">
-            <DateInput
+            <DatePickerField
               label="计划开始日期"
               value={planStartDate}
               min={`${selectedMonth.id}-01`}
@@ -1659,7 +1660,7 @@ function PlanEditor({
                 planStart: Math.min(monthDateToPosition(value, selectedMonth), task.planEnd - 4),
               })}
             />
-            <DateInput
+            <DatePickerField
               label="计划结束日期"
               value={planEndDate}
               min={`${selectedMonth.id}-01`}
@@ -1891,34 +1892,6 @@ function SelectInput({
           </option>
         ))}
       </select>
-    </label>
-  );
-}
-
-function DateInput({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  min: string;
-  max: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
-      <input
-        type="date"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-      />
     </label>
   );
 }
