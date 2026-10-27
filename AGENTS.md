@@ -374,7 +374,7 @@
 - **盘点（product）**：worker_salaries where project_id=10 =60 条（其中 38 条的 worker 在 id=10、22 条的 worker 实际归属「延安能源产业基地-二次结构」id=11——历史错挂）；workers where project_id=10 =34 人（其中 1 人「袁中全 id=901」与项目4 的「李新武 id=246」共享同一 persons 主档/同一身份证，属重复身份）；workers where project_id IS NULL =192 人。
 - **未分配工人关联核查**：引用 workers 的 9 张外键表（worker_salaries/salary_payments/worker_assignments/living_allowance_receipt_items/living_allowance_records/construction_log_attendance/site_manager_worker_scopes/wps_worker_sync_logs/team_settlement_splits）对 192 名未分配工人关联数**全部为 0** → 可安全清除。
 - **执行（product）**：①备份 `worker_salaries_w10_backup_20261027`(60)、`workers_w10_backup_20261027`(34)、`workers_unassigned_backup_20261027`(192)；②`UPDATE worker_salaries SET project_id=4 WHERE project_id=10`(60)；③`UPDATE worker_salaries SET worker_id=246 WHERE worker_id=901 AND project_id=4`（袁中全工资归并到山海境李新武，同 person）；④`DELETE FROM workers WHERE id=901`（重复身份任职删除，person 由项目4李新武承载）；⑤`UPDATE workers SET project_id=4 WHERE project_id=10`(33)；⑥`DELETE FROM workers WHERE project_id IS NULL`(192)。验证：项目4 工人 23→56、工资 0→60；项目10/19 花名册与工资清零；未分配工人=0。
-- **⚠️ 归正进展（完成）**：用户确认将 22 条（worker 归属延安 id=11）归正至延安。经比对其中 **8 条与延安「同 worker_id + 同 year_month」冲突且金额不同**（工时/工价/应发/实发都不一致，属同一工人当月两条不同数据，孰真孰假无法自动判断）。执行归正：`UPDATE worker_salaries SET project_id=11 WHERE project_id=4 AND worker 在11 AND 不与延安同月冲突` → 归正 **14 条**；剩余 **8 条仍在项目4（山海境）**，等用户决策（删除项目4这8条 / 强制并入延安 / 保留现状）。归正后分布：项目4=46（38 山海境工人+8 延安冲突未归正）、项目11=248（225 延安工人+23 其它项目错挂，超出本次范围未动）。
+- **⚠️ 待提示用户**：迁移后 id=4 的 60 条工资中有 22 条对应的 worker 仍归属「延安能源产业基地-二次结构」(id=11)——工资已迁至山海境但工人不在此项目，若用户需要可再按 worker 实际项目归正（改回 project_id=11）或随之迁移工人。
 
 ### 2026-10 删除重复项目「南京中交智慧港 id=2」+ 创建项目权限收紧为仅超管
 - **背景**：南京中交智慧港在 projects 出现两条——id=2（2026-03-27 创建，year 2026）与 id=6（2025，year 2025，数据主体）。id=2 为重复冗余副本，经用户确认删除。
