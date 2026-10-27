@@ -290,7 +290,10 @@ export async function POST(request: NextRequest) {
       payable_amount: payableAmount.toFixed(2),
       settlement_date: settlement_date || null,
       remark: remark || null,
-      status: REVIEW_STATUS.DRAFT,
+      // 录入即已办结，不再需要单独审核
+      status: REVIEW_STATUS.REVIEWED,
+      reviewed_at: now.toISOString(),
+      reviewed_by: auth.user.name || auth.user.username || 'system',
       created_by: auth.user.id,
       created_by_name: auth.user.name || auth.user.username,
     }, supabase);
@@ -298,6 +301,26 @@ export async function POST(request: NextRequest) {
     const settlement = Array.isArray(settlementArr) ? settlementArr[0] : settlementArr;
 
     if (insertError) throw insertError;
+
+    // 若为总结算，录入即审核通过 → 联动合同为已完结锁定
+    if (settlement_type === 'final') {
+      await supabase
+        .from('supplier_contracts')
+        .update({
+          contract_status: '已完结',
+          locked: true,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', contractId);
+
+      await supabase.from('supplier_contract_logs').insert({
+        contract_id: contractId,
+        action: '总终结算审核通过',
+        operator_id: auth.user.id,
+        operator_name: auth.user.name || auth.user.username,
+        detail: { settlement_no: settlement?.settlement_no, settlement_amount: settlementAmount, payable_amount: payableAmount },
+      });
+    }
 
     await auditLog({
       operationType: 'create',

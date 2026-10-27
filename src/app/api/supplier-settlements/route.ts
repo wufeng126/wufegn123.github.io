@@ -224,7 +224,10 @@ export async function POST(request: NextRequest) {
       payment_ratio: paymentRatio,
       payment_ratio_final: Number(contract?.payment_ratio_final) || DEFAULT_PAYMENT_RATIOS.final,
       payable_amount: payableAmount.toFixed(2),
-      status: REVIEW_STATUS.DRAFT,
+      // 录入即已办结，不再需要单独审核
+      status: REVIEW_STATUS.REVIEWED,
+      reviewed_at: now.toISOString(),
+      reviewed_by: auth.user.name || auth.user.username || 'system',
       remark: remark || null,
       created_by: auth.user.id,
       created_by_name: auth.user.name || auth.user.username,
@@ -234,6 +237,26 @@ export async function POST(request: NextRequest) {
     // 写入后失效聚合缓存
     invalidateAggregationCache();
     const settlement = Array.isArray(settlementArr) ? settlementArr[0] : settlementArr;
+
+    // 若为总结算，录入即审核通过 → 联动合同为已完结锁定
+    if (normalizedType === 'final') {
+      await supabase
+        .from('supplier_contracts')
+        .update({
+          contract_status: '已完结',
+          locked: true,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', contractId);
+
+      await supabase.from('supplier_contract_logs').insert({
+        contract_id: contractId,
+        action: '总终结算审核通过',
+        operator_id: auth.user.id,
+        operator_name: auth.user.name || auth.user.username,
+        detail: { settlement_amount: settlementAmount, payable_amount: payableAmount },
+      });
+    }
 
     return NextResponse.json({ settlement });
   } catch (error: any) {
