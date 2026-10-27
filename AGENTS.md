@@ -368,6 +368,19 @@
 
 ## 最近更新
 
+### 2026-10 供应商结算「列表 vs 统计卡片」不一致（根因：页面无审核入口，草稿总结算未计入）
+- **现象**：「吊篮租赁合同」（contract 20，南京中交智慧港）结算台账页，列表 4 条结算单（3 进度 + 1 总结算 ¥46,181），但统计卡片「合同累计结算」只有 ¥54,883.28（=3 条进度之和）；总结算单本次金额有值、累计/应付/已付全 0；单数 4 但金额只算 3 条。
+- **根因（两层）**：
+  1. **数据状态**：那条总结算（id=43）是 `draft` 草稿。结算单创建（手动 `route.ts:293` / 批量导入 `import:181`）默认 `status=REVIEW_STATUS.DRAFT`，计入统计必须先审核，draft 不计入金额（只被「结算单数」计数）。
+  2. **功能断裂（真 bug）**：结算台账页（`/supplier-contracts/settlement`）每行**只有删除按钮，无「提交审核」入口**（全页仅 `handleDeleteSettlement`），draft→reviewed 没有任何 UI 通路 → 手动新增的结算单会永远卡在草稿、永不计入。现有 3 条进度结算是历史数据（中文状态「已提交」，被 `isReviewedStatus` 兼容识别为已审核）才被计入。
+- **业务口径确认**：总结算 = 最后一笔结算（该笔后再无新数据），**不是**最终结算数字；最终结算数 = 总结算 + 之前过程结算**相加**。因此 `business-logic.ts` 把所有已审核结算简单累加（`buildSupplierSettlementCumulativeMap` / `summarizeSupplierSettlementRows`）的口径**正确**，无重复计算。
+- **处理（product，直接 SQL 审核，已执行）**：
+  - `UPDATE supplier_settlements SET status='reviewed', reviewed_at=now(), reviewed_by='admin' WHERE id=43 AND status='draft'`；
+  - 按应用层 final 审核联动：`UPDATE supplier_contracts SET contract_status='已完结', locked=true, updated_at=now() WHERE id=20`；
+  - `INSERT supplier_contract_logs (contract_id=20, action='总终结算审核通过', operator_name='admin', detail=jsonb)`。
+  - 验证：该合同已审核结算=4 条，结算总额（含总结算）=¥101,064.28、进度应付=¥54,883.28（final 付款比例 0% 不再计应付）、合同已完结已锁定。列表与统计卡片已一致。
+- **后续优化（待用户确认 + 需部署到 product 才生效）**：给结算台账页补「提交审核/反审核」按钮，打通 draft→reviewed 的 UI 通路；否则未来手动新增的结算单仍会卡在 draft、再次出现「单数多、金额少」的不一致。
+
 ### 2026-10 零星材料重复数据去重（product 1191 条冗余，已执行删除）
 - **底数**：product 零星材料 3576 条全部 reviewed，其中 1191 条落在 407 个重复组里属冗余（集中 project13=745 条 / project11=446 条，大量整行重复 4 次、采购人陈维花、id 间距约 400，典型 Excel 同一文件重复导入），虚增金额 ¥6,094.22。
 - **重复判定键**：项目 + 材料名称 + 采购日期 + 数量 + 单价（金额=数量×单价），与系统导入查重口径一致；不含规格/采购人。SQL 验证两口径冗余数一致都是 1191。
