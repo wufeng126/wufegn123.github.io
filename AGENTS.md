@@ -368,6 +368,17 @@
 
 ## 最近更新
 
+### 2026-10 钉钉工作通知升级为互动卡片（方案A：actionCard）
+- **需求**：钉钉收到的是纯文字，希望升级成互动卡片。用户选「先做A」——actionCard 结构化卡片 + 跳转按钮。
+- **实现**（`src/lib/dingtalk-work-notification.ts`）：
+  - 新增 `severityMeta(severity)`：danger❗#FF4D4F、warning⚠️#FAAD14、infoℹ️#1890FF。
+  - 新增 `toCardActionUrl(href)`：用钉钉客户端跳转协议 `dingtalk://dingtalkclient/page/link?url=<encodeURIComponent(href)>&pc_slide=true` 包装按钮跳转地址。
+  - 新增 `formatDingTalkWorkCard(params): DingTalkActionCardMessage`：生成 `{msgtype:'actionCard', actionCard:{title, text(markdown+emoji+<font color>), btnOrientation:'1', btnJSONList}}`。字段映射复用 `getNotificationRouteRule`/`categoryLabel`/`summary`/`responsibility`/`actionLabel`(默认'查看详情')/`actionHref`/`amount`；无按钮链接时 btnJSONList 为空数组。
+  - 改造 `sendDingTalkWorkNotification`：`const useCard = process.env.DINGTALK_CARD_MODE !== 'off';` 默认发卡片，失败(`!result.success`)自动回退纯文本 `text` 重发；`DINGTALK_CARD_MODE=off` 时直接走 text。
+- **验证**：`pnpm exec tsx -e` 跑 `formatDingTalkWorkCard` 产物 JSON 结构正确（title/text/btnJSONList 均符合 actionCard 规范）；test_run lint/ts-check/探活全绿。
+- **注意**：按钮跳转 absolute URL 依赖 `NEXT_PUBLIC_APP_URL`/`APP_URL` 环境变量拼接（`toAbsoluteNotificationHref`），生产部署需确认该域名为公网可达地址，否则卡片按钮跳转不可用。代码改动当前在 develop 源码，需 git push / deploy 到 product 才在线上生效。
+- **后续可选（方案B，用户未启动）**：卡片按钮回调 / Stream 实现真正状态回写（点"已处理"回写系统），需用户确认后再做。
+
 ### 2026-10 清理混入结算管理的测试数据（测试供应商 + 测试工人）
 - **需求**：排查系统表是否混入测试数据，用户确认删除「测试供应商-修改」(id=4) 及花名册「张三」(id=1667)。
 - **排查（product）**：扫描 suppliers/…/evidence 等表，命中 suppliers 表两条测试供应商——id=2「测试供应商-final」（无关联）、id=4「测试供应商-修改」。id=4 名下挂着**真实数额业务数据**：合同 id=7「盘扣租赁合同」(SH-NJZJZHG-001，南京中交智慧港 id=6)、`supplier_settlements` 12 条（id 11~17/31/32/35/37/40，与旧表 `settlements` 该供应商盘扣结算金额一一对应）、`payments` 2 条（id 6/7）、旧表 `settlements` 7 条（含 id=17 劳务费，此前从南京重复项目迁至 id=6）。判断为曾用于测试的供应商账户承载了真实/重复盘扣租赁数据，经用户确认全部删除。
