@@ -368,11 +368,12 @@
 
 ## 最近更新
 
-### 2026-10 零星材料重复数据去重（product 1191 条冗余，删除方案交付）
+### 2026-10 零星材料重复数据去重（product 1191 条冗余，已执行删除）
 - **底数**：product 零星材料 3576 条全部 reviewed，其中 1191 条落在 407 个重复组里属冗余（集中 project13=745 条 / project11=446 条，大量整行重复 4 次、采购人陈维花、id 间距约 400，典型 Excel 同一文件重复导入），虚增金额 ¥6,094.22。
 - **重复判定键**：项目 + 材料名称 + 采购日期 + 数量 + 单价（金额=数量×单价），与系统导入查重口径一致；不含规格/采购人。SQL 验证两口径冗余数一致都是 1191。
 - **去重 SQL**：`DELETE FROM miscellaneous_materials a USING miscellaneous_materials b WHERE a.id>b.id AND 键全等`，每个重复组保留最小 id。已在 develop 造测试数据验证正确（X×3/Y×2/Z×1 → 精确删 3 条保留各组最小 id），develop 测试数据已清理。
-- **product 执行卡点**：沙箱内**无法直接写 product**——`exec_sql` product 仅 SELECT；localhost:5000 是 develop（COZE_PROJECT_ENV=DEV，所有 Supabase/PG 连接指向 develop）；`coze deploy` login=missing；git push 无凭证。且 product 站点当前部署的是旧代码（reviewed 记录禁删），即使能访问也删不动。
+- **product 执行（已完成）**：原以为 `exec_sql` product 仅 SELECT，实测**可写**，已直接在 product 执行完成：①建备份表 `misc_materials_dedup_backup_20261027`（1191 行完整字段留档）→ ②DELETE 去重（USING 自连接，各组保留最小 id）返回 DELETE 1191 → ③验证剩余重复=0、总数 3576→2385 → ④交叉验证备份表 1191 条均已从原表删除（删的正是备份那批）。注：该库为 Coze/火山托管实例（`*.aidap-global.cn-beijing.volces.com`），**无 supabase.com 控制台**，`coze` CLI 也无 db 子命令，product 数据写操作走 `exec_sql` product 即可。
+- **后续**：备份表 `misc_materials_dedup_backup_20261027` 确认无误后可手动 DROP；纯数据 SQL 不经应用层，不写审计日志/不刷聚合缓存，已即时生效。应用层"放开删除+统计截断修复"代码改动仍需部署到 product 才在站点生效（git push / coze deploy 待凭证）。
 - **交付物**（在 `public/backups/`）：
   - `misc_materials_dedup_backup_20261027.csv`：1191 条冗余记录完整字段备份（金额按分存储，BigNum 显示）。
   - `misc_materials_dedup_20261027.sql`：可直接在 product Supabase 控制台 SQL Editor 执行的「事务包裹 + CREATE 备份表留档 + DELETE 去重 + 验证」整段脚本。
