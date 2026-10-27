@@ -112,7 +112,21 @@ const getSettlementStatusLabel = (status?: string | null) => {
   return '未审核';
 };
 
-const isReviewedSettlement = (status?: string | null) => status === 'reviewed';
+const isReviewedSettlement = (status?: string | null) => {
+  const value = String(status || '').trim();
+  if (!value) return false;
+  if (value === 'voided') return false;
+  return (
+    value === 'reviewed' ||
+    value === 'approved' ||
+    value === 'complete' ||
+    value === 'completed' ||
+    value === 'paid' ||
+    value === '已提交' ||
+    value === '已审核' ||
+    value === '已结算'
+  );
+};
 const isVoidedSettlement = (status?: string | null) => status === 'voided';
 
 const csvCell = (value: string | number | null | undefined) => {
@@ -438,6 +452,8 @@ export default function PaymentsPage() {
       toast.error('当前账号没有新增付款权限，请联系管理员开通供应商付款新增权限');
       return;
     }
+    // 打开弹窗时刷新结算单，避免拿到旧状态（如结算单刚被审核/作废）导致无法勾选
+    fetchSettlements();
     setDialogOpen(true);
   };
 
