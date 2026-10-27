@@ -368,6 +368,12 @@
 
 ## 最近更新
 
+### 2026-10 清理混入结算管理的测试数据（测试供应商 + 测试工人）
+- **需求**：排查系统表是否混入测试数据，用户确认删除「测试供应商-修改」(id=4) 及花名册「张三」(id=1667)。
+- **排查（product）**：扫描 suppliers/…/evidence 等表，命中 suppliers 表两条测试供应商——id=2「测试供应商-final」（无关联）、id=4「测试供应商-修改」。id=4 名下挂着**真实数额业务数据**：合同 id=7「盘扣租赁合同」(SH-NJZJZHG-001，南京中交智慧港 id=6)、`supplier_settlements` 12 条（id 11~17/31/32/35/37/40，与旧表 `settlements` 该供应商盘扣结算金额一一对应）、`payments` 2 条（id 6/7）、旧表 `settlements` 7 条（含 id=17 劳务费，此前从南京重复项目迁至 id=6）。判断为曾用于测试的供应商账户承载了真实/重复盘扣租赁数据，经用户确认全部删除。
+- **执行（product）**：①备份 `suppliers_test_backup_20261027`、`suppliers_sup4_backup_20261027`、`supplier_contracts_sup4_backup_20261027`、`supplier_settlements_c7_backup_20261027`、`payments_sup4_backup_20261027`、`settlements_sup4_backup_20261027`、`workers_zm_backup_20261027`；②`DELETE settlements WHERE supplier_id=4`(7)；③`DELETE supplier_contracts WHERE id=7`(1，级联删 12 条 supplier_settlements + contract logs)；④`DELETE payments WHERE supplier_id=4`(2)；⑤`DELETE suppliers WHERE id=4`(1，其名 2 已在上一窗口删)；⑥`DELETE workers WHERE id=1667`(1，张三，`worker_assignments` 级联)。验证 suppliers/payments/settlements/supplier_contracts 关联 id 2/4 与张三关联全为 0。
+- **⚠️ 经验教训**：①删 suppliers 前必须先清 `payments`（含 supplier_id FK）+`settlements`+`supplier_contracts` 三者引用，否则 DELETE 供应商静默失败（返回空、不报错也不删）；②判定"测试数据"须评估其名下是否承载真实业务（本案例测试供应商名下是真实数额的盘扣租赁结算/付款），删前向用户充分说明数据影响并留备份。
+
 ### 2026-10 公司公共项目数据归位到山海境TOD + 清除未分配项目工人
 - **需求**：①月度工资中「公司公共项目/非项目日志」数据转移至「山海境TOD」；②花名册中「公司公共项目/非项目」数据转移至「山海境TOD」；③检查花名册中未分配项目（project_id=NULL）人员是否有关联工资等数据，没有则清除。
 - **项目 id**：山海境TOD=4；公司公共项目/非项目日志 存在两条重复 id=10 与 id=19（数据都在 id=10，id=19 为空）。
