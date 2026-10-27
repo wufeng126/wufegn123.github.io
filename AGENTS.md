@@ -368,6 +368,14 @@
 
 ## 最近更新
 
+### 2026-10 删除重复项目「南京中交智慧港 id=2」+ 创建项目权限收紧为仅超管
+- **背景**：南京中交智慧港在 projects 出现两条——id=2（2026-03-27 创建，year 2026）与 id=6（2025，year 2025，数据主体）。id=2 为重复冗余副本，经用户确认删除。
+- **id=2 关联盘点（product）**：workers 128（全含 person_id；73 人与 id=6 同 person 属重复任职、55 人仅本项目）、settlements 15（14 条盘扣/钢管租赁与 id=6 按月份一一重复、1 条劳务费 id=17 2026-03 独有）；worker_salaries/work_items/client_reports/client_payments/construction_logs/settlement_evidence_records/payments/work_item_subitems 均为 0。
+- **执行（product）**：①建备份表 `settlements_p2_backup_20261027`(15)、`workers_p2_backup_20261027`(128)；②`UPDATE settlements SET project_id=6 WHERE id=17`（独有劳务费迁移保留）；③`DELETE settlements WHERE project_id=2`(14，与 id=6 重复)；④`UPDATE workers SET project_id=6 WHERE project_id=2 AND person_id NOT IN (SELECT person_id FROM workers WHERE project_id=6)`（仅本项目的 55 名工人迁移到保留项目，保留任职）；⑤`DELETE workers WHERE project_id=2`(73，重复任职)；⑥`DELETE projects WHERE id=2`。验证：南京只剩 id=6，id=6 工人 180→235，结算 17→18，persons 身份全部保留无丢失。
+- **⚠️ 删除项目依赖 DB 外键**：`projects` 被约 40 张表引用，外键 delete_rule 各异——CASCADE（client_payments/client_reports/worker_salaries/work_items/construction_logs/team_groups 等）、SET NULL（workers/living_allowance_*/comprehensive_expenses/supplier_contracts 等）、**NO ACTION（settlements/payments/settlement_evidence_records/work_item_subitems）**。NO ACTION 会阻止 DELETE project，必须**先删/迁这些表的相关行再删项目**；SET NULL 的表删除项目会留下孤儿行（如 workers.project_id 变 NULL），删项目前应主动迁移或清理，避免花名册出现无项目工人。
+- **创建权限收紧**（`api/projects/route.ts` POST）：原 POST **无任何鉴权**（任意请求可建项目，是重复项目产生根因之一——无重名校验+无鉴权）。新增 `requireSuperAdmin(request)` 于 POST 开头（import 自 `@/lib/api-auth`），未登录返回 `401 未登录`、非超管返回 `403 无权限`。前端 `projects/page.tsx`「新增项目」按钮包裹 `isSuperAdminUser(user?.role) &&`（DialogTrigger 条件渲染），非超管不显示。GET 列表的 401 来自既有 `getCurrentUser()`（153 行，非本次改动）。
+- **待决/提醒**：①重复项目清理还有两处待用户确认——欧亚四路住宅（保留 id=9/2025，删 id=5/2026）、公司公共项目/非项目日志（id=10/19 保留哪个）；②本窗口代码改动（创建权限等）当前仅在 develop 源码，需 git push 并部署到 product 才在线上生效，product 数据修正已即时生效。
+
 ### 2026-10 供应商结算「列表 vs 统计卡片」不一致（根因：页面无审核入口，草稿总结算未计入）
 - **现象**：「吊篮租赁合同」（contract 20，南京中交智慧港）结算台账页，列表 4 条结算单（3 进度 + 1 总结算 ¥46,181），但统计卡片「合同累计结算」只有 ¥54,883.28（=3 条进度之和）；总结算单本次金额有值、累计/应付/已付全 0；单数 4 但金额只算 3 条。
 - **根因（两层）**：

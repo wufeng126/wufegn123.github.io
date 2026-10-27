@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
+import { requireSuperAdmin } from '@/lib/api-auth';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { ensurePublicLogProject, isPublicLogProject, PUBLIC_LOG_PROJECT_TYPE } from '@/lib/public-log-project';
@@ -289,6 +290,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSuperAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const {
       name,

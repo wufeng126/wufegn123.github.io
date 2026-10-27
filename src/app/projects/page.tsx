@@ -415,12 +415,14 @@ export default function ProjectsPage() {
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-3)' }}>项目基础档案台账，集中维护项目名称、甲方、地址和合同信息</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="btn-primary h-9 w-full sm:w-auto" onClick={openAddDialog}>
-              <Plus className="w-4 h-4 mr-1.5" />
-              新增项目
-            </Button>
-          </DialogTrigger>
+          {isSuperAdminUser(user?.role) && (
+            <DialogTrigger asChild>
+              <Button className="btn-primary h-9 w-full sm:w-auto" onClick={openAddDialog}>
+                <Plus className="w-4 h-4 mr-1.5" />
+                新增项目
+              </Button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="dialog-header">{editingProject ? '编辑项目' : '新增项目'}</DialogTitle>
