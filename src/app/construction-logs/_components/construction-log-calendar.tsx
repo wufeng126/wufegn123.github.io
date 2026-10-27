@@ -186,7 +186,15 @@ export default function ConstructionLogCalendar() {
           : Array.isArray(json.data?.projects)
             ? json.data.projects
             : [];
-        const nextProjects = list.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
+        // 按 ID 去重，防止同一个项目出现多次
+        const seenIds = new Set<number>();
+        const nextProjects = list
+          .filter((p: { id: number; name: string }) => {
+            if (seenIds.has(p.id)) return false;
+            seenIds.add(p.id);
+            return true;
+          })
+          .map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
         setProjects(nextProjects);
         if (nextProjects.length > 0) {
           setSelectedProjectId(current => current || String(nextProjects[0].id));

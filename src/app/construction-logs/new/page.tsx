@@ -267,13 +267,20 @@ function NewConstructionLogPageContent() {
     fetch('/api/projects?includePublicLog=1')
       .then(r => r.json())
       .then(j => {
-        const list = Array.isArray(j.projects)
-          ? j.projects
-            .filter((project: Project) => !project.is_archived)
-            .filter((project: Project) => (
-              !(isPublicLogRestrictedUser(user) && project.name === PUBLIC_LOG_PROJECT_NAME)
-            ))
-          : [];
+        const rawList = Array.isArray(j.projects) ? j.projects : [];
+        // 按 ID 去重，防止同一个项目出现多次
+        const seenIds = new Set<string>();
+        const list = rawList
+          .filter((project: Project) => !project.is_archived)
+          .filter((project: Project) => {
+            const idKey = String(project.id);
+            if (seenIds.has(idKey)) return false;
+            seenIds.add(idKey);
+            return true;
+          })
+          .filter((project: Project) => (
+            !(isPublicLogRestrictedUser(user) && project.name === PUBLIC_LOG_PROJECT_NAME)
+          ));
         setProjects(list);
         if (list.length > 0) {
           const requestedProjectExists = initialProjectId && list.some((project: Project) => String(project.id) === initialProjectId);
