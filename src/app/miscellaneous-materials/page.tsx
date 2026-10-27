@@ -1052,9 +1052,19 @@ function MiscMaterialsContent() {
         )}
 
         {material.status === 'voided' && (
-          <span className="px-2 text-xs" style={{ color: 'var(--color-text-3)' }}>
-            只读留痕
-          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCurrentMaterial(material);
+              setDeleteDialogOpen(true);
+            }}
+            className="h-8 px-2"
+            title="删除"
+            aria-label="删除"
+          >
+            <Trash2 className="h-4 w-4" style={{ color: '#F53F3F' }} />
+          </Button>
         )}
       </div>
     );

@@ -674,11 +674,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '当前账号无权删除该项目材料记录' }, { status: 403 });
     }
 
-    // 零星材料免审核（录入即 reviewed），已审核记录允许删除；仅已作废记录禁止删除（对齐综合费用先例）
-    if (isVoidedStatus(currentMaterial?.status)) {
-      return NextResponse.json({ error: '已作废记录不可删除' }, { status: 400 });
-    }
-
+    // 零星材料免审核（录入即 reviewed），已审核与已作废记录均允许删除；
+    // 作废记录本就不计入成本统计，删除不影响金额口径，仅移除留痕。
     const { error } = await client
       .from('miscellaneous_materials')
       .delete()

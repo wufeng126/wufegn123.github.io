@@ -368,6 +368,15 @@
 
 ## 最近更新
 
+### 2026-10 零星材料「已作废」记录放开删除
+- **现象**：用户反馈列表操作列"没有删除按钮"——截图中该批记录全部是「已作废」状态，操作列此前对 voided 只渲染"只读留痕"文案（`miscellaneous-materials/page.tsx` renderActions 的 voided 分支），后端 DELETE 也用 `isVoidedStatus` 拦截返回"已作废记录不可删除"。
+- **决策**：作废记录本就**不计入成本/月报统计**，删除不影响任何金额口径，仅移除留痕。按用户需求放开作废记录删除。
+- **改动**：
+  - 后端 `api/miscellaneous-materials/route.ts` DELETE：移除 `if (isVoidedStatus(...)) return '已作废记录不可删除'` 拦截，现 reviewed / voided 均可删（仍保留项目权限校验、审计日志、聚合缓存失效）。
+  - 前端 `miscellaneous-materials/page.tsx`：voided 分支把"只读留痕"替换为与其他状态一致的删除按钮（Trash2），点击走同一删除确认 AlertDialog → `handleDelete`（`DELETE /api/miscellaneous-materials?id=`）。
+- **注意**：这与综合费用（`comprehensive-expenses`）"作废禁删"的口径不再一致，是零星材料模块的刻意差异；若后续要求作废留痕不可删需前后端同时回退。导入查重仍排除作废记录（作废即视为业务无效，同名同额重新导入应放行）。
+- **验证**（develop）：新建 reviewed→PUT status=voided→DELETE ?id= 返回 `{"success":true}`；lint/ts-check 通过；测试数据已清理。
+
 ### 2026-10 零星材料三点修复（删除按钮 + 导入库内查重 + 统计卡片口径统一）
 - **需求**：①已录入(reviewed)记录列表没有删除按钮；②导入时金额/日期不同不应判重复，且重复导入同一文件不应重复落库；③未筛选时项目金额统计卡片与筛选后数据不一致。
 - **问题1 删除按钮**（`miscellaneous-materials/page.tsx` 列表操作列）：删除接口上一轮已放开（仅 voided 禁删），但前端 reviewed 分支只渲染"编辑+作废"，缺删除按钮。补齐与 draft 分支一致的删除按钮（Trash2，打开既有删除确认 AlertDialog，走 `handleDelete`→`DELETE /api/miscellaneous-materials?id=`，注意是 query 参数非动态路由）。
