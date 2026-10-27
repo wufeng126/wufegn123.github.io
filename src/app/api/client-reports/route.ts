@@ -5,6 +5,7 @@ import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransiti
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import { isPublicLogProject } from '@/lib/public-log-project';
 
 // 安全解析 numeric 类型（PostgreSQL numeric 返回对象格式）
 function parseNumeric(value: any): number {
@@ -240,6 +241,20 @@ export async function POST(request: NextRequest) {
         status: REVIEW_STATUS.DRAFT,
       };
     }).filter(item => item.project_id && item.report_date && item.report_amount !== null && item.report_amount !== undefined);
+
+    // 防再犯：禁止甲方报量挂靠到「公司公共/非项目日志」系统项目
+    const insertProjectIds = [...new Set(insertData.map((r) => r.project_id))];
+    const { data: projRows } = await client
+      .from('projects')
+      .select('id,name,project_type')
+      .in('id', insertProjectIds);
+    const forbiddenIds = (projRows || []).filter((p) => isPublicLogProject(p)).map((p) => p.id);
+    if (forbiddenIds.length > 0) {
+      return NextResponse.json(
+        { error: '「公司公共项目/非项目日志」是系统公共日志项目，不允许录入甲方报量' },
+        { status: 400 }
+      );
+    }
 
     if (insertData.length === 0) {
       return NextResponse.json({ error: '请提供有效的报量数据（项目、日期、报量金额必填）' }, { status: 400 });

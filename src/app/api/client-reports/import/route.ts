@@ -5,6 +5,7 @@ import { insertWithSequenceFix } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { isPublicLogProject, PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
     // 获取项目列表用于匹配项目名称
     const { data: projects, error: projectsError } = await client
       .from('projects')
-      .select('id, name');
+      .select('id, name, project_type');
 
     if (projectsError) {
       throw new Error(`获取项目列表失败: ${projectsError.message}`);
@@ -161,6 +162,9 @@ export async function POST(request: NextRequest) {
       matchedProjects = matchedProjects.filter((p) => allowedIds.has(p.id));
     }
 
+    // 防再犯：排除「公司公共/非项目日志」系统项目（不允许作为甲方报量归属）
+    matchedProjects = matchedProjects.filter((p) => !isPublicLogProject(p));
+
     // 创建项目名称到 ID 的映射（仅可访问项目）
     const projectNameToId = new Map<string, number>();
     matchedProjects.forEach((p) => {
@@ -172,6 +176,12 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     rows.forEach((row, index) => {
+      // 防再犯：公共日志项目不允许作为甲方报量归属，给出明确提示
+      if (row.project_name && row.project_name.includes(PUBLIC_LOG_PROJECT_NAME)) {
+        errors.push(`第 ${index + 2} 行：项目「${row.project_name}」是系统公共日志项目，不允许导入甲方报量`);
+        return;
+      }
+
       const projectId = projectNameToId.get(row.project_name);
       
       if (!projectId) {
