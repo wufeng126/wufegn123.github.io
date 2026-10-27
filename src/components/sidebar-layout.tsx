@@ -34,11 +34,9 @@ import {
   Package,
   Database,
   FileSignature,
-  CalendarDays,
   CalendarCheck,
   Coins,
   Banknote,
-  IdCard,
   Truck,
   ScrollText,
   CreditCard,
@@ -107,7 +105,6 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '施工日志', href: '/construction-logs', icon: ClipboardList },
     { name: '项目日报', href: '/construction-daily-reports', icon: FileText },
     { name: '进度计划', href: '/progress-management', icon: CalendarClock },
-    { name: '日历视图', href: '/construction-logs?tab=calendar', icon: CalendarDays },
     { name: '出勤统计', href: '/construction-attendance', icon: CalendarCheck },
   ],
   '/project-center': [
@@ -124,7 +121,6 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '生活费台账', href: '/workers/living-allowances', icon: Coins, permissions: ['salaries:pay'] },
     { name: '工资发放', href: '/workers/payments', icon: Banknote },
     { name: '工资查询', href: '/workers/query', icon: Search },
-    { name: '证件管理', href: '/certificates', icon: IdCard },
   ],
   '/supplier-expense': [
     { name: '供应商库', href: '/supplier-expense?tab=suppliers', icon: Truck },
