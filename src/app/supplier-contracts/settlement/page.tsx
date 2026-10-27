@@ -19,7 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
-  Plus, Trash2, AlertTriangle, Lock, CheckCircle, Clock, FileText, Upload
+  Plus, Trash2, AlertTriangle, Lock, CheckCircle, Clock, FileText, Upload, Undo2, Ban
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useConfirm } from '@/hooks/use-confirm';
@@ -567,6 +567,74 @@ export default function SettlementPage() {
     }
   };
 
+  // 提交审核 / 反审核 / 作废（统一走 /api/review，resource_type=supplier_settlement）
+  const handleReviewSettlement = async (id: number, action: 'review' | 'unreview' | 'void') => {
+    const actionLabel = action === 'review' ? '提交审核' : action === 'unreview' ? '反审核' : '作废';
+    const confirmTitle =
+      action === 'review'
+        ? '确定提交该结算单审核吗？审核后将计入合同结算统计。'
+        : action === 'unreview'
+          ? '确定反审核该结算单吗？反审核后草稿状态将不计入统计。'
+          : '确定作废该结算单吗？作废后不再参与累计统计。';
+    if (!(await confirm({ title: confirmTitle, variant: action === 'void' ? 'destructive' : 'default' }))) return;
+
+    try {
+      const res = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resource_type: 'supplier_settlement', resource_id: id, action }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        toast.success(result.message || `${actionLabel}成功`);
+        fetchSettlements();
+      } else {
+        toast.error(result.error || `${actionLabel}失败`);
+      }
+    } catch {
+      toast.error(`${actionLabel}失败，请重试`);
+    }
+  };
+
+  // 根据状态展示操作按钮：草稿→提交审核；已审核→反审核/作废；已作废→无操作（仅删除）
+  const renderReviewActions = (settlement: Settlement) => {
+    const isReviewed = isReviewedSettlement(settlement.status);
+    const isVoided = isVoidedSettlement(settlement.status);
+    if (isVoided) return null;
+    if (isReviewed) {
+      return (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-amber-600"
+            onClick={(event) => { event.stopPropagation(); handleReviewSettlement(settlement.id, 'unreview'); }}
+          >
+            <Undo2 className="mr-1 h-3.5 w-3.5" />反审核
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-600"
+            onClick={(event) => { event.stopPropagation(); handleReviewSettlement(settlement.id, 'void'); }}
+          >
+            <Ban className="mr-1 h-3.5 w-3.5" />作废
+          </Button>
+        </>
+      );
+    }
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-green-600"
+        onClick={(event) => { event.stopPropagation(); handleReviewSettlement(settlement.id, 'review'); }}
+      >
+        <CheckCircle className="mr-1 h-3.5 w-3.5" />提交审核
+      </Button>
+    );
+  };
+
   const projectNameById = useMemo(() => {
     return new Map(projects.map((project) => [Number(project.id), project.name]));
   }, [projects]);
@@ -807,14 +875,15 @@ export default function SettlementPage() {
                   <TableHead className="text-right">合同进度未付</TableHead>
                   <TableHead className="text-right">合同100%未付</TableHead>
                   <TableHead>结算日期</TableHead>
+                  <TableHead className="text-center">状态</TableHead>
                   <TableHead className="text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={14} className="text-center py-8">加载中...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={15} className="text-center py-8">加载中...</TableCell></TableRow>
                 ) : filteredSettlements.length === 0 ? (
-                  <TableRow><TableCell colSpan={14} className="text-center py-8">暂无数据</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={15} className="text-center py-8">暂无数据</TableCell></TableRow>
                 ) : (
                   filteredSettlements.map(s => (
                     <TableRow key={s.id} className="cursor-pointer hover:bg-muted/40" onClick={() => openSettlementDetail(s)}>
@@ -843,12 +912,31 @@ export default function SettlementPage() {
                       <TableCell className="text-right text-red-600 font-bold">{formatCurrency(s.contract_final_pending_amount)}</TableCell>
                       <TableCell>{formatDate(s.settlement_date)}</TableCell>
                       <TableCell className="text-center">
-                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); openSettlementDetail(s); }}>
-                          <FileText className="w-4 h-4 text-blue-600" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }} aria-label="删除">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+                        <Badge
+                          variant={
+                            isVoidedSettlement(s.status) ? 'outline'
+                              : isReviewedSettlement(s.status) ? 'default'
+                              : 'outline'
+                          }
+                          className={
+                            isVoidedSettlement(s.status) ? 'text-gray-400 line-through'
+                              : isReviewedSettlement(s.status) ? 'text-green-700' : 'text-amber-600'
+                          }
+                        >
+                          {isVoidedSettlement(s.status) ? '已作废'
+                            : isReviewedSettlement(s.status) ? '已审核' : '草稿'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); openSettlementDetail(s); }}>
+                            <FileText className="w-4 h-4 text-blue-600" />
+                          </Button>
+                          {renderReviewActions(s)}
+                          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }} aria-label="删除">
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -914,18 +1002,25 @@ export default function SettlementPage() {
                     </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
-                    <Badge variant={s.status === '已确认' ? 'default' : 'outline'}>
-                      {s.status || '待确认'}
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }}
-                      className="text-red-600"
+                    <Badge
+                      variant={isVoidedSettlement(s.status) ? 'outline' : (isReviewedSettlement(s.status) ? 'default' : 'outline')}
+                      className={isVoidedSettlement(s.status) ? 'text-gray-400 line-through' : (isReviewedSettlement(s.status) ? 'text-green-700' : 'text-amber-600')}
                     >
-                      <Trash2 className="mr-1 h-4 w-4" />删除
-                    </Button>
+                      {isVoidedSettlement(s.status) ? '已作废'
+                        : isReviewedSettlement(s.status) ? '已审核' : '草稿'}
+                    </Badge>
+                    <div className="flex items-center gap-1">
+                      {renderReviewActions(s)}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />删除
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -949,9 +1044,10 @@ export default function SettlementPage() {
                       <Badge variant={selectedSettlement.settlement_type === 'final' ? 'default' : 'secondary'}>
                         {selectedSettlement.settlement_type === 'progress' ? '进度结算' : '总结算'}
                       </Badge>
-                      <Badge variant={selectedSettlement.status === '已确认' ? 'default' : 'outline'}>
-                        {selectedSettlement.status || '待确认'}
-                      </Badge>
+                      <Badge variant={isVoidedSettlement(selectedSettlement.status) ? 'outline' : (isReviewedSettlement(selectedSettlement.status) ? 'default' : 'outline')} className={isVoidedSettlement(selectedSettlement.status) ? 'text-gray-400 line-through' : (isReviewedSettlement(selectedSettlement.status) ? 'text-green-700' : 'text-amber-600')}>
+                      {isVoidedSettlement(selectedSettlement.status) ? '已作废'
+                        : isReviewedSettlement(selectedSettlement.status) ? '已审核' : '草稿'}
+                    </Badge>
                     </div>
                     <div className="mt-2 text-sm text-gray-600">
                       {getProjectName(selectedSettlement)} / {selectedSettlement.supplier_name || '-'}

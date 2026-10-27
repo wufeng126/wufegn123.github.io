@@ -51,24 +51,14 @@ async function getSupplierVisibleStats(
       .in('contract_id', contractIds);
     settlementSum = data || [];
 
+    // supplier_payments 无 supplier_id/project_id 列，付款必须经由合同(contract_id)关联获取。
+    // 且付款必挂 contract_id，故按合同查询已覆盖该供应商在项目范围内全部付款。
     const { data: contractPayments } = await client
       .from('supplier_payments')
       .select('id, payment_amount, status')
       .in('contract_id', contractIds);
     addPaymentRows(contractPayments);
   }
-
-  let projectPaymentQuery = client
-    .from('supplier_payments')
-    .select('id, payment_amount, status')
-    .eq('supplier_id', supplierId);
-
-  if (projectScope !== null) {
-    projectPaymentQuery = projectPaymentQuery.in('project_id', projectScope);
-  }
-
-  const { data: projectPayments } = await projectPaymentQuery;
-  addPaymentRows(projectPayments);
 
   const totalSettlement = (settlementSum || [])
     .filter((s: any) => isReviewedStatus(s.status))
@@ -248,9 +238,10 @@ export async function PUT(request: NextRequest) {
     if (contact_person !== undefined) updateData.contact_person = contact_person || null;
     if (phone !== undefined) updateData.phone = phone || null;
     if (remark !== undefined) updateData.remark = remark || null;
-    // 明确将银行字段设为 null，确保数据库中这些字段被清除
-    updateData.bank_account = null;
-    updateData.bank_name = null;
+    // BUG-3 修复：仅更新前端实际提交的字段，不再无条件清空银行字段，
+    // 避免「只改名称」时把已有 bank_account/bank_name 一并抹掉。
+    if (body.bank_account !== undefined) updateData.bank_account = body.bank_account || null;
+    if (body.bank_name !== undefined) updateData.bank_name = body.bank_name || null;
 
     const { data, error } = await client
       .from('suppliers')
@@ -312,7 +303,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    
+
     // 检查是否有关联的结算或付款记录（历史老表）
     const { data: settlements } = await client
       .from('settlements')
@@ -333,10 +324,33 @@ export async function DELETE(request: NextRequest) {
       .in('supplier_id', idArray)
       .limit(1);
 
+    // BUG-4 修复：定位该供应商名下全部合同，进一步校验新表数据，
+    // 即使合同行被误删/遗留，也避免留下挂在旧合同 id 下的新结算/新付款孤儿。
+    // 注：supplier_payments/supplier_settlements 无 supplier_id 列，只能经合同关联。
+    let orphanPayments = 0;
+    let orphanSettlements = 0;
+    if (contracts && contracts.length > 0) {
+      const { data: allContracts } = await client
+        .from('supplier_contracts')
+        .select('id')
+        .in('supplier_id', idArray);
+      const allContractIds = (allContracts || []).map((c: any) => Number(c.id)).filter(Boolean);
+      if (allContractIds.length > 0) {
+        const [payRes, setRes] = await Promise.all([
+          client.from('supplier_payments').select('id').in('contract_id', allContractIds).limit(1),
+          client.from('supplier_settlements').select('id').in('contract_id', allContractIds).limit(1),
+        ]);
+        orphanPayments = (payRes.data || []).length;
+        orphanSettlements = (setRes.data || []).length;
+      }
+    }
+
     if (
       (settlements && settlements.length > 0) ||
       (payments && payments.length > 0) ||
-      (contracts && contracts.length > 0)
+      (contracts && contracts.length > 0) ||
+      orphanPayments > 0 ||
+      orphanSettlements > 0
     ) {
       return NextResponse.json({ 
         error: '该供应商有关联的合同、结算或付款记录，无法删除' 

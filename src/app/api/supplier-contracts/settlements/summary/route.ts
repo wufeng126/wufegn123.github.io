@@ -79,18 +79,9 @@ export async function GET(request: NextRequest) {
       addPaymentRows(contractPayments);
     }
 
-    let projectPaymentQuery = supabase
-      .from('supplier_payments')
-      .select('*');
-    if (projectScope !== null) {
-      projectPaymentQuery = projectPaymentQuery.in('project_id', projectScope);
-    }
-
-    const { data: projectPayments, error: projectPaymentsError } = await projectPaymentQuery;
-    if (projectPaymentsError) {
-      return Response.json({ error: projectPaymentsError.message }, { status: 500 });
-    }
-    addPaymentRows(projectPayments);
+    // BUG-1 修复：supplier_payments 无 supplier_id/project_id 列，付款不能按项目/供应商直接查询，
+    // 必须经由合同(contract_id)关联。上述 contractPayments 已按范围内合同覆盖全部付款，故移除原先
+    // 对 supplier_payments.in('project_id') 的无效查询（列不存在会静默失败并漏算）。
 
     const totals = summarizeSupplierSettlementRows(reviewedSettlements, Array.from(paymentMapById.values()));
 
