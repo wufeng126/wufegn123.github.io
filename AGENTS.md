@@ -368,6 +368,13 @@
 
 ## 最近更新
 
+### 2026-10 零星材料三点修复（删除按钮 + 导入库内查重 + 统计卡片口径统一）
+- **需求**：①已录入(reviewed)记录列表没有删除按钮；②导入时金额/日期不同不应判重复，且重复导入同一文件不应重复落库；③未筛选时项目金额统计卡片与筛选后数据不一致。
+- **问题1 删除按钮**（`miscellaneous-materials/page.tsx` 列表操作列）：删除接口上一轮已放开（仅 voided 禁删），但前端 reviewed 分支只渲染"编辑+作废"，缺删除按钮。补齐与 draft 分支一致的删除按钮（Trash2，打开既有删除确认 AlertDialog，走 `handleDelete`→`DELETE /api/miscellaneous-materials?id=`，注意是 query 参数非动态路由）。
+- **问题2 导入库内查重**（`api/miscellaneous-materials/import/route.ts`）：此前文件内查重键 `${projectId}-${name}-${date}-${quantity}-${unitPrice}` 本就含日期+数量+单价（金额=数量×单价），文件内金额/日期不同不会误判；但 `duplicates` 初始为空、落库前不查数据库 → 同一文件重复导入/分批导入全部重复落库。修复：循环前一次性查询可访问范围（`accessibleProjects` 过滤）内**非作废**（`isVoidedStatus` 排除）记录，用 `buildDupKey(项目,名称,采购日期slice(0,10),数量,单价)`（统一 `Number()` 归一，避免浮点/字符串差异）构建 `seenDupKeys:Set`；文件内新键也并入同一 Set。完全一致才报"与已有记录重复…如需重复录入请修改金额或日期"，金额或日期不同放行。POST 与导入 purchase_date 均为 YYYY-MM-DD，键可对齐。
+- **问题3 统计口径不一致**（`miscellaneous-materials/page.tsx`）：根因是三套数据响应时机不统一——旧的两个 useEffect 一个只在 [项目,日期,分类,子类] 变化时刷 `fetchMaterials`（漏 status/名称/规格/采购人），另一个只在 [项目,日期] 变化时刷 `fetchBoardStats`；而顶部金额卡/项目金额卡用的 `stats` 只在点"查询"时刷新；点击分类/子类统计卡仅 setSelected* 高亮、不触发任何查询 → 卡片显示已选中、明细与金额却是旧全量。修复：合并为单个全依赖（项目/起止日期/分类/子类/状态/材料名/规格/采购人）+ 300ms 防抖 + `isFirstFilterRun` 首次跳过（首挂载仍由 searchParams effect 加载）的 effect，统一刷新 `fetchMaterials(1)+fetchStats()+fetchBoardStats()`；"查询"按钮补刷 boardStats；"重置"移除 setTimeout hack（setState 后由 effect 自动去重刷新）。boardStats（分类卡）设计上仍只随项目/日期聚合、不随分类/状态筛选变，保证下钻完整；顶部已计入成本金额/项目金额卡随全部筛选，二者后端口径均只算 reviewed、金额统一走 `calculateMiscellaneousMaterialAmount`，本就一致，本次修的是"刷新不同步"。
+- **验证**（develop，admin）：构造 5 行 xlsx（1 行与首行完全相同 + 数量变体 + 日期变体 + 单价变体），首次导入 count=4 且第 3 行判文件内重复、金额/日期变体正常入库；再次导入同一文件 5 行全部判库内重复（"没有有效的数据可导入"）；DELETE ?id= reviewed 返回 `{"success":true}` 且 reviewedAmount 6000→5000；lint/ts-check 通过；测试数据与临时脚本已清理。
+
 ### 2026-10 零星材料录入数据放开删除 + 导入错误全量展示
 - **需求**：①批量导入的错误项全部展示提醒；②录入的数据可删除。
 - **删除放开**（`api/miscellaneous-materials/route.ts` DELETE）：零星材料是**免审核**模式（POST 录入即 `status=reviewed`+reviewed_at，见 412-413 行），但 DELETE 此前 `isReviewedStatus || isVoidedStatus` 双重拦截 → 所有录入数据（都是 reviewed）永远删不掉。修复：移除"已审核不可删除"，仅保留"已作废不可删除"（对齐综合费用先例 `comprehensive-expenses/[id]/route.ts` DELETE 196-198）。效果：已审核可删、已作废仍禁删。

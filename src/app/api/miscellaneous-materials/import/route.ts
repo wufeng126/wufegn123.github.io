@@ -10,6 +10,7 @@ import {
   parsePositiveMiscellaneousMaterialNumber,
 } from '@/lib/miscellaneous-materials';
 import { DEFAULT_MISC_CATEGORY, guessMiscCategory, isValidSubcategory, MISC_CATEGORY_VALUES, type MiscMaterialCategory } from '@/lib/misc-material-categories';
+import { isVoidedStatus } from '@/lib/review-status';
 
 type XlsxModule = {
   read: (data: Uint8Array, options: { type: 'array' }) => {
@@ -282,7 +283,44 @@ export async function POST(request: NextRequest) {
 
     const records: MiscellaneousMaterialImportRecord[] = [];
     const errors: string[] = [];
-    const duplicates: string[] = [];
+
+    // 重复判定键：项目 + 材料名称 + 采购日期 + 数量 + 单价（金额 = 数量 × 单价）。
+    // 仅当以上字段完全一致才视为重复；金额（数量/单价）或采购日期不同视为新记录，允许导入。
+    // 已作废记录不参与查重（作废即视为该笔业务不再有效，重新录入同名同额材料应放行）。
+    const buildDupKey = (
+      pId: number | string,
+      name: string,
+      date: string,
+      qty: number | string,
+      price: number | string
+    ): string => `${pId}__${name.trim()}__${date}__${Number(qty)}__${Number(price)}`;
+
+    // 预加载库中可访问范围内的非作废记录，构建查重集，防止同一文件重复导入 / 分批导入造成重复落库。
+    const seenDupKeys = new Set<string>();
+    {
+      let existingQuery = client
+        .from('miscellaneous_materials')
+        .select('project_id, material_name, purchase_date, quantity, unit_price, status');
+      if (accessibleProjects !== null) {
+        existingQuery = existingQuery.in('project_id', accessibleProjects);
+      }
+      const { data: existingRows, error: existingError } = await existingQuery;
+      if (existingError) {
+        throw new Error(`查询已有零星材料失败: ${existingError.message}`);
+      }
+      (existingRows || []).forEach((row: {
+        project_id: number;
+        material_name: string;
+        purchase_date: string;
+        quantity: number;
+        unit_price: number;
+        status?: string | null;
+      }) => {
+        if (isVoidedStatus(row.status || undefined)) return;
+        const datePart = String(row.purchase_date || '').slice(0, 10);
+        seenDupKeys.add(buildDupKey(row.project_id, row.material_name || '', datePart, row.quantity, row.unit_price));
+      });
+    }
 
     for (let i = headerRowIndex + 1; i < rows.length; i++) {
       const values = rows[i];
@@ -326,12 +364,12 @@ export async function POST(request: NextRequest) {
         purchaseDate = new Date().toISOString().split('T')[0];
       }
       
-      const duplicateKey = `${projectId}-${materialName.trim()}-${purchaseDate}-${quantity}-${unitPrice}`;
-      if (duplicates.includes(duplicateKey)) {
-        errors.push(`第${i + 1}行：可能为重复数据`);
+      const duplicateKey = buildDupKey(projectId, materialName, purchaseDate, quantity, unitPrice);
+      if (seenDupKeys.has(duplicateKey)) {
+        errors.push(`第${i + 1}行：与已有记录重复（同项目、同材料、同日期、同数量单价），如需重复录入请修改金额或日期`);
         continue;
       }
-      duplicates.push(duplicateKey);
+      seenDupKeys.add(duplicateKey);
 
       const trimmedMaterialName = materialName.trim();
       // 分类（两级）：分类列支持"一级/二级"组合文本；子类列独立指定；

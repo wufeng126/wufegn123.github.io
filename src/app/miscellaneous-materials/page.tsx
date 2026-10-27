@@ -1,7 +1,7 @@
 'use client';
 import { useToast } from '@/hooks/use-toast';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -276,14 +276,33 @@ function MiscMaterialsContent() {
     });
   }, [searchParams]);
 
+  // 任意筛选条件变化（含项目、日期、分类/子类、状态、名称/规格/采购人）统一自动查询，
+  // 明细 + 顶部金额卡片(stats) + 分类看板(boardStats) 同源同步刷新，保证"未筛选/筛选后"各卡片口径一致。
+  // 首次挂载由上方 searchParams effect 负责加载，这里跳过避免重复请求。
+  const isFirstFilterRun = useRef(true);
   useEffect(() => {
-    fetchMaterials(1);
-  }, [selectedProjectId, startDate, endDate, selectedCategory, selectedSubcategory]);
-
-  // 看板统计仅随项目/日期范围变化
-  useEffect(() => {
-    fetchBoardStats();
-  }, [selectedProjectId, startDate, endDate]);
+    if (isFirstFilterRun.current) {
+      isFirstFilterRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchMaterials(1);
+      fetchStats();
+      fetchBoardStats();
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedProjectId,
+    startDate,
+    endDate,
+    selectedCategory,
+    selectedSubcategory,
+    status,
+    materialName,
+    specification,
+    purchaser,
+  ]);
 
   const buildFilterParams = (includePaging = false, page = 1) => {
     const params = new URLSearchParams();
@@ -1016,6 +1035,19 @@ function MiscMaterialsContent() {
             >
               <Ban className="h-4 w-4" style={{ color: '#86909C' }} />
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setCurrentMaterial(material);
+                setDeleteDialogOpen(true);
+              }}
+              className="h-8 px-2"
+              title="删除"
+              aria-label="删除"
+            >
+              <Trash2 className="h-4 w-4" style={{ color: '#F53F3F' }} />
+            </Button>
           </>
         )}
 
@@ -1261,6 +1293,7 @@ function MiscMaterialsContent() {
               onClick={() => {
                 fetchMaterials(1);
                 fetchStats();
+                fetchBoardStats();
               }}
               className="gap-2"
               style={{ backgroundColor: 'var(--color-primary)' }}
@@ -1281,10 +1314,6 @@ function MiscMaterialsContent() {
                 setExpandedStatCategory(null);
                 setStartDate('');
                 setEndDate('');
-                setTimeout(() => {
-                  fetchMaterials(1);
-                  fetchStats();
-                }, 0);
               }}
             >
               重置
