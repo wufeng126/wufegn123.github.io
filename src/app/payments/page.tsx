@@ -544,12 +544,19 @@ export default function PaymentsPage() {
         resetForm();
         fetchPayments();
       } else {
-        const message = data?.error || `保存失败（接口状态 ${res.status}）`;
+        const message = data?.error || `保存失败（接口状态 ${res.status}${res.status === 403 ? '：当前账号没有新增付款权限' : ''}）`;
         toast.error(message);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : '保存失败';
-      toast.error(`保存失败：${message}`);
+      // 区分网络中断 / 请求超时（AbortError）/ 其他异常，确保任何情况下都有明确提示，杜绝静默失败
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        toast.error('保存请求超时，请检查网络后重试');
+      } else if (error instanceof TypeError && error.message.includes('fetch')) {
+        toast.error('网络异常，保存失败，请检查网络连接后重试');
+      } else {
+        const message = error instanceof Error ? error.message : '保存失败';
+        toast.error(`保存失败：${message}`);
+      }
     } finally {
       setSubmitting(false);
     }

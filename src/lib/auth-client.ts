@@ -127,6 +127,8 @@ export function isRedirectLimitExceeded(): boolean {
  * 创建带认证信息的 fetch 请求
  * 自动从 localStorage 读取 token 并添加到 Authorization header（兜底 Cookie）
  */
+export const AUTH_FETCH_TIMEOUT_MS = 30000;
+
 export function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const fetchOptions: RequestInit = {
     ...options,
@@ -143,5 +145,15 @@ export function authFetch(url: string, options: RequestInit = {}): Promise<Respo
     fetchOptions.headers = headers;
   }
 
-  return fetch(url, fetchOptions);
+  // 结合 AbortController 提供超时兜底，避免请求挂起导致界面"卡死无提示"
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_FETCH_TIMEOUT_MS);
+  const originalSignal = fetchOptions.signal;
+  if (originalSignal) {
+    // 若调用方已传入 signal，合并：任一中止即中止
+    originalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  fetchOptions.signal = controller.signal;
+
+  return fetch(url, fetchOptions).finally(() => clearTimeout(timeoutId));
 }
