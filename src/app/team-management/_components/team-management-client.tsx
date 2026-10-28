@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BarChart3,
@@ -20,7 +20,11 @@ import {
   Save,
   Search,
   Trash2,
+  Upload,
   Users,
+  Eye,
+  FileText,
+  Paperclip,
 } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -141,6 +145,30 @@ function isInactiveWorker(status?: string | null) {
   const normalized = String(status || '').trim().toLowerCase();
   if (!normalized) return false;
   return !['in_service', 'active', '在场', '在岗'].includes(normalized);
+}
+
+type SettlementAttachment = {
+  key: string;
+  name: string;
+  size?: number;
+  type?: string;
+  uploadedAt?: string;
+};
+
+function isImageFile(name: string): boolean {
+  return /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
+}
+
+function formatFileSize(size?: number): string {
+  if (!size || size <= 0) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileExt(name: string): string {
+  const m = name.split('.').pop();
+  return m ? m.toUpperCase() : 'FILE';
 }
 
 function newQuantityRow(): QuantityRow {
@@ -1146,6 +1174,8 @@ export function TeamSettlementNewPageClient() {
   const [quantityRows, setQuantityRows] = useState<QuantityRow[]>([newQuantityRow()]);
   const [splitRows, setSplitRows] = useState<SplitRow[]>([newSplitRow()]);
   const [splitPickerOpenId, setSplitPickerOpenId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<SettlementAttachment[]>([]);
+  const [attachmentsUploading, setAttachmentsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -1293,6 +1323,47 @@ export function TeamSettlementNewPageClient() {
     setSplitRows((rows) => rows.map((row) => row.rowId === rowId ? { ...row, [field]: value } : row));
   }
 
+  async function handleUploadAttachment(file: File) {
+    if (attachmentsUploading) return;
+    setAttachmentsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/team-settlements/attachments/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const json = await readJson(res);
+      if (!json.success) throw new Error(json.error || '附件上传失败');
+      const attachment = json.attachment as SettlementAttachment;
+      if (!attachment?.key) throw new Error('附件上传失败');
+      setAttachments((prev) => [...prev, attachment]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '附件上传失败');
+    } finally {
+      setAttachmentsUploading(false);
+    }
+  }
+
+  async function handleRemoveAttachment(attachmentKey: string) {
+    setAttachments((prev) => prev.filter((att) => att.key !== attachmentKey));
+  }
+
+  async function handlePreviewAttachment(attachmentKey: string) {
+    try {
+      const json = await readJson(await fetch('/api/team-settlements/attachments/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ key: attachmentKey, expireTime: 3600 }),
+      }));
+      if (json.success && json.url) window.open(json.url, '_blank');
+    } catch {
+      setMessage('附件预览失败');
+    }
+  }
+
   async function createSettlement() {
     if (!selectedProjectId || !selectedTeamId) {
       setMessage('请先选择项目和班组');
@@ -1317,7 +1388,7 @@ export function TeamSettlementNewPageClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }),
+        body: JSON.stringify({ project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, attachments, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }),
       }));
       const settlementId = json.data?.settlement?.id;
       if (settlementId) router.push(`/team-management/settlements/${settlementId}`);
@@ -1553,6 +1624,38 @@ export function TeamSettlementNewPageClient() {
             </table>
           </div>
           <textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="结算备注，可填写扣款、争议事项或现场说明" className="mt-3 min-h-20 w-full rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[#165DFF]" />
+
+          <div className="mt-3 border-t border-[#EEF0F5] pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-medium text-[#4E5969]">结算附件</h3>
+                <p className="mt-0.5 text-xs text-[#86909C]">可上传结算单扫描件、验收单、发票等，支持图片/PDF/Word/Excel/PPT/TXT</p>
+              </div>
+              <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:text-[#165DFF]">
+                <Upload className="h-3.5 w-3.5" />
+                {attachmentsUploading ? '上传中…' : '添加附件'}
+                <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" disabled={attachmentsUploading} onChange={async (e) => { const file = e.target.files?.[0]; if (file) await handleUploadAttachment(file); e.target.value = ''; }} />
+              </label>
+            </div>
+            {attachments.length > 0 && (
+              <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {attachments.map((att) => (
+                  <li key={att.key} className="flex items-center gap-2 rounded-md border border-[#E5E8EF] bg-[#FAFBFF] px-2 py-1.5">
+                    {isImageFile(att.name) ? (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#EEF0F5] text-[10px] text-[#86909C]">图</div>
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#EEF0F5]"><FileText className="h-4 w-4 text-[#86909C]" /></div>
+                    )}
+                    <button type="button" onClick={() => void handlePreviewAttachment(att.key)} className="min-w-0 flex-1 text-left text-xs text-[#4E5969] hover:text-[#165DFF]">
+                      <span className="block truncate">{att.name}</span>
+                      {att.size ? <span className="block text-[11px] text-[#C9CDD4]">{formatFileSize(att.size)}</span> : null}
+                    </button>
+                    <button type="button" onClick={() => void handleRemoveAttachment(att.key)} className="shrink-0 text-[#C9CDD4] hover:text-[#F53F3F]" title="移除附件"><Trash2 className="h-4 w-4" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </section>
 

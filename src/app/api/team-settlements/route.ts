@@ -436,6 +436,8 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const settlementNo = `BZJS-${month.replace('-', '')}-${String(now.getTime()).slice(-6)}`;
 
+    const attachments = Array.isArray(body?.attachments) ? body.attachments.filter((att: unknown) => att && typeof att === 'object' && typeof (att as { key?: unknown }).key === 'string') : [];
+
     const advanceDeduct = round2(toNumber(body?.advance_deduct));
     const laborInsuranceDeduct = round2(toNumber(body?.labor_insurance_deduct));
     const helperDeduct = round2(toNumber(body?.helper_deduct));
@@ -451,6 +453,7 @@ export async function POST(request: NextRequest) {
       period_end: end,
       status: body?.status || 'confirmed',
       remark: body?.remark || null,
+      attachments,
       advance_deduct: advanceDeduct,
       labor_insurance_deduct: laborInsuranceDeduct,
       helper_deduct: helperDeduct,

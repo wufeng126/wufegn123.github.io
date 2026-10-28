@@ -31,6 +31,7 @@ export const workItemProgress = pgTable("work_item_progress", {
 	completedQuantity: numeric("completed_quantity", { precision: 12, scale:  2 }).notNull(),
 	recordDate: timestamp("record_date", { withTimezone: true, mode: 'string' }).notNull(),
 	remark: text(),
+	attachments: jsonb("attachments").default([]).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("work_item_progress_record_date_idx").using("btree", table.recordDate.asc().nullsLast().op("timestamptz_ops")),
