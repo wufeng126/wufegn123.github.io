@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   List,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Plus,
   Printer,
@@ -23,6 +24,8 @@ import {
 } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 type Project = { id: number | string; name: string; status?: string };
 type TeamGroup = {
@@ -187,6 +190,34 @@ function statusText(status?: string) {
   return '在场';
 }
 
+const TAG_PALETTE = [
+  { bg: '#E8F3FF', fg: '#165DFF' },
+  { bg: '#E8FFEA', fg: '#00875A' },
+  { bg: '#FFF4E8', fg: '#D25F00' },
+  { bg: '#F0ECFF', fg: '#722ED1' },
+  { bg: '#E6FFFB', fg: '#008B82' },
+  { bg: '#FFE8F1', fg: '#C41D6B' },
+  { bg: '#FFFBE6', fg: '#A96200' },
+  { bg: '#E9F2FF', fg: '#3869D1' },
+];
+
+function tagColor(key?: string) {
+  const value = String(key || '');
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  return TAG_PALETTE[hash % TAG_PALETTE.length] || TAG_PALETTE[0];
+}
+
+function ColorTag({ label }: { label?: string }) {
+  const text = label || '-';
+  const palette = tagColor(text);
+  return (
+    <span className="inline-flex max-w-[220px] items-center rounded px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: palette.bg, color: palette.fg }}>
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
 function formatMethod(method?: string) {
   const map: Record<string, string> = {
     bank: '银行转账',
@@ -312,16 +343,14 @@ export function TeamGroupsPageClient() {
   const [projectId, setProjectId] = useState('');
   const [keyword, setKeyword] = useState('');
   const [teamForm, setTeamForm] = useState({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
+  const [formProjectId, setFormProjectId] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    setProjectId((current) => current || (projects[0]?.id ? String(projects[0].id) : ''));
-  }, [projects]);
 
   const selectedProjectId = Number(projectId) || null;
 
@@ -358,10 +387,20 @@ export function TeamGroupsPageClient() {
     });
   }, [groups, keyword]);
 
+  const projectCount = useMemo(() => new Set(filteredGroups.map((group) => group.project_id).filter(Boolean)).size, [filteredGroups]);
+
+  function openCreate() {
+    setEditingGroupId(null);
+    setTeamForm({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
+    setFormProjectId(selectedProjectId ? String(selectedProjectId) : (projects[0]?.id ? String(projects[0].id) : ''));
+    setMessage('');
+    setDialogOpen(true);
+  }
+
   function startEdit(group: TeamGroup) {
     setEditingGroupId(group.id);
     setConfirmDeleteId(null);
-    setProjectId(String(group.project_id));
+    setFormProjectId(String(group.project_id || ''));
     setTeamForm({
       name: group.name || '',
       leader_name: group.leader_name || '',
@@ -370,16 +409,19 @@ export function TeamGroupsPageClient() {
       remark: group.remark || '',
     });
     setMessage('');
+    setDialogOpen(true);
   }
 
   function cancelEdit() {
+    setDialogOpen(false);
     setEditingGroupId(null);
     setTeamForm({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
     setMessage('');
   }
 
   async function saveTeam() {
-    if (!selectedProjectId) {
+    const pid = Number(formProjectId) || null;
+    if (!pid) {
       setMessage('请先选择项目');
       return;
     }
@@ -395,7 +437,7 @@ export function TeamGroupsPageClient() {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ ...teamForm, id: editingGroupId, project_id: selectedProjectId }),
+          body: JSON.stringify({ ...teamForm, id: editingGroupId, project_id: pid }),
         }));
         setMessage('班组档案已更新');
       } else {
@@ -403,10 +445,11 @@ export function TeamGroupsPageClient() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ ...teamForm, project_id: selectedProjectId }),
+          body: JSON.stringify({ ...teamForm, project_id: pid }),
         }));
         setMessage('班组档案已保存');
       }
+      setDialogOpen(false);
       setEditingGroupId(null);
       setTeamForm({ name: '', leader_name: '', phone: '', work_type: '', remark: '' });
       await loadGroups();
@@ -443,149 +486,188 @@ export function TeamGroupsPageClient() {
         title="班组档案"
         description="班组先归属到具体项目，后续结算单按项目和班组独立建账。"
         action={(
-          <button onClick={() => void reload()} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
-            <RefreshCw className="h-4 w-4" />
-            刷新
-          </button>
+          <>
+            <button onClick={() => void reload()} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
+              <RefreshCw className="h-4 w-4" />
+              刷新
+            </button>
+            <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8]">
+              <Plus className="h-4 w-4" />
+              新增班组
+            </button>
+          </>
         )}
       />
       <Message>{projectMessage || message}</Message>
 
-      <section className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <div className="rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
-          <div className="border-b border-[#EEF0F5] p-4">
-            <h2 className="font-semibold">{editingGroupId ? '编辑班组' : '新增班组'}</h2>
-            <p className="mt-1 text-xs text-[#86909C]">每个班组必须归属一个项目。</p>
+      <section className="rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-[#EEF0F5] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex items-center gap-2 text-sm">
+              <label htmlFor="group-project-filter" className="shrink-0 text-xs font-medium text-[#86909C]">全部项目</label>
+              <select
+                id="group-project-filter"
+                aria-label="按项目筛选"
+                value={projectId}
+                onChange={(event) => { setProjectId(event.target.value); }}
+                className="h-9 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+              >
+                <option value="">全部项目</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={String(project.id)}>{project.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
+              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索班组、负责人、工种" className="h-9 w-full rounded-md border border-[#DDE2EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
+            </div>
           </div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-1">
+          <p className="text-xs text-[#86909C]">共 {filteredGroups.length} 个班组 · 涉及 {projectCount} 个项目</p>
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[860px] text-sm">
+            <thead className="bg-[#F7F8FA] text-xs font-medium text-[#86909C]">
+              <tr>
+                <th className="px-4 py-3 text-left">班组名称</th>
+                <th className="px-4 py-3 text-left">所属项目</th>
+                <th className="px-4 py-3 text-left">负责人</th>
+                <th className="px-4 py-3 text-left">联系电话</th>
+                <th className="px-4 py-3 text-left">工种</th>
+                <th className="px-4 py-3 text-center">状态</th>
+                <th className="px-4 py-3 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#EEF0F5]">
+              {loading ? (
+                <tr><td colSpan={7} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
+              ) : filteredGroups.length === 0 ? (
+                <tr><td colSpan={7} className="py-10 text-center text-[#86909C]">暂无班组档案</td></tr>
+              ) : filteredGroups.map((group) => (
+                <tr key={group.id} className="hover:bg-[#FAFBFF]">
+                  <td className="px-4 py-3 font-medium">{group.name}</td>
+                  <td className="px-4 py-3"><ColorTag label={group.project_name} /></td>
+                  <td className="px-4 py-3 text-[#4E5969]">{group.leader_name || '-'}</td>
+                  <td className="px-4 py-3 text-[#4E5969]">{group.phone || '-'}</td>
+                  <td className="px-4 py-3"><ColorTag label={group.work_type} /></td>
+                  <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {confirmDeleteId === group.id ? (
+                        <>
+                          <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-white bg-[#F53F3F] hover:bg-[#D92D20] disabled:opacity-60">
+                            {deleting ? '删除中' : '确认删除'}
+                          </button>
+                          <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-[#4E5969] hover:bg-[#F2F3F5]">
+                            取消
+                          </button>
+                        </>
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button aria-label="更多操作" className="inline-flex h-7 w-7 items-center justify-center rounded px-1 text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#165DFF]">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-[120px]">
+                            <DropdownMenuItem onSelect={() => startEdit(group)}>
+                              <Pencil className="mr-2 h-4 w-4" />编辑
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-[#F53F3F]" onSelect={() => setConfirmDeleteId(group.id)}>
+                              <Trash2 className="mr-2 h-4 w-4" />删除
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="divide-y divide-[#EEF0F5] md:hidden">
+          {loading ? (
+            <div className="p-5 text-center text-sm text-[#86909C]">加载中...</div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="p-5 text-center text-sm text-[#86909C]">暂无班组档案</div>
+          ) : filteredGroups.map((group) => (
+            <article key={group.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate font-medium">{group.name}</h3>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <ColorTag label={group.project_name} />
+                    <ColorTag label={group.work_type} />
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button aria-label="更多操作" className="inline-flex h-7 w-7 items-center justify-center rounded px-1 text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#165DFF]">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[120px]">
+                      <DropdownMenuItem onSelect={() => startEdit(group)}>
+                        <Pencil className="mr-2 h-4 w-4" />编辑
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-[#F53F3F]" onSelect={() => setConfirmDeleteId(group.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" />删除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-[#4E5969]">{group.leader_name || '未填负责人'} {group.phone ? ` · ${group.phone}` : ''}</div>
+              {confirmDeleteId === group.id ? (
+                <div className="mt-3 flex items-center gap-2">
+                  <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-8 items-center rounded-md bg-[#F53F3F] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
+                    {deleting ? '删除中' : '确认删除'}
+                  </button>
+                  <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969]">
+                    取消
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) cancelEdit(); else setDialogOpen(true); }}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingGroupId ? '编辑班组' : '新增班组'}</DialogTitle>
+            <DialogDescription className="text-xs text-[#86909C]">每个班组必须归属一个项目。</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-[#86909C]">所属项目</span>
-              <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+              <span className="mb-1 block text-xs font-medium text-[#86909C]">所属项目 *</span>
+              <select value={formProjectId} onChange={(event) => setFormProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
                 <option value="">请选择项目</option>
                 {projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
               </select>
             </label>
-            <input value={teamForm.name} onChange={(event) => setTeamForm((form) => ({ ...form, name: event.target.value }))} placeholder="班组名称" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
+            <input value={teamForm.name} onChange={(event) => setTeamForm((form) => ({ ...form, name: event.target.value }))} placeholder="班组名称 *" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
             <input value={teamForm.leader_name} onChange={(event) => setTeamForm((form) => ({ ...form, leader_name: event.target.value }))} placeholder="负责人" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
             <input value={teamForm.phone} onChange={(event) => setTeamForm((form) => ({ ...form, phone: event.target.value }))} placeholder="联系电话" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
-            <input value={teamForm.work_type} onChange={(event) => setTeamForm((form) => ({ ...form, work_type: event.target.value }))} placeholder="工种" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
-            <textarea value={teamForm.remark} onChange={(event) => setTeamForm((form) => ({ ...form, remark: event.target.value }))} placeholder="备注" className="min-h-20 rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[#165DFF] sm:col-span-2 xl:col-span-1" />
-            <button onClick={() => void saveTeam()} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60 sm:col-span-2 xl:col-span-1">
+            <input value={teamForm.work_type} onChange={(event) => setTeamForm((form) => ({ ...form, work_type: event.target.value }))} placeholder="工种（如：泥工、钢筋工）" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
+            <textarea value={teamForm.remark} onChange={(event) => setTeamForm((form) => ({ ...form, remark: event.target.value }))} placeholder="备注" className="min-h-20 rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[#165DFF]" />
+          </div>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <button onClick={cancelEdit} disabled={saving} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-60">
+              取消
+            </button>
+            <button onClick={() => void saveTeam()} disabled={saving} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {editingGroupId ? '保存修改' : '新增班组'}
             </button>
-            {editingGroupId ? (
-              <button onClick={cancelEdit} disabled={saving} className="inline-flex h-10 items-center justify-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-60 sm:col-span-2 xl:col-span-1">
-                取消编辑
-              </button>
-            ) : null}
           </div>
-        </div>
-
-        <div className="rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#EEF0F5] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-semibold">班组档案台账</h2>
-              <p className="mt-1 text-xs text-[#86909C]">用于维护班组基础信息，不在这里录结算单。</p>
-            </div>
-            <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
-              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索班组、负责人、工种" className="h-10 w-full rounded-md border border-[#DDE2EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
-            </div>
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead className="bg-[#F7F8FA] text-xs font-medium text-[#86909C]">
-                <tr>
-                  <th className="px-4 py-3 text-left">班组名称</th>
-                  <th className="px-4 py-3 text-left">所属项目</th>
-                  <th className="px-4 py-3 text-left">负责人</th>
-                  <th className="px-4 py-3 text-left">联系电话</th>
-                  <th className="px-4 py-3 text-left">工种</th>
-                  <th className="px-4 py-3 text-center">状态</th>
-                  <th className="px-4 py-3 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EEF0F5]">
-                {loading ? (
-                  <tr><td colSpan={7} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
-                ) : filteredGroups.length === 0 ? (
-                  <tr><td colSpan={7} className="py-10 text-center text-[#86909C]">暂无班组档案</td></tr>
-                ) : filteredGroups.map((group) => (
-                  <tr key={group.id} className="hover:bg-[#FAFBFF]">
-                    <td className="px-4 py-3 font-medium">{group.name}</td>
-                    <td className="px-4 py-3 text-[#4E5969]">{group.project_name || '-'}</td>
-                    <td className="px-4 py-3 text-[#4E5969]">{group.leader_name || '-'}</td>
-                    <td className="px-4 py-3 text-[#4E5969]">{group.phone || '-'}</td>
-                    <td className="px-4 py-3 text-[#4E5969]">{group.work_type || '-'}</td>
-                    <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {confirmDeleteId === group.id ? (
-                          <>
-                            <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-white bg-[#F53F3F] hover:bg-[#D92D20] disabled:opacity-60">
-                              {deleting ? '删除中' : '确认删除'}
-                            </button>
-                            <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-[#4E5969] hover:bg-[#F2F3F5]">
-                              取消
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => startEdit(group)} className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs text-[#4E5969] hover:bg-[#E8F3FF] hover:text-[#165DFF]" title="编辑班组">
-                              <Pencil className="h-3.5 w-3.5" />编辑
-                            </button>
-                            <button onClick={() => setConfirmDeleteId(group.id)} className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs text-[#4E5969] hover:bg-[#FFF1F0] hover:text-[#F53F3F]" title="删除班组">
-                              <Trash2 className="h-3.5 w-3.5" />删除
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="divide-y divide-[#EEF0F5] md:hidden">
-            {loading ? (
-              <div className="p-5 text-center text-sm text-[#86909C]">加载中...</div>
-            ) : filteredGroups.length === 0 ? (
-              <div className="p-5 text-center text-sm text-[#86909C]">暂无班组档案</div>
-            ) : filteredGroups.map((group) => (
-              <article key={group.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate font-medium">{group.name}</h3>
-                    <p className="mt-1 truncate text-xs text-[#86909C]">{group.project_name || '-'} / {group.work_type || '未填工种'}</p>
-                  </div>
-                  <span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span>
-                </div>
-                <div className="mt-2 text-sm text-[#4E5969]">{group.leader_name || '未填负责人'} {group.phone ? ` · ${group.phone}` : ''}</div>
-                {confirmDeleteId === group.id ? (
-                  <div className="mt-3 flex items-center gap-2">
-                    <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-8 items-center rounded-md bg-[#F53F3F] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
-                      {deleting ? '删除中' : '确认删除'}
-                    </button>
-                    <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969]">
-                      取消
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-3 flex items-center gap-2">
-                    <button onClick={() => startEdit(group)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969] hover:border-[#165DFF] hover:text-[#165DFF]">
-                      <Pencil className="h-3.5 w-3.5" />编辑
-                    </button>
-                    <button onClick={() => setConfirmDeleteId(group.id)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969] hover:border-[#F53F3F] hover:text-[#F53F3F]">
-                      <Trash2 className="h-3.5 w-3.5" />删除
-                    </button>
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
