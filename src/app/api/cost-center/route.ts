@@ -347,7 +347,7 @@ export async function GET(request: NextRequest) {
           projectId: project.id,
           projectName: project.name,
           type: 'funding_gap',
-          message: `璧勯噾缂哄彛 ${formatAmountSmart(toWanYuan(project.fundingGapAmount))}`,
+          message: `资金缺口 ${formatAmountSmart(toWanYuan(project.fundingGapAmount))}`,
           value: project.fundingGapAmount,
           severity: 'medium',
         });
