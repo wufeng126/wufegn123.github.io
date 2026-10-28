@@ -32,9 +32,9 @@ function uniquePositiveIds(ids: number[]) {
   ));
 }
 
-function mergeActiveWorkers(target: Map<number, ProjectWorkerRow>, rows: ProjectWorkerRow[]) {
+function mergeActiveWorkers(target: Map<number, ProjectWorkerRow>, rows: ProjectWorkerRow[], includeInactive = false) {
   rows
-    .filter((worker) => isActiveWorkerStatus(worker.status))
+    .filter((worker) => includeInactive || isActiveWorkerStatus(worker.status))
     .forEach((worker) => target.set(Number(worker.id), worker));
 }
 
@@ -50,10 +50,12 @@ export async function getProjectActiveWorkers(
   options: {
     workerIds?: number[];
     fields?: string;
+    includeInactive?: boolean;
   } = {},
 ) {
   const requestedWorkerIds = options.workerIds ? uniquePositiveIds(options.workerIds) : null;
   if (requestedWorkerIds && requestedWorkerIds.length === 0) return [];
+  const includeInactive = options.includeInactive === true;
 
   const fields = options.fields || 'id,name,work_type,team_name,status,project_id,entry_date,phone';
   const workerMap = new Map<number, ProjectWorkerRow>();
@@ -66,13 +68,13 @@ export async function getProjectActiveWorkers(
 
   const { data: directRows, error: directError } = await directQuery;
   if (directError) throw new Error(directError.message);
-  mergeActiveWorkers(workerMap, (directRows || []) as unknown as ProjectWorkerRow[]);
+  mergeActiveWorkers(workerMap, (directRows || []) as unknown as ProjectWorkerRow[], includeInactive);
 
   let assignmentQuery = client
     .from('worker_assignments')
     .select('worker_id')
-    .eq('project_id', projectId)
-    .eq('status', 'active');
+    .eq('project_id', projectId);
+  if (!includeInactive) assignmentQuery = assignmentQuery.eq('status', 'active');
   if (requestedWorkerIds) assignmentQuery = assignmentQuery.in('worker_id', requestedWorkerIds);
 
   const { data: assignmentRows, error: assignmentError } = await assignmentQuery;
@@ -88,7 +90,7 @@ export async function getProjectActiveWorkers(
       .select(fields)
       .in('id', assignedWorkerIds);
     if (assignedError) throw new Error(assignedError.message);
-    mergeActiveWorkers(workerMap, (assignedRows || []) as unknown as ProjectWorkerRow[]);
+    mergeActiveWorkers(workerMap, (assignedRows || []) as unknown as ProjectWorkerRow[], includeInactive);
   }
 
   return Array.from(workerMap.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN'));

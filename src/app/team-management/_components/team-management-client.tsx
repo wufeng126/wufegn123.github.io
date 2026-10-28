@@ -116,6 +116,7 @@ type WorkerOption = {
   work_type?: string;
   team_name?: string;
   attendance_hours: number;
+  status?: string;
 };
 type QuantityRow = {
   rowId: string;
@@ -134,6 +135,12 @@ const emptySummary = { count: 0, quantity_amount: 0, split_amount: 0, total_hour
 
 function createRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isInactiveWorker(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return !['in_service', 'active', '在场', '在岗'].includes(normalized);
 }
 
 function newQuantityRow(): QuantityRow {
@@ -1510,7 +1517,9 @@ export function TeamSettlementNewPageClient() {
                                   >
                                     <Check className={`h-4 w-4 shrink-0 ${row.worker_id === String(worker.id) ? 'opacity-100 text-[#165DFF]' : 'opacity-0'}`} />
                                     <div className="flex flex-col">
-                                      <span>{worker.name} <span className="text-xs text-[#86909C]">/ {worker.work_type || '未填工种'}</span></span>
+                                      <span>{worker.name} <span className="text-xs text-[#86909C]">/ {worker.work_type || '未填工种'}</span>
+                                        {isInactiveWorker(worker.status) ? <span className="ml-1 rounded bg-[#FFF1F0] px-1 text-[11px] text-[#F53F3F]">已退场</span> : null}
+                                      </span>
                                       <span className="text-xs text-[#86909C]">工时 {formatNumber(worker.attendance_hours)} 小时{worker.team_name ? ` · ${worker.team_name}` : ''}</span>
                                     </div>
                                   </CommandItem>

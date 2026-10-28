@@ -222,6 +222,7 @@ export async function GET(request: NextRequest) {
       const { month: normalizedMonth, start, end } = getSettlementPeriod(month || '');
       const workers = await getProjectActiveWorkers(supabase, projectId, {
         fields: 'id,name,id_card,work_type,team_name,status,project_id,entry_date,phone',
+        includeInactive: true,
       });
       const workerIds = workers.map((worker) => Number(worker.id)).filter(Boolean);
       const attendanceTotals = await loadAttendanceTotals(supabase, projectId, start, end, workerIds);
