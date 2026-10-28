@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   BarChart3,
+  Check,
   ClipboardList,
   Download,
   FileSpreadsheet,
@@ -20,6 +21,8 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type Project = { id: number | string; name: string; status?: string };
 type TeamGroup = {
@@ -1053,6 +1056,7 @@ export function TeamSettlementNewPageClient() {
   const [paymentRatio, setPaymentRatio] = useState('100');
   const [quantityRows, setQuantityRows] = useState<QuantityRow[]>([newQuantityRow()]);
   const [splitRows, setSplitRows] = useState<SplitRow[]>([newSplitRow()]);
+  const [splitPickerOpenId, setSplitPickerOpenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -1383,23 +1387,57 @@ export function TeamSettlementNewPageClient() {
                 ) : splitPreview.map((row) => (
                   <tr key={row.rowId}>
                     <td className="px-3 py-2">
-                      <select value={row.worker_id} onChange={(event) => updateSplit(row.rowId, 'worker_id', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 outline-none focus:border-[#165DFF]">
-                        <option value="">请选择工人</option>
-                        {splitWorkers.map((worker) => (
-                          <option key={worker.id} value={String(worker.id)} disabled={usedWorkerIds.has(worker.id) && String(worker.id) !== row.worker_id}>
-                            {worker.name} / {worker.work_type || '未填工种'} / {formatNumber(worker.attendance_hours)} 小时
-                          </option>
-                        ))}
-                        {splitWorkers.length === 0 && (
-                          <option value="" disabled>
-                            {splitKeyword
-                              ? `未搜索到${splitTeamWorkType || ''}工人`
-                              : splitTeamWorkType
-                                ? `当前项目暂无${splitTeamWorkType}工人`
-                                : '当前项目暂无在场工人'}
-                          </option>
-                        )}
-                      </select>
+                      <Popover open={splitPickerOpenId === row.rowId} onOpenChange={(open) => setSplitPickerOpenId(open ? row.rowId : null)}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            role="combobox"
+                            aria-expanded={splitPickerOpenId === row.rowId}
+                            className="flex h-9 w-full items-center justify-between rounded-md border border-[#DDE2EB] bg-white px-2 text-left text-sm outline-none focus:border-[#165DFF]"
+                          >
+                            <span className="truncate">
+                              {row.worker_id
+                                ? (workerMap.get(Number(row.worker_id))?.name || '请选择工人')
+                                : '请选择工人'}
+                            </span>
+                            <Search className="h-3.5 w-3.5 shrink-0 text-[#86909C]" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command shouldFilter>
+                            <CommandInput placeholder="搜索姓名/身份证/工种" className="h-9" />
+                            <CommandList>
+                              <CommandEmpty>
+                                {splitWorkers.length === 0
+                                  ? (splitTeamWorkType
+                                      ? `当前项目暂无${splitTeamWorkType}工人`
+                                      : '当前项目暂无在场工人')
+                                  : `未搜索到${splitTeamWorkType || ''}工人`}
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {splitWorkers.map((worker) => (
+                                  <CommandItem
+                                    key={worker.id}
+                                    value={`${worker.name} ${worker.id_card || ''} ${worker.work_type || ''} ${worker.team_name || ''}`}
+                                    disabled={usedWorkerIds.has(worker.id) && String(worker.id) !== row.worker_id}
+                                    onSelect={() => {
+                                      updateSplit(row.rowId, 'worker_id', String(worker.id));
+                                      setSplitPickerOpenId(null);
+                                    }}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <Check className={`h-4 w-4 shrink-0 ${row.worker_id === String(worker.id) ? 'opacity-100 text-[#165DFF]' : 'opacity-0'}`} />
+                                    <div className="flex flex-col">
+                                      <span>{worker.name} <span className="text-xs text-[#86909C]">/ {worker.work_type || '未填工种'}</span></span>
+                                      <span className="text-xs text-[#86909C]">工时 {formatNumber(worker.attendance_hours)} 小时{worker.team_name ? ` · ${worker.team_name}` : ''}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </td>
                     <td className="px-3 py-2 text-[#4E5969]">{[row.worker?.work_type, row.worker?.team_name].filter(Boolean).join(' / ') || '-'}</td>
                     <td className="px-3 py-2 text-[#4E5969]">{maskIdCard(row.worker?.id_card)}</td>
