@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Suspense } from 'react';
 import SidebarLayout from '@/components/sidebar-layout';
 import { Toaster } from '@/components/ui/toaster';
+import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { PermissionProvider } from '@/contexts/permission-context';
 import { RouteGuard } from '@/components/route-guard';
 import { ConfirmProvider } from '@/hooks/use-confirm';
@@ -42,6 +43,7 @@ export default function RootLayout({
               </SidebarLayout>
             </Suspense>
             <Toaster />
+            <SonnerToaster position="top-center" richColors closeButton />
           </ConfirmProvider>
         </PermissionProvider>
       </body>
