@@ -422,15 +422,16 @@ export async function POST(request: NextRequest) {
     if (!team || Number(team.project_id) !== projectId) return apiBadRequest('班组不属于当前项目');
 
     const splitWorkerIds = splits.map((split) => Number(split.worker_id)).filter(Boolean);
-    const activeWorkers = splitWorkerIds.length > 0
+    const splitWorkers = splitWorkerIds.length > 0
       ? await getProjectActiveWorkers(supabase, projectId, {
           workerIds: splitWorkerIds,
           fields: 'id,name,work_type,team_name,status,project_id',
+          includeInactive: true, // 允许退场人员分账（退场后工资未结算存在滞后性）
         })
       : [];
-    if (activeWorkers.length !== splitWorkerIds.length) return apiBadRequest('分账人员必须是当前项目在场工人');
+    if (splitWorkers.length !== splitWorkerIds.length) return apiBadRequest('分账人员必须属于当前项目');
 
-    const workerMap = new Map(activeWorkers.map((worker) => [Number(worker.id), worker]));
+    const workerMap = new Map(splitWorkers.map((worker) => [Number(worker.id), worker]));
     const attendanceTotals = await loadAttendanceTotals(supabase, projectId, start, end, splitWorkerIds);
 
     const now = new Date();
