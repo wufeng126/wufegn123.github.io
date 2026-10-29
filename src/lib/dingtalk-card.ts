@@ -144,6 +144,91 @@ export async function sendTeamSettlementApprovalCard(params: {
   return { success: sent > 0, sent };
 }
 
+/** 是否已配置日报互动卡片模板 */
+export function isDingTalkDailyCardConfigured(): boolean {
+  return Boolean(process.env.DINGTALK_CARD_DAILY_TEMPLATE_ID?.trim());
+}
+
+/**
+ * 发送「项目日报」互动卡片（逐个员工单聊发送）。
+ * outTrackId = daily_report_{日报ID}，回调时据此标记已阅。
+ */
+export async function sendDailyReportCard(params: {
+  reportId: number;
+  reportDate: string;
+  projectCount: number;
+  headcount: number;
+  riskCount: number;
+  highlights: string[];
+  receiverUserIds: string[];
+}): Promise<{ success: boolean; sent: number; message?: string }> {
+  const config = getDingTalkCardConfig();
+  const templateId = process.env.DINGTALK_CARD_DAILY_TEMPLATE_ID?.trim();
+  if (!templateId) {
+    return { success: false, sent: 0, message: '未配置 DINGTALK_CARD_DAILY_TEMPLATE_ID' };
+  }
+  const receivers = Array.from(new Set((params.receiverUserIds || []).filter(Boolean)));
+  if (receivers.length === 0) {
+    return { success: false, sent: 0, message: '没有可接收的钉钉用户' };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await getAccessToken();
+  } catch (error) {
+    return {
+      success: false,
+      sent: 0,
+      message: error instanceof Error ? error.message : '获取钉钉 access_token 失败',
+    };
+  }
+
+  const highlightsText = (params.highlights || [])
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join('\n') || '当日无重点事项';
+  const cardParamMap = {
+    reportDate: String(params.reportDate || ''),
+    projectCount: String(params.projectCount ?? 0),
+    headcount: String(params.headcount ?? 0),
+    riskCount: String(params.riskCount ?? 0),
+    highlights: highlightsText,
+    statusText: '待查看',
+  };
+
+  let sent = 0;
+  for (const userId of receivers) {
+    try {
+      const response = await fetch('https://api.dingtalk.com/v1.0/im/interactiveCards/instances', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-acs-dingtalk-access-token': accessToken,
+        },
+        body: JSON.stringify({
+          cardTemplateId: templateId,
+          outTrackId: `daily_report_${params.reportId}`,
+          receiverUserIdList: [userId],
+          conversationType: 0,
+          ...(config.routeKey ? { callbackRouteKey: config.routeKey } : {}),
+          cardData: { cardParamMap },
+        }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && !json?.code) {
+        sent += 1;
+      } else {
+        console.warn('[dingtalk-card] 日报卡片发送失败', { userId, json });
+      }
+    } catch (error) {
+      console.warn('[dingtalk-card] 日报卡片发送异常', userId, error);
+    }
+  }
+
+  return { success: sent > 0, sent };
+}
+
 /**
  * 回调验签：x-ddpaas-signature = Base64(HmacSHA256(api_secret, x-ddpaas-signature-timestamp))
  *

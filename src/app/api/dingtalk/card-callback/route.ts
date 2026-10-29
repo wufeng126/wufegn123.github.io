@@ -36,13 +36,6 @@ export async function POST(request: NextRequest) {
     }
     const action = String(actionIds[0] || '');
 
-    // 卡片 outTrackId → 结算单
-    const match = /^team_settlement_(\d+)$/.exec(outTrackId);
-    if (!match) {
-      return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '卡片已失效'));
-    }
-    const settlementId = Number(match[1]);
-
     const supabase = getSupabaseClient();
 
     // 操作人：钉钉 userId → 系统用户（用于审计与卡片显示）
@@ -53,6 +46,31 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     const operatorName =
       operatorUser?.name || operatorUser?.username || `钉钉用户(${dingUserId || '未知'})`;
+
+    // 日报卡片：一键已阅（outTrackId = daily_report_{日报ID}）
+    const dailyMatch = /^daily_report_(\d+)$/.exec(outTrackId);
+    if (dailyMatch) {
+      const reportId = Number(dailyMatch[1]);
+      const userId = Number(operatorUser?.id || 0);
+      if (userId <= 0) {
+        return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '未绑定系统账号，请先登录系统一次'));
+      }
+      const { error: readError } = await supabase
+        .from('construction_daily_report_reads')
+        .upsert(
+          { report_id: reportId, user_id: userId, read_at: new Date().toISOString() },
+          { onConflict: 'report_id,user_id' },
+        );
+      if (readError) console.warn('[dingtalk-card-callback] 标记日报已阅失败:', readError);
+      return NextResponse.json(buildDingTalkCardUpdate(outTrackId, `已阅（${operatorName}）`));
+    }
+
+    // 卡片 outTrackId → 结算单
+    const match = /^team_settlement_(\d+)$/.exec(outTrackId);
+    if (!match) {
+      return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '卡片已失效'));
+    }
+    const settlementId = Number(match[1]);
 
     const { data: settlement, error: settlementError } = await supabase
       .from('team_settlements')

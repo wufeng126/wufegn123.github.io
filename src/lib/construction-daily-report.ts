@@ -763,26 +763,64 @@ async function pushReportNotification(
 
   if (recipientUserIds.length === 0) return report;
 
-  const { pushBusinessNotification } = await import('@/lib/business-notification');
-  await pushBusinessNotification({
-    type: 'construction_daily_report',
-    title: `${getReadableDate(summary.report_date)} 项目日报汇总`,
-    content: `已生成公司所有项目日报：${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有日志，未交 ${summary.company.missing_assignment_count} 个项目人员项，问题异常 ${summary.company.issue_count} 条。`,
-    severity: summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0 ? 'warning' : 'info',
-    relatedId: Number(report.id),
-    relatedType: 'construction_daily_report',
-    recipientUserIds,
-    metadata: {
-      reportDate: summary.report_date,
-      targetLabel: '全员',
-      targetUserIds: recipientUserIds,
-      submittedProjects: summary.company.submitted_projects,
-      totalProjects: summary.company.total_projects,
-      missingAssignmentCount: summary.company.missing_assignment_count,
-      issueCount: summary.company.issue_count,
-      businessSummary: `${getReadableDate(summary.report_date)}项目日报汇总：${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有日志，未交 ${summary.company.missing_assignment_count} 个项目人员项，问题异常 ${summary.company.issue_count} 条`,
-    },
-  });
+  // 优先发「项目日报」互动卡片（已配置日报卡片模板时），失败回退工作通知
+  let cardSent = false;
+  try {
+    const { isDingTalkDailyCardConfigured, sendDailyReportCard } = await import('@/lib/dingtalk-card');
+    if (isDingTalkDailyCardConfigured()) {
+      const { data: dingUsers } = await supabase
+        .from('users')
+        .select('dingtalk_user_id')
+        .neq('role', 'pending')
+        .eq('is_disabled', false)
+        .not('dingtalk_user_id', 'is', null);
+      const receiverDingIds = Array.from(new Set(
+        (dingUsers || [])
+          .map((row: { dingtalk_user_id?: string | null }) => String(row.dingtalk_user_id || '').trim())
+          .filter(Boolean),
+      ));
+      if (receiverDingIds.length > 0) {
+        const cardResult = await sendDailyReportCard({
+          reportId: Number(report.id),
+          reportDate: summary.report_date,
+          projectCount: summary.company.submitted_projects,
+          headcount: summary.company.headcount_total,
+          riskCount: summary.company.risk_count,
+          highlights: summary.company.key_points || [],
+          receiverUserIds: receiverDingIds,
+        });
+        cardSent = cardResult.success;
+        if (!cardResult.success) {
+          console.warn('[ConstructionDailyReport] 日报互动卡片发送失败，回退工作通知:', cardResult.message);
+        }
+      }
+    }
+  } catch (cardError) {
+    console.error('[ConstructionDailyReport] 日报互动卡片发送异常:', cardError);
+  }
+
+  if (!cardSent) {
+    const { pushBusinessNotification } = await import('@/lib/business-notification');
+    await pushBusinessNotification({
+      type: 'construction_daily_report',
+      title: `${getReadableDate(summary.report_date)} 项目日报汇总`,
+      content: `已生成公司所有项目日报：${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有日志，未交 ${summary.company.missing_assignment_count} 个项目人员项，问题异常 ${summary.company.issue_count} 条。`,
+      severity: summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0 ? 'warning' : 'info',
+      relatedId: Number(report.id),
+      relatedType: 'construction_daily_report',
+      recipientUserIds,
+      metadata: {
+        reportDate: summary.report_date,
+        targetLabel: '全员',
+        targetUserIds: recipientUserIds,
+        submittedProjects: summary.company.submitted_projects,
+        totalProjects: summary.company.total_projects,
+        missingAssignmentCount: summary.company.missing_assignment_count,
+        issueCount: summary.company.issue_count,
+        businessSummary: `${getReadableDate(summary.report_date)}项目日报汇总：${summary.company.submitted_projects}/${summary.company.total_projects} 个项目有日志，未交 ${summary.company.missing_assignment_count} 个项目人员项，问题异常 ${summary.company.issue_count} 条`,
+      },
+    });
+  }
 
   const pushedAt = new Date().toISOString();
   const { data: updated, error: updateError } = await supabase
