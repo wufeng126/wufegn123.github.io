@@ -362,7 +362,8 @@ export default function SupplierContractsPage() {
           columns={TH => (
             <TableRow>
               <TH>合同名称</TH>
-              <TH className="text-center">付款比例</TH>
+              <TH className="text-center">进度/结算比例</TH>
+              <TH className="text-center">决算比例</TH>
               <TH className={numCell()}>累计结算</TH>
               <TH className={numCell()}>应付</TH>
               <TH className={numCell()}>已付</TH>
@@ -373,7 +374,7 @@ export default function SupplierContractsPage() {
           )}
         >
           {pagedContracts.length === 0 ? (
-            <EmptyRow colSpan={8} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
+            <EmptyRow colSpan={9} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
           ) : pagedContracts.map(contract => (
             <TableRow key={contract.id} className="hover:bg-muted/40">
               <TableCell>
@@ -385,9 +386,10 @@ export default function SupplierContractsPage() {
               </TableCell>
               <TableCell className="text-center text-xs">
                 <div className="font-medium text-blue-600">{Number(contract.payment_ratio_active || 0)}%</div>
-                <div className="text-muted-foreground">
-                  {Number(contract.payment_ratio_complete || 0)}% / {Number(contract.payment_ratio_final || 0)}%
-                </div>
+                <div className="text-muted-foreground">结算 {Number(contract.payment_ratio_complete || 0)}%</div>
+              </TableCell>
+              <TableCell className="text-center text-xs">
+                <div className="font-medium text-purple-600">{Number(contract.payment_ratio_final || 0)}%</div>
               </TableCell>
               <TableCell className={numCell("font-medium text-primary")}>{formatCurrency(contract.total_settlement)}</TableCell>
               <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency(contract.total_payable)}</TableCell>
