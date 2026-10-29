@@ -214,6 +214,8 @@ export const PUBLIC_PAGES = [
   '/api/auth/init',
   '/api/auth/me',
   '/api/auth/dingtalk',
+  // 钉钉互动卡片回调：由钉钉服务器调用（无登录态），依靠 api_secret 验签保护
+  '/api/dingtalk/card-callback',
 ];
 
 // ─── API 路由权限映射（写操作） ───

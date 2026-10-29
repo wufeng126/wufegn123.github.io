@@ -14,6 +14,7 @@ import { assertProjectAccess } from '@/lib/api-project-scope';
 import { generateWorkerSalariesFromSplits } from '@/lib/team-settlement-salary';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { isDingTalkCardConfigured, sendTeamSettlementApprovalCard } from '@/lib/dingtalk-card';
 
 /**
  * 班组结算审批流转
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const { data: settlement, error } = await supabase
       .from('team_settlements')
-      .select('id, project_id, team_id, settlement_month, status, settlement_no, created_by')
+      .select('id, project_id, team_id, settlement_month, status, settlement_no, created_by, advance_deduct, labor_insurance_deduct, helper_deduct, safety_fund_deduct')
       .eq('id', settlementId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -168,6 +169,51 @@ export async function POST(request: NextRequest) {
             处理入口: `/team-management/settlements/${settlementId}`,
           },
         });
+
+        // 互动卡片：老板在钉钉卡片上直接点「通过/驳回」，回调自动回写系统
+        if (isDingTalkCardConfigured()) {
+          try {
+            const { data: bossCardRows } = await supabase
+              .from('users')
+              .select('dingtalk_user_id')
+              .eq('role', 'super_admin')
+              .eq('is_disabled', false)
+              .not('dingtalk_user_id', 'is', null);
+            const receiverUserIds = Array.from(new Set(
+              (bossCardRows || [])
+                .map((row: { dingtalk_user_id?: string | null }) => String(row.dingtalk_user_id || '').trim())
+                .filter(Boolean),
+            ));
+            if (receiverUserIds.length > 0) {
+              const [{ data: projectRow }, { data: teamRow }, { data: itemRows }] = await Promise.all([
+                supabase.from('projects').select('name').eq('id', projectId).maybeSingle(),
+                supabase.from('team_groups').select('name').eq('id', Number(settlement.team_id) || 0).maybeSingle(),
+                supabase.from('team_settlement_items').select('amount').eq('settlement_id', settlementId),
+              ]);
+              const quantityAmount = (itemRows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+              const deductionTotal =
+                Number(settlement.advance_deduct || 0) +
+                Number(settlement.labor_insurance_deduct || 0) +
+                Number(settlement.helper_deduct || 0) +
+                Number(settlement.safety_fund_deduct || 0);
+              const payableAmount = Math.max(0, quantityAmount - deductionTotal);
+              const cardResult = await sendTeamSettlementApprovalCard({
+                settlementId,
+                settlementNo: settlement.settlement_no,
+                projectName: projectRow?.name,
+                teamName: teamRow?.name,
+                month: String(settlement.settlement_month),
+                amount: payableAmount,
+                receiverUserIds,
+              });
+              if (!cardResult.success) {
+                console.warn('[team-settlement-workflow] 互动卡片发送失败：', cardResult.message);
+              }
+            }
+          } catch (cardError) {
+            console.error('[team-settlement-workflow] 发送互动卡片异常:', cardError);
+          }
+        }
       } else if (action === 'approve' || action === 'reject') {
         // 审批结果 → 通知提交人（预算员）
         const creatorId = Number(settlement.created_by);
