@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireApiWritePermission } from '@/lib/api-auth';
+import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // GET 获取对下结算量详情
 export async function GET(
@@ -8,6 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const supabase = getSupabaseClient();
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -17,7 +21,7 @@ export async function GET(
     if (id && id !== 'list') {
       const { data, error } = await supabase
         .from('subitem_monthly_progress')
-        .select('*')
+        .select('*, work_item_subitems(project_id)')
         .eq('id', parseInt(id))
         .single();
 
@@ -25,10 +29,22 @@ export async function GET(
         return NextResponse.json({ error: '记录不存在' }, { status: 404 });
       }
 
+      // 项目级数据权限：仅可读取自己可访问项目的结算记录
+      const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
+      const recordProjectId = Number((data as { work_item_subitems?: { project_id?: unknown } })?.work_item_subitems?.project_id || 0);
+      if (accessibleProjects && recordProjectId && !accessibleProjects.includes(recordProjectId)) {
+        return NextResponse.json({ error: '无权访问该项目结算记录' }, { status: 403 });
+      }
+
       return NextResponse.json({ data });
     }
 
     // 获取列表（支持按项目筛选）
+    const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
+    if (projectId && accessibleProjects && !accessibleProjects.includes(parseInt(projectId))) {
+      return NextResponse.json({ error: '无权访问该项目' }, { status: 403 });
+    }
+
     let query = supabase
       .from('subitem_monthly_progress')
       .select(`
@@ -52,7 +68,15 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data: data || [] });
+    // 未指定项目时按可访问项目过滤（超管返回全部）
+    const filtered = accessibleProjects
+      ? (data || []).filter((row: { work_item_subitems?: { project_id?: unknown } }) => {
+          const pid = Number(row?.work_item_subitems?.project_id || 0);
+          return pid > 0 && accessibleProjects.includes(pid);
+        })
+      : (data || []);
+
+    return NextResponse.json({ data: filtered });
 
   } catch (error: any) {
     console.error('获取对下结算量失败:', error);
@@ -76,12 +100,19 @@ export async function PUT(
     // 先获取记录以获取 subitem_id
     const { data: existing } = await supabase
       .from('subitem_monthly_progress')
-      .select('subitem_id')
+      .select('subitem_id, work_item_subitems(project_id)')
       .eq('id', parseInt(id))
       .single();
 
     if (!existing) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    // 项目级数据权限：仅可修改自己可访问项目的结算记录
+    const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
+    const recordProjectId = Number((existing as { work_item_subitems?: { project_id?: unknown } })?.work_item_subitems?.project_id || 0);
+    if (accessibleProjects && recordProjectId && !accessibleProjects.includes(recordProjectId)) {
+      return NextResponse.json({ error: '无权操作该项目结算记录' }, { status: 403 });
     }
 
     const updateData: any = {};
@@ -142,12 +173,19 @@ export async function DELETE(
     // 先获取记录以获取 subitem_id
     const { data: existing } = await supabase
       .from('subitem_monthly_progress')
-      .select('subitem_id')
+      .select('subitem_id, work_item_subitems(project_id)')
       .eq('id', parseInt(id))
       .single();
 
     if (!existing) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    // 项目级数据权限：仅可删除自己可访问项目的结算记录
+    const accessibleProjects = await getAccessibleProjectIds(supabase, auth.user);
+    const recordProjectId = Number((existing as { work_item_subitems?: { project_id?: unknown } })?.work_item_subitems?.project_id || 0);
+    if (accessibleProjects && recordProjectId && !accessibleProjects.includes(recordProjectId)) {
+      return NextResponse.json({ error: '无权删除该项目结算记录' }, { status: 403 });
     }
 
     const { error } = await supabase

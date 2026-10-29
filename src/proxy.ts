@@ -90,10 +90,13 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. 静态资源、_next 路径直接放行
+  // 安全修复（2026-10）：此前 `pathname.includes('.')` 会让任意带点路径（如 /api/visas/1.）绕过全部鉴权。
+  // 现改为仅静态资产后缀白名单，且 /api/ 路径永不命中；其余页面与 API 请求一律进入后续鉴权流程。
+  const STATIC_ASSET_PATTERN = /\.(?:png|jpe?g|gif|svg|ico|webp|avif|css|js|mjs|map|woff2?|ttf|otf|eot|mp4|webm|pdf|txt|xml|csv)$/i;
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
-    pathname.includes('.') // 静态文件（图片、CSS、JS等）
+    (!pathname.startsWith('/api/') && STATIC_ASSET_PATTERN.test(pathname))
   ) {
     return NextResponse.next();
   }

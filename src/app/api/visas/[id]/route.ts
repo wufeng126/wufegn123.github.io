@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
-import { requireApiWritePermission } from '@/lib/api-auth';
+import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getUserById, getUserDisplayName } from '@/lib/visa-workflow';
 import { isVisaDoneStatus, parseNumeric } from '@/lib/business-logic';
 
@@ -11,6 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const client = getSupabaseClient();
 
@@ -26,6 +30,12 @@ export async function GET(
 
     if (!data) {
       return NextResponse.json({ error: '签证不存在' }, { status: 404 });
+    }
+
+    // 项目级数据权限：仅可读取自己可访问项目的签证
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects && data.project_id && !accessibleProjects.includes(Number(data.project_id))) {
+      return NextResponse.json({ error: '无权访问该项目签证' }, { status: 403 });
     }
 
     return NextResponse.json({ visa: data });
@@ -76,6 +86,15 @@ export async function PUT(
 
     if (currentVisaError || !currentVisa) {
       return NextResponse.json({ error: 'Visa not found' }, { status: 404 });
+    }
+
+    // 项目级数据权限：原签证必须属于可访问项目；改挂目标项目也必须可访问（防止跨项目搬运）
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects && currentVisa.project_id && !accessibleProjects.includes(Number(currentVisa.project_id))) {
+      return NextResponse.json({ error: '无权操作该项目签证' }, { status: 403 });
+    }
+    if (project_id !== undefined && accessibleProjects && !accessibleProjects.includes(Number(project_id))) {
+      return NextResponse.json({ error: '无权将签证挂到目标项目' }, { status: 403 });
     }
 
     const lockedFieldChanged =
@@ -171,12 +190,18 @@ export async function DELETE(
     const { id } = await params;
     const client = getSupabaseClient();
 
-    // 先获取签证信息用于审计日志
+    // 先获取签证信息用于审计日志与项目权限校验
     const { data: visaData } = await client
       .from('visas')
-      .select('visa_number, visa_name')
+      .select('visa_number, visa_name, project_id')
       .eq('id', parseInt(id))
       .single();
+
+    // 项目级数据权限：仅可删除自己可访问项目的签证
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects && visaData?.project_id && !accessibleProjects.includes(Number(visaData.project_id))) {
+      return NextResponse.json({ error: '无权删除该项目签证' }, { status: 403 });
+    }
 
     const { error } = await client
       .from('visas')

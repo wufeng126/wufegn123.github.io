@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/api-auth';
+
+// 敏感信息脱敏（PII 保护：身份证/手机号/银行卡仅返回掩码，用于展示问题记录定位）
+function maskIdCard(value: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (s.length <= 6) return '***';
+  return `${s.slice(0, 3)}***${s.slice(-4)}`;
+}
+
+function maskPhone(value: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (s.length < 7) return '***';
+  return `${s.slice(0, 3)}****${s.slice(-4)}`;
+}
+
+function maskBankCard(value: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (s.length <= 4) return '***';
+  return `****${s.slice(-4)}`;
+}
 
 // 身份证号校验（18位）
 function validateIdCard(idCard: string | null): { valid: boolean; message?: string; type: 'valid' | 'invalid' | 'empty' | 'duplicate' } {
@@ -73,7 +95,8 @@ function isTestData(name: string): { isTest: boolean; reason?: string } {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    // 数据清洗涉及全量工人敏感信息，仅系统管理权限可访问
+    const auth = await requirePermission(request, 'system:manage');
     if (!auth.ok) return auth.response;
 
     const client = getSupabaseClient();
@@ -276,11 +299,11 @@ export async function GET(request: NextRequest) {
       issues: {
         testData: issues.testData.slice(0, 20), // 限制返回数量
         testDataCount: issues.testData.length,
-        invalidIdCard: issues.invalidIdCard.slice(0, 20),
+        invalidIdCard: issues.invalidIdCard.slice(0, 20).map(i => ({ ...i, id_card: maskIdCard(i.id_card) })),
         invalidIdCardCount: issues.invalidIdCard.length,
-        invalidPhone: issues.invalidPhone.slice(0, 20),
+        invalidPhone: issues.invalidPhone.slice(0, 20).map(i => ({ ...i, phone: maskPhone(i.phone) })),
         invalidPhoneCount: issues.invalidPhone.length,
-        invalidBankCard: issues.invalidBankCard.slice(0, 20),
+        invalidBankCard: issues.invalidBankCard.slice(0, 20).map(i => ({ ...i, bank_card: maskBankCard(i.bank_card) })),
         invalidBankCardCount: issues.invalidBankCard.length,
         missingProject: issues.missingProject.slice(0, 20),
         missingProjectCount: issues.missingProject.length,
@@ -290,9 +313,9 @@ export async function GET(request: NextRequest) {
         noPhoneCount: issues.noPhone.length,
         noBankCard: issues.noBankCard.slice(0, 20),
         noBankCardCount: issues.noBankCard.length,
-        duplicateIdCard: issues.duplicateIdCard.slice(0, 20),
+        duplicateIdCard: issues.duplicateIdCard.slice(0, 20).map(i => ({ ...i, id_card: maskIdCard(i.id_card) })),
         duplicateIdCardCount: issues.duplicateIdCard.length,
-        duplicatePhone: issues.duplicatePhone.slice(0, 20),
+        duplicatePhone: issues.duplicatePhone.slice(0, 20).map(i => ({ ...i, phone: maskPhone(i.phone) })),
         duplicatePhoneCount: issues.duplicatePhone.length,
       },
       projectStats: Object.fromEntries(projectStats),
@@ -310,7 +333,8 @@ export async function GET(request: NextRequest) {
 // 执行清洗操作
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    // 数据清洗删除操作仅系统管理权限可执行
+    const auth = await requirePermission(request, 'system:manage');
     if (!auth.ok) return auth.response;
 
     const body = await request.json();

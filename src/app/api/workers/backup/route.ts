@@ -1,11 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
+import { requireSuperAdmin } from '@/lib/api-auth';
+
+// 敏感信息脱敏（PII 保护）
+function maskIdCard(value: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (s.length <= 6) return '***';
+  return `${s.slice(0, 3)}***${s.slice(-4)}`;
+}
+
+function maskPhone(value: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (s.length < 7) return '***';
+  return `${s.slice(0, 3)}****${s.slice(-4)}`;
+}
+
+function maskBankCard(value: string | null): string {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (s.length <= 4) return '***';
+  return `****${s.slice(-4)}`;
+}
 
 // 获取可恢复的备份数据列表
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    // 备份数据含全量工人 PII，仅超级管理员可查看
+    const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
 
     const client = getSupabaseClient();
@@ -32,8 +55,16 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
+    // 备份列表中的 PII 一律脱敏后返回
+    const maskedBackups = (backups || []).map((b: Record<string, unknown>) => ({
+      ...b,
+      id_card: maskIdCard(b.id_card as string | null),
+      phone: maskPhone(b.phone as string | null),
+      bank_card: maskBankCard(b.bank_card as string | null),
+    }));
+
     return NextResponse.json({
-      backups: backups || [],
+      backups: maskedBackups,
       total: count || 0,
       page,
       pageSize,
@@ -51,7 +82,8 @@ export async function GET(request: NextRequest) {
 // 执行备份、清空或恢复操作
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireApiWritePermission(request);
+    // 备份/清空/恢复/永久删除均为高危操作，仅超级管理员可执行
+    const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
 
     const client = getSupabaseClient();
@@ -59,6 +91,13 @@ export async function POST(request: NextRequest) {
     const { action, workerIds, operator } = body;
 
     if (action === 'backup_and_clear') {
+      // 二次确认：清空全公司花名册必须显式提交确认标记，防止误操作/恶意清空
+      if (body.confirm !== 'CLEAR_ALL_WORKERS') {
+        return NextResponse.json(
+          { error: '清空花名册属于危险操作，需提交 confirm: "CLEAR_ALL_WORKERS" 二次确认' },
+          { status: 400 }
+        );
+      }
       // 1. 查询所有工人数据
       const { data: workers, error: fetchError } = await client
         .from('workers')
