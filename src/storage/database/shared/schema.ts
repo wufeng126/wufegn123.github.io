@@ -840,6 +840,29 @@ export const monthlyReportSnapshots = pgTable("monthly_report_snapshots", {
 	index("monthly_report_snapshots_month_idx").using("btree", table.reportMonth.asc().nullsLast().op("text_ops")),
 ]);
 
+// 月度报表协作审批（预算员填写 → 项目经理补充 → 老板完善+审批）
+export const monthlyReportWorkflows = pgTable("monthly_report_workflows", {
+	id: serial().primaryKey().notNull(),
+	yearMonth: varchar("year_month", { length: 7 }).notNull(),
+	projectScope: varchar("project_scope", { length: 20 }).default('all').notNull(),
+	status: varchar({ length: 20 }).default('draft').notNull(),
+	content: jsonb().default({}).notNull(),
+	fillUser: varchar("fill_user", { length: 100 }),
+	managerUser: varchar("manager_user", { length: 100 }),
+	approvedBy: varchar("approved_by", { length: 100 }),
+	submittedManagerAt: timestamp("submitted_manager_at", { withTimezone: true, mode: 'string' }),
+	submittedBossAt: timestamp("submitted_boss_at", { withTimezone: true, mode: 'string' }),
+	approvedAt: timestamp("approved_at", { withTimezone: true, mode: 'string' }),
+	rejectReason: text("reject_reason"),
+	createdBy: integer("created_by"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("monthly_report_workflows_month_idx").using("btree", table.yearMonth.asc().nullsLast().op("text_ops")),
+	index("monthly_report_workflows_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	unique().on(table.yearMonth, table.projectScope),
+]);
+
 // 钉钉通讯录缓存表
 export const dingtalkContacts = pgTable("dingtalk_contacts", {
 	id: serial().primaryKey().notNull(),

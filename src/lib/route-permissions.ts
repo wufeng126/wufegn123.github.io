@@ -283,6 +283,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/comprehensive-expenses': 'comprehensive_expenses:edit',
   '/api/miscellaneous-materials': 'miscellaneous_materials:edit',
   '/api/team-groups': 'team_groups:edit',
+  '/api/team-settlements/workflow': 'team_settlements:view',
   '/api/team-settlements': 'team_settlements:edit',
   '/api/team-settlement-payments': 'team_settlements:edit',
 
@@ -300,6 +301,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/fetch-url': 'system:ai_manage',
 
   // 报表导出
+  '/api/reports/monthly/workflow': 'reports:monthly_view',
   '/api/reports/monthly/export-pdf': 'reports:monthly_export',
   '/api/reports/monthly/export-excel': 'reports:monthly_export',
   '/api/reports/monthly/archives': 'reports:monthly_export',
@@ -469,6 +471,22 @@ export function checkApiWritePermission(
 
   if (pathname === '/api/team-settlements' && method === 'POST') {
     return userPermissions.includes('team_settlements:create') || userPermissions.includes('team_settlements:edit');
+  }
+
+  // 班组结算审批流转：细分权限（submit/approve）由路由内 requirePermission 精确校验，
+  // 中间件只要求能查看结算，避免审批人（老板）被 edit 权限挡住
+  if (pathname === '/api/team-settlements/workflow') {
+    return userPermissions.includes('team_settlements:view');
+  }
+
+  // 班组结算删除（动态 id 路径）
+  if (pathname.startsWith('/api/team-settlements/') && method === 'DELETE') {
+    return userPermissions.includes('team_settlements:delete') || userPermissions.includes('team_settlements:edit');
+  }
+
+  // 月报协作审批：填写/补充/审批细分权限由路由内校验，中间件只要求能查看月报
+  if (pathname === '/api/reports/monthly/workflow') {
+    return userPermissions.includes('reports:monthly_view') || userPermissions.includes('report:monthly_view');
   }
 
   if (pathname === '/api/team-settlement-payments' && (method === 'POST' || method === 'DELETE')) {

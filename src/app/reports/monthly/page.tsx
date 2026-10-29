@@ -23,6 +23,7 @@ const EChartsWrapper = dynamic(() => import('@/components/charts/echarts-wrapper
 import { StandardDashboardLayout } from '@/components/dashboard/standard-layout';
 import { CollapsibleSection } from '@/components/dashboard/collapsible-section';
 import { HistoryArchiveDialog } from '@/components/dashboard/history-archive-dialog';
+import { MonthlyReportWorkflowBar } from './_components/monthly-report-workflow-bar';
 import { toast } from 'sonner';
 
 // ─── Types ─────────────────────────────────────────────
@@ -558,6 +559,8 @@ export default function MonthlyReportPage() {
             <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}><History className="w-3.5 h-3.5 mr-1" />历史</Button>
           </div>
         </div>
+
+        <MonthlyReportWorkflowBar month={month} projectId={projectId} />
 
         {loading && !data ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground"><RefreshCw className="w-5 h-5 animate-spin mr-2" />加载中…</div>
