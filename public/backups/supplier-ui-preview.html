@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>供应商与费用 · UI 优化预览</title>
+<style>
+  :root{
+    --blue:#165DFF; --orange:#FF7D00; --green:#00B42A; --red:#F53F3F;
+    --text:#1D2129; --text2:#4E5969; --text3:#86909C; --border:#E5E8EF; --bg:#F7F8FA; --card:#fff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;padding:24px}
+  .wrap{max-width:1280px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin-bottom:6px}
+  .sub{color:var(--text3);font-size:13px;margin-bottom:18px}
+  .tabs{display:flex;gap:6px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px;width:fit-content;margin-bottom:18px}
+  .tab{padding:7px 16px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text2);border:none;background:none;font-weight:500}
+  .tab.active{background:var(--blue);color:#fff}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:16px;overflow:hidden}
+  .card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #EEF0F5}
+  .card-title{font-weight:600;font-size:15px}
+  .card-desc{color:var(--text3);font-size:12px;margin-top:2px}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 18px}
+  .metric{border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;transition:.15s}
+  .metric:hover{border-color:var(--blue);box-shadow:0 2px 8px rgba(22,93,255,.08)}
+  .metric .num{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+  .metric .lbl{color:var(--text3);font-size:12px;margin-top:2px}
+  .metric.orange .num{color:var(--orange)} .metric.green .num{color:var(--green)} .metric.red .num{color:var(--red)}
+  .banner{display:flex;align-items:center;gap:10px;padding:12px 18px;background:#FFF7E8;border-bottom:1px solid #FFE4BA;color:#B25E00;font-size:13px}
+  .banner b{color:var(--orange)}
+  .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 18px;border-bottom:1px solid #EEF0F5}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{padding:5px 12px;border-radius:20px;border:1px solid var(--border);color:var(--text2);font-size:12px;cursor:pointer;background:#fff}
+  .chip.active{background:var(--blue);border-color:var(--blue);color:#fff}
+  .sel,.search{padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text2);background:#fff}
+  .search{flex:1;min-width:180px;max-width:260px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  thead th{background:#FAFBFC;color:var(--text3);font-weight:500;font-size:12px;text-align:left;padding:10px 16px;border-bottom:1px solid #EEF0F5;white-space:nowrap}
+  tbody td{padding:12px 16px;border-bottom:1px solid #F2F4F8;font-size:13px;vertical-align:middle}
+  tbody tr:hover{background:#FAFBFF}
+  .name{font-weight:600}
+  .subtext{color:var(--text3);font-size:12px;margin-top:1px}
+  .right{text-align:right}
+  .tag{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500;margin-right:4px}
+  .tag-blue{background:#E8F3FF;color:#165DFF}
+  .tag-orange{background:#FFF4E8;color:#D25F00}
+  .tag-green{background:#E8FFEA;color:#00A870}
+  .tag-red{background:#FFF1F0;color:#F53F3F}
+  .tag-gray{background:#F2F3F5;color:#86909C}
+  .tag-purple{background:#F0ECFF;color:#722ED1}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:500}
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .badge-draft{background:#F2F3F5;color:#86909C}
+  .badge-pending{background:#FFF4E8;color:#D25F00}
+  .badge-approved{background:#E8FFEA;color:#00A870}
+  .badge-void{background:#FFF1F0;color:#F53F3F}
+  .badge-done{background:#E8F3FF;color:#165DFF}
+  .money{font-weight:600}
+  .orange{color:var(--orange)} .green{color:var(--green)} .red{color:var(--red)} .muted{color:var(--text3)}
+  .progress{height:6px;background:#EEF0F5;border-radius:4px;width:110px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .progress i{display:block;height:100%;background:var(--blue);border-radius:4px}
+  .progress-text{font-size:11px;color:var(--text3);margin-left:6px;vertical-align:middle}
+  .avatar{width:30px;height:30px;border-radius:8px;background:#E8F3FF;color:var(--blue);display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;margin-right:10px;flex:none}
+  .cellflex{display:flex;align-items:center}
+  .ops{display:flex;gap:10px;white-space:nowrap}
+  .op{color:var(--blue);font-size:12px;font-weight:500;cursor:pointer;text-decoration:none}
+  .op.green{color:var(--green)} .op.orange{color:var(--orange)} .op.red{color:var(--red)} .op.gray{color:var(--text3)}
+  .foot{padding:10px 18px;color:var(--text3);font-size:12px;display:flex;justify-content:space-between;border-top:1px solid #EEF0F5}
+  .note{background:#E8F3FF;border:1px solid #C9DDFF;color:#165DFF;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:16px}
+  .hint{color:var(--text3);font-size:12px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>供应商与费用 · UI 优化预览（静态示例）</h1>
+  <p class="sub">以下为 4 个模块优化后的效果示意（示例数据）。确认风格后我再落地到真实页面。</p>
+  <div class="note">统一规范：品牌蓝 #165DFF · 成本橙 #FF7D00 · 已付绿 #00B42A · 未付红 #F53F3F；金额右对齐等宽数字；状态统一徽章；筛选用快捷 chips。</div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="show('suppliers')">供应商库</button>
+    <button class="tab" onclick="show('contracts')">合同管理</button>
+    <button class="tab" onclick="show('settlements')">结算管理</button>
+    <button class="tab" onclick="show('payments')">付款记录</button>
+  </div>
+
+  <!-- ============ 供应商库 ============ -->
+  <div class="panel active" id="panel-suppliers">
+    <div class="card">
+      <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+        <div class="metric"><div class="num">32</div><div class="lbl">合作供应商（家）</div></div>
+        <div class="metric"><div class="num">18</div><div class="lbl">履约中合同（份）</div></div>
+        <div class="metric orange"><div class="num">¥86.4万</div><div class="lbl">未付合计</div></div>
+        <div class="metric green"><div class="num">3</div><div class="lbl">本月新增</div></div>
+      </div>
+      <div class="filters">
+        <div class="chips">
+          <span class="chip active">全部</span>
+          <span class="chip">有未付</span>
+          <span class="chip">合同即将到期</span>
+          <span class="chip">本月有结算</span>
+        </div>
+        <input class="search" placeholder="搜索供应商名称 / 联系人 / 电话">
+      </div>
+      <table>
+        <thead><tr>
+          <th>供应商</th><th>分类</th><th>合作项目</th><th class="right">累计结算</th><th class="right">未付</th><th>合同状态</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="cellflex"><span class="avatar">中</span><div><div class="name">南京中交智慧港建材</div><div class="subtext">联系人：王经理 · 138****1234</div></div></div></td>
+            <td><span class="tag tag-blue">建材租赁</span></td>
+            <td><span class="tag tag-gray">山海境TOD</span><span class="tag tag-gray">南京智慧港</span></td>
+            <td class="right money">¥120.8万</td>
+            <td class="right money red">¥8.6万</td>
+            <td><span class="badge badge-approved">履约中</span></td>
+            <td><div class="ops"><a class="op">查看合同</a><a class="op green">记付款</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="cellflex"><span class="avatar">安</span><div><div class="name">安徽盘扣租赁</div><div class="subtext">联系人：李工 · 139****5678</div></div></div></td>
+            <td><span class="tag tag-orange">周转材料</span></td>
+            <td><span class="tag tag-gray">延安能源</span></td>
+            <td class="right money">¥46.2万</td>
+            <td class="right money red">¥12.3万</td>
+            <td><span class="badge badge-pending">合同即将到期</span></td>
+            <td><div class="ops"><a class="op">查看合同</a><a class="op green">记付款</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="cellflex"><span class="avatar">陕</span><div><div class="name">陕西商混站</div><div class="subtext">联系人：赵经理 · 137****9012</div></div></div></td>
+            <td><span class="tag tag-purple">混凝土</span></td>
+            <td><span class="tag tag-gray">山海境TOD</span></td>
+            <td class="right money">¥88.0万</td>
+            <td class="right money green">已结清</td>
+            <td><span class="badge badge-done">已完结</span></td>
+            <td><div class="ops"><a class="op">查看合同</a></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>共 32 家供应商</span><span>未付合计 ¥86.4 万</span></div>
+    </div>
+    <p class="hint">要点：供应商按「未付金额」从高到低排序；未付红色、已结清绿色；联系人/电话合并第二行；合同状态用徽章（履约中/即将到期/已完结）。</p>
+  </div>
+
+  <!-- ============ 合同管理 ============ -->
+  <div class="panel" id="panel-contracts">
+    <div class="card">
+      <div class="metrics">
+        <div class="metric"><div class="num">24</div><div class="lbl">合同总数</div></div>
+        <div class="metric"><div class="num">18</div><div class="lbl">履约中</div></div>
+        <div class="metric green"><div class="num">5</div><div class="lbl">已完结</div></div>
+        <div class="metric orange"><div class="num">2</div><div class="lbl">30天内到期</div></div>
+      </div>
+      <div class="filters">
+        <select class="sel"><option>全部供应商</option></select>
+        <div class="chips">
+          <span class="chip active">全部</span><span class="chip">履约中</span><span class="chip">已完结</span><span class="chip">即将到期</span>
+        </div>
+        <input class="search" placeholder="搜索合同名称 / 编号">
+      </div>
+      <table>
+        <thead><tr>
+          <th>合同名称</th><th class="right">合同额</th><th class="right">已结算</th><th>结算进度</th><th>到期日</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="name">盘扣租赁合同</div><div class="subtext">SH-NJZJZHG-001 · 南京中交智慧港建材</div></td>
+            <td class="right money">¥46.2万</td>
+            <td class="right money orange">¥18.5万</td>
+            <td><span class="progress"><i style="width:40%"></i></span><span class="progress-text">40%</span></td>
+            <td>2026-12-31</td>
+            <td><span class="badge badge-approved">履约中</span></td>
+            <td><div class="ops"><a class="op">详情</a><a class="op">新增结算</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="name">钢管租赁合同</div><div class="subtext">SH-NJZJZHG-002 · 安徽盘扣租赁</div></td>
+            <td class="right money">¥32.0万</td>
+            <td class="right money orange">¥28.6万</td>
+            <td><span class="progress"><i style="width:89%"></i></span><span class="progress-text">89%</span></td>
+            <td class="red">2026-11-15（15天）</td>
+            <td><span class="badge badge-pending">即将到期</span></td>
+            <td><div class="ops"><a class="op">详情</a><a class="op orange">续签</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="name">商品混凝土供应合同</div><div class="subtext">SH-SHJ-003 · 陕西商混站</div></td>
+            <td class="right money">¥88.0万</td>
+            <td class="right money orange">¥88.0万</td>
+            <td><span class="progress"><i style="width:100%"></i></span><span class="progress-text">100%</span></td>
+            <td>2026-09-30</td>
+            <td><span class="badge badge-done">已完结</span></td>
+            <td><div class="ops"><a class="op">详情</a></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>共 24 份合同</span><span>合同总额 ¥1,682 万 · 已结算 ¥1,150 万（68%）</span></div>
+    </div>
+    <p class="hint">要点：合同名+供应商两行合并（省一列）；结算进度条直观显示履约程度；到期日 30 天内变红提示。</p>
+  </div>
+
+  <!-- ============ 结算管理 ============ -->
+  <div class="panel" id="panel-settlements">
+    <div class="card">
+      <div class="metrics">
+        <div class="metric orange"><div class="num">3</div><div class="lbl">待审核（点击筛选）</div></div>
+        <div class="metric green"><div class="num">21</div><div class="lbl">已审核</div></div>
+        <div class="metric"><div class="num">¥12.4万</div><div class="lbl">本月结算</div></div>
+        <div class="metric red"><div class="num">¥8.0万</div><div class="lbl">未付合计</div></div>
+      </div>
+      <div class="banner">⚠️ 有 <b>3</b> 条结算待审核，审核后计入合同累计结算（草稿不计成本）</div>
+      <div class="filters">
+        <select class="sel"><option>全部供应商</option></select>
+        <select class="sel"><option>全部合同</option></select>
+        <div class="chips">
+          <span class="chip active">全部</span><span class="chip">待审核</span><span class="chip">已审核</span><span class="chip">已作废</span>
+        </div>
+        <input class="search" placeholder="搜索结算单号">
+      </div>
+      <table>
+        <thead><tr>
+          <th>结算单</th><th>合同 / 供应商</th><th class="right">本次金额</th><th class="right">累计结算</th><th class="right">应付</th><th class="right">已付</th><th class="right">未付</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="name">JS-202610-001</div><div class="subtext">2026-10-25 · 进度结算</div></td>
+            <td><div class="name">盘扣租赁合同</div><div class="subtext">南京中交智慧港建材</div></td>
+            <td class="right money">¥1.85万</td>
+            <td class="right money">¥18.5万</td>
+            <td class="right money orange">¥1.85万</td>
+            <td class="right money green">¥0</td>
+            <td class="right money red">¥1.85万</td>
+            <td><span class="badge badge-pending">待审核</span></td>
+            <td><div class="ops"><a class="op green">审核</a><a class="op red">作废</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="name">JS-202610-002</div><div class="subtext">2026-10-20 · 进度结算</div></td>
+            <td><div class="name">钢管租赁合同</div><div class="subtext">安徽盘扣租赁</div></td>
+            <td class="right money">¥4.20万</td>
+            <td class="right money">¥28.6万</td>
+            <td class="right money orange">¥4.20万</td>
+            <td class="right money green">¥4.20万</td>
+            <td class="right money green">¥0</td>
+            <td><span class="badge badge-approved">已审核</span></td>
+            <td><div class="ops"><a class="op gray">反审核</a><a class="op">详情</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="name">JS-202609-015</div><div class="subtext">2026-09-30 · 总结算</div></td>
+            <td><div class="name">商品混凝土供应合同</div><div class="subtext">陕西商混站</div></td>
+            <td class="right money">¥12.0万</td>
+            <td class="right money">¥88.0万</td>
+            <td class="right money orange">¥0</td>
+            <td class="right money green">¥88.0万</td>
+            <td class="right money green">¥0</td>
+            <td><span class="badge badge-done">已审核</span></td>
+            <td><div class="ops"><a class="op">详情</a></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>共 24 条结算</span><span>已审核累计 ¥86.4 万 · 未付 ¥8.0 万</span></div>
+    </div>
+    <p class="hint">要点："待审核"排最前且橙色醒目 + 顶部提醒条；应付橙、已付绿、未付红；审核/作废操作直接放行内。</p>
+  </div>
+
+  <!-- ============ 付款记录 ============ -->
+  <div class="panel" id="panel-payments">
+    <div class="card">
+      <div class="metrics">
+        <div class="metric"><div class="num">¥45.2万</div><div class="lbl">本月付款</div></div>
+        <div class="metric green"><div class="num">¥320.6万</div><div class="lbl">累计付款</div></div>
+        <div class="metric red"><div class="num">¥8.0万</div><div class="lbl">待付款（关联未付结算）</div></div>
+        <div class="metric orange"><div class="num">6</div><div class="lbl">本月付款笔数</div></div>
+      </div>
+      <div class="filters">
+        <input type="date" class="sel" value="2026-10-01"><span class="muted">至</span><input type="date" class="sel" value="2026-10-31">
+        <select class="sel"><option>全部项目</option></select>
+        <select class="sel"><option>全部供应商</option></select>
+        <div class="chips"><span class="chip active">全部方式</span><span class="chip">银行转账</span><span class="chip">现金</span><span class="chip">承兑</span></div>
+        <input class="search" placeholder="搜索付款单号">
+      </div>
+      <table>
+        <thead><tr>
+          <th>付款单</th><th>项目</th><th>供应商 / 合同</th><th class="right">付款金额</th><th>方式</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="name">FK-202610-008</div><div class="subtext">2026-10-28</div></td>
+            <td>南京中交智慧港</td>
+            <td><div class="name">南京中交智慧港建材</div><div class="subtext">盘扣租赁合同</div></td>
+            <td class="right money green">¥1.85万</td>
+            <td><span class="tag tag-gray">银行转账</span></td>
+            <td><span class="badge badge-approved">已付</span></td>
+            <td><div class="ops"><a class="op">详情</a><a class="op red">删除</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="name">FK-202610-007</div><div class="subtext">2026-10-20</div></td>
+            <td>延安能源产业基地</td>
+            <td><div class="name">安徽盘扣租赁</div><div class="subtext">钢管租赁合同</div></td>
+            <td class="right money green">¥4.20万</td>
+            <td><span class="tag tag-gray">承兑汇票</span></td>
+            <td><span class="badge badge-approved">已付</span></td>
+            <td><div class="ops"><a class="op">详情</a></div></td>
+          </tr>
+          <tr>
+            <td><div class="name">FK-202610-006</div><div class="subtext">2026-10-15</div></td>
+            <td>山海境TOD</td>
+            <td><div class="name">陕西商混站</div><div class="subtext">商品混凝土供应合同</div></td>
+            <td class="right money green">¥12.0万</td>
+            <td><span class="tag tag-gray">银行转账</span></td>
+            <td><span class="badge badge-approved">已付</span></td>
+            <td><div class="ops"><a class="op">详情</a></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>共 36 笔付款</span><span>本月 ¥45.2 万 · 累计 ¥320.6 万</span></div>
+    </div>
+    <p class="hint">要点：付款金额绿色（已付）；供应商/合同两行合并；时间范围+项目+供应商+方式 chips 组合筛选；点行可展开详情。</p>
+  </div>
+
+</div>
+<script>
+  function show(key){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    document.querySelector('[onclick="show(\''+key+'\')"]').classList.add('active');
+    document.getElementById('panel-'+key).classList.add('active');
+  }
+</script>
+</body>
+</html>
