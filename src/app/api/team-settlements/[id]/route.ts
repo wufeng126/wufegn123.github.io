@@ -1,0 +1,75 @@
+import { NextRequest } from 'next/server';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { auditLog } from '@/lib/audit-log';
+import { requirePermission } from '@/lib/api-auth';
+import {
+  apiBadRequest,
+  apiForbidden,
+  apiNotFound,
+  apiServerError,
+  apiSuccess,
+  getErrorMessage,
+} from '@/lib/api-utils';
+import { assertProjectAccess } from '@/lib/api-project-scope';
+import { invalidateAggregationCache } from '@/lib/data-aggregation';
+
+/**
+ * 删除班组结算单（仅草稿/已驳回可删）。
+ * 已提交待审批（pending）或已审批（reviewed）的结算单不可直接删除——需先驳回或作废。
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await requirePermission(request, 'team_settlements:delete');
+    if (!auth.ok) return auth.response;
+
+    const { id } = await params;
+    const settlementId = Number(id);
+    if (!Number.isInteger(settlementId) || settlementId <= 0) {
+      return apiBadRequest('结算单ID无效');
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: settlement, error } = await supabase
+      .from('team_settlements')
+      .select('id, project_id, status, settlement_no')
+      .eq('id', settlementId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!settlement) return apiNotFound('结算单不存在');
+
+    const status = String(settlement.status || 'draft');
+    if (!['draft', 'rejected'].includes(status)) {
+      return apiBadRequest('只有草稿或已驳回的结算单可以删除');
+    }
+
+    const hasAccess = await assertProjectAccess(supabase, auth.user, Number(settlement.project_id));
+    if (!hasAccess) return apiForbidden('无权删除该项目班组结算');
+
+    const { error: deleteError } = await supabase
+      .from('team_settlements')
+      .delete()
+      .eq('id', settlementId);
+    if (deleteError) throw new Error(deleteError.message);
+
+    try {
+      invalidateAggregationCache();
+    } catch {
+      // 缓存失效非致命
+    }
+
+    await auditLog({
+      operationType: 'delete',
+      resourceType: 'team_settlement',
+      resourceId: settlementId,
+      details: { settlement_no: settlement.settlement_no, status },
+      request,
+    });
+
+    return apiSuccess({ deleted: true });
+  } catch (error: unknown) {
+    return apiServerError(getErrorMessage(error, '班组结算删除失败'));
+  }
+}

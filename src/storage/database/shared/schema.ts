@@ -1219,6 +1219,12 @@ export const teamSettlements = pgTable("team_settlements", {
 	paymentRatio: numeric("payment_ratio", { precision: 5, scale: 2 }).default('100'),
 	// 结算单附件（JSONB 数组：[{ key, name, size, type, uploadedAt }]）
 	attachments: jsonb("attachments").default([]),
+	// 审批流：draft 草稿 → pending 待审批 → reviewed 已审批 / rejected 已驳回
+	submittedAt: timestamp("submitted_at", { withTimezone: true, mode: 'string' }),
+	submittedBy: varchar("submitted_by", { length: 100 }),
+	reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: 'string' }),
+	reviewedBy: varchar("reviewed_by", { length: 100 }),
+	rejectReason: text("reject_reason"),
 	createdBy: integer("created_by"),
 	createdByName: varchar("created_by_name", { length: 100 }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),

@@ -93,6 +93,12 @@ type TeamSettlement = {
   team_unpaid_total?: number;
   items?: SettlementItem[];
   splits?: SettlementSplit[];
+  // 审批流字段
+  submitted_at?: string | null;
+  submitted_by?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  reject_reason?: string | null;
 };
 type TeamSettlementPayment = {
   id: number;
@@ -220,7 +226,10 @@ function formatNumber(value: unknown) {
 
 function statusText(status?: string) {
   if (status === 'inactive') return '停用';
-  if (status === 'confirmed') return '已确认';
+  if (status === 'pending') return '待审批';
+  if (status === 'reviewed') return '已审批';
+  if (status === 'rejected') return '已驳回';
+  if (status === 'confirmed') return '已审批';
   if (status === 'draft') return '草稿';
   return '在场';
 }
@@ -770,9 +779,33 @@ export function TeamSettlementLedgerPageClient() {
   const [payRemark, setPayRemark] = useState('');
   const [payMessage, setPayMessage] = useState('');
   const [payLoading, setPayLoading] = useState(false);
+  // 审批流：驳回弹窗 + 状态筛选 + 当前用户权限（提交/审批/删除按钮按权限显示）
+  const [rejectSettlement, setRejectSettlement] = useState<TeamSettlement | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const selectedProjectId = Number(projectId) || null;
   const selectedTeamId = Number(teamId) || null;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const json = await readJson(await fetch('/api/auth/me', { credentials: 'include' }));
+        const user = json?.user || json?.data;
+        setPermissions(Array.isArray(user?.permissions) ? user.permissions : []);
+        setIsSuperAdmin(user?.role === 'super_admin');
+      } catch {
+        // 权限加载失败按无权限处理（后端仍会二次校验）
+      }
+    })();
+  }, []);
+
+  const canSubmitSettlement = isSuperAdmin || permissions.includes('team_settlements:submit');
+  const canApproveSettlement = isSuperAdmin || permissions.includes('team_settlements:approve');
+  const canDeleteSettlement = isSuperAdmin || permissions.includes('team_settlements:delete');
 
   const loadGroups = useCallback(async () => {
     const params = new URLSearchParams();
@@ -835,6 +868,59 @@ export function TeamSettlementLedgerPageClient() {
     });
     return Array.from(map.values()).sort((a, b) => b.unpaid_amount - a.unpaid_amount);
   }, [settlements]);
+
+  const visibleSettlements = statusFilter
+    ? settlements.filter((row) => (row.status || 'draft') === statusFilter)
+    : settlements;
+
+  async function handleSettlementWorkflow(settlement: TeamSettlement, action: 'submit' | 'withdraw' | 'approve') {
+    setMessage('');
+    try {
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settlement_id: settlement.id, action }),
+      }));
+      setMessage(action === 'submit' ? '已提交审批' : action === 'approve' ? '审批通过，已计入成本' : '已撤回');
+      await reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '操作失败');
+    }
+  }
+
+  async function submitReject() {
+    if (!rejectSettlement) return;
+    if (!rejectReason.trim()) { setMessage('请填写驳回原因'); return; }
+    setRejectLoading(true);
+    try {
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settlement_id: rejectSettlement.id, action: 'reject', reason: rejectReason.trim() }),
+      }));
+      setRejectSettlement(null);
+      setRejectReason('');
+      setMessage('已驳回，预算员可修改后重新提交');
+      await reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '驳回失败');
+    } finally {
+      setRejectLoading(false);
+    }
+  }
+
+  async function handleDeleteSettlement(settlement: TeamSettlement) {
+    if (!window.confirm(`确认删除结算单 ${settlement.settlement_no || `#${settlement.id}`}？删除后不可恢复`)) return;
+    try {
+      await readJson(await fetch(`/api/team-settlements/${settlement.id}`, { method: 'DELETE', credentials: 'include' }));
+      setMessage('结算单已删除');
+      await reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '删除失败');
+    }
+  }
 
   function drillToProject(projectName: string) {
     const project = projects.find((item) => item.name === projectName);
@@ -913,6 +999,20 @@ export function TeamSettlementLedgerPageClient() {
           <List className="h-3.5 w-3.5" />结算明细
         </button>
       </div>
+
+      {viewMode === 'detail' && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#86909C]">状态筛选：</span>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+            <option value="">全部</option>
+            <option value="draft">草稿</option>
+            <option value="pending">待审批</option>
+            <option value="reviewed">已审批</option>
+            <option value="rejected">已驳回</option>
+          </select>
+          <span className="text-xs text-[#86909C]">审批流：草稿 → 提交审批 → 老板通过后计入成本</span>
+        </div>
+      )}
 
       {viewMode === 'summary' ? (
         <section className="mt-3 rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
@@ -1039,9 +1139,9 @@ export function TeamSettlementLedgerPageClient() {
             <tbody className="divide-y divide-[#EEF0F5]">
               {loading ? (
                 <tr><td colSpan={17} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
-              ) : settlements.length === 0 ? (
+              ) : visibleSettlements.length === 0 ? (
                 <tr><td colSpan={17} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
-              ) : settlements.map((row) => (
+              ) : visibleSettlements.map((row) => (
                 <tr key={row.id} className="hover:bg-[#FAFBFF]">
                   <td className="px-4 py-3 font-medium">{row.settlement_no || `#${row.id}`}</td>
                   <td className="px-4 py-3 text-[#4E5969]">{row.project_name || '-'}</td>
@@ -1060,9 +1160,26 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.total_hours)}</td>
                   <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{statusText(row.status)}</span></td>
                   <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
                       <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[#165DFF] hover:underline">查看详情</Link>
-                      <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
+                      {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
+                        <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="text-sm font-medium text-[#722ED1] hover:underline">提交审批</button>
+                      )}
+                      {row.status === 'pending' && canSubmitSettlement && (
+                        <button onClick={() => handleSettlementWorkflow(row, 'withdraw')} className="text-sm font-medium text-[#86909C] hover:underline">撤回</button>
+                      )}
+                      {row.status === 'pending' && canApproveSettlement && (
+                        <>
+                          <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="text-sm font-medium text-[#00B42A] hover:underline">通过</button>
+                          <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="text-sm font-medium text-[#F53F3F] hover:underline">驳回</button>
+                        </>
+                      )}
+                      {row.status === 'reviewed' && (
+                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
+                      )}
+                      {((row.status || 'draft') === 'draft' || row.status === 'rejected') && canDeleteSettlement && (
+                        <button onClick={() => handleDeleteSettlement(row)} className="text-sm font-medium text-[#F53F3F] hover:underline">删除</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1073,9 +1190,9 @@ export function TeamSettlementLedgerPageClient() {
         <div className="divide-y divide-[#EEF0F5] md:hidden">
           {loading ? (
             <div className="p-5 text-center text-sm text-[#86909C]">加载中...</div>
-          ) : settlements.length === 0 ? (
+          ) : visibleSettlements.length === 0 ? (
             <div className="p-5 text-center text-sm text-[#86909C]">暂无班组结算记录</div>
-          ) : settlements.map((row) => (
+          ) : visibleSettlements.map((row) => (
             <article key={row.id} className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1094,9 +1211,26 @@ export function TeamSettlementLedgerPageClient() {
                 <div><dt className="text-xs text-[#86909C]">总工时</dt><dd className="mt-0.5 text-[#4E5969]">{formatNumber(row.total_hours)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">周期</dt><dd className="mt-0.5 text-[#4E5969]">{row.period_start} 至 {row.period_end}</dd></div>
               </dl>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <Link href={`/team-management/settlements/${row.id}`} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-sm font-medium text-[#165DFF]">查看详情</Link>
-                <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
+                {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
+                  <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="inline-flex h-9 items-center rounded-md border border-[#722ED1] bg-white px-3 text-sm font-medium text-[#722ED1]">提交审批</button>
+                )}
+                {row.status === 'pending' && canSubmitSettlement && (
+                  <button onClick={() => handleSettlementWorkflow(row, 'withdraw')} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#86909C]">撤回</button>
+                )}
+                {row.status === 'pending' && canApproveSettlement && (
+                  <>
+                    <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A]">通过</button>
+                    <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">驳回</button>
+                  </>
+                )}
+                {row.status === 'reviewed' && (
+                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
+                )}
+                {((row.status || 'draft') === 'draft' || row.status === 'rejected') && canDeleteSettlement && (
+                  <button onClick={() => handleDeleteSettlement(row)} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">删除</button>
+                )}
               </div>
             </article>
           ))}
@@ -1142,6 +1276,29 @@ export function TeamSettlementLedgerPageClient() {
               <button onClick={() => setPaySettlement(null)} disabled={payLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50">取消</button>
               <button onClick={() => void submitLedgerPayment()} disabled={payLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50">
                 <Save className="h-4 w-4" />{payLoading ? '保存中…' : '保存付款'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {rejectSettlement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!rejectLoading) setRejectSettlement(null); }}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-lg font-semibold">驳回结算单</h3>
+            <p className="mt-1 text-sm text-[#86909C]">
+              {rejectSettlement.team_name || `#${rejectSettlement.id}`} · {rejectSettlement.settlement_month} ·
+              实付 <b>{formatMoney(rejectSettlement.payable_amount || 0)}</b>
+            </p>
+            <div className="mt-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[#86909C]">驳回原因（必填）</span>
+                <textarea value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} rows={3} placeholder="请说明需要修改的内容，预算员据此修改后重新提交" className="w-full rounded-md border border-[#DDE2EB] bg-white px-3 py-2 text-sm outline-none focus:border-[#165DFF]" />
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setRejectSettlement(null)} disabled={rejectLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50">取消</button>
+              <button onClick={() => void submitReject()} disabled={rejectLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#F53F3F] px-4 text-sm font-medium text-white hover:bg-[#D9363E] disabled:opacity-50">
+                {rejectLoading ? '提交中…' : '确认驳回'}
               </button>
             </div>
           </div>
@@ -1414,7 +1571,7 @@ export function TeamSettlementNewPageClient() {
             </Link>
             <button onClick={() => void createSettlement()} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              保存结算单
+              保存为草稿
             </button>
           </>
         )}
@@ -1715,6 +1872,43 @@ export function TeamSettlementDetailPageClient() {
   const [paymentDate, setPaymentDate] = useState(currentMonth());
   const [paymentRemark, setPaymentRemark] = useState('');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const json = await readJson(await fetch('/api/auth/me', { credentials: 'include' }));
+        const user = json?.user || json?.data;
+        setPermissions(Array.isArray(user?.permissions) ? user.permissions : []);
+        setIsSuperAdmin(user?.role === 'super_admin');
+      } catch {
+        // 权限加载失败按无权限处理
+      }
+    })();
+  }, []);
+
+  const canSubmitSettlement = isSuperAdmin || permissions.includes('team_settlements:submit');
+
+  async function submitSettlementApproval() {
+    if (!settlement) return;
+    setWorkflowLoading(true);
+    try {
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settlement_id: settlement.id, action: 'submit' }),
+      }));
+      setMessage('已提交审批，待老板审批通过后计入成本');
+      await loadSettlement();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '提交审批失败');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }
 
   const loadPayments = useCallback(async () => {
     if (!id) return;
@@ -1858,7 +2052,20 @@ export function TeamSettlementDetailPageClient() {
                 <h2 className="text-xl font-semibold">班组结算单</h2>
                 <p className="mt-1 text-sm text-[#86909C]">{settlement.settlement_no || `#${settlement.id}`}</p>
               </div>
-              <span className="w-fit rounded-md bg-[#E8F3FF] px-3 py-1 text-sm text-[#165DFF]">{statusText(settlement.status)}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="w-fit rounded-md bg-[#E8F3FF] px-3 py-1 text-sm text-[#165DFF]">{statusText(settlement.status)}</span>
+                {((settlement.status || 'draft') === 'draft' || settlement.status === 'rejected') && canSubmitSettlement && (
+                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#722ED1] px-3 text-xs font-medium text-white hover:bg-[#5B21B6] disabled:opacity-50">
+                    {workflowLoading ? '提交中…' : '提交审批'}
+                  </button>
+                )}
+                {settlement.status === 'pending' && (
+                  <span className="text-xs text-[#D25F00]">待老板审批，通过后计入成本</span>
+                )}
+                {settlement.status === 'rejected' && settlement.reject_reason && (
+                  <span className="text-xs text-[#F53F3F]">驳回原因：{settlement.reject_reason}</span>
+                )}
+              </div>
             </div>
             <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
               <div><dt className="text-xs text-[#86909C]">项目</dt><dd className="mt-1 font-medium">{settlement.project_name || '-'}</dd></div>

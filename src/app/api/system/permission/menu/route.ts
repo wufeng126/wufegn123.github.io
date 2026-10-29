@@ -154,6 +154,8 @@ const PERMISSION_MENU_STRUCTURE = [
       { name: '班组结算-新增', code: 'team_settlements:create', icon: 'plus' },
       { name: '班组结算-编辑', code: 'team_settlements:edit', icon: 'edit' },
       { name: '班组结算-删除', code: 'team_settlements:delete', icon: 'trash' },
+      { name: '班组结算-提交审批', code: 'team_settlements:submit', icon: 'send' },
+      { name: '班组结算-审批（老板）', code: 'team_settlements:approve', icon: 'check' },
     ]
   },
   {

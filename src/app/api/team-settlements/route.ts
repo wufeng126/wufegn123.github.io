@@ -6,7 +6,6 @@ import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessag
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
 import { getSettlementPeriod } from '@/lib/settlement-period';
-import { generateWorkerSalariesFromSplits } from '@/lib/team-settlement-salary';
 
 type TeamSettlementItemInput = {
   content?: string;
@@ -74,6 +73,12 @@ async function assertProjectAccess(supabase: ReturnType<typeof getSupabaseClient
     return false;
   }
   return true;
+}
+
+/** 班组结算审批通过口径：reviewed（新）；兼容历史 confirmed（迁移后统一为 reviewed） */
+function isTeamSettlementApprovedStatus(status: unknown): boolean {
+  const s = String(status || '').trim();
+  return s === 'reviewed' || s === 'confirmed';
 }
 
 function normalizeItems(items: unknown): Array<TeamSettlementItemInput & { amount: number }> {
@@ -372,19 +377,21 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // 审批流口径：汇总仅统计「已审批」（reviewed）的结算单；草稿/待审批/驳回只出现在列表
+    const approvedRows = rows.filter((row) => isTeamSettlementApprovedStatus(row.status));
     return apiSuccess({
       settlements: rows,
       summary: {
-        count: rows.length,
-        quantity_amount: round2(rows.reduce((sum, row) => sum + row.quantity_amount, 0)),
-        split_amount: round2(rows.reduce((sum, row) => sum + row.split_amount, 0)),
-        total_hours: round2(rows.reduce((sum, row) => sum + row.total_hours, 0)),
-        deduction_total: round2(rows.reduce((sum, row) => sum + row.deduction_total, 0)),
-        payable_amount: round2(rows.reduce((sum, row) => sum + row.payable_amount, 0)),
-        planned_payment: round2(rows.reduce((sum, row) => sum + row.planned_payment, 0)),
-        retained_amount: round2(rows.reduce((sum, row) => sum + row.retained_amount, 0)),
+        count: approvedRows.length,
+        quantity_amount: round2(approvedRows.reduce((sum, row) => sum + row.quantity_amount, 0)),
+        split_amount: round2(approvedRows.reduce((sum, row) => sum + row.split_amount, 0)),
+        total_hours: round2(approvedRows.reduce((sum, row) => sum + row.total_hours, 0)),
+        deduction_total: round2(approvedRows.reduce((sum, row) => sum + row.deduction_total, 0)),
+        payable_amount: round2(approvedRows.reduce((sum, row) => sum + row.payable_amount, 0)),
+        planned_payment: round2(approvedRows.reduce((sum, row) => sum + row.planned_payment, 0)),
+        retained_amount: round2(approvedRows.reduce((sum, row) => sum + row.retained_amount, 0)),
         paid_amount: paidAllInScope,
-        unpaid_amount: round2(Math.max(0, rows.reduce((sum, row) => sum + row.payable_amount, 0) - paidAllInScope)),
+        unpaid_amount: round2(Math.max(0, approvedRows.reduce((sum, row) => sum + row.payable_amount, 0) - paidAllInScope)),
       },
       item_totals: itemTotals,
     });
@@ -452,7 +459,7 @@ export async function POST(request: NextRequest) {
       settlement_month: month,
       period_start: start,
       period_end: end,
-      status: body?.status || 'confirmed',
+      status: 'draft',
       remark: body?.remark || null,
       attachments,
       advance_deduct: advanceDeduct,
@@ -509,32 +516,8 @@ export async function POST(request: NextRequest) {
     if (itemError) throw new Error(itemError.message);
     if (splitError) throw new Error(splitError.message);
 
-    // 仅为已确认（confirmed）的结算单自动生成分账应发工资，draft 草稿不生成
-    let generatedSalary: { created: number; skipped: number; conflicts: number[] } = {
-      created: 0,
-      skipped: 0,
-      conflicts: [],
-    };
-    if ((body?.status || 'confirmed') === 'confirmed' && splitRows.length > 0) {
-      try {
-        generatedSalary = await generateWorkerSalariesFromSplits({
-          settlementId,
-          settlementMonth: month,
-          projectId,
-          teamId,
-          splits: splitRows,
-        });
-        // 安全修复：本月已有工资记录的工人不会被生成分账应发，记录冲突清单供排查/提示
-        if (generatedSalary.conflicts.length > 0) {
-          console.warn(
-            `[team-settlement] 结算单 #${settlementId} 有 ${generatedSalary.conflicts.length} 名工人本月已有工资记录，未生成分账应发: workerIds=${generatedSalary.conflicts.join(',')}`,
-          );
-        }
-      } catch (genError) {
-        // 应发生成失败不应阻断结算保存，但需记录，供排查
-        console.error(`[team-settlement] 分账应发工资生成失败 settlementId=${settlementId}:`, genError);
-      }
-    }
+    // 审批流：创建即为草稿（draft），不生成工资、不计成本；
+    // 需提交审批（pending）→ 老板审批通过（reviewed）后才生成分账应发工资并计入成本。
 
     await auditLog({
       operationType: 'create',
@@ -551,6 +534,7 @@ export async function POST(request: NextRequest) {
         helper_deduct: helperDeduct,
         safety_fund_deduct: safetyFundDeduct,
         payment_ratio: paymentRatio,
+        status: 'draft',
       },
       request,
     });
@@ -573,7 +557,6 @@ export async function POST(request: NextRequest) {
         payment_ratio: paymentRatio,
         planned_payment: plannedPayment,
         retained_amount: retainedAmount,
-        generated_salary: generatedSalary,
       },
     });
   } catch (error: unknown) {

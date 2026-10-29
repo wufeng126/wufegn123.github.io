@@ -464,6 +464,12 @@ async function fetchAllRows<T>(
   return all;
 }
 
+/** 班组结算审批通过口径：reviewed（新）；兼容历史 confirmed（迁移后统一为 reviewed） */
+function isTeamSettlementApprovedStatus(status: unknown): boolean {
+  const s = String(status || '').trim();
+  return s === 'reviewed' || s === 'confirmed';
+}
+
 /** 构建日期过滤条件（any 治理：泛型保留查询构建器类型） */
 function buildDateFilter<T extends DateFilterableQuery>(
   query: T,
@@ -530,7 +536,7 @@ export async function getTeamSettlementCostAmount(
     });
 
     const settlementIds = (settlements || [])
-      .filter((settlement: TeamSettlementRow) => !isVoidedStatus(settlement.status))
+      .filter((settlement: TeamSettlementRow) => isTeamSettlementApprovedStatus(settlement.status))
       .map((settlement: TeamSettlementRow) => Number(settlement.id))
       .filter(Boolean);
 
@@ -1194,7 +1200,7 @@ export async function getTeamSettlementCostByProjects(
       return q;
     });
     const activeSettlements = (settlements || []).filter(
-      (s: { id?: unknown; project_id?: unknown; status?: string | null }) => !isVoidedStatus(s.status)
+      (s: { id?: unknown; project_id?: unknown; status?: string | null }) => isTeamSettlementApprovedStatus(s.status)
     );
     const settlementIds = activeSettlements
       .map(s => Number(s.id))
