@@ -136,11 +136,12 @@ async function getSupplierSettlementMetricsByProjects(
   };
 
   // 1. 新表：合同 → 项目 + 供应商
-  const { data: contracts } = await client
+  const contracts = await fetchAllRows<ContractRow>((from, to) => client
     .from('supplier_contracts')
     .select('id, project_id, supplier_id')
-    .in('project_id', projectIds);
-  const contractIds: number[] = (contracts || []).map((c: ContractRow) => Number(c.id)).filter(Boolean);
+    .in('project_id', projectIds)
+    .range(from, to));
+  const contractIds: number[] = contracts.map((c: ContractRow) => Number(c.id)).filter(Boolean);
   const contractToProject = new Map<number, number>();
   const contractToSupplier = new Map<number, number>();
   (contracts || []).forEach((c: ContractRow) => {
@@ -152,13 +153,16 @@ async function getSupplierSettlementMetricsByProjects(
   });
 
   if (contractIds.length > 0) {
-    let settleQuery = client
-      .from('supplier_settlements')
-      .select('contract_id, settlement_amount, payable_amount, settlement_date, settlement_type, status')
-      .in('contract_id', contractIds);
-    if (dateRange) settleQuery = buildDateFilter(settleQuery, 'settlement_date', dateRange);
-    const { data: newSettlements } = await settleQuery;
-    for (const s of (newSettlements || []) as SupplierSettlementRow[]) {
+    const newSettlements = await fetchAllRows<SupplierSettlementRow>((from, to) => {
+      let q = client
+        .from('supplier_settlements')
+        .select('contract_id, settlement_amount, payable_amount, settlement_date, settlement_type, status')
+        .in('contract_id', contractIds)
+        .range(from, to);
+      if (dateRange) q = buildDateFilter(q, 'settlement_date', dateRange);
+      return q;
+    });
+    for (const s of newSettlements) {
       if (!isReviewedStatus(s.status)) continue;
       const pid = contractToProject.get(Number(s.contract_id));
       if (!pid) continue;
@@ -183,13 +187,16 @@ async function getSupplierSettlementMetricsByProjects(
 
   // 2. 老表（历史遗留；表不存在时静默跳过），与同 supplier 的新表记录按指纹去重并入
   try {
-    let legacyQuery = client
-      .from('settlements')
-      .select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type')
-      .in('project_id', projectIds);
-    if (dateRange) legacyQuery = buildDateFilter(legacyQuery, 'settlement_date', dateRange);
-    const { data: legacy } = await legacyQuery;
-    for (const s of (legacy || []) as LegacySettlementRow[]) {
+    const legacy = await fetchAllRows<LegacySettlementRow>((from, to) => {
+      let q = client
+        .from('settlements')
+        .select('supplier_id, project_id, settlement_amount, settlement_date, settlement_type')
+        .in('project_id', projectIds)
+        .range(from, to);
+      if (dateRange) q = buildDateFilter(q, 'settlement_date', dateRange);
+      return q;
+    });
+    for (const s of legacy) {
       const pid = Number(s.project_id);
       if (!result.has(pid)) continue;
       if (!inRange(s.settlement_date)) continue;
@@ -428,6 +435,35 @@ type MiscMaterialRow = { quantity?: unknown; unit_price?: unknown };
 /** Supabase 查询构建器的日期过滤最小结构（保留具体类型 T 以支持链式调用） */
 type DateFilterableQuery = { gte: (column: string, value: unknown) => unknown; lte: (column: string, value: unknown) => unknown };
 
+/** PostgREST 单次查询默认上限 1000 行；财务聚合必须分页拉全量，否则超过 1000 行的模块（工资/零星材料/报量/回款等）会被静默截断，导致成本/利润/回款率系统性偏小 */
+const SUPABASE_PAGE_SIZE = 1000;
+
+type RangeableQuery = {
+  range: (from: number, to: number) => unknown;
+};
+
+/**
+ * 分页拉取全量行：调用方提供「按页重建查询」的工厂（必须带稳定排序与 range），
+ * 每页 1000 行，取到不足一页即停。用于突破 PostgREST 单次上限。
+ */
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => RangeableQuery,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const builder = buildQuery(from, from + SUPABASE_PAGE_SIZE - 1);
+    const { data, error } = await (builder as unknown as PromiseLike<{
+      data: T[] | null;
+      error: { message: string } | null;
+    }>);
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 /** 构建日期过滤条件（any 治理：泛型保留查询构建器类型） */
 function buildDateFilter<T extends DateFilterableQuery>(
   query: T,
@@ -473,28 +509,25 @@ export async function getTeamSettlementCostAmount(
   } = {}
 ): Promise<number> {
   try {
-    let settlementsQuery = client
-      .from('team_settlements')
-      .select('id,status,period_end,settlement_month,project_id');
-
-    if (options.projectId) {
-      settlementsQuery = settlementsQuery.eq('project_id', options.projectId);
-    } else if (options.projectIds && options.projectIds.length > 0) {
-      settlementsQuery = settlementsQuery.in('project_id', options.projectIds);
-    }
-
     const startDate = options.dateRange?.start || options.startDate;
     const endDate = options.dateRange?.end || options.endDate;
-    if (startDate) settlementsQuery = settlementsQuery.gte('period_end', startDate);
-    if (endDate) settlementsQuery = settlementsQuery.lte('period_end', endDate);
-    if (options.yearMonthStart) settlementsQuery = settlementsQuery.gte('settlement_month', options.yearMonthStart);
-    if (options.yearMonthEnd) settlementsQuery = settlementsQuery.lte('settlement_month', options.yearMonthEnd);
 
-    const { data: settlements, error: settlementsError } = await settlementsQuery;
-    if (settlementsError) {
-      if (isMissingTeamSettlementSchemaError(settlementsError)) return 0;
-      throw settlementsError;
-    }
+    const settlements = await fetchAllRows<TeamSettlementRow>((from, to) => {
+      let q = client
+        .from('team_settlements')
+        .select('id,status,period_end,settlement_month,project_id')
+        .range(from, to);
+      if (options.projectId) {
+        q = q.eq('project_id', options.projectId);
+      } else if (options.projectIds && options.projectIds.length > 0) {
+        q = q.in('project_id', options.projectIds);
+      }
+      if (startDate) q = q.gte('period_end', startDate);
+      if (endDate) q = q.lte('period_end', endDate);
+      if (options.yearMonthStart) q = q.gte('settlement_month', options.yearMonthStart);
+      if (options.yearMonthEnd) q = q.lte('settlement_month', options.yearMonthEnd);
+      return q;
+    });
 
     const settlementIds = (settlements || [])
       .filter((settlement: TeamSettlementRow) => !isVoidedStatus(settlement.status))
@@ -503,17 +536,13 @@ export async function getTeamSettlementCostAmount(
 
     if (settlementIds.length === 0) return 0;
 
-    const { data: items, error: itemsError } = await client
+    const items = await fetchAllRows<TeamSettlementItemRow>((from, to) => client
       .from('team_settlement_items')
       .select('amount,settlement_id')
-      .in('settlement_id', settlementIds);
+      .in('settlement_id', settlementIds)
+      .range(from, to));
 
-    if (itemsError) {
-      if (isMissingTeamSettlementSchemaError(itemsError)) return 0;
-      throw itemsError;
-    }
-
-    return (items || []).reduce((sum: number, item: TeamSettlementItemRow) => sum + parseNumeric(item.amount), 0);
+    return items.reduce((sum: number, item: TeamSettlementItemRow) => sum + parseNumeric(item.amount), 0);
   } catch (error) {
     if (isMissingTeamSettlementSchemaError(error)) return 0;
     throw error;
@@ -548,17 +577,18 @@ export async function getProjectFinancialSummary(
   const projectTaxRate = parseNumeric(project.tax_rate || '9');
 
   // 1. 甲方报量 → 开票金额 & 税费（仅已审核，排除作废）
-  let clientReportsQuery = client
-    .from('client_reports')
-    .select('invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
-    .eq('project_id', projectId)
-    .neq('status', 'voided');
-
-  if (dateRange) {
-    clientReportsQuery = buildDateFilter(clientReportsQuery, 'report_date', dateRange);
-  }
-
-  const { data: clientReports } = await clientReportsQuery;
+  const clientReports = await fetchAllRows<ClientReportRow>((from, to) => {
+    let q = client
+      .from('client_reports')
+      .select('invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
+      .eq('project_id', projectId)
+      .neq('status', 'voided')
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'report_date', dateRange);
+    }
+    return q;
+  });
 
   let invoiceAmount = 0;
   let taxFromInvoice = 0;
@@ -573,25 +603,30 @@ export async function getProjectFinancialSummary(
   });
 
   // 2. 签证（仅已完成）
-  let visasQuery = client
-    .from('visas')
-    .select('visa_amount, created_at')
-    .eq('project_id', projectId)
-    .in('status', [...VISA_DONE_STATUSES]);
-
-  if (dateRange) {
-    visasQuery = buildDateFilter(visasQuery, 'created_at', dateRange);
-  }
-
-  const { data: visas } = await visasQuery;
+  const visas = await fetchAllRows<VisaRow>((from, to) => {
+    let q = client
+      .from('visas')
+      .select('visa_amount, created_at')
+      .eq('project_id', projectId)
+      .in('status', [...VISA_DONE_STATUSES])
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'created_at', dateRange);
+    }
+    return q;
+  });
   const visaAmount = (visas || []).reduce((sum: number, v: VisaRow) => sum + parseNumeric(v.visa_amount), 0);
 
   // 3. 供应商结算（仅已审核，新表+老表指纹去重）
-  const { data: contracts } = await client
-    .from('supplier_contracts')
-    .select('id')
-    .eq('project_id', projectId);
-  const contractIds = (contracts || []).map((c: ContractRow) => Number(c.id)).filter(Boolean);
+  const contracts = await fetchAllRows<ContractRow>((from, to) => {
+    const q = client
+      .from('supplier_contracts')
+      .select('id')
+      .eq('project_id', projectId)
+      .range(from, to);
+    return q;
+  });
+  const contractIds = contracts.map((c: ContractRow) => Number(c.id)).filter(Boolean);
 
   const supplierSettlementMap = await getSupplierSettlementMetricsByProjects(client, [projectId], dateRange);
   const supplierSettle = supplierSettlementMap.get(projectId) || { settlementAmount: 0, supplierPayableBaseAmount: 0 };
@@ -602,20 +637,21 @@ export async function getProjectFinancialSummary(
   // L5 修复（P0-1）：排除班组分账自动生成的工资（source='team_settlement'），
   // 其金额已包含在班组结算成本 teamSettlementAmount 中，再叠加会双重计算人工成本。
   // 兼容历史数据（source 为 NULL 的手工录入工资正常计入）。
-  let salariesQuery = client
-    .from('worker_salaries')
-    .select('gross_pay, net_pay, year_month')
-    .eq('project_id', projectId)
-    .or('source.is.null,source.neq.team_settlement');
-
-  if (dateRange) {
-    // year_month 是 YYYY-MM 格式，转换为范围查询
-    salariesQuery = salariesQuery
-      .gte('year_month', dateRange.start.substring(0, 7))
-      .lte('year_month', dateRange.end.substring(0, 7));
-  }
-
-  const { data: salaries } = await salariesQuery;
+  const salaries = await fetchAllRows<WorkerSalaryRow>((from, to) => {
+    let q = client
+      .from('worker_salaries')
+      .select('gross_pay, net_pay, year_month')
+      .eq('project_id', projectId)
+      .or('source.is.null,source.neq.team_settlement')
+      .range(from, to);
+    if (dateRange) {
+      // year_month 是 YYYY-MM 格式，转换为范围查询
+      q = q
+        .gte('year_month', dateRange.start.substring(0, 7))
+        .lte('year_month', dateRange.end.substring(0, 7));
+    }
+    return q;
+  });
   const workerSalaryAmount = (salaries || []).reduce((sum: number, s: WorkerSalaryRow) => sum + parseNumeric(s.gross_pay), 0);
   // 实发口径：未付工资 = 实发应发 - 已发（避免应发口径虚高，与工资模块统一）
   const workerNetPayAmount = (salaries || []).reduce((sum: number, s: WorkerSalaryRow) => sum + parseNumeric(s.net_pay), 0);
@@ -623,47 +659,50 @@ export async function getProjectFinancialSummary(
   const salaryAmount = workerSalaryAmount + teamSettlementAmount;
 
   // 5. 综合费用（仅已审核）
-  let expensesQuery = client
-    .from('comprehensive_expenses')
-    .select('amount, expense_date')
-    .eq('project_id', projectId)
-    .eq('status', 'reviewed');
-
-  if (dateRange) {
-    expensesQuery = buildDateFilter(expensesQuery, 'expense_date', dateRange);
-  }
-
-  const { data: expenses } = await expensesQuery;
+  const expenses = await fetchAllRows<ExpenseRow>((from, to) => {
+    let q = client
+      .from('comprehensive_expenses')
+      .select('amount, expense_date')
+      .eq('project_id', projectId)
+      .eq('status', 'reviewed')
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'expense_date', dateRange);
+    }
+    return q;
+  });
   const expenseAmount = (expenses || []).reduce((sum: number, e: ExpenseRow) => sum + parseNumeric(e.amount), 0);
 
   // 6. 零星材料（仅已审核）
-  let miscMaterialsQuery = client
-    .from('miscellaneous_materials')
-    .select('quantity, unit_price, purchase_date')
-    .eq('project_id', projectId)
-    .eq('status', 'reviewed');
-
-  if (dateRange) {
-    miscMaterialsQuery = buildDateFilter(miscMaterialsQuery, 'purchase_date', dateRange);
-  }
-
-  const { data: miscMaterials } = await miscMaterialsQuery;
+  const miscMaterials = await fetchAllRows<MiscMaterialRow>((from, to) => {
+    let q = client
+      .from('miscellaneous_materials')
+      .select('quantity, unit_price, purchase_date')
+      .eq('project_id', projectId)
+      .eq('status', 'reviewed')
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'purchase_date', dateRange);
+    }
+    return q;
+  });
   const miscMaterialAmount = (miscMaterials || []).reduce(
     (sum: number, m: MiscMaterialRow) => sum + calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price),
     0,
   );
 
   // 7. 甲方已回款
-  let clientPaymentsQuery = client
-    .from('client_payments')
-    .select('payment_amount, payment_date, status')
-    .eq('project_id', projectId);
-
-  if (dateRange) {
-    clientPaymentsQuery = buildDateFilter(clientPaymentsQuery, 'payment_date', dateRange);
-  }
-
-  const { data: clientPayments } = await clientPaymentsQuery;
+  const clientPayments = await fetchAllRows<ClientPaymentRow>((from, to) => {
+    let q = client
+      .from('client_payments')
+      .select('payment_amount, payment_date, status')
+      .eq('project_id', projectId)
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'payment_date', dateRange);
+    }
+    return q;
+  });
   const clientPaidAmount = (clientPayments || [])
     .filter((p: ClientPaymentRow) => isEffectiveClientPaymentStatus(p.status))
     .reduce((sum: number, p: ClientPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
@@ -680,46 +719,49 @@ export async function getProjectFinancialSummary(
   };
 
   if (contractIds.length > 0) {
-    let supplierPaymentsQuery = client
+    const supplierPayments = await fetchAllRows<SupplierPaymentRow>((from, to) => {
+      let q = client
+        .from('supplier_payments')
+        .select('id, project_id, contract_id, payment_amount, payment_date, status')
+        .in('contract_id', contractIds)
+        .range(from, to);
+      if (dateRange) {
+        q = buildDateFilter(q, 'payment_date', dateRange);
+      }
+      return q;
+    });
+    addSupplierPaymentRows(supplierPayments);
+  }
+
+  const projectSupplierPayments = await fetchAllRows<SupplierPaymentRow>((from, to) => {
+    let q = client
       .from('supplier_payments')
       .select('id, project_id, contract_id, payment_amount, payment_date, status')
-      .in('contract_id', contractIds);
-
+      .eq('project_id', projectId)
+      .range(from, to);
     if (dateRange) {
-      supplierPaymentsQuery = buildDateFilter(supplierPaymentsQuery, 'payment_date', dateRange);
+      q = buildDateFilter(q, 'payment_date', dateRange);
     }
-
-    const { data: supplierPayments } = await supplierPaymentsQuery;
-    addSupplierPaymentRows(supplierPayments as SupplierPaymentRow[] | null);
-  }
-
-  let projectSupplierPaymentsQuery = client
-    .from('supplier_payments')
-    .select('id, project_id, contract_id, payment_amount, payment_date, status')
-    .eq('project_id', projectId);
-
-  if (dateRange) {
-    projectSupplierPaymentsQuery = buildDateFilter(projectSupplierPaymentsQuery, 'payment_date', dateRange);
-  }
-
-  const { data: projectSupplierPayments } = await projectSupplierPaymentsQuery;
-  addSupplierPaymentRows(projectSupplierPayments as SupplierPaymentRow[] | null);
+    return q;
+  });
+  addSupplierPaymentRows(projectSupplierPayments);
 
   const supplierPaidAmount = Array.from(supplierPaymentMapById.values())
     .filter((p: SupplierPaymentRow) => isEffectiveSupplierPaymentStatus(p.status))
     .reduce((sum: number, p: SupplierPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
 
   // 9. 工人已发工资
-  let salaryPaymentsQuery = client
-    .from('salary_payments')
-    .select('payment_amount, payment_date')
-    .eq('project_id', projectId);
-
-  if (dateRange) {
-    salaryPaymentsQuery = buildDateFilter(salaryPaymentsQuery, 'payment_date', dateRange);
-  }
-
-  const { data: salaryPayments } = await salaryPaymentsQuery;
+  const salaryPayments = await fetchAllRows<SalaryPaymentRow>((from, to) => {
+    let q = client
+      .from('salary_payments')
+      .select('payment_amount, payment_date')
+      .eq('project_id', projectId)
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'payment_date', dateRange);
+    }
+    return q;
+  });
   const workerPaidAmount = (salaryPayments || []).reduce((sum: number, p: SalaryPaymentRow) => sum + parseNumeric(p.payment_amount), 0);
 
   // ========== 汇总计算 ==========
@@ -808,10 +850,11 @@ async function getMultiProjectFinancialSummariesImpl(
   if (!projectIds || projectIds.length === 0) return [];
 
   // 1. 项目基础信息（批量）
-  const { data: projects } = await client
+  const projects = await fetchAllRows<{ id: unknown; name?: string | null; contract_amount?: unknown; tax_rate?: unknown }>((from, to) => client
     .from('projects')
     .select('id, name, contract_amount, tax_rate')
-    .in('id', projectIds);
+    .in('id', projectIds)
+    .range(from, to));
 
   if (!projects || projects.length === 0) return [];
 
@@ -825,10 +868,11 @@ async function getMultiProjectFinancialSummariesImpl(
   if (validProjectIds.length === 0) return [];
 
   // 2. 合同（批量，用于供应商结算/付款经合同关联项目）
-  const { data: contracts } = await client
+  const contracts = await fetchAllRows<{ id: unknown; project_id: unknown }>((from, to) => client
     .from('supplier_contracts')
     .select('id, project_id')
-    .in('project_id', validProjectIds);
+    .in('project_id', validProjectIds)
+    .range(from, to));
 
   const contractRows = (contracts || []) as Array<{ id: unknown; project_id: unknown }>;
   const contractIds = contractRows.map(c => Number(c.id)).filter(Boolean);
@@ -837,7 +881,7 @@ async function getMultiProjectFinancialSummariesImpl(
     contractProjectMap.set(Number(c.id), Number(c.project_id));
   });
 
-  // 3. 其余明细全部并行批量拉取
+  // 3. 其余明细全部并行批量拉取（分页拉全量，突破 PostgREST 1000 行上限）
   const [
     clientReportsResult,
     visasResult,
@@ -849,90 +893,99 @@ async function getMultiProjectFinancialSummariesImpl(
     supplierProjectPaymentsResult,
     salaryPaymentsResult,
   ] = await Promise.all([
-    buildDateFilter(
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
         .from('client_reports')
         .select('project_id, invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
         .in('project_id', validProjectIds)
-        .neq('status', 'voided'),
+        .neq('status', 'voided')
+        .range(from, to),
       'report_date',
       dateRange
-    ),
-    buildDateFilter(
+    )).then(data => ({ data })),
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
         .from('visas')
         .select('project_id, visa_amount, created_at')
         .in('project_id', validProjectIds)
-        .in('status', [...VISA_DONE_STATUSES]),
+        .in('status', [...VISA_DONE_STATUSES])
+        .range(from, to),
       'created_at',
       dateRange
-    ),
-    (() => {
+    )).then(data => ({ data })),
+    fetchAllRows<any>((from, to) => {
       let q = client
         .from('worker_salaries')
         .select('project_id, gross_pay, net_pay, year_month')
         .in('project_id', validProjectIds)
         // P0-1 修复：排除班组分账生成的工资，避免与班组结算成本双重计算
-        .or('source.is.null,source.neq.team_settlement');
+        .or('source.is.null,source.neq.team_settlement')
+        .range(from, to);
       if (dateRange) {
         q = q
           .gte('year_month', dateRange.start.substring(0, 7))
           .lte('year_month', dateRange.end.substring(0, 7));
       }
       return q;
-    })(),
-    buildDateFilter(
+    }).then(data => ({ data })),
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
         .from('comprehensive_expenses')
         .select('project_id, amount, expense_date')
         .in('project_id', validProjectIds)
-        .eq('status', 'reviewed'),
+        .eq('status', 'reviewed')
+        .range(from, to),
       'expense_date',
       dateRange
-    ),
-    buildDateFilter(
+    )).then(data => ({ data })),
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
         .from('miscellaneous_materials')
         .select('project_id, quantity, unit_price, purchase_date')
         .in('project_id', validProjectIds)
-        .eq('status', 'reviewed'),
+        .eq('status', 'reviewed')
+        .range(from, to),
       'purchase_date',
       dateRange
-    ),
-    buildDateFilter(
+    )).then(data => ({ data })),
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
         .from('client_payments')
         .select('project_id, payment_amount, payment_date, status')
-        .in('project_id', validProjectIds),
+        .in('project_id', validProjectIds)
+        .range(from, to),
       'payment_date',
       dateRange
-    ),
+    )).then(data => ({ data })),
     contractIds.length > 0
-      ? buildDateFilter(
+      ? fetchAllRows<any>((from, to) => buildDateFilter(
           client
             .from('supplier_payments')
             .select('id, project_id, contract_id, payment_amount, payment_date, status')
-            .in('contract_id', contractIds),
+            .in('contract_id', contractIds)
+            .range(from, to),
           'payment_date',
           dateRange
-        )
+        )).then(data => ({ data }))
       : Promise.resolve({ data: [] }),
-    buildDateFilter(
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
         .from('supplier_payments')
         .select('id, project_id, contract_id, payment_amount, payment_date, status')
-        .in('project_id', validProjectIds),
+        .in('project_id', validProjectIds)
+        .range(from, to),
       'payment_date',
       dateRange
-    ),
-    buildDateFilter(
+    )).then(data => ({ data })),
+    fetchAllRows<any>((from, to) => buildDateFilter(
       client
-      .from('salary_payments')
-      .select('project_id, payment_amount, payment_date')
-      .in('project_id', validProjectIds),
+        .from('salary_payments')
+        .select('project_id, payment_amount, payment_date')
+        .in('project_id', validProjectIds)
+        .range(from, to),
       'payment_date',
       dateRange
-    ),
+    )).then(data => ({ data })),
   ]);
 
   // 班组结算成本（批量：一次取结算单 + 一次取明细，按项目分组）
@@ -1128,19 +1181,18 @@ export async function getTeamSettlementCostByProjects(
   const result = new Map<number, number>();
   if (!projectIds || projectIds.length === 0) return result;
   try {
-    let settlementsQuery = client
-      .from('team_settlements')
-      .select('id, project_id, status, period_end')
-      .in('project_id', projectIds);
-    if (dateRange) {
-      if (dateRange.start) settlementsQuery = settlementsQuery.gte('period_end', dateRange.start);
-      if (dateRange.end) settlementsQuery = settlementsQuery.lte('period_end', dateRange.end);
-    }
-    const { data: settlements, error } = await settlementsQuery;
-    if (error) {
-      if (isMissingTeamSettlementSchemaError(error)) return result;
-      throw error;
-    }
+    const settlements = await fetchAllRows<any>((from, to) => {
+      let q = client
+        .from('team_settlements')
+        .select('id, project_id, status, period_end')
+        .in('project_id', projectIds)
+        .range(from, to);
+      if (dateRange) {
+        if (dateRange.start) q = q.gte('period_end', dateRange.start);
+        if (dateRange.end) q = q.lte('period_end', dateRange.end);
+      }
+      return q;
+    });
     const activeSettlements = (settlements || []).filter(
       (s: { id?: unknown; project_id?: unknown; status?: string | null }) => !isVoidedStatus(s.status)
     );
@@ -1154,15 +1206,12 @@ export async function getTeamSettlementCostByProjects(
       settlementProjectMap.set(Number(s.id), Number(s.project_id));
     });
 
-    const { data: items, error: itemsError } = await client
+    const items = await fetchAllRows<any>((from, to) => client
       .from('team_settlement_items')
       .select('amount, settlement_id')
-      .in('settlement_id', settlementIds);
-    if (itemsError) {
-      if (isMissingTeamSettlementSchemaError(itemsError)) return result;
-      throw itemsError;
-    }
-    (items || []).forEach((item: { amount?: unknown; settlement_id?: unknown }) => {
+      .in('settlement_id', settlementIds)
+      .range(from, to));
+    items.forEach((item: { amount?: unknown; settlement_id?: unknown }) => {
       const pid = settlementProjectMap.get(Number(item.settlement_id));
       if (!pid) return;
       result.set(pid, (result.get(pid) || 0) + parseNumeric(item.amount));
@@ -1208,22 +1257,26 @@ async function getGlobalSummaryImpl(
   const client = getSupabaseClient();
 
   // 获取项目列表
-  let projectsQuery = client.from('projects').select('id, name, status').neq('name', PUBLIC_LOG_PROJECT_NAME);
-  if (projectIds !== undefined) {
-    projectsQuery = projectsQuery.in('id', projectIds);
-  }
-  const { data: projects } = await projectsQuery;
+  const projects = await fetchAllRows<any>((from, to) => {
+    let q = client.from('projects').select('id, name, status').neq('name', PUBLIC_LOG_PROJECT_NAME).range(from, to);
+    if (projectIds !== undefined) {
+      q = q.in('id', projectIds);
+    }
+    return q;
+  });
 
   const totalProjects = projects?.length || 0;
   const activeProjects = projects?.filter(p => p.status === '进行中' || p.status === '在建').length || 0;
   const allProjectIds = (projects || []).map(p => p.id);
 
   // 工人统计
-  let workersQuery = client.from('workers').select('id, status, project_id');
-  if (projectIds !== undefined) {
-    workersQuery = workersQuery.in('project_id', projectIds);
-  }
-  const { data: workersData } = await workersQuery;
+  const workersData = await fetchAllRows<any>((from, to) => {
+    let q = client.from('workers').select('id, status, project_id').range(from, to);
+    if (projectIds !== undefined) {
+      q = q.in('project_id', projectIds);
+    }
+    return q;
+  });
 
   const totalWorkers = workersData?.length || 0;
   // L4 修复：在场口径与工人成本看板统一（status 为 in_service 或空才计入；archived 等其他状态不计入在场）
@@ -1316,27 +1369,31 @@ export async function getProjectListSummary(
 
   const client = getSupabaseClient();
 
-  let projectsQuery = client
-    .from('projects')
-    .select('id, name, year, status, address, partner, contract_amount, expected_completion_date, created_at')
-    .neq('name', PUBLIC_LOG_PROJECT_NAME)
-    .order('created_at', { ascending: false });
-
-  if (projectIds !== undefined) {
-    projectsQuery = projectsQuery.in('id', projectIds);
-  }
-
-  const { data: projects } = await projectsQuery;
+  const projects = await fetchAllRows<any>((from, to) => {
+    let q = client
+      .from('projects')
+      .select('id, name, year, status, address, partner, contract_amount, expected_completion_date, created_at')
+      .neq('name', PUBLIC_LOG_PROJECT_NAME)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    if (projectIds !== undefined) {
+      q = q.in('id', projectIds);
+    }
+    return q;
+  });
   if (!projects || projects.length === 0) return [];
 
   // 批量查询工人统计
-  let workersQuery = client
-    .from('workers')
-    .select('id, status, project_id');
-  if (projectIds !== undefined) {
-    workersQuery = workersQuery.in('project_id', projectIds);
-  }
-  const { data: workers } = await workersQuery;
+  const workers = await fetchAllRows<any>((from, to) => {
+    let q = client
+      .from('workers')
+      .select('id, status, project_id')
+      .range(from, to);
+    if (projectIds !== undefined) {
+      q = q.in('project_id', projectIds);
+    }
+    return q;
+  });
 
   const workerMap = new Map<number, { total: number; inService: number; left: number }>();
   (workers || []).forEach(w => {

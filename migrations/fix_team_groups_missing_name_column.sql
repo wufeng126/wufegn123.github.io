@@ -33,7 +33,13 @@ BEGIN
   END IF;
 
   -- 4. 放开 group_name 的 NOT NULL（代码只写 name，旧列保留但不再强制）
-  ALTER TABLE team_groups ALTER COLUMN group_name DROP NOT NULL;
+  --    安全修复：全新库建表用 name 列，无 group_name 时必须跳过，否则整批迁移回滚
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='team_groups' AND column_name='group_name'
+  ) THEN
+    ALTER TABLE team_groups ALTER COLUMN group_name DROP NOT NULL;
+  END IF;
 
   -- 5. name 设为 NOT NULL（回填后）
   UPDATE team_groups SET name = '未命名班组' WHERE name IS NULL OR name = '';

@@ -1315,10 +1315,19 @@ NOTIFY pgrst, 'reload schema';
 
 -- 2026-08-08: 修复 team_groups 表 group_name 字段 NOT NULL 约束问题
 -- 将 group_name 改为允许 NULL，并设置默认值为空字符串
-ALTER TABLE team_groups ALTER COLUMN group_name DROP NOT NULL;
-ALTER TABLE team_groups ALTER COLUMN group_name SET DEFAULT '';
--- 将现有的 NULL 值更新为空字符串
-UPDATE team_groups SET group_name = '' WHERE group_name IS NULL;
+-- 安全修复：group_name 仅在旧库中存在（新库建表用 name 列）；列不存在时必须跳过，
+-- 否则整批迁移会因 column does not exist 回滚，后续核心建表无法执行。
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'team_groups' AND column_name = 'group_name'
+  ) THEN
+    ALTER TABLE team_groups ALTER COLUMN group_name DROP NOT NULL;
+    ALTER TABLE team_groups ALTER COLUMN group_name SET DEFAULT '';
+    UPDATE team_groups SET group_name = '' WHERE group_name IS NULL;
+  END IF;
+END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 2026-08-14 (A1 修复): 核心业务表基线建表迁移（幂等，可重复执行）

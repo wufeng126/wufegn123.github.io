@@ -28,6 +28,25 @@ import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materi
 
 const supabase = getSupabaseClient();
 
+// PostgREST 单次查询默认上限 1000 行；月报汇总必须分页拉全量，
+// 否则超限行被静默截断导致项目明细/供应商成本/回款金额系统性偏小。
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => { range: (from: number, to: number) => unknown },
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const builder = buildQuery(from, from + SUPABASE_PAGE_SIZE - 1);
+    const { data, error } = await (builder as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>);
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 function getVisaAmount(visa: Record<string, unknown>) {
   return Number(visa.visa_amount || visa.amount || 0);
 }
@@ -172,26 +191,26 @@ export async function GET(request: NextRequest) {
       supplierContractsResult,
       suppliersResult,
     ] = await Promise.all([
-      supabase.from('projects').select('*').in('id', targetProjectIds),
-      supabase.from('client_reports').select('*').in('project_id', targetProjectIds).neq('status', 'voided'),
-      supabase.from('client_payments').select('*').in('project_id', targetProjectIds),
-      supabase.from('supplier_settlements').select('*').eq('status', 'reviewed'),
-      supabase.from('settlements').select('*').in('project_id', targetProjectIds),
-      supabase.from('supplier_payments').select('*'),
-      supabase.from('payments').select('*').in('project_id', targetProjectIds),
+      fetchAllRows<any>((from, to) => supabase.from('projects').select('*').in('id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('client_reports').select('*').in('project_id', targetProjectIds).neq('status', 'voided').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('client_payments').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('supplier_settlements').select('*').in('status', ['reviewed', '已提交', '已审核', '已结算', 'approved', 'complete', 'completed', 'paid']).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('settlements').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('supplier_payments').select('*').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('payments').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
       // P0-1 修复：排除班组分账生成的工资（其金额已计入班组结算成本），兼容 source 为 NULL 的历史手工数据
-      supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', reportMonth).or('source.is.null,source.neq.team_settlement'),
-      supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', prevMonth).or('source.is.null,source.neq.team_settlement'),
-      supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', lastYearMonth).or('source.is.null,source.neq.team_settlement'),
-      supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).gte('year_month', sixMonthsAgoStr).or('source.is.null,source.neq.team_settlement'),
-      supabase.from('salary_payments').select('*').in('project_id', targetProjectIds),
-      supabase.from('comprehensive_expenses').select('*').in('project_id', targetProjectIds).eq('status', 'reviewed'),
-      supabase.from('miscellaneous_materials').select('*').in('project_id', targetProjectIds).eq('status', 'reviewed'),
-      supabase.from('visas').select('*').in('project_id', targetProjectIds),
-      supabase.from('workers').select('project_id, status').in('project_id', targetProjectIds),
-      supabase.from('certificates').select('*').lt('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
-      supabase.from('supplier_contracts').select('*').in('project_id', targetProjectIds),
-      supabase.from('suppliers').select('*'),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', reportMonth).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', prevMonth).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', lastYearMonth).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).gte('year_month', sixMonthsAgoStr).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('salary_payments').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('comprehensive_expenses').select('*').in('project_id', targetProjectIds).eq('status', 'reviewed').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('miscellaneous_materials').select('*').in('project_id', targetProjectIds).eq('status', 'reviewed').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('visas').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('workers').select('project_id, status').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('certificates').select('*').lt('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('supplier_contracts').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('suppliers').select('*').range(from, to)).then(data => ({ data })),
     ]);
 
     const projects = projectsResult.data || [];

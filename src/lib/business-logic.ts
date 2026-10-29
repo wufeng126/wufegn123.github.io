@@ -15,6 +15,33 @@ import {
 } from '@/lib/review-status';
 export { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
 
+// PostgREST 单次查询默认上限 1000 行；批量重算/全量同步必须分页拉取，
+// 否则超出部分被静默截断（如工资状态会因发放记录不完整被误写成 partial/unpaid）。
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  client: ReturnType<typeof getSupabaseClient>,
+  table: string,
+  selectColumns: string,
+  applyFilters?: (q: any) => any,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+    let q = client
+      .from(table)
+      .select(selectColumns)
+      .order('id', { ascending: true })
+      .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+    if (applyFilters) q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data || []) as T[];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 type SupplierPaymentAmountRow = {
   id?: number | null;
   payment_amount?: unknown;
@@ -251,17 +278,21 @@ export async function syncSalaryPaymentStatus(salaryId: number): Promise<SalaryP
 export async function syncAllSalaryPaymentStatus(): Promise<void> {
   const client = getSupabaseClient();
 
-  // 获取所有工资记录
-  const { data: salaries } = await client
-    .from('worker_salaries')
-    .select('id, worker_id, project_id, year_month, net_pay');
+  // 获取所有工资记录（分页拉全量，避免 1000 行截断导致状态误判）
+  const salaries = await fetchAllRows<WorkerSalaryLikeRow>(
+    client,
+    'worker_salaries',
+    'id, worker_id, project_id, year_month, net_pay',
+  );
 
   if (!salaries || salaries.length === 0) return;
 
-  // 获取所有发放记录
-  const { data: payments } = await client
-    .from('salary_payments')
-    .select('salary_id, worker_id, project_id, year_month, payment_amount');
+  // 获取所有发放记录（分页拉全量）
+  const payments = await fetchAllRows<SalaryPaymentLikeRow>(
+    client,
+    'salary_payments',
+    'salary_id, worker_id, project_id, year_month, payment_amount',
+  );
 
   // 按 salary_id 汇总已付金额
   const paidMap = new Map<number, number>();
@@ -292,7 +323,7 @@ export async function syncAllSalaryPaymentStatus(): Promise<void> {
     const netPay = parseNumeric(salary.net_pay);
     const key = salaryPaymentMatchKey(salary);
     const keyCount = keyCountMap.get(key) || 1;
-    const totalPaid = (paidMap.get(salary.id) || 0) + ((unlinkedPaidMap.get(key) || 0) / keyCount);
+    const totalPaid = (paidMap.get(Number(salary.id)) || 0) + ((unlinkedPaidMap.get(key) || 0) / keyCount);
 
     const newStatus = calculateSalaryPaymentStatus(netPay, totalPaid);
 
