@@ -61,7 +61,7 @@ function normalizeImportDate(raw: unknown): string | null {
     return raw.toISOString().split('T')[0];
   }
 
-  let s = String(raw).trim();
+  const s = String(raw).trim();
   if (!s) return null;
 
   // 纯数字：Excel 日期序列号（5 位）或毫秒时间戳（12-13 位）

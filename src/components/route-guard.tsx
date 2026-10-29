@@ -48,7 +48,6 @@ export function RouteGuard({ children }: RouteGuardProps) {
   }, [pathname, searchParams]);
 
   // 同步初始化：如果缓存有效，直接放行，无需等待任何异步操作
-  // 修复：ui-preview 设计预览页不再公开放行（此前无需登录即可访问）
   const isPublicPage = PUBLIC_PAGES.includes(pathname) || pathname === '/login';
   const initialCheck = useMemo(() => {
     if (isPublicPage) return { checking: false, permitted: true, error: '' };

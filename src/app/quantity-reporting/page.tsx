@@ -133,251 +133,7 @@ const ENTRY_WORKBENCH_MODES: Array<{
   },
 ];
 
-const DEMO_PROJECT_ID = -901001;
-const DEMO_YEAR_MONTH = '2026-08';
 
-const DEMO_PROJECT: Project = {
-  id: DEMO_PROJECT_ID,
-  name: '已停用演示项目',
-  year: 2026,
-  status: '在建',
-  contract_amount: '186000000',
-};
-
-const DEMO_SUBITEMS: WorkItemSubitem[] = [
-  {
-    id: -901101,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '1#楼地下室模板工程',
-    unit: 'm2',
-    budget_quantity: '12800',
-    completed_quantity: '7600',
-    settlement_quantity: '6900',
-    contract_price: '52',
-    limit_price: '48',
-    remark: '地下室至二层累计完成，报量略高于对下结算。',
-  },
-  {
-    id: -901102,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '1#楼钢筋制作安装',
-    unit: 't',
-    budget_quantity: '1850',
-    completed_quantity: '1160',
-    settlement_quantity: '980',
-    contract_price: '6100',
-    limit_price: '5750',
-    remark: '主体结构持续推进，需关注钢筋结算资料。',
-  },
-  {
-    id: -901103,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '1#楼混凝土浇筑',
-    unit: 'm3',
-    budget_quantity: '9200',
-    completed_quantity: '5100',
-    settlement_quantity: '5450',
-    contract_price: '486',
-    limit_price: '458',
-    remark: '对下结算略快于对上报量，适合展示多结少报风险。',
-  },
-  {
-    id: -901104,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '2#楼砌体工程',
-    unit: 'm3',
-    budget_quantity: '3600',
-    completed_quantity: '980',
-    settlement_quantity: '420',
-    contract_price: '328',
-    limit_price: '302',
-    remark: '刚进入大面施工，本月需要补充确认完成范围。',
-  },
-  {
-    id: -901105,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '2#楼内墙抹灰',
-    unit: 'm2',
-    budget_quantity: '24600',
-    completed_quantity: '0',
-    settlement_quantity: '1800',
-    contract_price: '26',
-    limit_price: '23',
-    remark: '本月有对下结算但对上未报，模拟漏报提醒。',
-  },
-  {
-    id: -901106,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '屋面防水工程',
-    unit: 'm2',
-    budget_quantity: '5200',
-    completed_quantity: '4680',
-    settlement_quantity: '4210',
-    contract_price: '68',
-    limit_price: '61',
-    remark: '接近完成，剩余工程量不多。',
-  },
-  {
-    id: -901107,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '外墙保温一体板',
-    unit: 'm2',
-    budget_quantity: '18600',
-    completed_quantity: '8200',
-    settlement_quantity: '7900',
-    contract_price: '138',
-    limit_price: '126',
-    remark: '外立面按楼层推进。',
-  },
-  {
-    id: -901108,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '铝合金门窗安装',
-    unit: 'm2',
-    budget_quantity: '7800',
-    completed_quantity: '2300',
-    settlement_quantity: '2100',
-    contract_price: '415',
-    limit_price: '392',
-    remark: '用于查看低进度清单展示。',
-  },
-  {
-    id: -901109,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '水电预埋安装',
-    unit: '点位',
-    budget_quantity: '9800',
-    completed_quantity: '6100',
-    settlement_quantity: '6500',
-    contract_price: '32',
-    limit_price: '29',
-    remark: '对下略快，需要复核现场签认。',
-  },
-  {
-    id: -901110,
-    project_id: DEMO_PROJECT_ID,
-    project_name: DEMO_PROJECT.name,
-    subitem_name: '脚手架搭拆',
-    unit: 'm2',
-    budget_quantity: '42000',
-    completed_quantity: '39600',
-    settlement_quantity: '43500',
-    contract_price: '18',
-    limit_price: '16',
-    remark: '模拟对下超结，方便看风险标签。',
-  },
-];
-
-const DEMO_ADDON_TEMPLATES: InternalAddonTemplate[] = [
-  { id: -902001, name: '零星用工', unit: '工日', default_price: '320', remark: '现场临时配合、清理、转运等零星事项' },
-  { id: -902002, name: '夜间赶工补贴', unit: '班组班次', default_price: '1200', remark: '经项目经理确认后的夜间赶工' },
-  { id: -902003, name: '二次搬运', unit: '车', default_price: '650', remark: '材料二次倒运或场内转运' },
-];
-
-const DEMO_PROJECT_ADDONS: ProjectInternalAddon[] = [
-  {
-    id: -902101,
-    project_id: DEMO_PROJECT_ID,
-    template_id: -902001,
-    name: '零星用工',
-    unit: '工日',
-    unit_price: '320',
-    remark: '地下室材料清理与临边防护配合',
-    total_quantity: '42',
-    total_amount: '13440',
-  },
-  {
-    id: -902102,
-    project_id: DEMO_PROJECT_ID,
-    template_id: -902002,
-    name: '夜间赶工补贴',
-    unit: '班组班次',
-    unit_price: '1200',
-    remark: '1#楼混凝土浇筑夜间连续施工',
-    total_quantity: '6',
-    total_amount: '7200',
-  },
-  {
-    id: -902103,
-    project_id: DEMO_PROJECT_ID,
-    template_id: -902003,
-    name: '二次搬运',
-    unit: '车',
-    unit_price: '650',
-    remark: '雨季材料堆场调整产生二次搬运',
-    total_quantity: '18',
-    total_amount: '11700',
-  },
-];
-
-const withDemoProjects = (source: Project[] = []) => {
-  return source.filter(project => project.id !== DEMO_PROJECT_ID);
-};
-
-const withDemoSubitems = (source: WorkItemSubitem[] = []) => {
-  return source.filter(item => item.project_id !== DEMO_PROJECT_ID);
-};
-
-const withDemoTemplates = (source: InternalAddonTemplate[] = []) => {
-  return source.filter(template => template.id > 0);
-};
-
-const demoMonthlyReports = (yearMonth: string) => [
-  { id: -903101, subitem_id: -901101, year_month: yearMonth, report_quantity: '1800', remark: '本月完成地下室后浇带及二层局部模板' },
-  { id: -903102, subitem_id: -901102, year_month: yearMonth, report_quantity: '260', remark: '主体钢筋按楼层节点报量' },
-  { id: -903103, subitem_id: -901103, year_month: yearMonth, report_quantity: '900', remark: '本月浇筑量已提交确认' },
-  { id: -903104, subitem_id: -901104, year_month: yearMonth, report_quantity: '420', remark: '二层砌体完成量' },
-  { id: -903105, subitem_id: -901106, year_month: yearMonth, report_quantity: '680', remark: '屋面防水收尾报量' },
-  { id: -903106, subitem_id: -901107, year_month: yearMonth, report_quantity: '1500', remark: '外墙东立面完成量' },
-  { id: -903107, subitem_id: -901108, year_month: yearMonth, report_quantity: '520', remark: '窗框安装完成量' },
-  { id: -903108, subitem_id: -901109, year_month: yearMonth, report_quantity: '880', remark: '水电预埋点位确认' },
-  { id: -903109, subitem_id: -901110, year_month: yearMonth, report_quantity: '3600', remark: '脚手架随主体施工累计确认' },
-];
-
-const demoMonthlySettlements = (yearMonth: string) => [
-  { id: -904101, subitem_id: -901101, year_month: yearMonth, completed_quantity: '1600', remark: '模板班组本月结算' },
-  { id: -904102, subitem_id: -901102, year_month: yearMonth, completed_quantity: '210', remark: '钢筋班组本月结算' },
-  { id: -904103, subitem_id: -901103, year_month: yearMonth, completed_quantity: '1050', remark: '混凝土浇筑结算略快' },
-  { id: -904104, subitem_id: -901104, year_month: yearMonth, completed_quantity: '260', remark: '砌体班组结算' },
-  { id: -904105, subitem_id: -901105, year_month: yearMonth, completed_quantity: '1800', remark: '抹灰已结算但对上未报' },
-  { id: -904106, subitem_id: -901106, year_month: yearMonth, completed_quantity: '610', remark: '防水班组结算' },
-  { id: -904107, subitem_id: -901107, year_month: yearMonth, completed_quantity: '1320', remark: '保温一体板结算' },
-  { id: -904108, subitem_id: -901108, year_month: yearMonth, completed_quantity: '480', remark: '门窗安装结算' },
-  { id: -904109, subitem_id: -901109, year_month: yearMonth, completed_quantity: '1080', remark: '预埋安装结算略快' },
-  { id: -904110, subitem_id: -901110, year_month: yearMonth, completed_quantity: '4200', remark: '脚手架本月超结风险演示' },
-];
-
-const demoAddonSettlements = (yearMonth: string) => [
-  { id: -905101, project_id: DEMO_PROJECT_ID, addon_id: -902101, addon_name: '零星用工', unit: '工日', year_month: yearMonth, quantity: '16', unit_price: '320', amount: 5120, remark: '现场材料清理及临时配合' },
-  { id: -905102, project_id: DEMO_PROJECT_ID, addon_id: -902102, addon_name: '夜间赶工补贴', unit: '班组班次', year_month: yearMonth, quantity: '2', unit_price: '1200', amount: 2400, remark: '混凝土夜间连续浇筑' },
-  { id: -905103, project_id: DEMO_PROJECT_ID, addon_id: -902103, addon_name: '二次搬运', unit: '车', year_month: yearMonth, quantity: '5', unit_price: '650', amount: 3250, remark: '材料堆场调整' },
-];
-
-// P0-1 演示回款（项目级，effective=false 模拟未生效/待审核）
-const demoClientPayments = [
-  { payment_amount: 1200000, payment_date: '2026-05-20', effective: true },
-  { payment_amount: 860000, payment_date: '2026-06-18', effective: true },
-  { payment_amount: 640000, payment_date: '2026-07-15', effective: true },
-  { payment_amount: 500000, payment_date: '2026-08-10', effective: true },
-  { payment_amount: 300000, payment_date: '2026-08-25', effective: false },
-];
-
-const demoProgressExpected = (yearMonth: string): ProgressExpectedRecord[] => [
-  { subitem_id: -901101, expected_quantity: 1950, matched_quantity: 1950, task_count: 3, completed_task_count: 2, latest_progress: 86, task_labels: [`${yearMonth} 1#楼模板节点`], unit: 'm2' },
-  { subitem_id: -901102, expected_quantity: 240, matched_quantity: 240, task_count: 2, completed_task_count: 2, latest_progress: 100, task_labels: [`${yearMonth} 钢筋节点`], unit: 't' },
-  { subitem_id: -901103, expected_quantity: 1180, matched_quantity: 1180, task_count: 3, completed_task_count: 3, latest_progress: 100, task_labels: [`${yearMonth} 混凝土节点`], unit: 'm3' },
-  { subitem_id: -901105, expected_quantity: 1800, matched_quantity: 1800, task_count: 1, completed_task_count: 1, latest_progress: 100, task_labels: [`${yearMonth} 抹灰样板段`], unit: 'm2' },
-  { subitem_id: -901110, expected_quantity: 3800, matched_quantity: 3800, task_count: 2, completed_task_count: 2, latest_progress: 100, task_labels: [`${yearMonth} 脚手架节点`], unit: 'm2' },
-];
 
 export default function WorkItemsPage() {
   return (
@@ -620,12 +376,12 @@ function WorkItemsContent() {
       ]);
       const projectsData = await projectsRes.json();
       const subitemsData = await subitemsRes.json();
-      setProjects(withDemoProjects(projectsData.projects || []));
-      setAllSubitems(withDemoSubitems(subitemsData.subitems || []));
+      setProjects(projectsData.projects || []);
+      setAllSubitems(subitemsData.subitems || []);
     } catch (error) {
       console.error('获取数据失败:', error);
-      setProjects(withDemoProjects([]));
-      setAllSubitems(withDemoSubitems([]));
+      setProjects([]);
+      setAllSubitems([]);
     } finally {
       setLoading(false);
     }
@@ -635,20 +391,16 @@ function WorkItemsContent() {
     try {
       const res = await fetch('/api/internal-addon-templates', { credentials: 'include' });
       const data = await res.json();
-      setAddonTemplates(withDemoTemplates(data.templates || []));
+      setAddonTemplates(data.templates || []);
     } catch (error) {
       console.error('获取内部附加清单模板失败:', error);
-      setAddonTemplates(withDemoTemplates([]));
+      setAddonTemplates([]);
     }
   };
 
   const fetchProjectAddons = async (projectId = selectedProjectId) => {
     if (!projectId) return;
-    if (parseInt(projectId) === DEMO_PROJECT_ID) {
-      setProjectAddons(DEMO_PROJECT_ADDONS);
-      setAddonLoading(false);
-      return;
-    }
+
     setAddonLoading(true);
     try {
       const res = await fetch(`/api/project-internal-addons?project_id=${projectId}`, { credentials: 'include' });
@@ -1256,10 +1008,10 @@ function WorkItemsContent() {
     try {
       const res = await fetch('/api/work-item-subitems', { credentials: 'include' });
       const data = await res.json();
-      setAllSubitems(withDemoSubitems(data.subitems || []));
+      setAllSubitems(data.subitems || []);
     } catch (error) {
       console.error('刷新数据失败:', error);
-      setAllSubitems(withDemoSubitems([]));
+      setAllSubitems([]);
     }
   };
 
@@ -1282,10 +1034,7 @@ function WorkItemsContent() {
   
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，新增清单不会写入数据库。请选择真实项目后录入。', variant: 'warning' });
-      return;
-    }
+
     
     // 表单验证
     if (!form.subitem_name.trim()) {
@@ -1334,10 +1083,7 @@ function WorkItemsContent() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentSubitem) return;
-    if (currentSubitem.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，修改不会写入数据库。请选择真实项目后编辑。', variant: 'warning' });
-      return;
-    }
+
     
     // 表单验证
     if (!form.subitem_name.trim()) {
@@ -1381,10 +1127,7 @@ function WorkItemsContent() {
 
   const handleBatchAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，批量导入不会写入数据库。请选择真实项目后导入。', variant: 'warning' });
-      return;
-    }
+
     if (!batchText.trim()) {
       toast({ title: '验证失败', description: '请输入数据', variant: 'warning' });
       return;
@@ -1502,11 +1245,7 @@ function WorkItemsContent() {
   const handleMonthlyReportImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，导入不会写入数据库。请选择真实项目后导入。', variant: 'warning' });
-      e.target.value = '';
-      return;
-    }
+
     
     if (!selectedYearMonth) {
       toast({ title: '请先选择年月', description: '在导入前请先在弹窗中选择要录入的月份', variant: 'error' });
@@ -1568,10 +1307,7 @@ function WorkItemsContent() {
       toast({ title: '请先选择项目', variant: 'warning' });
       return;
     }
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，模板下载请在真实项目中使用。', variant: 'warning' });
-      return;
-    }
+
     try {
       const res = await fetch(`/api/subitem-monthly-reports/template?project_id=${selectedProjectId}`, {
         credentials: 'include',
@@ -1594,10 +1330,7 @@ function WorkItemsContent() {
 
 
   const handleDelete = async (id: number) => {
-    if (id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，删除不会写入数据库。', variant: 'warning' });
-      return;
-    }
+
     if (!(await confirm({ title: '确定要删除该分项工程吗？', variant: 'destructive' }))) return;
     
     try {
@@ -1616,10 +1349,7 @@ function WorkItemsContent() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID || Array.from(selectedIds).some(id => id < 0)) {
-      toast({ title: '演示项目', description: '当前为演示数据，批量删除不会写入数据库。', variant: 'warning' });
-      return;
-    }
+
     // 统一确认体系（原为旁路 AlertDialog + bg-red-600，改用 useConfirm）
     const confirmed = await confirm({
       title: '确认删除',
@@ -1763,10 +1493,7 @@ function WorkItemsContent() {
   const handleBudgetEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!budgetEditItem) return;
-    if (budgetEditItem.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，预算修改不会写入数据库。请选择真实项目后编辑。', variant: 'warning' });
-      return;
-    }
+
     
     try {
       const res = await fetch('/api/work-item-subitems', {
@@ -1806,14 +1533,7 @@ function WorkItemsContent() {
   const fetchAnalysisRecords = async () => {
     if (!selectedProjectId || !analysisYearMonth) return;
 
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      setAnalysisReports(demoMonthlyReports(analysisYearMonth));
-      setAnalysisSettlements(demoMonthlySettlements(analysisYearMonth));
-      setAnalysisAddonSettlements(demoAddonSettlements(analysisYearMonth));
-      setAnalysisProgressExpected(demoProgressExpected(analysisYearMonth));
-      setAnalysisLoading(false);
-      return;
-    }
+
 
     setAnalysisLoading(true);
     try {
@@ -1852,86 +1572,6 @@ function WorkItemsContent() {
 
     setReconLoading(true);
     try {
-      if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-        // 演示：用演示月报量/结算 + 演示回款构建（与 API 口径一致）
-        const demoReports = demoMonthlyReports(target);
-        const demoSettlements = demoMonthlySettlements(target);
-        const reportMap = new Map(demoReports.map((r: any) => [r.subitem_id, parseFloat(r.report_quantity) || 0]));
-        const settleMap = new Map(demoSettlements.map((s: any) => [s.subitem_id, parseFloat(s.completed_quantity) || 0]));
-        const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
-
-        const rows = DEMO_SUBITEMS.map(sub => {
-          const contractPrice = toNumber(sub.contract_price);
-          const limitPrice = toNumber(sub.limit_price);
-          const effectivePrice = limitPrice || contractPrice;
-          const budgetQty = toNumber(sub.budget_quantity);
-          const monthReportQty = reportMap.get(sub.id) || 0;
-          const monthSettleQty = settleMap.get(sub.id) || 0;
-          const cumulativeReportQty = toNumber(sub.completed_quantity);
-          const cumulativeSettleQty = toNumber(sub.settlement_quantity);
-          const monthReportAmount = round2(monthReportQty * contractPrice);
-          const monthSettleAmount = round2(monthSettleQty * effectivePrice);
-          const cumulativeReportAmount = round2(cumulativeReportQty * contractPrice);
-          const cumulativeSettleAmount = round2(cumulativeSettleQty * effectivePrice);
-          const monthDifference = round2(monthReportAmount - monthSettleAmount);
-          const cumulativeDifference = round2(cumulativeReportAmount - cumulativeSettleAmount);
-          const differenceRatio = monthReportAmount > 0 ? Math.abs((monthDifference / monthReportAmount) * 100) : null;
-
-          return {
-            subitem_id: sub.id,
-            subitem_name: sub.subitem_name,
-            unit: sub.unit,
-            budget_quantity: budgetQty,
-            contract_price: contractPrice,
-            limit_price: limitPrice || null,
-            month_report_quantity: monthReportQty,
-            month_report_amount: monthReportAmount,
-            cumulative_report_quantity: cumulativeReportQty,
-            cumulative_report_amount: cumulativeReportAmount,
-            month_settlement_quantity: monthSettleQty,
-            month_settlement_amount: monthSettleAmount,
-            cumulative_settlement_quantity: cumulativeSettleQty,
-            cumulative_settlement_amount: cumulativeSettleAmount,
-            month_difference: monthDifference,
-            cumulative_difference: cumulativeDifference,
-            difference_ratio: differenceRatio === null ? null : round2(differenceRatio),
-            over_budget: budgetQty > 0 && cumulativeReportQty > budgetQty,
-            settlement_over_report: monthSettleQty > monthReportQty,
-            ratio_warning: differenceRatio !== null && differenceRatio > 30,
-          };
-        });
-
-        const activePayments = demoClientPayments.filter(p => p.effective);
-        const monthPaymentAmount = round2(
-          activePayments.filter(p => p.payment_date.slice(0, 7) === target).reduce((sum, p) => sum + p.payment_amount, 0)
-        );
-        const cumulativePaymentAmount = round2(
-          activePayments.filter(p => p.payment_date.slice(0, 7) <= target).reduce((sum, p) => sum + p.payment_amount, 0)
-        );
-        const monthReportAmount = round2(rows.reduce((sum, r) => sum + r.month_report_amount, 0));
-        const monthSettleAmount = round2(rows.reduce((sum, r) => sum + r.month_settlement_amount, 0));
-        const cumulativeReportAmount = round2(rows.reduce((sum, r) => sum + r.cumulative_report_amount, 0));
-        const cumulativeSettleAmount = round2(rows.reduce((sum, r) => sum + r.cumulative_settlement_amount, 0));
-
-        setReconData({
-          rows,
-          summary: {
-            month_report_amount: monthReportAmount,
-            month_settlement_amount: monthSettleAmount,
-            month_difference: round2(monthReportAmount - monthSettleAmount),
-            cumulative_report_amount: cumulativeReportAmount,
-            cumulative_settlement_amount: cumulativeSettleAmount,
-            cumulative_difference: round2(cumulativeReportAmount - cumulativeSettleAmount),
-            month_payment_amount: monthPaymentAmount,
-            cumulative_payment_amount: cumulativePaymentAmount,
-            receivable_amount: round2(cumulativeReportAmount - cumulativePaymentAmount),
-            over_budget_count: rows.filter(r => r.over_budget).length,
-            ratio_warning_count: rows.filter(r => r.ratio_warning).length,
-            settlement_over_report_count: rows.filter(r => r.settlement_over_report).length,
-          },
-        });
-        return;
-      }
 
       const res = await fetch(`/api/subitem-reconciliation?project_id=${selectedProjectId}&year_month=${target}`, { credentials: 'include' });
       const data = await res.json();
@@ -1963,10 +1603,7 @@ function WorkItemsContent() {
   const fetchMonthlyReportRecords = async (yearMonth: string) => {
     setMonthlyReportLoading(true);
     try {
-      const isDemoProject = parseInt(selectedProjectId) === DEMO_PROJECT_ID;
-      const data = isDemoProject
-        ? { records: demoMonthlyReports(yearMonth) }
-        : await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${yearMonth}`).then(res => res.json());
+      const data = await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${yearMonth}`).then(res => res.json());
       
       // 合并当前项目的所有子项与月度记录
       const projectSubitems = allSubitems.filter(s => s.project_id === parseInt(selectedProjectId));
@@ -2017,10 +1654,7 @@ function WorkItemsContent() {
       return;
     }
 
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示保存', description: `已模拟保存 ${recordsToSave.length} 条月度对上报量，演示数据不会写入数据库。`, variant: 'success' });
-      return;
-    }
+
 
     // P0-1 超预算强制确认：累计报量将超出预算量时必须确认（不可绕过）
     const overBudgetItems = monthlyReportRecords
@@ -2077,10 +1711,7 @@ function WorkItemsContent() {
   // 保存月度报量编辑
   const handleSaveMonthlyReportEdit = async () => {
     if (!monthlyReportEditRecord) return;
-    if (monthlyReportEditRecord.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，修改不会写入数据库。', variant: 'warning' });
-      return;
-    }
+
     
     try {
       const res = await fetch(`/api/subitem-monthly-reports/${monthlyReportEditRecord.id}`, {
@@ -2112,10 +1743,7 @@ function WorkItemsContent() {
 
   // 删除月度报量记录
   const handleDeleteMonthlyReport = async (recordId: number) => {
-    if (recordId < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，删除不会写入数据库。', variant: 'warning' });
-      return;
-    }
+
     if (!(await confirm({
       title: '确定要删除这条报量记录吗？',
       description: '删除后将更新累计报量。',
@@ -2160,18 +1788,11 @@ function WorkItemsContent() {
   const fetchMonthlySettlementRecords = async (yearMonth: string) => {
     setMonthlySettlementLoading(true);
     try {
-      const isDemoProject = parseInt(selectedProjectId) === DEMO_PROJECT_ID;
-      const [data, addonsData, addonRecordsData] = isDemoProject
-        ? [
-            { records: demoMonthlySettlements(yearMonth) },
-            { addons: DEMO_PROJECT_ADDONS },
-            { records: demoAddonSettlements(yearMonth) },
-          ]
-        : await Promise.all([
-            fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }).then(res => res.json()),
-            fetch(`/api/project-internal-addons?project_id=${selectedProjectId}`, { credentials: 'include' }).then(res => res.json()),
-            fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }).then(res => res.json()),
-          ]);
+      const [data, addonsData, addonRecordsData] = await Promise.all([
+        fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }).then(res => res.json()),
+        fetch(`/api/project-internal-addons?project_id=${selectedProjectId}`, { credentials: 'include' }).then(res => res.json()),
+        fetch(`/api/internal-addon-settlements?project_id=${selectedProjectId}&year_month=${yearMonth}`, { credentials: 'include' }).then(res => res.json()),
+      ]);
       
       // 合并当前项目的所有子项与月度记录
       const projectSubitems = allSubitems.filter(s => s.project_id === parseInt(selectedProjectId));
@@ -2283,10 +1904,7 @@ function WorkItemsContent() {
 
     // P0-1 差异提示（非阻塞）：本月结算 vs 本月报量 差异 > 30%（可能少结/多报）
     try {
-      const isDemoProject = parseInt(selectedProjectId) === DEMO_PROJECT_ID;
-      const monthReports = isDemoProject
-        ? demoMonthlyReports(settlementYearMonth)
-        : (await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${settlementYearMonth}`, { credentials: 'include' }).then(res => res.json())).records || [];
+      const monthReports = (await fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${settlementYearMonth}`, { credentials: 'include' }).then(res => res.json())).records || [];
       const reportMap = new Map<number, number>(
         monthReports.map((rec: any) => [rec.subitem_id, parseFloat(rec.report_quantity) || 0] as [number, number])
       );
@@ -2309,11 +1927,7 @@ function WorkItemsContent() {
       // 差异提示失败不阻塞保存
     }
 
-    if (parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      const totalSaved = recordsToSave.length + addonRecordsToSave.length;
-      toast({ title: '演示保存', description: `已模拟保存 ${totalSaved} 条月度对下结算记录，演示数据不会写入数据库。`, variant: 'success' });
-      return;
-    }
+
 
     // P0-1 超预算强制确认：累计结算将超出预算量时必须确认
     const overBudgetItems = monthlySettlementRecords
@@ -2387,10 +2001,7 @@ function WorkItemsContent() {
   // 保存结算量编辑
   const handleSaveSettlementEdit = async () => {
     if (!settlementEditRecord) return;
-    if (settlementEditRecord.id < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，修改不会写入数据库。', variant: 'warning' });
-      return;
-    }
+
     
     try {
       const res = await fetch(`/api/subitem-monthly-progress/${settlementEditRecord.id}`, {
@@ -2418,10 +2029,7 @@ function WorkItemsContent() {
 
   // 删除结算量记录
   const handleDeleteSettlement = async (recordId: number) => {
-    if (recordId < 0 || parseInt(selectedProjectId) === DEMO_PROJECT_ID) {
-      toast({ title: '演示项目', description: '当前为演示数据，删除不会写入数据库。', variant: 'warning' });
-      return;
-    }
+
     if (!(await confirm({
       title: '确定要删除这条结算记录吗？',
       description: '删除后将更新累计结算量。',
@@ -2491,11 +2099,7 @@ function WorkItemsContent() {
     setReportHistoryItem(item);
     setReportHistoryOpen(true);
     setReportHistoryLoading(true);
-    if (item.id < 0) {
-      setReportHistoryData(demoMonthlyReports(DEMO_YEAR_MONTH).filter(record => record.subitem_id === item.id));
-      setReportHistoryLoading(false);
-      return;
-    }
+
     try {
       const res = await fetch(`/api/subitem-monthly-reports?subitem_id=${item.id}`);
       const data = await res.json();
@@ -2509,11 +2113,7 @@ function WorkItemsContent() {
 
   const fetchReportHistory = async (subitemId: number) => {
     setReportHistoryLoading(true);
-    if (subitemId < 0) {
-      setReportHistoryData(demoMonthlyReports(DEMO_YEAR_MONTH).filter(record => record.subitem_id === subitemId));
-      setReportHistoryLoading(false);
-      return;
-    }
+
     try {
       const res = await fetch(`/api/subitem-monthly-reports?subitem_id=${subitemId}`);
       const data = await res.json();
@@ -2594,11 +2194,7 @@ function WorkItemsContent() {
     setSettleHistoryItem(item);
     setSettleHistoryOpen(true);
     setSettleHistoryLoading(true);
-    if (item.id < 0) {
-      setSettleHistoryData(demoMonthlySettlements(DEMO_YEAR_MONTH).filter(record => record.subitem_id === item.id));
-      setSettleHistoryLoading(false);
-      return;
-    }
+
     try {
       const res = await fetch(`/api/subitem-monthly-progress?subitem_id=${item.id}`);
       const data = await res.json();
@@ -2612,11 +2208,7 @@ function WorkItemsContent() {
 
   const fetchSettleHistory = async (subitemId: number) => {
     setSettleHistoryLoading(true);
-    if (subitemId < 0) {
-      setSettleHistoryData(demoMonthlySettlements(DEMO_YEAR_MONTH).filter(record => record.subitem_id === subitemId));
-      setSettleHistoryLoading(false);
-      return;
-    }
+
     try {
       const res = await fetch(`/api/subitem-monthly-progress?subitem_id=${subitemId}`);
       const data = await res.json();
@@ -2768,21 +2360,10 @@ function WorkItemsContent() {
     return 'text-gray-700';
   };
 
-  const isDemoProjectSelected = selectedProjectId === String(DEMO_PROJECT_ID);
   const selectedProject = useMemo(
     () => projects.find(p => p.id.toString() === selectedProjectId),
     [projects, selectedProjectId]
   );
-  const demoProjectSnapshot = useMemo(() => {
-    if (!isDemoProjectSelected) return null;
-    return {
-      subitemCount: DEMO_SUBITEMS.length,
-      reportCount: demoMonthlyReports(analysisYearMonth || DEMO_YEAR_MONTH).length,
-      settlementCount: demoMonthlySettlements(analysisYearMonth || DEMO_YEAR_MONTH).length,
-      addonCount: DEMO_PROJECT_ADDONS.length,
-      progressCount: demoProgressExpected(analysisYearMonth || DEMO_YEAR_MONTH).length,
-    };
-  }, [analysisYearMonth, isDemoProjectSelected]);
 
   // ========== 对比版工作台（重构）==========
   const [ledgerOnlyRisk, setLedgerOnlyRisk] = useState(false);
@@ -2848,13 +2429,6 @@ function WorkItemsContent() {
     setRowDetailLoading(true);
     setRowDetail(null);
     try {
-      if (isDemoProjectSelected) {
-        const ym = analysisYearMonth || DEMO_YEAR_MONTH;
-        setRowDetail({
-          reports: demoMonthlyReports(ym).filter((r: any) => r.subitem_id === row.id),
-          settlements: demoMonthlySettlements(ym).filter((r: any) => r.subitem_id === row.id),
-        });
-      } else {
         const [reportRes, settleRes] = await Promise.all([
           fetch(`/api/subitem-monthly-reports?subitem_id=${row.id}`, { credentials: 'include' }).then(r => r.json()),
           fetch(`/api/subitem-monthly-progress?subitem_id=${row.id}&project_id=${selectedProjectId}`, { credentials: 'include' }).then(r => r.json()),
@@ -2863,7 +2437,6 @@ function WorkItemsContent() {
           reports: reportRes.records || [],
           settlements: settleRes.data || settleRes.records || [],
         });
-      }
     } catch (error) {
       console.error('加载分项明细失败:', error);
       setRowDetail({ reports: [], settlements: [] });
@@ -2877,17 +2450,12 @@ function WorkItemsContent() {
     if (!selectedProjectId || !ym) return;
     setLedgerRecordsLoading(true);
     try {
-      if (isDemoProjectSelected) {
-        setLedgerReportRecords(demoMonthlyReports(ym));
-        setLedgerSettlementRecords(demoMonthlySettlements(ym));
-      } else {
         const [reportRes, settleRes] = await Promise.all([
           fetch(`/api/subitem-monthly-reports?project_id=${selectedProjectId}&year_month=${ym}`, { credentials: 'include' }).then(r => r.json()),
           fetch(`/api/subitem-monthly-progress?project_id=${selectedProjectId}&year_month=${ym}`, { credentials: 'include' }).then(r => r.json()),
         ]);
         setLedgerReportRecords(reportRes.records || []);
         setLedgerSettlementRecords(settleRes.data || settleRes.records || []);
-      }
     } catch (error) {
       console.error('加载明细记录失败:', error);
       setLedgerReportRecords([]);
@@ -2974,19 +2542,7 @@ function WorkItemsContent() {
         </Button>
       </div>
 
-      {demoProjectSnapshot && (
-        <div className={`rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-amber-900 shadow-sm transition-all duration-500 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">当前正在查看演示项目</p>
-              <p className="mt-1 text-sm text-amber-800">
-                已预填 {demoProjectSnapshot.subitemCount} 条清单、{demoProjectSnapshot.reportCount} 条本月报量、{demoProjectSnapshot.settlementCount} 条本月结算、{demoProjectSnapshot.addonCount} 条附加项、{demoProjectSnapshot.progressCount} 条进度对照。
-              </p>
-            </div>
-            <Badge className="w-fit bg-amber-500 text-white hover:bg-amber-500">演示数据</Badge>
-          </div>
-        </div>
-      )}
+
 
       {/* 总览统计卡片 */}
       {quantityView === 'summary' && (

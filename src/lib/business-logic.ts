@@ -5,6 +5,14 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
 import { calculateMiscellaneousMaterialAmount } from '@/lib/miscellaneous-materials';
+import {
+  REVIEW_STATUS,
+  normalizeReviewStatus,
+  isReviewedStatus,
+  isVoidedStatus,
+  isEffectiveSupplierPaymentStatus,
+  type ReviewStatus,
+} from '@/lib/review-status';
 export { SALARY_PAYMENT_TOLERANCE } from '@/lib/salary-payment-rules';
 
 type SupplierPaymentAmountRow = {
@@ -770,36 +778,15 @@ export async function validateClientPayment(params: {
 }
 
 // ========== 状态流转 ==========
-
-export type ReviewStatus = 'draft' | 'reviewed' | 'voided';
-
-export const REVIEW_STATUS = {
-  DRAFT: 'draft',
-  REVIEWED: 'reviewed',
-  VOIDED: 'voided',
-} as const;
-
-export function normalizeReviewStatus(status?: string | null): ReviewStatus {
-  switch ((status || '').trim()) {
-    case REVIEW_STATUS.REVIEWED:
-    case '已提交':
-    case '已审核':
-    case '已结算':
-    case 'approved':
-    case 'complete':
-    case 'completed':
-    case 'paid':
-      return REVIEW_STATUS.REVIEWED;
-    case REVIEW_STATUS.VOIDED:
-    case '作废':
-    case '已作废':
-    case 'voided':
-    case 'cancelled':
-      return REVIEW_STATUS.VOIDED;
-    default:
-      return REVIEW_STATUS.DRAFT;
-  }
-}
+// 状态常量与判定统一真源：review-status.ts（纯函数、前端安全，避免双份实现漂移）
+export {
+  REVIEW_STATUS,
+  normalizeReviewStatus,
+  isReviewedStatus,
+  isVoidedStatus,
+  isEffectiveSupplierPaymentStatus,
+} from '@/lib/review-status';
+export type { ReviewStatus } from '@/lib/review-status';
 
 export function isAllowedReviewStatus(status?: string | null): status is ReviewStatus {
   return (
@@ -807,14 +794,6 @@ export function isAllowedReviewStatus(status?: string | null): status is ReviewS
     status === REVIEW_STATUS.REVIEWED ||
     status === REVIEW_STATUS.VOIDED
   );
-}
-
-export function isReviewedStatus(status?: string | null): boolean {
-  return normalizeReviewStatus(status) === REVIEW_STATUS.REVIEWED;
-}
-
-export function isVoidedStatus(status?: string | null): boolean {
-  return normalizeReviewStatus(status) === REVIEW_STATUS.VOIDED;
 }
 
 export function isEffectiveClientPaymentStatus(status?: string | null): boolean {
@@ -827,10 +806,6 @@ export function isPendingClientPaymentStatus(status?: string | null): boolean {
 
 export function isInactiveClientPaymentStatus(status?: string | null): boolean {
   return status === 'cancelled' || isVoidedStatus(status);
-}
-
-export function isEffectiveSupplierPaymentStatus(status?: string | null): boolean {
-  return !status || status === 'completed' || isReviewedStatus(status);
 }
 
 export function isInactiveSupplierPaymentStatus(status?: string | null): boolean {
