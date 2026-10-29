@@ -188,12 +188,16 @@ export async function sendDailyReportCard(params: {
     .filter(Boolean)
     .slice(0, 3)
     .join('\n') || '当日无重点事项';
+  const markdown = [
+    `**${params.reportDate} 共 ${params.projectCount} 个项目有日志，出勤 ${params.headcount} 人，风险 ${params.riskCount} 条**`,
+    '',
+    '**今日重点**',
+    highlightsText,
+  ].join('\n');
   const cardParamMap = {
-    reportDate: String(params.reportDate || ''),
-    projectCount: String(params.projectCount ?? 0),
-    headcount: String(params.headcount ?? 0),
-    riskCount: String(params.riskCount ?? 0),
-    highlights: highlightsText,
+    title: `项目日报 ${params.reportDate}`,
+    tag: '项目日报',
+    markdown,
     statusText: '待查看',
   };
 
