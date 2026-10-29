@@ -155,6 +155,8 @@ export default function PaymentsPage() {
   const [filterContract, setFilterContract] = useState<string>(() => searchParams.get('contract_id') || 'all');
   const [filterSettlement, setFilterSettlement] = useState<string>(() => searchParams.get('settlement_id') || 'all');
   const [filterType, setFilterType] = useState<string>('all');
+  // 时间快捷筛选：all / month（本月）/ quarter（近3个月）/ year（今年）
+  const [filterPeriod, setFilterPeriod] = useState<'all' | 'month' | 'quarter' | 'year'>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -395,6 +397,20 @@ export default function PaymentsPage() {
   const filteredData = useMemo(() => {
     return payments.filter((payment) => {
       if (filterType !== 'all' && payment.payment_type !== filterType) return false;
+      if (filterPeriod !== 'all') {
+        const date = formatDate(payment.payment_date);
+        const now = new Date();
+        if (filterPeriod === 'month') {
+          if (!date.startsWith(now.toISOString().slice(0, 7))) return false;
+        } else if (filterPeriod === 'quarter') {
+          const start = new Date(now);
+          start.setMonth(start.getMonth() - 2);
+          start.setDate(1);
+          if (date < start.toISOString().slice(0, 10)) return false;
+        } else if (filterPeriod === 'year') {
+          if (!date.startsWith(String(now.getFullYear()))) return false;
+        }
+      }
       if (searchKeyword) {
         const keyword = searchKeyword.toLowerCase();
         const fields = [
@@ -409,7 +425,7 @@ export default function PaymentsPage() {
       }
       return true;
     });
-  }, [payments, filterType, searchKeyword, getProjectName]);
+  }, [payments, filterType, filterPeriod, searchKeyword, getProjectName]);
 
   const stats = useMemo(() => {
     const effectiveRows = filteredData.filter(isEffectivePayment);
@@ -641,27 +657,29 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <Card><CardContent className="px-3 pt-3">
-          <div className="text-xs text-muted-foreground">付款总额</div>
-          <div className="text-xl font-bold text-green-600">{formatWan(stats.total)}</div>
-        </CardContent></Card>
-        <Card><CardContent className="px-3 pt-3">
-          <div className="text-xs text-muted-foreground">付款笔数</div>
-          <div className="text-xl font-bold">{stats.count}</div>
-        </CardContent></Card>
-        <Card><CardContent className="px-3 pt-3">
-          <div className="text-xs text-muted-foreground">本月付款</div>
-          <div className="text-lg font-bold">{formatWan(stats.monthAmount)}</div>
-        </CardContent></Card>
-        <Card><CardContent className="px-3 pt-3">
-          <div className="text-xs text-muted-foreground">关联结算付款</div>
-          <div className="text-lg font-bold text-blue-600">{formatWan(stats.linkedAmount)}</div>
-        </CardContent></Card>
-        <Card><CardContent className="px-3 pt-3">
-          <div className="text-xs text-muted-foreground">未关联结算付款</div>
-          <div className="text-lg font-bold text-orange-600">{formatWan(stats.unlinkedAmount)}</div>
-        </CardContent></Card>
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-xl border border-border bg-white p-3">
+            <div className="text-xs text-muted-foreground">累计付款</div>
+            <div className="mt-1 text-xl font-bold text-emerald-600">{formatWan(stats.total)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-white p-3">
+            <div className="text-xs text-muted-foreground">本月付款</div>
+            <div className="mt-1 text-xl font-bold text-[#165DFF]">{formatWan(stats.monthAmount)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-white p-3">
+            <div className="text-xs text-muted-foreground">有效笔数</div>
+            <div className="mt-1 text-xl font-bold">{stats.count}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-white p-3">
+            <div className="text-xs text-muted-foreground">未关联结算付款</div>
+            <div className="mt-1 text-xl font-bold text-amber-600">{formatWan(stats.unlinkedAmount)}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
+          <span>关联结算付款 <b className="text-[#165DFF]">{formatWan(stats.linkedAmount)}</b></span>
+          <span>未关联结算付款 <b className="text-amber-600">{formatWan(stats.unlinkedAmount)}</b></span>
+        </div>
       </div>
 
       <Card>
@@ -714,6 +732,23 @@ export default function PaymentsPage() {
               onChange={(event) => setSearchKeyword(event.target.value)}
               className="min-w-0 flex-1"
             />
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {([
+              ['all', '全部时间'],
+              ['month', '本月'],
+              ['quarter', '近3个月'],
+              ['year', '今年'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilterPeriod(value)}
+                className={`rounded-full border px-3 py-1 text-xs transition ${filterPeriod === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -816,7 +851,15 @@ export default function PaymentsPage() {
                       <TableCell className="text-right font-bold text-green-600">{formatCurrency(payment.payment_amount)}</TableCell>
                       <TableCell>{payment.payment_method || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant={payment.status === 'voided' ? 'outline' : 'default'}>{getStatusLabel(payment.status)}</Badge>
+                        <span
+                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
+                            payment.status === 'voided'
+                              ? 'bg-gray-100 text-gray-400 line-through'
+                              : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
+                          {getStatusLabel(payment.status)}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center">
                         <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedPayment(payment); }}>

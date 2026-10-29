@@ -87,6 +87,8 @@ export default function SupplierContractsPage() {
   // 筛选状态
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
+  // 状态筛选：all / active（履约中）/ done（已完结）/ expiring（30天内到期）
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'done' | 'expiring'>('all');
 
   // 分页状态
   const [page, setPage] = useState(1);
@@ -159,8 +161,28 @@ export default function SupplierContractsPage() {
 
   const confirm = useConfirm();
 
+  // 到期天数（30 天内视为即将到期）
+  const daysUntilExpire = (date?: string) => {
+    if (!date) return null;
+    const target = new Date(date).getTime();
+    if (Number.isNaN(target)) return null;
+    return Math.ceil((target - Date.now()) / (24 * 60 * 60 * 1000));
+  };
+  const activeCount = contracts.filter(c => c.contract_status === '履约中').length;
+  const doneCount = contracts.filter(c => c.contract_status === '已完结').length;
+  const expiringCount = contracts.filter(c => {
+    const days = daysUntilExpire(c.expire_date);
+    return days !== null && days >= 0 && days <= 30 && c.contract_status !== '已完结';
+  }).length;
+
   // 筛选后的数据
   const filteredContracts = contracts.filter(c => {
+    if (filterStatus === 'active' && c.contract_status !== '履约中') return false;
+    if (filterStatus === 'done' && c.contract_status !== '已完结') return false;
+    if (filterStatus === 'expiring') {
+      const days = daysUntilExpire(c.expire_date);
+      if (days === null || days < 0 || days > 30 || c.contract_status === '已完结') return false;
+    }
     if (searchKeyword) {
       const kw = searchKeyword.toLowerCase();
       const supplierName = String(c.supplier?.name || '').toLowerCase();
@@ -268,25 +290,34 @@ export default function SupplierContractsPage() {
           ) : undefined}
         />
 
-        {/* 统计卡片 */}
+        {/* 核心指标卡（点击筛选） */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">合同数</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums text-primary">{stats.totalContracts}</p>
-            </CardContent></Card>
-            <Card><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">平均付款比例</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums">{stats.avgPaymentRatio ?? 0}%</p>
-            </CardContent></Card>
-            <Card className="bg-accent border-primary/20"><CardContent className="p-4">
-              <p className="text-xs text-primary">累计结算</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-primary">{formatCurrency(stats.totalSettlement)}</p>
-            </CardContent></Card>
-            <Card className="bg-orange-50 border-orange-200"><CardContent className="p-4">
-              <p className="text-xs text-orange-600">应付金额</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-orange-600">{formatCurrency(stats.totalPayable)}</p>
-            </CardContent></Card>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <button type="button" onClick={() => setFilterStatus(filterStatus === 'active' ? 'all' : 'active')} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'active' ? 'border-emerald-400 bg-emerald-50' : 'border-border bg-white hover:border-emerald-300'}`}>
+                <p className="text-xs text-muted-foreground">履约中</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600">{activeCount}</p>
+              </button>
+              <button type="button" onClick={() => setFilterStatus(filterStatus === 'done' ? 'all' : 'done')} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'done' ? 'border-blue-400 bg-blue-50' : 'border-border bg-white hover:border-blue-300'}`}>
+                <p className="text-xs text-muted-foreground">已完结</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-blue-600">{doneCount}</p>
+              </button>
+              <button type="button" onClick={() => setFilterStatus(filterStatus === 'expiring' ? 'all' : 'expiring')} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'expiring' ? 'border-amber-400 bg-amber-50' : 'border-border bg-white hover:border-amber-300'}`}>
+                <p className="text-xs text-muted-foreground">30天内到期</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-amber-600">{expiringCount}</p>
+              </button>
+              <div className="rounded-xl border border-border bg-white p-3">
+                <p className="text-xs text-muted-foreground">合同总数</p>
+                <p className="mt-1 text-xl font-bold tabular-nums">{stats.totalContracts}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
+              <span>累计结算 <b className="text-[#165DFF]">{formatCurrency(stats.totalSettlement)}</b></span>
+              <span>应付 <b className="text-amber-600">{formatCurrency(stats.totalPayable)}</b></span>
+              <span>已付 <b className="text-emerald-600">{formatCurrency(stats.totalPaid)}</b></span>
+              <span>未付 <b className="text-red-500">{formatCurrency(stats.totalPending)}</b></span>
+              <span>平均付款比例 <b>{stats.avgPaymentRatio ?? 0}%</b></span>
+            </div>
           </div>
         )}
 
@@ -303,6 +334,23 @@ export default function SupplierContractsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="搜索供应商或合同名称..." value={searchKeyword} onChange={e => { setSearchKeyword(e.target.value); setPage(1); }} className="pl-9" />
           </div>
+          <div className="flex w-full flex-wrap items-center gap-1.5">
+            {([
+              ['all', '全部'],
+              ['active', '履约中'],
+              ['done', '已完结'],
+              ['expiring', '即将到期'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => { setFilterStatus(value); setPage(1); }}
+                className={`rounded-full border px-3 py-1 text-xs transition ${filterStatus === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </FilterBar>
 
         {/* 合同列表 */}
@@ -313,37 +361,61 @@ export default function SupplierContractsPage() {
           minWidth={800}
           columns={TH => (
             <TableRow>
-              <TH>供应商</TH>
-              <TH>合同编号</TH>
               <TH>合同名称</TH>
               <TH className="text-center">付款比例</TH>
-              <TH className="text-center">结算付款比例</TH>
-              <TH className="text-center">决算付款比例</TH>
               <TH className={numCell()}>累计结算</TH>
               <TH className={numCell()}>应付</TH>
               <TH className={numCell()}>已付</TH>
+              <TH>到期日</TH>
               <TH className="text-center">状态</TH>
               {canManage && <TH className="text-center">操作</TH>}
             </TableRow>
           )}
         >
           {pagedContracts.length === 0 ? (
-            <EmptyRow colSpan={11} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
+            <EmptyRow colSpan={8} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
           ) : pagedContracts.map(contract => (
             <TableRow key={contract.id} className="hover:bg-muted/40">
-              <TableCell className="font-medium">{String(contract.supplier?.name || '')}</TableCell>
-              <TableCell className="text-muted-foreground">{contract.contract_no || '-'}</TableCell>
-              <TableCell>{String(contract.contract_name || '')}</TableCell>
-              <TableCell className="text-center tabular-nums font-medium text-blue-600">{Number(contract.payment_ratio_active || 0)}%</TableCell>
-              <TableCell className="text-center tabular-nums">{Number(contract.payment_ratio_complete || 0)}%</TableCell>
-              <TableCell className="text-center tabular-nums">{Number(contract.payment_ratio_final || 0)}%</TableCell>
-              <TableCell className={numCell("text-primary")}>{formatCurrency(contract.total_settlement)}</TableCell>
+              <TableCell>
+                <div className="font-medium">{String(contract.contract_name || '')}</div>
+                <div className="text-xs text-muted-foreground">
+                  {String(contract.supplier?.name || '')}
+                  {contract.contract_no ? ` · ${contract.contract_no}` : ''}
+                </div>
+              </TableCell>
+              <TableCell className="text-center text-xs">
+                <div className="font-medium text-blue-600">{Number(contract.payment_ratio_active || 0)}%</div>
+                <div className="text-muted-foreground">
+                  {Number(contract.payment_ratio_complete || 0)}% / {Number(contract.payment_ratio_final || 0)}%
+                </div>
+              </TableCell>
+              <TableCell className={numCell("font-medium text-primary")}>{formatCurrency(contract.total_settlement)}</TableCell>
               <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency(contract.total_payable)}</TableCell>
               <TableCell className={numCell("text-green-600")}>{formatCurrency(contract.total_paid)}</TableCell>
+              <TableCell>
+                {contract.expire_date ? (() => {
+                  const days = daysUntilExpire(contract.expire_date);
+                  const urgent = days !== null && days >= 0 && days <= 30 && contract.contract_status !== '已完结';
+                  return (
+                    <span className={urgent ? 'font-medium text-red-500' : 'text-muted-foreground'}>
+                      {contract.expire_date}
+                      {urgent && days !== null ? `（${days}天）` : ''}
+                    </span>
+                  );
+                })() : '-'}
+              </TableCell>
               <TableCell className="text-center">
-                <Badge variant={contract.contract_status === '履约中' ? 'default' : contract.contract_status === '已完结' ? 'secondary' : 'destructive'}>
-                  {String(contract.contract_status || '')}
-                </Badge>
+                <span
+                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
+                    contract.contract_status === '已完结'
+                      ? 'bg-blue-50 text-blue-700'
+                      : contract.contract_status === '履约中'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  {String(contract.contract_status || '-')}
+                </span>
               </TableCell>
               {canManage && (
                 <TableCell className="text-center">

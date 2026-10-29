@@ -207,6 +207,8 @@ export default function SettlementPage() {
   const [filterContract, setFilterContract] = useState<string>(() => searchParams.get('contract_id') || 'all');
   const [filterType, setFilterType] = useState<string>(() => searchParams.get('settlement_type') || 'all');
   const [searchKeyword, setSearchKeyword] = useState('');
+  // 状态筛选（chips）：all / draft（待审核） / reviewed（已审核） / voided（已作废）
+  const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'reviewed' | 'voided'>('all');
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
   const [detailPayments, setDetailPayments] = useState<SupplierPayment[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -667,6 +669,13 @@ export default function SettlementPage() {
   const filteredSettlements = settlements.filter(s => {
     if (filterProject !== 'all' && s.contract?.project_id !== Number(filterProject)) return false;
     if (filterSupplier !== 'all' && s.contract?.supplier_id !== Number(filterSupplier)) return false;
+    if (filterStatus !== 'all') {
+      const voided = isVoidedSettlement(s.status);
+      const reviewed = isReviewedSettlement(s.status);
+      if (filterStatus === 'voided' && !voided) return false;
+      if (filterStatus === 'reviewed' && (!reviewed || voided)) return false;
+      if (filterStatus === 'draft' && (reviewed || voided)) return false;
+    }
     if (searchKeyword) {
       const kw = searchKeyword.toLowerCase();
       const match = (v: string) => v?.toLowerCase().includes(kw);
@@ -686,6 +695,16 @@ export default function SettlementPage() {
   // 根据筛选条件计算统计数据（直接使用 API 返回的 stats）
   const filteredStats = useMemo(
     () => calculateStatsFromSettlements(filteredSettlements),
+    [filteredSettlements]
+  );
+
+  // 状态计数：待审核（草稿）/ 已审核（不含作废）
+  const draftCount = useMemo(
+    () => filteredSettlements.filter(s => !isVoidedSettlement(s.status) && !isReviewedSettlement(s.status)).length,
+    [filteredSettlements]
+  );
+  const reviewedCount = useMemo(
+    () => filteredSettlements.filter(s => isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)).length,
     [filteredSettlements]
   );
 
@@ -758,37 +777,57 @@ export default function SettlementPage() {
         </div>
       </div>
 
-      {/* 统计卡片 - 按筛选条件显示 */}
+      {/* 审批提醒：待审核结算单（草稿不计成本） */}
+      {draftCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4" />
+          <span>有 <b className="text-amber-700">{draftCount}</b> 条结算待审核，审核后计入合同累计结算（草稿不计成本）。</span>
+          <button
+            type="button"
+            onClick={() => setFilterStatus(filterStatus === 'draft' ? 'all' : 'draft')}
+            className="ml-auto text-xs font-medium text-amber-700 underline underline-offset-2"
+          >
+            {filterStatus === 'draft' ? '显示全部' : '只看待审核'}
+          </button>
+        </div>
+      )}
+
+      {/* 核心指标卡（点击筛选） */}
       {stats && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">结算单数</div>
-            <div className="text-lg font-bold">{filteredStats.totalSettlements}</div>
-          </CardContent></Card>
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">合同累计结算</div>
-            <div className="text-lg font-bold text-blue-600">{formatCurrency(filteredStats.totalAmount)}</div>
-          </CardContent></Card>
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">合同进度应付</div>
-            <div className="text-lg font-bold text-blue-600">{formatCurrency(filteredStats.totalPayable)}</div>
-          </CardContent></Card>
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">合同100%应付</div>
-            <div className="text-lg font-bold text-purple-600">{formatCurrency(filteredStats.totalFinalPayable)}</div>
-          </CardContent></Card>
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">合同累计已付</div>
-            <div className="text-lg font-bold text-green-600">{formatCurrency(filteredStats.totalPaid)}</div>
-          </CardContent></Card>
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">合同进度未付</div>
-            <div className="text-lg font-bold text-orange-600">{formatCurrency(filteredStats.totalProgressPending)}</div>
-          </CardContent></Card>
-          <Card><CardContent className="pt-3 px-3">
-            <div className="text-xs text-muted-foreground">合同100%未付</div>
-            <div className="text-lg font-bold text-red-600">{formatCurrency(filteredStats.totalFinalPending)}</div>
-          </CardContent></Card>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'draft' ? 'all' : 'draft')}
+              className={`rounded-xl border p-3 text-left transition ${filterStatus === 'draft' ? 'border-amber-400 bg-amber-50' : 'border-border bg-white hover:border-amber-300'}`}
+            >
+              <div className="text-xs text-muted-foreground">待审核</div>
+              <div className="mt-1 text-xl font-bold text-amber-600">{draftCount}</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'reviewed' ? 'all' : 'reviewed')}
+              className={`rounded-xl border p-3 text-left transition ${filterStatus === 'reviewed' ? 'border-emerald-400 bg-emerald-50' : 'border-border bg-white hover:border-emerald-300'}`}
+            >
+              <div className="text-xs text-muted-foreground">已审核</div>
+              <div className="mt-1 text-xl font-bold text-emerald-600">{reviewedCount}</div>
+            </button>
+            <div className="rounded-xl border border-border bg-white p-3">
+              <div className="text-xs text-muted-foreground">合同累计结算</div>
+              <div className="mt-1 text-xl font-bold text-[#165DFF]">{formatCurrency(filteredStats.totalAmount)}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-3">
+              <div className="text-xs text-muted-foreground">合同进度未付</div>
+              <div className="mt-1 text-xl font-bold text-red-500">{formatCurrency(filteredStats.totalProgressPending)}</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
+            <span>合同进度应付 <b className="text-[#165DFF]">{formatCurrency(filteredStats.totalPayable)}</b></span>
+            <span>合同100%应付 <b className="text-purple-600">{formatCurrency(filteredStats.totalFinalPayable)}</b></span>
+            <span>合同累计已付 <b className="text-emerald-600">{formatCurrency(filteredStats.totalPaid)}</b></span>
+            <span>合同100%未付 <b className="text-red-500">{formatCurrency(filteredStats.totalFinalPending)}</b></span>
+            <span>结算单数 <b>{filteredStats.totalSettlements}</b></span>
+          </div>
         </div>
       )}
 
@@ -852,6 +891,28 @@ export default function SettlementPage() {
               className="w-full sm:min-w-[150px] sm:flex-1"
             />
           </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {([
+              ['all', '全部'],
+              ['draft', draftCount > 0 ? `待审核 ${draftCount}` : '待审核'],
+              ['reviewed', '已审核'],
+              ['voided', '已作废'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilterStatus(value)}
+                className={`rounded-full border px-3 py-1 text-xs transition ${filterStatus === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+              >
+                {label}
+              </button>
+            ))}
+            {filterStatus !== 'all' && (
+              <button type="button" onClick={() => setFilterStatus('all')} className="text-xs text-muted-foreground underline underline-offset-2">
+                清除状态筛选
+              </button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -912,20 +973,17 @@ export default function SettlementPage() {
                       <TableCell className="text-right text-red-600 font-bold">{formatCurrency(s.contract_final_pending_amount)}</TableCell>
                       <TableCell>{formatDate(s.settlement_date)}</TableCell>
                       <TableCell className="text-center">
-                        <Badge
-                          variant={
-                            isVoidedSettlement(s.status) ? 'outline'
-                              : isReviewedSettlement(s.status) ? 'default'
-                              : 'outline'
-                          }
-                          className={
-                            isVoidedSettlement(s.status) ? 'text-gray-400 line-through'
-                              : isReviewedSettlement(s.status) ? 'text-green-700' : 'text-amber-600'
-                          }
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                            isVoidedSettlement(s.status)
+                              ? 'bg-gray-100 text-gray-400 line-through'
+                              : isReviewedSettlement(s.status)
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-amber-50 text-amber-700'
+                          }`}
                         >
-                          {isVoidedSettlement(s.status) ? '已作废'
-                            : isReviewedSettlement(s.status) ? '已审核' : '草稿'}
-                        </Badge>
+                          {isVoidedSettlement(s.status) ? '已作废' : isReviewedSettlement(s.status) ? '已审核' : '待审核'}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-0.5">
@@ -1002,13 +1060,17 @@ export default function SettlementPage() {
                     </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
-                    <Badge
-                      variant={isVoidedSettlement(s.status) ? 'outline' : (isReviewedSettlement(s.status) ? 'default' : 'outline')}
-                      className={isVoidedSettlement(s.status) ? 'text-gray-400 line-through' : (isReviewedSettlement(s.status) ? 'text-green-700' : 'text-amber-600')}
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                        isVoidedSettlement(s.status)
+                          ? 'bg-gray-100 text-gray-400 line-through'
+                          : isReviewedSettlement(s.status)
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
+                      }`}
                     >
-                      {isVoidedSettlement(s.status) ? '已作废'
-                        : isReviewedSettlement(s.status) ? '已审核' : '草稿'}
-                    </Badge>
+                      {isVoidedSettlement(s.status) ? '已作废' : isReviewedSettlement(s.status) ? '已审核' : '待审核'}
+                    </span>
                     <div className="flex items-center gap-1">
                       {renderReviewActions(s)}
                       <Button
@@ -1044,10 +1106,17 @@ export default function SettlementPage() {
                       <Badge variant={selectedSettlement.settlement_type === 'final' ? 'default' : 'secondary'}>
                         {selectedSettlement.settlement_type === 'progress' ? '进度结算' : '总结算'}
                       </Badge>
-                      <Badge variant={isVoidedSettlement(selectedSettlement.status) ? 'outline' : (isReviewedSettlement(selectedSettlement.status) ? 'default' : 'outline')} className={isVoidedSettlement(selectedSettlement.status) ? 'text-gray-400 line-through' : (isReviewedSettlement(selectedSettlement.status) ? 'text-green-700' : 'text-amber-600')}>
-                      {isVoidedSettlement(selectedSettlement.status) ? '已作废'
-                        : isReviewedSettlement(selectedSettlement.status) ? '已审核' : '草稿'}
-                    </Badge>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                          isVoidedSettlement(selectedSettlement.status)
+                            ? 'bg-gray-100 text-gray-400 line-through'
+                            : isReviewedSettlement(selectedSettlement.status)
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-amber-50 text-amber-700'
+                        }`}
+                      >
+                        {isVoidedSettlement(selectedSettlement.status) ? '已作废' : isReviewedSettlement(selectedSettlement.status) ? '已审核' : '待审核'}
+                      </span>
                     </div>
                     <div className="mt-2 text-sm text-gray-600">
                       {getProjectName(selectedSettlement)} / {selectedSettlement.supplier_name || '-'}

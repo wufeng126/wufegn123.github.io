@@ -68,6 +68,8 @@ export default function SupplierRosterPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  // 合同状态快捷筛选：all / signed（已签合同）/ unsigned（待签合同）
+  const [filterContract, setFilterContract] = useState<'all' | 'signed' | 'unsigned'>('all');
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('suppliers');
@@ -206,7 +208,10 @@ export default function SupplierRosterPage() {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (s.contact || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || s.type === filterType;
-    return matchesSearch && matchesType;
+    const matchesContract = filterContract === 'all'
+      || (filterContract === 'signed' && s.has_contract)
+      || (filterContract === 'unsigned' && !s.has_contract);
+    return matchesSearch && matchesType && matchesContract;
   });
 
   const filteredContracts = contracts.filter(c => {
@@ -476,6 +481,22 @@ export default function SupplierRosterPage() {
                 className="pl-9"
               />
             </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {([
+                ['all', '全部'],
+                ['signed', '已签合同'],
+                ['unsigned', '待签合同'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFilterContract(value)}
+                  className={`rounded-full border px-3 py-1 text-xs transition ${filterContract === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <Button onClick={() => openEditDialog()} className="w-full bg-blue-600 hover:bg-blue-700 md:w-auto">
                 <Plus className="w-4 h-4 mr-1" /> 新增供应商
               </Button>
@@ -489,8 +510,7 @@ export default function SupplierRosterPage() {
                   <TableRow>
                     <TableHead className="min-w-[120px]">供应商名称</TableHead>
                     <TableHead className="min-w-[80px]">类型</TableHead>
-                    <TableHead className="min-w-[100px]">联系人</TableHead>
-                    <TableHead className="min-w-[120px]">联系电话</TableHead>
+                    <TableHead className="min-w-[180px]">联系人</TableHead>
                     <TableHead className="min-w-[100px]">合同状态</TableHead>
                     <TableHead className="min-w-[120px] text-right">操作</TableHead>
                   </TableRow>
@@ -498,11 +518,11 @@ export default function SupplierRosterPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">加载中...</TableCell>
+                      <TableCell colSpan={5} className="text-center py-8">加载中...</TableCell>
                     </TableRow>
                   ) : filteredSuppliers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         暂无供应商数据
                       </TableCell>
                     </TableRow>
@@ -515,14 +535,14 @@ export default function SupplierRosterPage() {
                             {supplier.type === 'supplier' ? '供应商' : '班组'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{supplier.contact || '-'}</TableCell>
-                        <TableCell>{supplier.phone || '-'}</TableCell>
                         <TableCell>
-                          {supplier.has_contract ? (
-                            <Badge className="bg-green-100 text-green-800">已签合同</Badge>
-                          ) : (
-                            <Badge className="bg-orange-100 text-orange-700 border-orange-200">待签合同</Badge>
-                          )}
+                          <div>{supplier.contact || '-'}</div>
+                          <div className="text-xs text-muted-foreground">{supplier.phone || '-'}</div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${supplier.has_contract ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                            {supplier.has_contract ? '已签合同' : '待签合同'}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -564,9 +584,9 @@ export default function SupplierRosterPage() {
                     <div className="mt-3 flex items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-xs">
                       <span className="text-muted-foreground">合同状态</span>
                       {supplier.has_contract ? (
-                        <Badge className="bg-green-100 text-green-800">已签合同</Badge>
+                        <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">已签合同</span>
                       ) : (
-                        <Badge className="border-orange-200 bg-orange-100 text-orange-700">待签合同</Badge>
+                        <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">待签合同</span>
                       )}
                     </div>
                     <div className="mt-3 grid grid-cols-4 gap-2 border-t border-gray-100 pt-3">
