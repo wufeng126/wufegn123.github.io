@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 import { useConfirm } from '@/hooks/use-confirm';
+import { effectiveSettlementPrice } from '@/lib/settlement-price';
 
 // 类型定义
 interface Project {
@@ -677,7 +678,7 @@ function WorkItemsContent() {
     }, 0),
     totalSettlement: subitems.reduce((sum, item) => {
       const qty = parseFloat(item.settlement_quantity || '0') || 0;
-      const price = parseFloat(item.limit_price || item.contract_price || '0') || 0;
+      const price = effectiveSettlementPrice({ limitPrice: item.limit_price, contractPrice: item.contract_price });
       return sum + qty * price;
     }, 0) + addonStats.totalAmount,
     warningItems: subitems.filter(item => {
@@ -698,9 +699,13 @@ function WorkItemsContent() {
       progressExpectedMap.set(Number(record.subitem_id), record);
     });
 
-    const monthlySettlementMap = new Map<number, number>();
+    const monthlySettlementMap = new Map<number, { qty: number; unitPrice: number | null }>();
     analysisSettlements.forEach(record => {
-      monthlySettlementMap.set(Number(record.subitem_id), parseFloat(record.completed_quantity || '0') || 0);
+      const unitPriceRaw = record.unit_price;
+      monthlySettlementMap.set(Number(record.subitem_id), {
+        qty: parseFloat(record.completed_quantity || '0') || 0,
+        unitPrice: unitPriceRaw != null && unitPriceRaw !== '' ? Number(unitPriceRaw) : null,
+      });
     });
 
     const monthlyAddonSettlementMap = new Map<number, any>();
@@ -716,13 +721,20 @@ function WorkItemsContent() {
       const progressExpected = progressExpectedMap.get(item.id);
       const progressExpectedQty = progressExpected?.expected_quantity || 0;
       const reportVsProgressGap = monthlyReportedQty - progressExpectedQty;
-      const monthlySettledQty = monthlySettlementMap.get(item.id) || 0;
+      const monthlySettled = monthlySettlementMap.get(item.id);
+      const monthlySettledQty = monthlySettled?.qty || 0;
       const contractPrice = parseFloat(item.contract_price || '0') || 0;
-      const limitPrice = parseFloat(item.limit_price || item.contract_price || '0') || 0;
+      // P0 修复：结算单价统一取「本月结算记录录入的实际单价」→ 限价 → 合同价（与勾稽台账口径一致），
+      // 此前直接用 limit_price || contract_price 会忽略录入的实际结算单价，导致成本系统性少算。
+      const settlementPrice = effectiveSettlementPrice({
+        recordUnitPrice: monthlySettled?.unitPrice,
+        limitPrice: item.limit_price,
+        contractPrice: item.contract_price,
+      });
       const reportAmount = totalReportedQty * contractPrice;
-      const settlementAmount = totalSettledQty * limitPrice;
+      const settlementAmount = totalSettledQty * settlementPrice;
       const monthlyReportAmount = monthlyReportedQty * contractPrice;
-      const monthlySettlementAmount = monthlySettledQty * limitPrice;
+      const monthlySettlementAmount = monthlySettledQty * settlementPrice;
       const reportRemainingQty = budgetQty - totalReportedQty;
       const settleRemainingQty = budgetQty - totalSettledQty;
       const quantityGap = totalReportedQty - totalSettledQty;
@@ -755,7 +767,8 @@ function WorkItemsContent() {
         progressTaskLabels: progressExpected?.task_labels || [],
         monthlySettledQty,
         contractPrice,
-        limitPrice,
+        limitPrice: parseFloat(item.limit_price || '0') || 0,
+        settlementPrice,
         reportAmount,
         settlementAmount,
         monthlyReportAmount,
@@ -832,7 +845,7 @@ function WorkItemsContent() {
     const budgetAmount = projectStats.totalBudget;
     const settlementBudgetAmount = subitems.reduce((sum, item) => {
       const qty = parseFloat(item.budget_quantity || '0') || 0;
-      const price = parseFloat(item.limit_price || item.contract_price || '0') || 0;
+      const price = effectiveSettlementPrice({ limitPrice: item.limit_price, contractPrice: item.contract_price });
       return sum + qty * price;
     }, 0);
     const reportAmount = analysisStats.totalReportAmount;
@@ -878,7 +891,7 @@ function WorkItemsContent() {
         const reportedQty = toNumber(item.completed_quantity);
         const settledQty = toNumber(item.settlement_quantity);
         const contractPrice = toNumber(item.contract_price);
-        const settlementPrice = toNumber(item.limit_price || item.contract_price);
+        const settlementPrice = effectiveSettlementPrice({ limitPrice: item.limit_price, contractPrice: item.contract_price });
 
         acc.budgetAmount += budgetQty * contractPrice;
         acc.reportAmount += reportedQty * contractPrice;

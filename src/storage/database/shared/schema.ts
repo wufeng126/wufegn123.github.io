@@ -1217,6 +1217,8 @@ export const teamSettlements = pgTable("team_settlements", {
 	safetyFundDeduct: numeric("safety_fund_deduct", { precision: 14, scale: 2 }).default('0'),
 	// 本期付款比例(%)：计划付款=实付金额*比例/100，尾款=实付金额-计划付款；默认100全额
 	paymentRatio: numeric("payment_ratio", { precision: 5, scale: 2 }).default('100'),
+	// 结算单附件（JSONB 数组：[{ key, name, size, type, uploadedAt }]）
+	attachments: jsonb("attachments").default([]),
 	createdBy: integer("created_by"),
 	createdByName: varchar("created_by_name", { length: 100 }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),

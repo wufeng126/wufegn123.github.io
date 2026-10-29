@@ -51,6 +51,10 @@ export async function findPersonByIdCard(
 
 /**
  * 按 项目+姓名 查询人员（无身份证时的兜底归并，仅同项目内）。
+ *
+ * 安全修复：persons 表本身不带项目维度，此前直接按「姓名 + 无身份证」全表查任一 person，
+ * 会把不同项目的同名无证人员错误并成同一人（串人）。现改为通过 workers 表
+ * 在「同一项目 + 同名 + 无身份证」范围内查找已绑定 person 的任职记录，复用其 person_id。
  */
 export async function findPersonByProjectName(
   client: SupabaseClient,
@@ -58,10 +62,32 @@ export async function findPersonByProjectName(
   name: string | null | undefined,
 ): Promise<PersonRow | null> {
   if (!projectId || !name) return null;
+  const trimmed = String(name).trim();
+  if (!trimmed) return null;
+
+  // 1. 同项目内查找同名无证工人已绑定的 person
+  const { data: workerRows, error: workerError } = await client
+    .from('workers')
+    .select('person_id')
+    .eq('project_id', projectId)
+    .eq('name', trimmed)
+    .is('id_card', null)
+    .not('person_id', 'is', null)
+    .limit(1);
+
+  if (!workerError && workerRows && workerRows.length > 0) {
+    const personId = Number((workerRows[0] as { person_id?: unknown }).person_id);
+    if (Number.isInteger(personId) && personId > 0) {
+      return findPersonById(client, personId);
+    }
+  }
+
+  // 2. 兜底：按 姓名+无身份证 查 person，但仅当该 person 尚未被其他项目占用
+  //    （通过 workers 的 person_id 关联检查其任职项目是否包含其他项目）
   const { data, error } = await client
     .from('persons')
     .select('id, name, id_card, phone')
-    .eq('name', String(name).trim())
+    .eq('name', trimmed)
     .is('id_card', null)
     .limit(50);
   if (error) {
@@ -72,8 +98,36 @@ export async function findPersonByProjectName(
     throw new Error(error.message);
   }
   const rows = (data || []) as PersonRow[];
-  // 无身份证 person 表内不冗余 project 维度，取第一个（person 全局唯一，同名同项目视为同一人）
-  return rows[0] || null;
+  if (rows.length === 0) return null;
+
+  // 只复用「尚未被其他项目任职占用」的 person，避免跨项目同名串人
+  for (const person of rows) {
+    const { data: boundWorkers } = await client
+      .from('workers')
+      .select('project_id')
+      .eq('person_id', person.id)
+      .neq('project_id', projectId)
+      .limit(1);
+    if (!boundWorkers || boundWorkers.length === 0) {
+      return person;
+    }
+  }
+  // 所有同名无证 person 都已被其他项目占用 → 不复用（调用方将创建新 person）
+  return null;
+}
+
+/** 按 id 查询 person（内部使用） */
+async function findPersonById(
+  client: SupabaseClient,
+  personId: number,
+): Promise<PersonRow | null> {
+  const { data, error } = await client
+    .from('persons')
+    .select('id, name, id_card, phone')
+    .eq('id', personId)
+    .maybeSingle();
+  if (error) return null;
+  return (data as PersonRow) || null;
 }
 
 /**

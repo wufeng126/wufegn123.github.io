@@ -9,6 +9,10 @@ const DATA_TABLE_DEFS = [
   { table: 'worker_salaries', label: '工资核算' },
   { table: 'salary_payments', label: '工资发放' },
   { table: 'team_settlement_splits', label: '班组结算拆分' },
+  // 安全修复：生活费台账（records 为 CASCADE 级联删、receipt_items 为 SET NULL 留孤儿），
+  // 此前删除工人会静默删除现金台账，需纳入删除守卫阻断。
+  { table: 'living_allowance_records', label: '生活费台账' },
+  { table: 'living_allowance_receipt_items', label: '生活费回单明细' },
 ] as const;
 
 function isMissingTableError(error: unknown): boolean {

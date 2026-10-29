@@ -510,7 +510,11 @@ export async function POST(request: NextRequest) {
     if (splitError) throw new Error(splitError.message);
 
     // 仅为已确认（confirmed）的结算单自动生成分账应发工资，draft 草稿不生成
-    let generatedSalary = { created: 0, skipped: 0 };
+    let generatedSalary: { created: number; skipped: number; conflicts: number[] } = {
+      created: 0,
+      skipped: 0,
+      conflicts: [],
+    };
     if ((body?.status || 'confirmed') === 'confirmed' && splitRows.length > 0) {
       try {
         generatedSalary = await generateWorkerSalariesFromSplits({
@@ -520,6 +524,12 @@ export async function POST(request: NextRequest) {
           teamId,
           splits: splitRows,
         });
+        // 安全修复：本月已有工资记录的工人不会被生成分账应发，记录冲突清单供排查/提示
+        if (generatedSalary.conflicts.length > 0) {
+          console.warn(
+            `[team-settlement] 结算单 #${settlementId} 有 ${generatedSalary.conflicts.length} 名工人本月已有工资记录，未生成分账应发: workerIds=${generatedSalary.conflicts.join(',')}`,
+          );
+        }
       } catch (genError) {
         // 应发生成失败不应阻断结算保存，但需记录，供排查
         console.error(`[team-settlement] 分账应发工资生成失败 settlementId=${settlementId}:`, genError);
