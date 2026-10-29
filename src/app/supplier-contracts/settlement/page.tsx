@@ -793,7 +793,7 @@ export default function SettlementPage() {
       )}
 
       {/* 核心指标卡（点击筛选） */}
-      {stats && (
+      {filteredStats && (
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <button
@@ -923,32 +923,32 @@ export default function SettlementPage() {
             <Table className="border-separate border-spacing-0">
               <TableHeader>
                 <TableRow>
-                  <TableHead>结算单号</TableHead>
+                  <TableHead>结算单</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>供应商 / 合同</TableHead>
-                  <TableHead>类型</TableHead>
+                  <TableHead className="text-center">类型</TableHead>
                   <TableHead className="text-right">本次结算</TableHead>
-                  <TableHead className="text-right">付款比例</TableHead>
                   <TableHead className="text-right">本次应付</TableHead>
                   <TableHead className="text-right">合同累计结算</TableHead>
                   <TableHead className="text-right">进度应付</TableHead>
-                  <TableHead className="text-right">合同累计已付</TableHead>
-                  <TableHead className="text-right">合同进度未付</TableHead>
-                  <TableHead className="text-right">合同100%未付</TableHead>
-                  <TableHead>结算日期</TableHead>
+                  <TableHead className="text-right">已付</TableHead>
+                  <TableHead className="text-right">进度未付</TableHead>
                   <TableHead className="text-center">状态</TableHead>
                   <TableHead className="text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={15} className="text-center py-8">加载中...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={12} className="text-center py-8">加载中...</TableCell></TableRow>
                 ) : filteredSettlements.length === 0 ? (
-                  <TableRow><TableCell colSpan={15} className="text-center py-8">暂无数据</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={12} className="text-center py-8">暂无数据</TableCell></TableRow>
                 ) : (
                   filteredSettlements.map(s => (
                     <TableRow key={s.id} className="cursor-pointer hover:bg-muted/40" onClick={() => openSettlementDetail(s)}>
-                      <TableCell className="font-mono text-sm">{s.settlement_no}</TableCell>
+                      <TableCell>
+                        <div className="font-mono text-sm">{s.settlement_no}</div>
+                        <div className="text-xs text-muted-foreground">{formatDate(s.settlement_date)}</div>
+                      </TableCell>
                       <TableCell className="max-w-[160px] truncate" title={getProjectName(s)}>
                         {getProjectName(s)}
                       </TableCell>
@@ -958,20 +958,17 @@ export default function SettlementPage() {
                           {s.contract?.contract_name || '-'}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <Badge variant={s.settlement_type === 'final' ? 'default' : 'secondary'}>
                           {s.settlement_type === 'progress' ? '进度结算' : '总结算'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(s.settlement_amount)}</TableCell>
-                      <TableCell className="text-right">{formatPercent(s.payment_ratio)}</TableCell>
                       <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.payable_amount)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(s.contract_total_settlement_amount)}</TableCell>
                       <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.contract_total_payable_amount)}</TableCell>
                       <TableCell className="text-right text-green-600 font-bold">{formatCurrency(s.contract_paid_amount)}</TableCell>
                       <TableCell className="text-right text-orange-600 font-bold">{formatCurrency(s.contract_progress_pending_amount)}</TableCell>
-                      <TableCell className="text-right text-red-600 font-bold">{formatCurrency(s.contract_final_pending_amount)}</TableCell>
-                      <TableCell>{formatDate(s.settlement_date)}</TableCell>
                       <TableCell className="text-center">
                         <span
                           className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${

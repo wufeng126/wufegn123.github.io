@@ -417,38 +417,24 @@ export default function SupplierRosterPage() {
         <p className="text-muted-foreground">管理供应商和班组基础信息</p>
       </div>
 
-      {/* Stats */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <div className="text-xs text-muted-foreground">供应商总数</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-2xl font-bold">{stats.withContract}</div>
-            <div className="text-xs text-muted-foreground">已签合同</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-2xl font-bold">{stats.withoutContract}</div>
-            <div className="text-xs text-muted-foreground">待签合同</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-2xl font-bold">{stats.supplierCount}</div>
-            <div className="text-xs text-muted-foreground">供应商</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-2xl font-bold">{stats.teamCount}</div>
-            <div className="text-xs text-muted-foreground">班组</div>
-          </CardContent>
-        </Card>
+      {/* 概览指标卡 */}
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-border bg-white p-4">
+          <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
+          <div className="mt-1 text-xs text-muted-foreground">供应商总数</div>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4">
+          <div className="text-2xl font-bold tabular-nums text-emerald-600">{stats.withContract}</div>
+          <div className="mt-1 text-xs text-muted-foreground">已签合同</div>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4">
+          <div className="text-2xl font-bold tabular-nums text-amber-600">{stats.withoutContract}</div>
+          <div className="mt-1 text-xs text-muted-foreground">待签合同</div>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4">
+          <div className="text-2xl font-bold tabular-nums">{stats.supplierCount} / {stats.teamCount}</div>
+          <div className="mt-1 text-xs text-muted-foreground">供应商 / 班组</div>
+        </div>
       </div>
 
       {/* Tabs */}
