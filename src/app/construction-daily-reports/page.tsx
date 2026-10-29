@@ -63,6 +63,7 @@ type ReportSummary = {
     narrative?: string;
     key_points?: string[];
     risk_summary?: string;
+    decisions?: string[];
   };
   projects: ProjectDetail[];
 };
@@ -128,24 +129,26 @@ function getCleanText(value: string | undefined, fallback: string) {
 }
 
 function getProjectSections(project: ProjectDetail) {
-  const construction = emptyText(project.ai_sections?.construction_content || joinList(project.contents), '当日未形成可汇总的施工内容。');
+  // 去模板化：AI 没写的段落保留空字符串（不兜底成"日志中未单独记录"），由卡片按需隐藏
+  const construction = getCleanText(
+    project.ai_sections?.construction_content || joinList(project.contents),
+    '',
+  );
   const laborFallback = project.log_count > 0
-    ? `当日形成 ${project.log_count} 条施工日志，现场出勤合计 ${project.headcount_total} 人。`
-    : '当日未形成施工日志，暂无现场出勤汇总。';
-  const riskFallback = project.issue_count > 0
-    ? '存在需跟进事项，请相关负责人结合现场情况处理。'
-    : '未识别到明显进度风险。';
+    ? `出勤合计 ${project.headcount_total} 人（${project.log_count} 条日志）。`
+    : '';
+  const quality = getCleanText(
+    project.ai_sections?.quality_safety || joinList(project.issues),
+    '',
+  );
 
   return {
     construction_content: construction,
-    labor_teams: emptyText(getCleanText(project.ai_sections?.labor_teams, laborFallback), laborFallback),
-    materials_machinery: emptyText(project.ai_sections?.materials_machinery, '日志中未单独记录材料、机械使用情况。'),
-    quality_safety: emptyText(
-      project.ai_sections?.quality_safety || joinList(project.issues),
-      project.issue_count > 0 ? '存在质量、安全或现场异常记录，请项目负责人核查。' : '未记录质量、安全异常。',
-    ),
-    progress_risks: emptyText(getCleanText(project.ai_sections?.progress_risks, riskFallback), riskFallback),
-    tomorrow_plan: emptyText(project.ai_sections?.tomorrow_plan),
+    labor_teams: getCleanText(project.ai_sections?.labor_teams || laborFallback, ''),
+    materials_machinery: project.ai_sections?.materials_machinery || '',
+    quality_safety: quality,
+    progress_risks: project.ai_sections?.progress_risks || '',
+    tomorrow_plan: project.ai_sections?.tomorrow_plan || '',
   };
 }
 
@@ -208,6 +211,15 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
   const tone = getProjectTone(project);
   const meta = toneMeta[tone];
   const sections = getProjectSections(project);
+  // 去模板化：只渲染有内容的段落
+  const visibleSections = [
+    { title: '施工进展', icon: ClipboardList, value: sections.construction_content, tone: 'default' as const },
+    { title: '人员情况', icon: UsersRound, value: sections.labor_teams, tone: 'default' as const },
+    { title: '材料机械', icon: Truck, value: sections.materials_machinery, tone: 'default' as const },
+    { title: '质量安全', icon: ShieldCheck, value: sections.quality_safety, tone: project.issue_count > 0 ? 'risk' as const : 'default' as const },
+    { title: '风险与提醒', icon: AlertTriangle, value: sections.progress_risks, tone: project.issue_count > 0 ? 'risk' as const : 'default' as const },
+    { title: '明日计划', icon: Clock3, value: sections.tomorrow_plan, tone: 'default' as const },
+  ].filter(section => String(section.value || '').trim() !== '');
 
   return (
     <article className={`overflow-hidden rounded-xl border border-border border-l-4 ${meta.marker} bg-card shadow-sm`}>
@@ -237,36 +249,26 @@ function ProjectCard({ project, defaultOpen }: { project: ProjectDetail; default
               异常 {project.issue_count} 条
             </span>
           </div>
-          <p className="mt-3 max-w-5xl text-sm leading-6 text-foreground/80">{sections.construction_content}</p>
+          <p className="mt-3 max-w-5xl text-sm leading-6 text-foreground/80">
+            {sections.construction_content || '当日暂无施工内容摘要。'}
+          </p>
         </div>
         <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-muted-foreground/80 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open ? (
         <div className="border-t border-border/60 px-4 py-4 sm:px-5">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <SectionBlock title="施工进展" icon={ClipboardList}>
-              {sections.construction_content}
-            </SectionBlock>
-            <SectionBlock title="人员情况" icon={UsersRound}>
-              {sections.labor_teams}
-            </SectionBlock>
-            <SectionBlock title="材料机械" icon={Truck}>
-              {sections.materials_machinery}
-            </SectionBlock>
-            <SectionBlock title="质量安全" icon={ShieldCheck} tone={project.issue_count > 0 ? 'risk' : 'default'}>
-              {sections.quality_safety}
-            </SectionBlock>
-          </div>
-
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <SectionBlock title="风险与提醒" icon={AlertTriangle} tone={project.issue_count > 0 ? 'risk' : 'default'}>
-              {sections.progress_risks}
-            </SectionBlock>
-            <SectionBlock title="明日计划" icon={Clock3}>
-              {sections.tomorrow_plan}
-            </SectionBlock>
-          </div>
+          {visibleSections.length > 0 ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {visibleSections.map(section => (
+                <SectionBlock key={section.title} title={section.title} icon={section.icon} tone={section.tone}>
+                  {section.value}
+                </SectionBlock>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">今日无异常记录。</p>
+          )}
         </div>
       ) : null}
     </article>
@@ -474,6 +476,16 @@ function ConstructionDailyReportsPageContent() {
                 <p className="text-sm leading-7 text-foreground/80">
                   {cleanCompanyNarrative(summary)}
                 </p>
+                {(summary.company.decisions || []).filter(Boolean).length > 0 ? (
+                  <div className="mt-4 rounded-lg border border-primary/15 bg-accent/60 p-3">
+                    <div className="mb-2 text-sm font-semibold text-primary">待决策 / 需协调</div>
+                    <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-foreground/80">
+                      {(summary.company.decisions || []).filter(Boolean).map((item, index) => (
+                        <li key={`${item}-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {getCompanyHighlights(summary).map((item, index) => (
                     <div key={`${item}-${index}`} className="rounded-lg bg-muted/50 px-3 py-3 text-sm leading-6 text-foreground/80 ring-1 ring-border/60">

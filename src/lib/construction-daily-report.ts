@@ -34,6 +34,17 @@ type LogRow = {
   created_at?: string | null;
 };
 
+type ProgressTaskLite = {
+  project_id: number;
+  phase?: string | null;
+  area?: string | null;
+  floor?: string | null;
+  process?: string | null;
+  actual_progress?: number | string | null;
+  issue?: string | null;
+  next_action?: string | null;
+};
+
 type ConstructionDailyReportRow = {
   id: number;
   report_date: string;
@@ -62,6 +73,16 @@ export type DailyReportProjectDetail = {
   risk_high_count: number;
   risk_summary_text?: string;
   ai_sections?: DailyReportSections;
+  /** 今日进度任务（计划 vs 完成），供 AI 判断进度状态；表不存在时为空 */
+  progress_tasks?: Array<{
+    phase?: string | null;
+    area?: string | null;
+    floor?: string | null;
+    process?: string | null;
+    actual_progress?: number | string | null;
+    issue?: string | null;
+    next_action?: string | null;
+  }>;
 };
 
 /** 单项目近 7 日趋势数据 */
@@ -101,6 +122,8 @@ export type ConstructionDailyReportSummary = {
     narrative?: string;
     key_points?: string[];
     risk_summary?: string;
+    /** 需要老板决策/协调的事项（AI 提炼，没有则为空数组） */
+    decisions?: string[];
   };
   projects: DailyReportProjectDetail[];
   /** 近 7 日趋势（N 日趋势对比） */
@@ -121,6 +144,7 @@ type AiDailyReportResult = {
     narrative?: string;
     key_points?: string[];
     risk_summary?: string;
+    decisions?: string[];
   };
   projects?: Array<{
     project_id: number;
@@ -231,6 +255,9 @@ function buildFallbackCompanyNarrative(summary: ConstructionDailyReportSummary) 
     risk_summary: summary.company.risk_count > 0 || summary.company.issue_count > 0 || summary.company.missing_assignment_count > 0
       ? `存在 ${summary.company.risk_count} 条风险（高风险 ${summary.company.risk_high_count} 条）${summary.company.risk_unresolved_count ? `、${summary.company.risk_unresolved_count} 条未闭环` : ''}、${summary.company.issue_count} 条问题异常、${summary.company.missing_assignment_count} 个未提交项目人员项。${riskTrendInfo}`
       : '未识别到明显日报风险。',
+    decisions: summary.company.risk_high_count > 0
+      ? [`请相关项目经理跟进 ${summary.company.risk_high_count} 条高风险项，明确整改责任人与完成时间。`]
+      : [],
   };
 }
 
@@ -288,6 +315,7 @@ function buildAiPrompt(summary: ConstructionDailyReportSummary) {
       missing_users: project.missing_users.map(user => user.name),
       contents: project.contents.slice(0, 8),
       issues: project.issues.slice(0, 8),
+      progress_tasks: (project.progress_tasks || []).slice(0, 12),
       risk_count: project.risk_count,
       risk_high_count: project.risk_high_count,
       risk_summary_text: project.risk_summary_text,
@@ -309,36 +337,38 @@ function buildAiPrompt(summary: ConstructionDailyReportSummary) {
     };
   });
 
-  return `你是建筑劳务公司项目日报助手。请把施工日志萃取成正式项目日报，不要逐条罗列原始日志。
+  return `你是建筑劳务公司项目日报助手。请把当天施工日志"提炼"成对公司有用的日报，禁止逐条复述原始日志。
 
-要求：
-1. 每个项目固定输出六个段落：今日施工内容、人员/班组情况、材料机械情况、质量安全问题、进度风险、明日计划。
-2. 如果日志未记录某项，写“日志中未单独记录”，不要编造。
-3. 语言要像公司内部日报，简洁、客观、可直接给全员查看。
-4. 只返回 JSON，不要输出解释。
-5. "进度风险"段落必须结合风险检测结果（risk_count / risk_high_count / risk_summary_text）如实呈现，高风险项目要突出提示。
-6. "进度风险"段落还需结合近 7 日趋势（trend 字段）：
-   - risk_trend=worse 时提示"风险呈上升趋势"，risk_trend=better 时提示"风险较前期缓解"，flat 则不强调；
-   - 有未闭环风险（unresolved_risk_count > 0）时提示"仍有 N 条风险未闭环";
-   - log_trend=down 时提示"近 3 日日志活跃度下降"（可能是施工放缓或记录减少）。
+输出原则：
+1. 提炼：从原始日志中提取「完成了什么工序/部位/工程量」，用一句话说清，禁止照抄原文。
+2. 判断：结合进度任务（progress_tasks：计划时间 vs actual_progress 完成情况）判断进度状态（正常/提前/滞后）；没有数据就写"进度数据不足"，禁止编造。
+3. 行动：每条问题必须给出「具体动作 + 责任人」（日志中提到的人）；没明确责任人写"待指定"。
+4. 去模板化：某段落没有内容就输出空字符串 ""，不要写"无"或"日志中未单独记录"。
+5. 公司总览：先给一句结论（正常/有风险），再列 3 条重点、风险提醒、待决策事项（decisions：需要老板拍板/协调的，没有就空数组）。
+6. "progress_risks"段落必须结合风险检测结果（risk_count / risk_high_count / risk_summary_text）与近 7 日趋势（trend）：
+   - risk_trend=worse 提示"风险呈上升趋势"，better 提示"风险较前期缓解"，flat 不强调；
+   - 有未闭环风险（unresolved_risk_count > 0）提示"仍有 N 条风险未闭环"；
+   - log_trend=down 提示"近 3 日日志活跃度下降"。
+7. 语言简洁客观，可直接给全员查看；只返回 JSON，不要输出解释。
 
 JSON 格式：
 {
   "company": {
-    "narrative": "公司总览段落",
-    "key_points": ["要点1", "要点2"],
-    "risk_summary": "风险提醒"
+    "narrative": "一句话结论 + 总体情况（80字内）",
+    "key_points": ["今日重点1", "今日重点2", "今日重点3"],
+    "risk_summary": "风险提醒（含未闭环风险）",
+    "decisions": ["需要老板决策/协调的事项"]
   },
   "projects": [
     {
       "project_id": 1,
       "sections": {
-        "construction_content": "今日施工内容",
-        "labor_teams": "人员/班组情况",
-        "materials_machinery": "材料机械情况",
-        "quality_safety": "质量安全问题",
-        "progress_risks": "进度风险",
-        "tomorrow_plan": "明日计划"
+        "construction_content": "进度：完成了什么（提炼 + 计划对比）",
+        "labor_teams": "人员/资源：出勤、班组、材料机械（一句话）",
+        "materials_machinery": "",
+        "quality_safety": "问题：具体问题 + 动作 + 责任人",
+        "progress_risks": "风险：风险等级与闭环情况",
+        "tomorrow_plan": "明日计划：具体任务"
       }
     }
   ]
@@ -386,7 +416,7 @@ function applyDailyReportNarrative(
   return {
     ...summary,
     report_type: 'daily_report',
-    report_version: 4,
+    report_version: 5,
     company: {
       ...summary.company,
       narrative: emptySectionText(aiResult?.company?.narrative || fallbackCompany.narrative),
@@ -394,6 +424,9 @@ function applyDailyReportNarrative(
         ? aiResult.company.key_points.map(item => String(item)).filter(Boolean).slice(0, 6)
         : fallbackCompany.key_points,
       risk_summary: emptySectionText(aiResult?.company?.risk_summary || fallbackCompany.risk_summary),
+      decisions: Array.isArray(aiResult?.company?.decisions)
+        ? aiResult.company.decisions.map(item => String(item)).filter(Boolean).slice(0, 5)
+        : fallbackCompany.decisions || [],
     },
     projects: summary.projects.map(project => ({
       ...project,
@@ -406,6 +439,7 @@ function buildReportContent(summary: ConstructionDailyReportSummary) {
   const readableDate = getReadableDate(summary.report_date);
   const trendByProject = new Map<number, DailyReportProjectTrend>();
   (summary.trends || []).forEach(trend => trendByProject.set(trend.project_id, trend));
+  const decisionsText = (summary.company.decisions || []).filter(Boolean).join('；') || '无';
   const lines = [
     `${readableDate} 项目施工日报`,
     '',
@@ -413,6 +447,7 @@ function buildReportContent(summary: ConstructionDailyReportSummary) {
     summary.company.narrative || buildFallbackCompanyNarrative(summary).narrative,
     `统计：共 ${summary.company.total_projects} 个项目，${summary.company.submitted_projects} 个项目有日志；应交 ${summary.company.expected_user_count} 人，已交 ${summary.company.submitted_user_count} 人，逾期 ${summary.company.late_user_count} 人，未交 ${summary.company.missing_assignment_count} 个项目人员项。`,
     `风险提醒：${summary.company.risk_summary || buildFallbackCompanyNarrative(summary).risk_summary}`,
+    `待决策：${decisionsText}`,
     '',
     '二、各项目情况',
   ];
@@ -420,14 +455,23 @@ function buildReportContent(summary: ConstructionDailyReportSummary) {
   summary.projects.forEach((project, index) => {
     const trend = trendByProject.get(project.project_id);
     const sections = project.ai_sections || buildFallbackProjectSections(project, trend);
+    // 去模板化：只输出有内容的段落，全空时给一句“今日无异常记录”
+    const bodyLines = [
+      ['进度', sections.construction_content],
+      ['人员/资源', sections.labor_teams],
+      ['材料机械', sections.materials_machinery],
+      ['问题', sections.quality_safety],
+      ['风险', sections.progress_risks],
+      ['明日计划', sections.tomorrow_plan],
+    ]
+      .filter(([, text]) => {
+        const value = String(text || '').trim();
+        return value !== '' && value !== '无';
+      })
+      .map(([label, text]) => `   ${label}：${String(text).trim()}`);
     lines.push(
       `${index + 1}. ${project.project_name}`,
-      `   今日施工内容：${sections.construction_content}`,
-      `   人员/班组情况：${sections.labor_teams}`,
-      `   材料机械情况：${sections.materials_machinery}`,
-      `   质量安全问题：${sections.quality_safety}`,
-      `   进度风险：${sections.progress_risks}`,
-      `   明日计划：${sections.tomorrow_plan}`,
+      ...(bodyLines.length > 0 ? bodyLines : ['   今日无异常记录。']),
     );
   });
 
@@ -471,6 +515,20 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
   const users = ((usersRes.data || []) as UserRow[]).filter(user => user.is_disabled !== true && user.role !== 'pending');
   const logs = (logsRes.data || []) as LogRow[];
   const trendLogs = (trendLogsRes.data || []) as LogRow[];
+
+  // 今日进度任务（计划 vs 完成），用于 AI 判断进度状态；表不存在时静默跳过
+  let progressTasks: ProgressTaskLite[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('project_progress_tasks')
+      .select('project_id, phase, area, floor, process, actual_progress, issue, next_action')
+      .lte('plan_start_date', reportDate)
+      .gte('plan_end_date', reportDate)
+      .limit(800);
+    if (!error) progressTasks = (data || []) as ProgressTaskLite[];
+  } catch {
+    progressTasks = [];
+  }
 
   // 近 7 日风险事件（事件流表不存在时返回空数组，向后兼容）
   let riskEvents = await loadConstructionRiskEvents(supabase, {
@@ -516,6 +574,7 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
     logs,
     trendLogs,
     riskEvents,
+    progressTasks,
     windows: { trendStart, recent3dStart, prev3dStart },
   };
 }
@@ -567,7 +626,7 @@ export async function buildConstructionDailyReportSummary(
   supabase: SupabaseClient,
   reportDate: string,
 ): Promise<ConstructionDailyReportSummary> {
-  const { projects, users, logs, trendLogs, riskEvents, windows } = await getReportSourceData(supabase, reportDate);
+  const { projects, users, logs, trendLogs, riskEvents, progressTasks, windows } = await getReportSourceData(supabase, reportDate);
   const projectNameMap = new Map(projects.map(project => [Number(project.id), project.name || `项目${project.id}`]));
   const userNameMap = new Map(users.map(user => [Number(user.id), getUserName(user)]));
   const expectedByProject = new Map<number, { id: number; name: string }[]>();
@@ -645,6 +704,9 @@ export async function buildConstructionDailyReportSummary(
       risk_count: riskCount,
       risk_high_count: riskHighCount,
       risk_summary_text: riskSummaryText,
+      progress_tasks: progressTasks
+        .filter(task => Number(task.project_id) === projectId)
+        .slice(0, 20),
     };
   });
 
