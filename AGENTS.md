@@ -368,6 +368,16 @@
 
 ## 最近更新
 
+### 2026-10 拉取远程：班组结算接入审批流程 + 结算删除扩展（融合远程开发）
+- **背景**：仓库远程新增 6 个提交（月报协作审批、班组结算一级审批、数据正确性修复、1000行截断修复、安全修复4项、代码精简），与本地的「结算删除功能」在 `[id]/route.ts`、`team-management-client.tsx` 冲突，经用户确认选「智能融合」：保留远程完整审批体系，删除范围扩到「已提交待审批(pending)」也可直接删。
+- **班组结算新状态机**（`team_settlements`）：`draft`（预算员填）→`pending`（提交审批）→`reviewed`（老板通过，**此时才生成分账应发工资并计入成本**）/`rejected`（驳回退回）；`withdraw` 可撤 pending→draft。审批通过口径 `isTeamSettlementApprovedStatus`=reviewed 或 confirmed（兼容历史）。
+- **权限（细分）**：`team_settlements:submit`（预算员，提交/撤回）、`:approve`（老板/超管，通过/驳回）、`:delete`（删除）；由新版权限体系 `requirePermission` + `api-project-scope`（`assertProjectAccess`）统一鉴权（旧 `api-project-access` 仍在但新代码优先走新体系）。
+- **新接口**：`POST /api/team-settlements/workflow`（动作 submit/withdraw/approve/reject，驳回必填 reason）；`DELETE /api/team-settlements/[id]`（删除）。
+- **删除规则**：`draft / rejected / pending` 可直接删（pending 删除前未生成工资，安全）；`reviewed` 不可删（已计入成本，需先驳回或作废）。删除逻辑在 `[id]/route.ts` 校验状态，仅这三态放行。
+- **前端**：结算台账新增审批按钮（提交审批/撤回/通过/驳回）+ 驳回原因弹窗 + 状态筛选；删除按钮按 `canDeleteSettlement` 权限 + 状态（draft/rejected/pending）显示，`window.confirm` 确认后走 `handleDeleteSettlement(row)` 直接调 DELETE。
+- **DB 迁移（develop 与 product 均已应用）**：`migrations/add_team_settlement_approval.sql`（审批字段 submitted_at/by/reviewed_at/by、reject_reason + 存量 confirmed→reviewed，product 2 条已迁）；`add_monthly_report_workflow.sql`（建 `monthly_report_workflows` 表）；`add_team_settlement_attachments.sql` 幂等（attachments 列两库均已就绪）。
+- **待办/提醒**：①本地仍领先远程 1 个提交（融合提交 e2609db）未 push；②product 代码仍待部署（需 OAuth 登录 `coze deploy`）；③花名册去重迁移 `create_worker_project_unique.sql` / `create_worker_project_name_unique.sql`（会删同项目同名同证重复工人、迁移子表引用）**未应用**，如需防重请在产品环境谨慎执行并先备份。
+
 ### 2026-10 钉钉工作通知升级为互动卡片（方案A：actionCard）
 - **需求**：钉钉收到的是纯文字，希望升级成互动卡片。用户选「先做A」——actionCard 结构化卡片 + 跳转按钮。
 - **实现**（`src/lib/dingtalk-work-notification.ts`）：
