@@ -1177,7 +1177,7 @@ export function TeamSettlementLedgerPageClient() {
                       {row.status === 'reviewed' && (
                         <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
                       )}
-                      {((row.status || 'draft') === 'draft' || row.status === 'rejected') && canDeleteSettlement && (
+                      {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
                         <button onClick={() => handleDeleteSettlement(row)} className="text-sm font-medium text-[#F53F3F] hover:underline">删除</button>
                       )}
                     </div>
@@ -1228,7 +1228,7 @@ export function TeamSettlementLedgerPageClient() {
                 {row.status === 'reviewed' && (
                   <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
                 )}
-                {((row.status || 'draft') === 'draft' || row.status === 'rejected') && canDeleteSettlement && (
+                {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
                   <button onClick={() => handleDeleteSettlement(row)} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">删除</button>
                 )}
               </div>

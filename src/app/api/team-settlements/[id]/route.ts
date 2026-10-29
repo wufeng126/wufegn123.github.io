@@ -14,8 +14,9 @@ import { assertProjectAccess } from '@/lib/api-project-scope';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
 /**
- * 删除班组结算单（仅草稿/已驳回可删）。
- * 已提交待审批（pending）或已审批（reviewed）的结算单不可直接删除——需先驳回或作废。
+ * 删除班组结算单（草稿/已驳回/已提交待审批可删）。
+ * 已提交待审批（pending）删除时尚未生成分账工资，安全；
+ * 已审批（reviewed）已计入成本，不可直接删除——需先驳回或作废。
  */
 export async function DELETE(
   request: NextRequest,
@@ -41,8 +42,8 @@ export async function DELETE(
     if (!settlement) return apiNotFound('结算单不存在');
 
     const status = String(settlement.status || 'draft');
-    if (!['draft', 'rejected'].includes(status)) {
-      return apiBadRequest('只有草稿或已驳回的结算单可以删除');
+    if (!['draft', 'rejected', 'pending'].includes(status)) {
+      return apiBadRequest('只有草稿、已驳回或已提交待审批的结算单可以删除');
     }
 
     const hasAccess = await assertProjectAccess(supabase, auth.user, Number(settlement.project_id));
