@@ -4,6 +4,7 @@ import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { isReviewedStatus } from '@/lib/business-logic';
 
 function parseId(value: unknown) {
   const id = Number(value);
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
         const hasAccess = await assertProjectAccess(supabase, auth.user, projectId);
         if (!hasAccess) return apiForbidden('无权查看该项目');
       }
-      let settleQuery = supabase.from('team_settlements').select('id, project_id, team_id, advance_deduct, labor_insurance_deduct, helper_deduct, safety_fund_deduct, payment_ratio');
+      let settleQuery = supabase.from('team_settlements').select('id, project_id, team_id, status, advance_deduct, labor_insurance_deduct, helper_deduct, safety_fund_deduct, payment_ratio');
       if (projectId) settleQuery = settleQuery.eq('project_id', projectId);
       if (teamId) settleQuery = settleQuery.eq('team_id', teamId);
       const { data: settlements, error: settleError } = await settleQuery;
@@ -133,6 +134,8 @@ export async function GET(request: NextRequest) {
       const plannedByTeam = new Map<number, number>();
       const projectByTeam = new Map<number, number>();
       for (const s of settlements || []) {
+        // 审批流口径：只有已审批（reviewed/confirmed，兼容历史中文状态）的结算单才计入应付
+        if (!isReviewedStatus((s as { status?: string | null }).status)) continue;
         const tid = Number(s.team_id);
         if (!tid) continue;
         projectByTeam.set(tid, Number(s.project_id));

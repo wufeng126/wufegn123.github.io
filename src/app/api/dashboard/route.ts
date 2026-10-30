@@ -632,9 +632,11 @@ export async function GET(request: Request) {
       if (tsErr && !String(tsErr.message || '').toLowerCase().includes('team_settlements')) {
         throw tsErr;
       }
-      const activeTs = (tsSettlements || []).filter((r: { status?: string | null }) =>
-        r.status !== 'voided' && r.status !== 'cancelled'
-      );
+      // 审批流口径：只有已审批（reviewed/confirmed）的班组结算才计入成本趋势，草稿/待审批/驳回不计
+      const activeTs = (tsSettlements || []).filter((r: { status?: string | null }) => {
+        const status = String(r.status || '').trim();
+        return status === 'reviewed' || status === 'confirmed';
+      });
       const tsIds = activeTs.map((r: { id?: unknown }) => Number(r.id)).filter(Boolean);
       const tsMonthMap = new Map<number, string>();
       activeTs.forEach((r: { id?: unknown; settlement_month?: unknown }) => {

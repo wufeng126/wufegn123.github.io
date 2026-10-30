@@ -665,17 +665,10 @@ export default function SettlementPage() {
     }
   }, []);
 
-  // 筛选数据
-  const filteredSettlements = settlements.filter(s => {
+  // 状态筛选前的基数（项目/供应商/搜索）：用于统计卡与金额，保证切换状态时金额卡不归零
+  const statusBaseSettlements = settlements.filter(s => {
     if (filterProject !== 'all' && s.contract?.project_id !== Number(filterProject)) return false;
     if (filterSupplier !== 'all' && s.contract?.supplier_id !== Number(filterSupplier)) return false;
-    if (filterStatus !== 'all') {
-      const voided = isVoidedSettlement(s.status);
-      const reviewed = isReviewedSettlement(s.status);
-      if (filterStatus === 'voided' && !voided) return false;
-      if (filterStatus === 'reviewed' && (!reviewed || voided)) return false;
-      if (filterStatus === 'draft' && (reviewed || voided)) return false;
-    }
     if (searchKeyword) {
       const kw = searchKeyword.toLowerCase();
       const match = (v: string) => v?.toLowerCase().includes(kw);
@@ -685,6 +678,16 @@ export default function SettlementPage() {
     return true;
   });
 
+  // 表格数据：基数 + 状态筛选（状态只影响表格，不影响上面的金额卡）
+  const filteredSettlements = statusBaseSettlements.filter(s => {
+    if (filterStatus === 'all') return true;
+    const voided = isVoidedSettlement(s.status);
+    const reviewed = isReviewedSettlement(s.status);
+    if (filterStatus === 'voided') return voided;
+    if (filterStatus === 'reviewed') return reviewed && !voided;
+    return !reviewed && !voided;
+  });
+
   // 获取可用的合同列表（按供应商筛选）
   const availableContracts = contracts.filter(c => {
     if (filterProject !== 'all' && c.project_id !== Number(filterProject)) return false;
@@ -692,20 +695,20 @@ export default function SettlementPage() {
     return true;
   });
 
-  // 根据筛选条件计算统计数据（直接使用 API 返回的 stats）
+  // 根据筛选条件计算统计数据（金额与计数基于状态筛选前的基数，切换状态不归零）
   const filteredStats = useMemo(
-    () => calculateStatsFromSettlements(filteredSettlements),
-    [filteredSettlements]
+    () => calculateStatsFromSettlements(statusBaseSettlements),
+    [statusBaseSettlements]
   );
 
   // 状态计数：待审核（草稿）/ 已审核（不含作废）
   const draftCount = useMemo(
-    () => filteredSettlements.filter(s => !isVoidedSettlement(s.status) && !isReviewedSettlement(s.status)).length,
-    [filteredSettlements]
+    () => statusBaseSettlements.filter(s => !isVoidedSettlement(s.status) && !isReviewedSettlement(s.status)).length,
+    [statusBaseSettlements]
   );
   const reviewedCount = useMemo(
-    () => filteredSettlements.filter(s => isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)).length,
-    [filteredSettlements]
+    () => statusBaseSettlements.filter(s => isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)).length,
+    [statusBaseSettlements]
   );
 
   const detailPaidTotal = useMemo(() => {
