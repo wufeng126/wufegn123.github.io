@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { buildDingTalkCardUpdate, verifyDingTalkCardCallbackSignature } from '@/lib/dingtalk-card';
+import { getDingTalkConfig } from '@/lib/dingtalk-config';
 import { generateWorkerSalariesFromSplits } from '@/lib/team-settlement-salary';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 
@@ -24,6 +25,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
+    // corpId 校验：防止其他企业/伪造来源的回调
+    const expectedCorpId = getDingTalkConfig()?.corpId;
+    const bodyCorpId = String(body?.corpId || '');
+    if (expectedCorpId && bodyCorpId && bodyCorpId !== expectedCorpId) {
+      return NextResponse.json({ error: 'corpId mismatch' }, { status: 403 });
+    }
     const outTrackId = String(body?.outTrackId || '');
     const dingUserId = String(body?.userId || '');
 
@@ -41,7 +48,7 @@ export async function POST(request: NextRequest) {
     // 操作人：钉钉 userId → 系统用户（用于审计与卡片显示）
     const { data: operatorUser } = await supabase
       .from('users')
-      .select('id, name, username')
+      .select('id, name, username, role')
       .eq('dingtalk_user_id', dingUserId)
       .maybeSingle();
     const operatorName =
@@ -54,6 +61,14 @@ export async function POST(request: NextRequest) {
       const userId = Number(operatorUser?.id || 0);
       if (userId <= 0) {
         return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '未绑定系统账号，请先登录系统一次'));
+      }
+      const { data: reportRow } = await supabase
+        .from('construction_daily_reports')
+        .select('id')
+        .eq('id', reportId)
+        .maybeSingle();
+      if (!reportRow) {
+        return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '日报不存在'));
       }
       const { error: readError } = await supabase
         .from('construction_daily_report_reads')
@@ -87,10 +102,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '该结算单已处理'));
     }
 
+    // 操作人必须是老板/超管（审批权限），防止任意钉钉用户伪造审批
+    const operatorRole = String(operatorUser?.role || '');
+    const isApprover = operatorRole === 'super_admin' || operatorRole === 'boss';
+    if (!isApprover) {
+      return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '仅老板可审批'));
+    }
+
     const now = new Date().toISOString();
 
     if (action === 'approve') {
-      const { error: updateError } = await supabase
+      // 乐观锁：仅 pending 可更新，防止并发重复审批
+      const { data: updatedRows, error: updateError } = await supabase
         .from('team_settlements')
         .update({
           status: 'reviewed',
@@ -98,8 +121,13 @@ export async function POST(request: NextRequest) {
           reviewed_by: operatorName,
           updated_at: now,
         })
-        .eq('id', settlementId);
+        .eq('id', settlementId)
+        .eq('status', 'pending')
+        .select('id');
       if (updateError) throw new Error(updateError.message);
+      if (!updatedRows || updatedRows.length === 0) {
+        return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '该结算单已处理'));
+      }
 
       // 审批通过 → 生成分账应发工资（失败记录日志，不阻断审批结果）
       const { data: splits } = await supabase
@@ -147,7 +175,8 @@ export async function POST(request: NextRequest) {
 
     if (action === 'reject') {
       const reason = '钉钉卡片审批驳回';
-      const { error: updateError } = await supabase
+      // 乐观锁：仅 pending 可更新
+      const { data: updatedRows, error: updateError } = await supabase
         .from('team_settlements')
         .update({
           status: 'rejected',
@@ -156,8 +185,13 @@ export async function POST(request: NextRequest) {
           reviewed_by: operatorName,
           updated_at: now,
         })
-        .eq('id', settlementId);
+        .eq('id', settlementId)
+        .eq('status', 'pending')
+        .select('id');
       if (updateError) throw new Error(updateError.message);
+      if (!updatedRows || updatedRows.length === 0) {
+        return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '该结算单已处理'));
+      }
 
       try {
         invalidateAggregationCache();

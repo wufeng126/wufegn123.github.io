@@ -822,7 +822,7 @@ export default function LimitPricesPage() {
                     className={cn(
                       'rounded-xl border bg-white p-3 shadow-sm',
                       isOverBudget(item) && 'border-red-100 bg-red-50/40',
-                      item.status === '浣滃簾' && 'opacity-60'
+                      item.status === '作废' && 'opacity-60'
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -832,7 +832,7 @@ export default function LimitPricesPage() {
                       </div>
                       <Badge
                         variant={
-                          item.status === '瀹℃牳鐢熸晥' ? 'default' :
+                          item.status === '审核生效' ? 'default' :
                           item.status === '鑽夌' ? 'secondary' : 'destructive'
                         }
                         className="shrink-0"
@@ -868,7 +868,7 @@ export default function LimitPricesPage() {
                         <Eye className="mr-1 h-4 w-4" />
                         查看
                       </Button>
-                      {canManage && item.status !== '浣滃簾' ? (
+                      {canManage && item.status !== '作废' ? (
                         <>
                           <Button variant="outline" size="sm" onClick={() => openEditDialog(item)}>
                             <Edit className="mr-1 h-4 w-4" />

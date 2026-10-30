@@ -236,7 +236,9 @@ export async function sendDailyReportCard(params: {
 /**
  * 回调验签：x-ddpaas-signature = Base64(HmacSHA256(api_secret, x-ddpaas-signature-timestamp))
  *
- * 安全策略：未配置回调密钥时拒绝（防止任何人伪造回调篡改审批状态）；开发环境例外。
+ * 安全策略：
+ * - 未配置回调密钥时拒绝（防止任何人伪造回调篡改审批状态）；开发环境例外。
+ * - 校验时间戳有效期（±5 分钟），防止截获旧请求重放。
  */
 export function verifyDingTalkCardCallbackSignature(headers: Headers): boolean {
   const secret = getDingTalkCardConfig().callbackSecret;
@@ -252,6 +254,15 @@ export function verifyDingTalkCardCallbackSignature(headers: Headers): boolean {
   const timestamp = headers.get('x-ddpaas-signature-timestamp') || '';
   const signature = headers.get('x-ddpaas-signature') || '';
   if (!timestamp || !signature) return false;
+
+  // 时效校验：timestamp 支持秒/毫秒，超出 ±5 分钟视为重放
+  const rawTs = Number(timestamp);
+  if (!Number.isFinite(rawTs)) return false;
+  const tsMs = rawTs < 1e12 ? rawTs * 1000 : rawTs;
+  if (Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) {
+    console.warn('[dingtalk-card] 卡片回调时间戳过期（疑似重放）:', timestamp);
+    return false;
+  }
 
   const expected = crypto.createHmac('sha256', secret).update(timestamp).digest('base64');
   const expectedBuffer = Buffer.from(expected);

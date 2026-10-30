@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
     if (!settlement) return apiNotFound('结算单不存在');
 
     const projectId = Number(settlement.project_id);
-    const hasAccess = await assertProjectAccess(supabase, auth.user, projectId);
-    if (!hasAccess) return apiForbidden('无权操作该项目班组结算');
+    const access = await assertProjectAccess(supabase, auth.user, projectId);
+    if (!access.ok) return apiForbidden('无权操作该项目班组结算');
 
     const currentStatus = String(settlement.status || 'draft');
     const now = new Date().toISOString();
@@ -102,11 +102,17 @@ export async function POST(request: NextRequest) {
       patch.reviewed_by = operatorName;
     }
 
-    const { error: updateError } = await supabase
+    // 乐观锁：仅当状态仍为读取时的状态才更新，防止并发审批/撤回互相覆盖
+    const { data: updatedRows, error: updateError } = await supabase
       .from('team_settlements')
       .update(patch)
-      .eq('id', settlementId);
+      .eq('id', settlementId)
+      .eq('status', currentStatus)
+      .select('id');
     if (updateError) throw new Error(updateError.message);
+    if (!updatedRows || updatedRows.length === 0) {
+      return apiBadRequest('结算单状态已变化（可能已被他人处理），请刷新后重试');
+    }
 
     // 审批通过：生成分账应发工资（失败不阻断审批结果，但记录错误）
     let salaryResult: { created: number; skipped: number; conflicts: number[] } | null = null;

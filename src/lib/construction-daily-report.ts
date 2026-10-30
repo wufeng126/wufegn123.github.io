@@ -45,6 +45,9 @@ type ProgressTaskLite = {
   next_action?: string | null;
 };
 
+/** 日报生成版本：仅在结构变化时递增；版本一致则不再重生成，避免每次请求都重新 AI 生成并重复推送 */
+const DAILY_REPORT_VERSION = 5;
+
 type ConstructionDailyReportRow = {
   id: number;
   report_date: string;
@@ -416,7 +419,7 @@ function applyDailyReportNarrative(
   return {
     ...summary,
     report_type: 'daily_report',
-    report_version: 5,
+    report_version: DAILY_REPORT_VERSION,
     company: {
       ...summary.company,
       narrative: emptySectionText(aiResult?.company?.narrative || fallbackCompany.narrative),
@@ -726,7 +729,7 @@ export async function buildConstructionDailyReportSummary(
   return {
     report_date: reportDate,
     report_type: 'daily_report',
-    report_version: 4,
+    report_version: DAILY_REPORT_VERSION,
     company: {
       total_projects: projectDetails.length,
       submitted_projects: projectDetails.filter(project => project.log_count > 0).length,
@@ -851,7 +854,7 @@ export async function generateConstructionDailyReport(
     if (existingError) throw new Error(existingError.message);
     if (existing) {
       const existingReport = existing as ConstructionDailyReportRow;
-      const needsRegeneration = existingReport.summary?.report_version !== 4;
+      const needsRegeneration = existingReport.summary?.report_version !== DAILY_REPORT_VERSION;
       if (!needsRegeneration) {
         if (push && !existing.pushed_at) {
           return pushReportNotification(supabase, existingReport, existingReport.summary);

@@ -275,7 +275,10 @@ export async function POST(request: NextRequest) {
     const hasAccess = await assertProjectAccess(supabase, auth.user, projectId);
     if (!hasAccess) return apiForbidden('无权维护该项目班组付款');
 
-    const paymentDate = body?.payment_date ? new Date(body.payment_date).toISOString() : new Date().toISOString();
+    // 日期归一：仅接受 YYYY-MM-DD（或取其日期部分），统一存当天 UTC 零点，避免 toISOString 时区偏移少一天
+    const rawPaymentDate = String(body?.payment_date || '').trim();
+    const dateOnly = /^\d{4}-\d{2}-\d{2}/.test(rawPaymentDate) ? rawPaymentDate.slice(0, 10) : '';
+    const paymentDate = dateOnly ? `${dateOnly}T00:00:00Z` : new Date().toISOString();
 
     const { data: paymentRows, error: insertError } = await insertWithSequenceFix('team_settlement_payments', {
       settlement_id: settlementId,

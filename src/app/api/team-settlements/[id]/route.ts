@@ -46,14 +46,20 @@ export async function DELETE(
       return apiBadRequest('只有草稿、已驳回或已提交待审批的结算单可以删除');
     }
 
-    const hasAccess = await assertProjectAccess(supabase, auth.user, Number(settlement.project_id));
-    if (!hasAccess) return apiForbidden('无权删除该项目班组结算');
+    const access = await assertProjectAccess(supabase, auth.user, Number(settlement.project_id));
+    if (!access.ok) return apiForbidden('无权删除该项目班组结算');
 
-    const { error: deleteError } = await supabase
+    // 乐观锁：仅当仍处于校验时的状态才删除，防止与审批并发时误删已生效结算
+    const { data: deletedRows, error: deleteError } = await supabase
       .from('team_settlements')
       .delete()
-      .eq('id', settlementId);
+      .eq('id', settlementId)
+      .eq('status', status)
+      .select('id');
     if (deleteError) throw new Error(deleteError.message);
+    if (!deletedRows || deletedRows.length === 0) {
+      return apiBadRequest('结算单状态已变化（可能已被他人审批），请刷新后重试');
+    }
 
     try {
       invalidateAggregationCache();

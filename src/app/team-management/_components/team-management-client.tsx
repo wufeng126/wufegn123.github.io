@@ -201,7 +201,14 @@ function DeductField({ label, value, onChange, placeholder }: { label: string; v
 }
 
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** 本地当天日期（YYYY-MM-DD），用于日期输入框默认值（避免 toISOString 的 UTC 偏差） */
+function todayISO() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 function toNumber(value: unknown) {
@@ -775,7 +782,7 @@ export function TeamSettlementLedgerPageClient() {
   const [paySettlement, setPaySettlement] = useState<TeamSettlement | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('bank');
-  const [payDate, setPayDate] = useState(currentMonth());
+  const [payDate, setPayDate] = useState(todayISO());
   const [payRemark, setPayRemark] = useState('');
   const [payMessage, setPayMessage] = useState('');
   const [payLoading, setPayLoading] = useState(false);
@@ -947,7 +954,7 @@ export function TeamSettlementLedgerPageClient() {
           settlement_id: paySettlement.id,
           payment_amount: amount,
           method: payMethod,
-          payment_date: payDate ? `${payDate}T00:00:00` : undefined,
+          payment_date: payDate || undefined,
           remark: payRemark || undefined,
         }),
       }));
@@ -1175,7 +1182,7 @@ export function TeamSettlementLedgerPageClient() {
                         </>
                       )}
                       {row.status === 'reviewed' && (
-                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
+                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
                       )}
                       {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
                         <button onClick={() => handleDeleteSettlement(row)} className="text-sm font-medium text-[#F53F3F] hover:underline">删除</button>
@@ -1226,7 +1233,7 @@ export function TeamSettlementLedgerPageClient() {
                   </>
                 )}
                 {row.status === 'reviewed' && (
-                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(currentMonth()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
+                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
                 )}
                 {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
                   <button onClick={() => handleDeleteSettlement(row)} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">删除</button>
@@ -1869,7 +1876,7 @@ export function TeamSettlementDetailPageClient() {
   const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('bank');
-  const [paymentDate, setPaymentDate] = useState(currentMonth());
+  const [paymentDate, setPaymentDate] = useState(todayISO());
   const [paymentRemark, setPaymentRemark] = useState('');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
