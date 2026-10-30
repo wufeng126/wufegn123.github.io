@@ -62,6 +62,7 @@ export type WorkflowSummary = {
   operatingProfitRate?: number;
   paymentRate?: number;
   unreceived?: number;
+  tradeWages?: Record<string, number>;
   projects?: Array<{
     name?: string;
     monthIncome?: number;
@@ -88,6 +89,11 @@ function buildDraft(summary: WorkflowSummary): string {
     ...projects.map(
       (p) => `- ${p.name || '-'}：报量 ${formatWan(p.monthIncome)}，工人工资 ${formatWan(p.monthLaborSalaryCost)}（实发 ${formatWan(p.monthSalaryPaid)}），班组结算 ${formatWan(p.monthTeamSettlementCost)}`,
     ),
+    '',
+    '各工种工资：',
+    ...Object.entries(summary.tradeWages || {})
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .map(([type, amount]) => `- ${type}：${formatWan(Number(amount))}`),
     '',
     '成本异常说明：（待补充）',
     '对上下游变化：（待补充）',

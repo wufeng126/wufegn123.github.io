@@ -29,6 +29,7 @@ export interface ProjectData {
   monthSalaryPaid: number;
   monthLaborSalaryCost: number;
   monthTeamSettlementCost: number;
+  tradeWages?: Record<string, number>;
   monthSupplierSettlement: number;
   monthExpenseCost: number;
   monthMaterialCost: number;

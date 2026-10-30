@@ -58,6 +58,7 @@ interface ProjectItem {
   monthCost: number;
   monthIncome: number; monthSalaryCost: number; monthSalaryPaid: number;
   monthLaborSalaryCost: number; monthTeamSettlementCost: number;
+  tradeWages?: Record<string, number>;
   profit: number; profitRate: number;
   cumulativeIncome: number; cumulativeCost: number;
   cumulativeProfit: number; cumulativeProfitRate: number;
@@ -579,6 +580,12 @@ export default function MonthlyReportPage() {
               operatingProfitRate: ov.operatingProfitRate,
               paymentRate: ov.paymentRate,
               unreceived: ov.unreceived,
+              tradeWages: projectList.reduce<Record<string, number>>((acc, project) => {
+                Object.entries(project.tradeWages || {}).forEach(([type, amount]) => {
+                  acc[type] = Math.round(((acc[type] || 0) + Number(amount || 0)) * 100) / 100;
+                });
+                return acc;
+              }, {}),
               projects: projectList.map((project) => ({
                 name: project.name,
                 monthIncome: project.monthIncome,

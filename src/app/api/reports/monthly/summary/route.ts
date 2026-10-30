@@ -435,6 +435,17 @@ export async function GET(request: NextRequest) {
       const teamSettlementCost = teamSettlementCostByProject.get(pid)?.month || 0;
       const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + teamSettlementCost;
       const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)));
+      // 工种工资拆分（按工人 work_type 汇总当月应发）
+      const workerTypeMap = new Map<number, string>();
+      projWorkers.forEach((w: Record<string, unknown>) => {
+        workerTypeMap.set(Number(w.id), String(w.work_type || '未分类'));
+      });
+      const tradeWages: Record<string, number> = {};
+      projSalaries.forEach((s: Record<string, unknown>) => {
+        const type = workerTypeMap.get(Number(s.worker_id)) || '未分类';
+        tradeWages[type] = Math.round(((tradeWages[type] || 0) + Number(s.gross_pay || 0)) * 100) / 100;
+      });
+
       const expenseCost = safeSum(projExpenses.map((e: Record<string, unknown>) => Number(e.amount || 0)));
       const materialCost = safeSum(
         projMaterials.map((m: Record<string, unknown>) => (
@@ -546,7 +557,7 @@ export async function GET(request: NextRequest) {
         unreceived, overReceived, paymentRate,
         supplierCost, salaryCost, salaryPaid, unpaidSalary,
         expenseCost, materialCost, taxCost, totalCost,
-        monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthLaborSalaryCost: safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))), monthTeamSettlementCost, monthSupplierSettlement, monthExpenseCost,
+        monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthLaborSalaryCost: safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))), monthTeamSettlementCost, tradeWages, monthSupplierSettlement, monthExpenseCost,
         monthMaterialCost, monthTaxCost, monthCost, monthSupplierPayments,
         profit: monthIncome - monthCost,
         profitRate: monthIncome > 0 ? ((monthIncome - monthCost) / monthIncome) * 100 : 0,
