@@ -202,6 +202,7 @@ export async function sendDailyReportCard(params: {
   };
 
   let sent = 0;
+  let lastError = '';
   for (const userId of receivers) {
     try {
       const response = await fetch('https://api.dingtalk.com/v1.0/im/interactiveCards/instances', {
@@ -223,14 +224,22 @@ export async function sendDailyReportCard(params: {
       if (response.ok && !json?.code) {
         sent += 1;
       } else {
+        lastError = String(
+          json?.message || json?.code || `HTTP ${response.status}`,
+        );
         console.warn('[dingtalk-card] 日报卡片发送失败', { userId, json });
       }
     } catch (error) {
+      lastError = error instanceof Error ? error.message : '请求异常';
       console.warn('[dingtalk-card] 日报卡片发送异常', userId, error);
     }
   }
 
-  return { success: sent > 0, sent };
+  return {
+    success: sent > 0,
+    sent,
+    message: sent > 0 ? undefined : (lastError || '卡片发送失败'),
+  };
 }
 
 /**
