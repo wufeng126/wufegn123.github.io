@@ -220,6 +220,27 @@ export async function POST(request: NextRequest) {
         return apiBadRequest('请先填写经营分析再提交');
       }
     }
+
+    // 按项目指定负责人校验：只有该项目预算员可提交、项目经理可补充（超管/老板例外）
+    if ((action === 'submit_manager' || action === 'supplement') && scope !== 'all') {
+      const { data: ownerRow } = await client
+        .from('projects')
+        .select('budget_user_id, manager_user_id')
+        .eq('id', Number(scope))
+        .maybeSingle();
+      const isSuper = Boolean(auth.user.is_super_admin) || auth.user.role === 'boss';
+      if (action === 'submit_manager') {
+        const budgetUserId = Number(ownerRow?.budget_user_id) || 0;
+        if (budgetUserId > 0 && Number(auth.user.id) !== budgetUserId && !isSuper) {
+          return apiForbidden('只有该项目指定的预算员可以提交月报');
+        }
+      } else {
+        const managerUserId = Number(ownerRow?.manager_user_id) || 0;
+        if (managerUserId > 0 && Number(auth.user.id) !== managerUserId && !isSuper) {
+          return apiForbidden('只有该项目指定的项目经理可以补充提交');
+        }
+      }
+    }
     if (action === 'supplement' && currentStatus !== 'pending_manager') {
       return apiBadRequest('只有待项目经理补充状态可以补充提交');
     }
