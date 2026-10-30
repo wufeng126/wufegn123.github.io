@@ -130,6 +130,11 @@ type ImportApiResult = {
 };
 
 // ============ 工具函数 ============
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const formatCurrency = (value: number | null | undefined) => {
   if (value == null) return '¥0.00';
   return `¥${Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -200,6 +205,7 @@ export default function SettlementPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // 筛选状态
   const [filterProject, setFilterProject] = useState<string>(() => searchParams.get('project_id') || 'all');
@@ -307,7 +313,7 @@ export default function SettlementPage() {
     contract_id: '',
     settlement_type: 'progress' as 'progress' | 'final',
     settlement_amount: '',
-    settlement_date: new Date().toISOString().split('T')[0],
+    settlement_date: localToday(),
     remark: '',
   });
 
@@ -407,6 +413,7 @@ export default function SettlementPage() {
 
   const fetchSettlements = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (filterProject !== 'all') params.set('project_id', filterProject);
@@ -415,13 +422,16 @@ export default function SettlementPage() {
       if (filterType !== 'all') params.set('settlement_type', filterType);
 
       const res = await fetch(`/api/supplier-contracts/settlements?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSettlements(data.settlements || []);
-        setStats(data.summary || null);
+      if (!res.ok) {
+        throw new Error(`结算数据加载失败（${res.status}）`);
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      const data = await res.json();
+      setSettlements(data.settlements || []);
+      setStats(data.summary || null);
+    } catch (e) {
+      console.error(e);
+      setLoadError(e instanceof Error ? e.message : '结算数据加载失败，请重试');
+    } finally { setLoading(false); }
   }, [filterProject, filterSupplier, filterContract, filterType]);
 
   useEffect(() => {
@@ -540,7 +550,7 @@ export default function SettlementPage() {
       setSettlementDialogOpen(false);
       setSettlementForm({
         supplier_id: '', contract_id: '', settlement_type: 'progress',
-        settlement_amount: '', settlement_date: new Date().toISOString().split('T')[0], remark: '',
+        settlement_amount: '', settlement_date: localToday(), remark: '',
       });
       fetchSettlements();
       fetchContracts();
@@ -763,7 +773,7 @@ export default function SettlementPage() {
               contract_id: '',
               settlement_type: 'progress',
               settlement_amount: '',
-              settlement_date: new Date().toISOString().split('T')[0],
+              settlement_date: localToday(),
               remark: '',
             });
             setSettlementDialogOpen(true);
@@ -943,6 +953,13 @@ export default function SettlementPage() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={12} className="text-center py-8">加载中...</TableCell></TableRow>
+                ) : loadError ? (
+                  <TableRow>
+                    <TableCell colSpan={12} className="py-8 text-center text-red-500">
+                      {loadError}
+                      <button type="button" onClick={() => fetchSettlements()} className="ml-2 underline">重试</button>
+                    </TableCell>
+                  </TableRow>
                 ) : filteredSettlements.length === 0 ? (
                   <TableRow><TableCell colSpan={12} className="text-center py-8">暂无数据</TableCell></TableRow>
                 ) : (

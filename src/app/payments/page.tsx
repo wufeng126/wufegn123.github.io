@@ -87,6 +87,11 @@ const formatCurrency = (value: number | string | null | undefined) => {
 };
 
 // L8 修复：金额加 Number.isFinite 兜底，避免异常值显示"NaN万"
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const formatWan = (value: number | string | null | undefined) => {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (num == null || !Number.isFinite(num)) return '-';
@@ -145,6 +150,7 @@ export default function PaymentsPage() {
   const canDeletePayment = hasAnyPermission(['supplier_payments:delete', 'supplier_payments:edit']);
   const newPaymentQueryAppliedRef = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -169,7 +175,7 @@ export default function PaymentsPage() {
     contract_id: '',
     settlement_ids: [] as string[],
     amount: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: localToday(),
     payment_type: 'progress',
     payment_method: '银行转账',
     remark: '',
@@ -301,6 +307,7 @@ export default function PaymentsPage() {
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (filterProject !== 'all') params.set('project_id', filterProject);
@@ -308,12 +315,14 @@ export default function PaymentsPage() {
       if (filterContract !== 'all') params.set('contract_id', filterContract);
       if (filterSettlement !== 'all') params.set('settlement_id', filterSettlement);
       const res = await authFetch(`/api/supplier-contracts/payments?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPayments(data.payments || []);
+      if (!res.ok) {
+        throw new Error(`付款数据加载失败（${res.status}）`);
       }
+      const data = await res.json();
+      setPayments(data.payments || []);
     } catch (error) {
       console.error(error);
+      setLoadError(error instanceof Error ? error.message : '付款数据加载失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -387,7 +396,7 @@ export default function PaymentsPage() {
         ? [String(settlement.id)]
         : [],
       amount: '',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: localToday(),
       payment_type: normalizeSupplierPaymentType(settlement?.settlement_type),
       payment_method: '银行转账',
       remark: settlement?.settlement_no ? `关联结算单：${settlement.settlement_no}` : '',
@@ -404,12 +413,12 @@ export default function PaymentsPage() {
         const date = formatDate(payment.payment_date);
         const now = new Date();
         if (filterPeriod === 'month') {
-          if (!date.startsWith(now.toISOString().slice(0, 7))) return false;
+          if (!date.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`)) return false;
         } else if (filterPeriod === 'quarter') {
           const start = new Date(now);
           start.setMonth(start.getMonth() - 2);
           start.setDate(1);
-          if (date < start.toISOString().slice(0, 10)) return false;
+          if (date < `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-01`) return false;
         } else if (filterPeriod === 'year') {
           if (!date.startsWith(String(now.getFullYear()))) return false;
         }
@@ -436,7 +445,8 @@ export default function PaymentsPage() {
     const linkedAmount = effectiveRows
       .filter((payment) => payment.settlement_id)
       .reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
-    const thisMonth = new Date().toISOString().slice(0, 7);
+    const nowDate = new Date();
+    const thisMonth = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, "0")}`;
     const monthAmount = effectiveRows
       .filter((payment) => formatDate(payment.payment_date).startsWith(thisMonth))
       .reduce((sum, payment) => sum + Number(payment.payment_amount || 0), 0);
@@ -455,7 +465,7 @@ export default function PaymentsPage() {
       contract_id: '',
       settlement_ids: [],
       amount: '',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: localToday(),
       payment_type: 'progress',
       payment_method: '银行转账',
       remark: '',
@@ -637,7 +647,7 @@ export default function PaymentsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `供应商付款台账_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `供应商付款台账_${localToday()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('导出成功');
@@ -833,6 +843,13 @@ export default function PaymentsPage() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={10} className="py-8 text-center">加载中...</TableCell></TableRow>
+                ) : loadError ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="py-8 text-center text-red-500">
+                      {loadError}
+                      <button type="button" onClick={() => fetchPayments()} className="ml-2 underline">重试</button>
+                    </TableCell>
+                  </TableRow>
                 ) : filteredData.length === 0 ? (
                   <TableRow><TableCell colSpan={10} className="py-8 text-center">暂无付款记录</TableCell></TableRow>
                 ) : (
