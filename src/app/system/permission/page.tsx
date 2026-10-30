@@ -329,6 +329,8 @@ export default function PermissionCenterPage() {
     level: 10,
   });
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [permissionSearch, setPermissionSearch] = useState('');
+  const [onlySelectedPermissions, setOnlySelectedPermissions] = useState(false);
   const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
   const [expandedModules, setExpandedModules] = useState<string[]>(['projects']);
   
@@ -1267,7 +1269,20 @@ export default function PermissionCenterPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>权限配置</Label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    value={permissionSearch}
+                    onChange={(e) => setPermissionSearch(e.target.value)}
+                    placeholder="搜索权限名称…"
+                    className="h-8 w-40 text-xs"
+                  />
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={onlySelectedPermissions}
+                      onCheckedChange={(checked) => setOnlySelectedPermissions(!!checked)}
+                    />
+                    只看已选
+                  </label>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1287,34 +1302,43 @@ export default function PermissionCenterPage() {
                   </Button>
                 </div>
               </div>
-              <div className="border rounded-lg max-h-64 overflow-y-auto">
-                {PERMISSION_MENU.map((module) => (
-                  <div key={module.code} className="border-b last:border-b-0">
-                    <div className="flex items-center gap-3 p-2 bg-gray-50">
-                      <Checkbox
-                        checked={isModuleAllChecked(module)}
-                        ref={(el) => {
-                          if (el) {
-                            (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = isModuleIndeterminate(module);
-                          }
-                        }}
-                        onCheckedChange={(checked) => toggleModulePermissions(module, !!checked)}
-                      />
-                      <span className="font-medium text-sm">{module.icon} {module.name}</span>
+              <div className="border rounded-lg max-h-72 overflow-y-auto">
+                {PERMISSION_MENU.map((module) => {
+                  const keyword = permissionSearch.trim().toLowerCase();
+                  const children = module.children.filter((perm) => {
+                    if (onlySelectedPermissions && !selectedPermissions.includes(perm.code)) return false;
+                    if (keyword && !perm.name.toLowerCase().includes(keyword)) return false;
+                    return true;
+                  });
+                  if (children.length === 0) return null;
+                  return (
+                    <div key={module.code} className="border-b last:border-b-0">
+                      <div className="flex items-center gap-3 p-2 bg-gray-50">
+                        <Checkbox
+                          checked={isModuleAllChecked(module)}
+                          ref={(el) => {
+                            if (el) {
+                              (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = isModuleIndeterminate(module);
+                            }
+                          }}
+                          onCheckedChange={(checked) => toggleModulePermissions(module, !!checked)}
+                        />
+                        <span className="font-medium text-sm">{module.icon} {module.name}</span>
+                      </div>
+                      <div className="p-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                        {children.map((perm) => (
+                          <div key={perm.code} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded">
+                            <Checkbox
+                              checked={selectedPermissions.includes(perm.code)}
+                              onCheckedChange={(checked) => togglePermission(perm.code, !!checked)}
+                            />
+                            <span className="text-sm">{perm.name}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="p-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                      {module.children.map((perm) => (
-                        <div key={perm.code} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded">
-                          <Checkbox
-                            checked={selectedPermissions.includes(perm.code)}
-                            onCheckedChange={(checked) => togglePermission(perm.code, !!checked)}
-                          />
-                          <span className="text-sm">{perm.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <p className="text-sm text-gray-500">
                 已选择 {selectedPermissions.length} 个权限。需要取消模板里的权限时，直接取消对应勾选后保存。
