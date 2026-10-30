@@ -332,6 +332,22 @@ function ConstructionDailyReportsPageContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        const user = json?.user || json?.data;
+        setIsSuperAdmin(user?.role === 'super_admin');
+      })
+      .catch(() => {
+        // 获取失败按无权限处理（后端仍会校验）
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const loadReport = useCallback(async (targetDate: string) => {
     setLoading(true);
@@ -475,15 +491,17 @@ function ConstructionDailyReportsPageContent() {
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 重新生成
               </button>
-              <button
-                type="button"
-                onClick={refreshAndPush}
-                disabled={refreshing || loading}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/30 bg-white px-4 text-sm font-semibold text-primary shadow-sm transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                推送日报
-              </button>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={refreshAndPush}
+                  disabled={refreshing || loading}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/30 bg-white px-4 text-sm font-semibold text-primary shadow-sm transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  推送日报
+                </button>
+              )}
             </div>
           </div>
         </header>

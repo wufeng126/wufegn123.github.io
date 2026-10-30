@@ -10,12 +10,12 @@ async function authorizeGenerate(request: NextRequest) {
   const requestSecret = request.headers.get('x-cron-secret') || request.nextUrl.searchParams.get('secret');
 
   if (configuredSecret && requestSecret && requestSecret === configuredSecret) {
-    return { ok: true as const };
+    return { ok: true as const, via: 'secret' as const };
   }
 
   const auth = await requireApiWritePermission(request);
   if (!auth.ok) return { ok: false as const, response: auth.response };
-  return { ok: true as const };
+  return { ok: true as const, via: 'user' as const, user: auth.user };
 }
 
 export async function POST(request: NextRequest) {
@@ -27,6 +27,11 @@ export async function POST(request: NextRequest) {
     const reportDate = body.date || request.nextUrl.searchParams.get('date') || getDefaultDailyReportDate();
     const force = Boolean(body.force || request.nextUrl.searchParams.get('force') === '1');
     const shouldPush = body.push !== false && request.nextUrl.searchParams.get('push') !== '0';
+
+    // 推送动作仅限超级管理员（定时任务用 secret 调用不受限）
+    if (shouldPush && auth.via === 'user' && !auth.user?.is_super_admin) {
+      return apiForbidden('只有超级管理员可以推送日报');
+    }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) {
       return apiBadRequest('日报日期格式不正确');
