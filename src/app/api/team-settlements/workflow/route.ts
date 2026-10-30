@@ -19,13 +19,14 @@ import { isDingTalkCardConfigured, sendTeamSettlementApprovalCard } from '@/lib/
 /**
  * 班组结算审批流转
  * POST /api/team-settlements/workflow
- * body: { settlement_id, action: 'submit' | 'withdraw' | 'approve' | 'reject', reason? }
+ * body: { settlement_id, action: 'submit' | 'withdraw' | 'approve' | 'reject' | 'unapprove', reason? }
  *
  * - submit   ：预算员提交审批（draft / rejected → pending），需 team_settlements:submit
  * - withdraw ：预算员撤回（pending → draft），需 team_settlements:submit
  * - approve  ：老板审批通过（pending → reviewed），需 team_settlements:approve（仅超管/老板）
  *              通过后生成分账应发工资并计入成本
  * - reject   ：老板驳回（pending → rejected），需 team_settlements:approve，必须填驳回原因
+ * - unapprove：老板反审核（reviewed → pending），需 team_settlements:approve，同时撤销该结算生成的工资
  */
 export async function POST(request: NextRequest) {
   try {
@@ -37,12 +38,12 @@ export async function POST(request: NextRequest) {
     if (!Number.isInteger(settlementId) || settlementId <= 0) {
       return apiBadRequest('结算单ID无效');
     }
-    if (!['submit', 'withdraw', 'approve', 'reject'].includes(action)) {
+    if (!['submit', 'withdraw', 'approve', 'reject', 'unapprove'].includes(action)) {
       return apiBadRequest('不支持的操作');
     }
 
-    // 权限：提交/撤回需 submit；审批/驳回需 approve（老板/超管）
-    const requiredPermission = action === 'approve' || action === 'reject'
+    // 权限：提交/撤回需 submit；审批/驳回/反审核需 approve（老板/超管）
+    const requiredPermission = action === 'approve' || action === 'reject' || action === 'unapprove'
       ? 'team_settlements:approve'
       : 'team_settlements:submit';
     const auth = await requirePermission(request, requiredPermission);
@@ -76,6 +77,9 @@ export async function POST(request: NextRequest) {
     if ((action === 'approve' || action === 'reject') && currentStatus !== 'pending') {
       return apiBadRequest('只有待审批的结算单可以审批');
     }
+    if (action === 'unapprove' && currentStatus !== 'reviewed') {
+      return apiBadRequest('只有已审批通过的结算单可以反审核');
+    }
     if (action === 'reject' && !reason) {
       return apiBadRequest('请填写驳回原因');
     }
@@ -95,6 +99,10 @@ export async function POST(request: NextRequest) {
       patch.status = 'reviewed';
       patch.reviewed_at = now;
       patch.reviewed_by = operatorName;
+    } else if (action === 'unapprove') {
+      patch.status = 'pending';
+      patch.reviewed_at = null;
+      patch.reviewed_by = null;
     } else {
       patch.status = 'rejected';
       patch.reject_reason = reason;
@@ -141,7 +149,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 失效聚合缓存（审批通过后成本口径变化）
+    // 反审核：撤销该结算单生成的分账应发工资（被生活费核对引用时保留并告警，避免破坏下游）
+    let revokedSalaryCount = 0;
+    if (action === 'unapprove') {
+      const { data: salaryRows } = await supabase
+        .from('worker_salaries')
+        .select('id')
+        .eq('settlement_id', settlementId);
+      const salaryIds = (salaryRows || []).map((row: { id?: unknown }) => Number(row.id)).filter(Boolean);
+      if (salaryIds.length > 0) {
+        const { data: referenced } = await supabase
+          .from('living_allowance_receipt_items')
+          .select('id')
+          .in('matched_salary_id', salaryIds)
+          .limit(1);
+        if (referenced && referenced.length > 0) {
+          console.warn(`[team-settlement-workflow] 结算单 #${settlementId} 反审核：分账工资已被生活费核对引用，未删除，请人工核对`);
+        } else {
+          const { error: deleteSalaryError } = await supabase
+            .from('worker_salaries')
+            .delete()
+            .in('id', salaryIds);
+          if (deleteSalaryError) {
+            console.error(`[team-settlement-workflow] 反审核撤销分账工资失败 settlementId=${settlementId}:`, deleteSalaryError);
+          } else {
+            revokedSalaryCount = salaryIds.length;
+          }
+        }
+      }
+    }
+
+    // 失效聚合缓存（审批通过/反审核后成本口径变化）
     try {
       invalidateAggregationCache();
     } catch {
@@ -220,15 +258,18 @@ export async function POST(request: NextRequest) {
             console.error('[team-settlement-workflow] 发送互动卡片异常:', cardError);
           }
         }
-      } else if (action === 'approve' || action === 'reject') {
+      } else if (action === 'approve' || action === 'reject' || action === 'unapprove') {
         // 审批结果 → 通知提交人（预算员）
         const creatorId = Number(settlement.created_by);
+        const actionLabel = action === 'approve' ? '已通过' : action === 'reject' ? '被驳回' : '被反审核退回';
         await pushBusinessNotification({
-          type: action === 'approve' ? 'team_settlement_approved' : 'team_settlement_rejected',
-          title: `班组结算${action === 'approve' ? '已通过' : '被驳回'}：${settlement.settlement_no || `#${settlementId}`}`,
+          type: action === 'approve' ? 'team_settlement_approved' : action === 'reject' ? 'team_settlement_rejected' : 'team_settlement_unapproved',
+          title: `班组结算${actionLabel}：${settlement.settlement_no || `#${settlementId}`}`,
           content: action === 'approve'
             ? `${settlement.settlement_month} 班组结算单已审批通过并计入成本。`
-            : `${settlement.settlement_month} 班组结算单被驳回：${reason}`,
+            : action === 'reject'
+              ? `${settlement.settlement_month} 班组结算单被驳回：${reason}`
+              : `${settlement.settlement_month} 班组结算单已被老板反审核，退回待审批状态，请核对后重新提交。`,
           severity: action === 'approve' ? 'info' : 'warning',
           projectId,
           relatedId: settlementId,
@@ -258,6 +299,7 @@ export async function POST(request: NextRequest) {
         settlement_no: settlement.settlement_no,
         settlement_month: settlement.settlement_month,
         generated_salary: salaryResult || undefined,
+        revoked_salary_count: revokedSalaryCount || undefined,
       },
       request,
     });
@@ -266,6 +308,7 @@ export async function POST(request: NextRequest) {
       settlement_id: settlementId,
       status: patch.status,
       generated_salary: salaryResult,
+      revoked_salary_count: revokedSalaryCount,
     });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '班组结算审批操作失败'));

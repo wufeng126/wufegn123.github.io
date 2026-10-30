@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
@@ -411,7 +411,10 @@ export default function SettlementPage() {
     }
   };
 
+  // 请求序号：快速切换筛选时丢弃过期响应，避免旧数据覆盖新结果
+  const requestSeqRef = useRef(0);
   const fetchSettlements = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -426,12 +429,14 @@ export default function SettlementPage() {
         throw new Error(`结算数据加载失败（${res.status}）`);
       }
       const data = await res.json();
+      if (seq !== requestSeqRef.current) return;
       setSettlements(data.settlements || []);
       setStats(data.summary || null);
     } catch (e) {
+      if (seq !== requestSeqRef.current) return;
       console.error(e);
       setLoadError(e instanceof Error ? e.message : '结算数据加载失败，请重试');
-    } finally { setLoading(false); }
+    } finally { if (seq === requestSeqRef.current) setLoading(false); }
   }, [filterProject, filterSupplier, filterContract, filterType]);
 
   useEffect(() => {

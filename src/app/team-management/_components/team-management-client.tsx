@@ -880,17 +880,24 @@ export function TeamSettlementLedgerPageClient() {
     ? settlements.filter((row) => (row.status || 'draft') === statusFilter)
     : settlements;
 
-  async function handleSettlementWorkflow(settlement: TeamSettlement, action: 'submit' | 'withdraw' | 'approve') {
-    if (action === 'approve' && !window.confirm(`确认审批通过结算单 ${settlement.settlement_no || `#${settlement.id}`}？通过后将计入成本并生成分账应发工资，不可直接撤销`)) return;
+  async function handleSettlementWorkflow(settlement: TeamSettlement, action: 'submit' | 'withdraw' | 'approve' | 'unapprove') {
+    if (action === 'approve' && !window.confirm(`确认审批通过结算单 ${settlement.settlement_no || `#${settlement.id}`}？通过后将计入成本并生成分账应发工资`)) return;
+    if (action === 'unapprove' && !window.confirm(`确认反审核结算单 ${settlement.settlement_no || `#${settlement.id}`}？将退回待审批状态，并撤销该结算生成的分账工资`)) return;
     setMessage('');
     try {
-      await readJson(await fetch('/api/team-settlements/workflow', {
+      const json = await readJson(await fetch('/api/team-settlements/workflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ settlement_id: settlement.id, action }),
       }));
-      setMessage(action === 'submit' ? '已提交审批' : action === 'approve' ? '审批通过，已计入成本' : '已撤回');
+      const revoked = Number((json as { revoked_salary_count?: number })?.revoked_salary_count || 0);
+      setMessage(
+        action === 'submit' ? '已提交审批'
+          : action === 'approve' ? '审批通过，已计入成本'
+          : action === 'unapprove' ? `已反审核，退回待审批${revoked > 0 ? `（已撤销 ${revoked} 条分账工资）` : ''}`
+          : '已撤回',
+      );
       await reload();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '操作失败');
@@ -1182,6 +1189,9 @@ export function TeamSettlementLedgerPageClient() {
                           <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="text-sm font-medium text-[#F53F3F] hover:underline">驳回</button>
                         </>
                       )}
+                      {row.status === 'reviewed' && canApproveSettlement && (
+                        <button onClick={() => handleSettlementWorkflow(row, 'unapprove')} className="text-sm font-medium text-[#86909C] hover:underline">反审核</button>
+                      )}
                       {row.status === 'reviewed' && (
                         <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
                       )}
@@ -1232,6 +1242,9 @@ export function TeamSettlementLedgerPageClient() {
                     <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A]">通过</button>
                     <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">驳回</button>
                   </>
+                )}
+                {row.status === 'reviewed' && canApproveSettlement && (
+                  <button onClick={() => handleSettlementWorkflow(row, 'unapprove')} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#86909C]">反审核</button>
                 )}
                 {row.status === 'reviewed' && (
                   <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>

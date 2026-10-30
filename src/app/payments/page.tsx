@@ -305,7 +305,10 @@ export default function PaymentsPage() {
     }
   }, []);
 
+  // 请求序号：快速切换筛选时丢弃过期响应，避免旧数据覆盖新结果
+  const requestSeqRef = useRef(0);
   const fetchPayments = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -319,12 +322,14 @@ export default function PaymentsPage() {
         throw new Error(`付款数据加载失败（${res.status}）`);
       }
       const data = await res.json();
+      if (seq !== requestSeqRef.current) return;
       setPayments(data.payments || []);
     } catch (error) {
+      if (seq !== requestSeqRef.current) return;
       console.error(error);
       setLoadError(error instanceof Error ? error.message : '付款数据加载失败，请重试');
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
   }, [filterProject, filterSupplier, filterContract, filterSettlement]);
 
