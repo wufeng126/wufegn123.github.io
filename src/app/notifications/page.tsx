@@ -659,17 +659,24 @@ export default function NotificationsPage() {
     setChecking(true);
     try {
       const res = await fetch('/api/notifications/check?force=true');
-      const data = await res.json();
-      if (data.success) {
-        toast({
-          title: '检测完成',
-          description: `发现 ${data.totalNotifications} 条新通知`,
-          variant: 'success',
-        });
-        fetchData();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(
+          data.error || `检测失败（HTTP ${res.status}）`,
+        );
       }
+      toast({
+        title: '检测完成',
+        description: `发现 ${data.totalNotifications ?? 0} 条新通知`,
+        variant: 'success',
+      });
+      fetchData();
     } catch (error) {
-      toast({ title: '检测失败', variant: 'error' });
+      toast({
+        title: '检测失败',
+        description: error instanceof Error ? error.message : '请稍后重试',
+        variant: 'error',
+      });
     } finally {
       setChecking(false);
     }
