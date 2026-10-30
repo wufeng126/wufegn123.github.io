@@ -813,6 +813,7 @@ export function TeamSettlementLedgerPageClient() {
   const canSubmitSettlement = isSuperAdmin || permissions.includes('team_settlements:submit');
   const canApproveSettlement = isSuperAdmin || permissions.includes('team_settlements:approve');
   const canDeleteSettlement = isSuperAdmin || permissions.includes('team_settlements:delete');
+  const canEditSettlement = isSuperAdmin || permissions.includes('team_settlements:edit');
 
   const loadGroups = useCallback(async () => {
     const params = new URLSearchParams();
@@ -1177,6 +1178,9 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-center">
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                      {(['draft', 'rejected'].includes(row.status || 'draft')) && canEditSettlement && (
+                        <Link href={`/team-management/settlements/${row.id}/edit`} className="text-sm font-medium text-[#165DFF] hover:underline">编辑</Link>
+                      )}
                       {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
                         <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="text-sm font-medium text-[#722ED1] hover:underline">提交审批</button>
                       )}
@@ -1233,6 +1237,9 @@ export function TeamSettlementLedgerPageClient() {
                 <Link href={`/team-management/settlements/${row.id}`} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-sm font-medium text-[#165DFF]">查看详情</Link>
                 {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
                   <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="inline-flex h-9 items-center rounded-md border border-[#722ED1] bg-white px-3 text-sm font-medium text-[#722ED1]">提交审批</button>
+                )}
+                {(['draft', 'rejected'].includes(row.status || 'draft')) && canEditSettlement && (
+                  <Link href={`/team-management/settlements/${row.id}/edit`} className="inline-flex h-9 items-center rounded-md border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF]">编辑</Link>
                 )}
                 {row.status === 'pending' && canSubmitSettlement && (
                   <button onClick={() => handleSettlementWorkflow(row, 'withdraw')} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#86909C]">撤回</button>
@@ -1329,7 +1336,7 @@ export function TeamSettlementLedgerPageClient() {
   );
 }
 
-export function TeamSettlementNewPageClient() {
+export function TeamSettlementNewPageClient({ editSettlementId }: { editSettlementId?: number } = {}) {
   const router = useRouter();
   const { projects, projectMessage } = useProjects();
   const [groups, setGroups] = useState<TeamGroup[]>([]);
@@ -1361,6 +1368,52 @@ export function TeamSettlementNewPageClient() {
   useEffect(() => {
     setProjectId((current) => current || (projects[0]?.id ? String(projects[0].id) : ''));
   }, [projects]);
+
+  // 编辑模式：加载结算单并预填表单（仅草稿/已驳回可编辑，后端会再次校验状态）
+  const isEditMode = Boolean(editSettlementId && editSettlementId > 0);
+  useEffect(() => {
+    if (!isEditMode || !editSettlementId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const json = await readJson(await fetch(`/api/team-settlements?id=${encodeURIComponent(String(editSettlementId))}`, { credentials: 'include' }));
+        const row = Array.isArray(json.data?.settlements) ? json.data.settlements[0] : null;
+        if (!row) throw new Error('未找到该结算单');
+        if (cancelled) return;
+        setProjectId(String(row.project_id || ''));
+        setTeamId(String(row.team_id || ''));
+        setMonth(String(row.settlement_month || currentMonth()));
+        setRemark(String(row.remark || ''));
+        setDeductAdvance(row.advance_deduct != null ? String(row.advance_deduct) : '');
+        setDeductLaborInsurance(row.labor_insurance_deduct != null ? String(row.labor_insurance_deduct) : '');
+        setDeductHelper(row.helper_deduct != null ? String(row.helper_deduct) : '');
+        setDeductSafetyFund(row.safety_fund_deduct != null ? String(row.safety_fund_deduct) : '');
+        setPaymentRatio(String(row.payment_ratio ?? 100));
+        setAttachments(Array.isArray(row.attachments) ? row.attachments : []);
+        const items = Array.isArray(row.items) ? row.items : [];
+        setQuantityRows(items.length > 0
+          ? items.map((item: { content?: unknown; unit?: unknown; quantity?: unknown; unit_price?: unknown }) => ({
+              rowId: createRowId(),
+              content: String(item.content || ''),
+              unit: String(item.unit || ''),
+              quantity: String(item.quantity ?? ''),
+              unit_price: String(item.unit_price ?? ''),
+            }))
+          : [newQuantityRow()]);
+        const splits = Array.isArray(row.splits) ? row.splits : [];
+        setSplitRows(splits.length > 0
+          ? splits.map((split: { worker_id?: unknown; amount?: unknown }) => ({
+              rowId: createRowId(),
+              worker_id: String(split.worker_id ?? ''),
+              amount: String(split.amount ?? ''),
+            }))
+          : [newSplitRow()]);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : '结算单加载失败');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isEditMode, editSettlementId]);
 
   const selectedProjectId = Number(projectId) || null;
   const selectedTeamId = Number(teamId) || null;
@@ -1562,13 +1615,16 @@ export function TeamSettlementNewPageClient() {
     setSaving(true);
     setMessage('');
     try {
-      const json = await readJson(await fetch('/api/team-settlements', {
-        method: 'POST',
+      const url = isEditMode && editSettlementId ? `/api/team-settlements/${editSettlementId}` : '/api/team-settlements';
+      const json = await readJson(await fetch(url, {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, attachments, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }),
+        body: JSON.stringify(isEditMode
+          ? { settlement_month: month, remark, items, splits, attachments, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }
+          : { project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, attachments, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }),
       }));
-      const settlementId = json.data?.settlement?.id;
+      const settlementId = isEditMode ? editSettlementId : json.data?.settlement?.id;
       if (settlementId) router.push(`/team-management/settlements/${settlementId}`);
       else router.push('/team-management/settlements');
     } catch (error) {
@@ -1582,8 +1638,8 @@ export function TeamSettlementNewPageClient() {
     <PageShell>
       <Header
         eyebrow="班组管理"
-        title="新增班组结算单"
-        description="上部录结算内容、工程量和单价；下部分账自动带出施工日志考勤工时。"
+        title={isEditMode ? '编辑班组结算单' : '新增班组结算单'}
+        description={isEditMode ? '修改结算内容、扣款与分账后保存；分账自动带出施工日志考勤工时。' : '上部录结算内容、工程量和单价；下部分账自动带出施工日志考勤工时。'}
         action={(
           <>
             <Link href="/team-management/settlements" className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
@@ -1592,7 +1648,7 @@ export function TeamSettlementNewPageClient() {
             </Link>
             <button onClick={() => void createSettlement()} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              保存为草稿
+              {isEditMode ? '保存修改' : '保存为草稿'}
             </button>
           </>
         )}
