@@ -52,16 +52,62 @@ function formatTime(value?: string | null): string {
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+export type WorkflowSummary = {
+  monthIncome?: number;
+  laborSalary?: number;
+  salaryPaid?: number;
+  teamSettlement?: number;
+  monthCost?: number;
+  operatingProfit?: number;
+  operatingProfitRate?: number;
+  paymentRate?: number;
+  unreceived?: number;
+  projects?: Array<{
+    name?: string;
+    monthIncome?: number;
+    monthLaborSalaryCost?: number;
+    monthSalaryPaid?: number;
+    monthTeamSettlementCost?: number;
+  }>;
+};
+
+function formatWan(value?: number): string {
+  return `${((Number(value) || 0) / 10000).toFixed(2)} 万元`;
+}
+
+/** 根据月报数据生成经营分析草稿（预算员补充说明后提交） */
+function buildDraft(summary: WorkflowSummary): string {
+  const projects = (summary.projects || []).filter(
+    (p) => (p.monthIncome || 0) > 0 || (p.monthLaborSalaryCost || 0) > 0 || (p.monthTeamSettlementCost || 0) > 0,
+  );
+  const lines = [
+    `本月报量合计 ${formatWan(summary.monthIncome)}，工人工资应发 ${formatWan(summary.laborSalary)}（实发 ${formatWan(summary.salaryPaid)}），班组结算 ${formatWan(summary.teamSettlement)}。`,
+    `本月确认成本 ${formatWan(summary.monthCost)}，经营利润 ${formatWan(summary.operatingProfit)}（利润率 ${(Number(summary.operatingProfitRate) || 0).toFixed(1)}%），累计回款率 ${(Number(summary.paymentRate) || 0).toFixed(1)}%，未回款 ${formatWan(summary.unreceived)}。`,
+    '',
+    '分项目情况：',
+    ...projects.map(
+      (p) => `- ${p.name || '-'}：报量 ${formatWan(p.monthIncome)}，工人工资 ${formatWan(p.monthLaborSalaryCost)}（实发 ${formatWan(p.monthSalaryPaid)}），班组结算 ${formatWan(p.monthTeamSettlementCost)}`,
+    ),
+    '',
+    '成本异常说明：（待补充）',
+    '对上下游变化：（待补充）',
+    '下月需注意事项：（待补充）',
+  ];
+  return lines.join('\n');
+}
+
 export function MonthlyReportWorkflowBar({
   month,
   projectId,
   expanded: expandedProp,
   onExpandedChange,
+  summary,
 }: {
   month: string;
   projectId: string;
   expanded?: boolean;
   onExpandedChange?: (value: boolean) => void;
+  summary?: WorkflowSummary;
 }) {
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [loading, setLoading] = useState(false);
@@ -251,6 +297,18 @@ export function MonthlyReportWorkflowBar({
               />
             </label>
           ))}
+          {editable && summary && (
+            <div className="md:col-span-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setContent((prev) => ({ ...prev, analysis: buildDraft(summary) }))}
+              >
+                带出本月数据
+              </Button>
+              <span className="ml-2 text-xs text-muted-foreground">将本月报量、工资、班组结算填入经营分析框，再补充说明</span>
+            </div>
+          )}
           {!editable && (
             <p className="text-xs text-muted-foreground md:col-span-2">当前状态不可编辑，需流转到对应角色后填写。</p>
           )}

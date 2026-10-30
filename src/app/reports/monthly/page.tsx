@@ -569,6 +569,24 @@ export default function MonthlyReportPage() {
             projectId={projectId}
             expanded={workflowExpanded}
             onExpandedChange={setWorkflowExpanded}
+            summary={{
+              monthIncome: ov.monthIncome,
+              laborSalary: projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0),
+              salaryPaid: ov.monthSalaryPaid ?? 0,
+              teamSettlement: projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0),
+              monthCost: ov.monthCost,
+              operatingProfit: ov.operatingProfit,
+              operatingProfitRate: ov.operatingProfitRate,
+              paymentRate: ov.paymentRate,
+              unreceived: ov.unreceived,
+              projects: projectList.map((project) => ({
+                name: project.name,
+                monthIncome: project.monthIncome,
+                monthLaborSalaryCost: project.monthLaborSalaryCost,
+                monthSalaryPaid: project.monthSalaryPaid,
+                monthTeamSettlementCost: project.monthTeamSettlementCost,
+              })),
+            }}
           />
         </div>
 
