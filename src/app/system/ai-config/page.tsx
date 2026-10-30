@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname, useRouter } from 'next/navigation';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,6 +105,15 @@ const defaultConfig: AIConfig = {
 };
 
 export default function AIConfigPage() {
+  // 统一入口：旧路径自动跳转到系统管理 Tab 容器，避免同一配置两个地址
+  const pathname = usePathname();
+  const router = useRouter();
+  useEffect(() => {
+    if (pathname === '/system/ai-config') {
+      router.replace('/system-management?tab=ai-config');
+    }
+  }, [pathname, router]);
+
   const [config, setConfig] = useState<AIConfig>(defaultConfig);
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);

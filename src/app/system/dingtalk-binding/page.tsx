@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   AlertCircle,
   ArrowRight,
@@ -122,7 +122,15 @@ function matchContactKeyword(contact: DingTalkContact, keyword: string) {
 }
 
 export default function DingtalkBindingPage() {
+  // 统一入口：旧路径自动跳转到系统管理 Tab 容器，避免同一配置两个地址
+  const pathname = usePathname();
   const router = useRouter();
+  useEffect(() => {
+    if (pathname === '/system/dingtalk-binding') {
+      router.replace('/system-management?tab=dingtalk');
+    }
+  }, [pathname, router]);
+
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);

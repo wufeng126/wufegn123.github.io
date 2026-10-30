@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
     return {
       ...user,
       roles: relatedRoles,
+      role_ids: relatedRoleIds,
     };
   });
   
@@ -128,8 +129,8 @@ export async function POST(request: NextRequest) {
 
     const operatorId = auth.user.id;
     
-    // 创建新用户
-    if (action === "create") {
+    // 创建新用户（兼容前端不传 action 的情况：无 user_id 且带用户名/密码即视为创建）
+    if (action === "create" || (!user_id && username && password)) {
       const normalizedUsername = typeof username === "string" ? username.trim() : "";
       const normalizedName = typeof name === "string" ? name.trim() : "";
       const normalizedPassword = typeof password === "string" ? password : "";
@@ -231,5 +232,58 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  }
+}
+
+// 删除用户（超管保护 + 安全日志）
+export async function DELETE(request: NextRequest) {
+  const auth = await requirePermission(request, 'system:permission_manage');
+  if (!auth.ok) return auth.response;
+
+  const supabase = getSupabaseClient();
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const userAgent = request.headers.get('user-agent') || 'unknown';
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const targetUserId = parsePositiveId(searchParams.get('id'));
+    if (!targetUserId) {
+      return NextResponse.json({ error: '用户ID不能为空' }, { status: 400 });
+    }
+    if (targetUserId === Number(auth.user.id)) {
+      return NextResponse.json({ error: '不能删除自己的账号' }, { status: 400 });
+    }
+
+    const { data: targetUser } = await supabase
+      .from('users')
+      .select('id, username, role')
+      .eq('id', targetUserId)
+      .maybeSingle();
+    if (!targetUser) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    }
+    if (String(targetUser.role || '') === 'super_admin' && !auth.user.is_super_admin) {
+      return NextResponse.json({ error: '只有超级管理员可以删除超级管理员账号' }, { status: 403 });
+    }
+
+    await supabase.from('user_roles').delete().eq('user_id', targetUserId);
+    const { error } = await supabase.from('users').delete().eq('id', targetUserId);
+    if (error) {
+      return NextResponse.json({ error: getErrorMessage(error, '删除用户失败') }, { status: 500 });
+    }
+
+    await logSecurityEvent({
+      event_type: 'user_deleted',
+      user_id: auth.user.id,
+      ip_address: ip,
+      user_agent: userAgent,
+      result: 'success',
+      metadata: { target_user_id: targetUserId },
+      details: { username: targetUser.username },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: '请求格式错误' }, { status: 400 });
   }
 }

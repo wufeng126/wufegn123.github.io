@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname, useRouter } from 'next/navigation';
+
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Trash2, Save, Check, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
@@ -70,6 +72,15 @@ interface SystemUser {
 }
 
 export default function ApprovalConfigPage() {
+  // 统一入口：旧路径自动跳转到系统管理 Tab 容器，避免同一配置两个地址
+  const pathname = usePathname();
+  const router = useRouter();
+  useEffect(() => {
+    if (pathname === '/system/approval-config') {
+      router.replace('/system-management?tab=approval');
+    }
+  }, [pathname, router]);
+
   const [configs, setConfigs] = useState<WorkflowConfig[]>([]);
   const [editing, setEditing] = useState<WorkflowConfig | null>(null);
   const [loading, setLoading] = useState(true);
