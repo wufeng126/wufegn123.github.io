@@ -12,6 +12,7 @@
     "lint:build": "eslint . --quiet",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:permissions": "node scripts/check-permission-drift.mjs",
     "validate": "pnpm run --parallel '/^(ts-check|lint:build)$/'"
   },
   "dependencies": {

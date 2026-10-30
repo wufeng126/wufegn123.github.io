@@ -152,6 +152,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
       { name: '钉钉集成管理', code: 'system:dingtalk_manage' },
       { name: 'AI助手配置', code: 'system:ai_manage' },
       { name: '操作日志', code: 'audit:view' },
+      { name: '操作日志-接口', code: 'system:audit_logs' },
       { name: '系统管理', code: 'system:manage' },
       { name: '权限管理', code: 'system:permission_manage' },
       { name: '用户管理', code: 'users:edit' },

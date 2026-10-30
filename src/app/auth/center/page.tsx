@@ -45,128 +45,14 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConfirm } from '@/hooks/use-confirm';
+import { PERMISSION_MODULES } from '@/lib/permission-catalog';
 
-// 默认权限模块配置 - 与系统侧边栏菜单同步
-const DEFAULT_PERMISSION_MODULES = [
-  {
-    key: 'projects',
-    name: '项目中心',
-    permissions: [
-      { code: 'projects:view', name: '查看项目' },
-      { code: 'projects:create', name: '创建项目' },
-      { code: 'projects:edit', name: '编辑项目' },
-      { code: 'projects:delete', name: '删除项目' },
-      { code: 'work_items:view', name: '查看工程量' },
-      { code: 'work_items:create', name: '创建工程量' },
-      { code: 'work_items:edit', name: '编辑工程量' },
-      { code: 'work_items:delete', name: '删除工程量' },
-      { code: 'visas:view', name: '查看签证' },
-      { code: 'visas:create', name: '创建签证' },
-      { code: 'visas:edit', name: '编辑签证' },
-      { code: 'visas:delete', name: '删除签证' },
-    ],
-  },
-  {
-    key: 'workers',
-    name: '人力与证件',
-    permissions: [
-      { code: 'workers:view', name: '查看工人' },
-      { code: 'workers:create', name: '创建工人' },
-      { code: 'workers:edit', name: '编辑工人' },
-      { code: 'workers:delete', name: '删除工人' },
-      { code: 'salaries:view', name: '查看工资' },
-      { code: 'salaries:create', name: '创建工资' },
-      { code: 'salaries:edit', name: '编辑工资' },
-      { code: 'salaries:delete', name: '删除工资' },
-      { code: 'certificates:view', name: '查看证件' },
-      { code: 'certificates:create', name: '创建证件' },
-      { code: 'certificates:edit', name: '编辑证件' },
-      { code: 'certificates:delete', name: '删除证件' },
-    ],
-  },
-  {
-    key: 'supplies',
-    name: '供应与成本管理',
-    permissions: [
-      { code: 'suppliers:view', name: '查看供应商' },
-      { code: 'suppliers:create', name: '创建供应商' },
-      { code: 'suppliers:edit', name: '编辑供应商' },
-      { code: 'suppliers:delete', name: '删除供应商' },
-      { code: 'settlements:view', name: '查看结算' },
-      { code: 'settlements:create', name: '创建结算' },
-      { code: 'settlements:edit', name: '编辑结算' },
-      { code: 'settlements:delete', name: '删除结算' },
-      { code: 'payments:view', name: '查看付款' },
-      { code: 'payments:create', name: '创建付款' },
-      { code: 'payments:edit', name: '编辑付款' },
-      { code: 'payments:delete', name: '删除付款' },
-      { code: 'expenses:view', name: '查看费用' },
-      { code: 'expenses:create', name: '创建费用' },
-      { code: 'expenses:edit', name: '编辑费用' },
-      { code: 'expenses:delete', name: '删除费用' },
-    ],
-  },
-  {
-    key: 'team_settlement',
-    name: '班组管理',
-    permissions: [
-      { code: 'team_groups:view', name: '查看班组档案' },
-      { code: 'team_groups:create', name: '创建班组档案' },
-      { code: 'team_groups:edit', name: '编辑班组档案' },
-      { code: 'team_groups:delete', name: '删除班组档案' },
-      { code: 'team_settlements:view', name: '查看班组结算' },
-      { code: 'team_settlements:create', name: '创建班组结算' },
-      { code: 'team_settlements:edit', name: '编辑班组结算' },
-      { code: 'team_settlements:delete', name: '删除班组结算' },
-      { code: 'team_settlements:submit', name: '提交/撤回班组结算审批' },
-      { code: 'team_settlements:approve', name: '审批班组结算（老板）' },
-    ],
-  },
-  {
-    key: 'funds',
-    name: '资金管理',
-    permissions: [
-      { code: 'client_reports:view', name: '查看报量' },
-      { code: 'client_reports:create', name: '创建报量' },
-      { code: 'client_reports:edit', name: '编辑报量' },
-      { code: 'client_reports:delete', name: '删除报量' },
-      { code: 'client_payments:view', name: '查看回款' },
-      { code: 'client_payments:create', name: '创建回款' },
-      { code: 'client_payments:edit', name: '编辑回款' },
-      { code: 'client_payments:delete', name: '删除回款' },
-    ],
-  },
-  {
-    key: 'data',
-    name: '数据与决策',
-    permissions: [
-      { code: 'business_overview:view', name: '查看经营总览' },
-      { code: 'cost_center:view', name: '查看成本中心' },
-      { code: 'cost_center:export', name: '导出成本数据' },
-      { code: 'reports:view', name: '查看报表' },
-    ],
-  },
-  {
-    key: 'construction',
-    name: '施工管理',
-    permissions: [
-      { code: 'work_items:progress', name: '查看进度计划' },
-      { code: 'construction_attendance:view', name: '查看人员出勤' },
-    ],
-  },
-  {
-    key: 'system',
-    name: '系统配置',
-    permissions: [
-      { code: 'notifications:view', name: '查看通知' },
-      { code: 'notifications:manage', name: '管理通知' },
-      { code: 'auth_center:view', name: '查看权限中心' },
-      { code: 'auth_center:manage', name: '管理权限' },
-      { code: 'admin:view', name: '查看后台' },
-      { code: 'admin:manage', name: '管理后台' },
-    ],
-  },
-];
+// 默认权限模块（从权限目录派生，保证与系统权限页/初始化数据一致）
+const DEFAULT_PERMISSION_MODULES: GroupedPermission[] = PERMISSION_MODULES.map((module) => ({
+  key: module.code,
+  name: module.name,
+  permissions: module.children.map((child) => ({ code: child.code, name: child.name })),
+}));
 
 interface Permission {
   code: string;
