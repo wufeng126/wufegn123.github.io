@@ -81,6 +81,7 @@ export default function SupplierContractsPage() {
 
   // 数据状态
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
 
@@ -132,6 +133,18 @@ export default function SupplierContractsPage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // 获取项目列表（合同所属项目，决定项目筛选/权限归属）
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await fetch('/api/projects', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data.projects) ? data.projects : (Array.isArray(data.data) ? data.data : []);
+        setProjects(list.map((p: { id: number; name: string }) => ({ id: Number(p.id), name: String(p.name || '') })));
+      }
+    } catch (e) { console.error(e); }
+  }, []);
+
   // 获取合同列表
   const fetchContracts = useCallback(async () => {
     try {
@@ -153,7 +166,7 @@ export default function SupplierContractsPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchUser(), fetchSuppliers(), fetchContracts()]);
+      await Promise.all([fetchUser(), fetchSuppliers(), fetchProjects(), fetchContracts()]);
       setLoading(false);
     };
     load();
@@ -243,6 +256,7 @@ export default function SupplierContractsPage() {
         body: JSON.stringify({
           ...contractForm,
           supplier_id: parseInt(contractForm.supplier_id),
+          project_id: contractForm.project_id && contractForm.project_id !== 'none' ? parseInt(contractForm.project_id) : null,
           payment_ratio_active: parseFloat(contractForm.payment_ratio_active) || DEFAULT_PAYMENT_RATIOS.active,
           payment_ratio_complete: parseFloat(contractForm.payment_ratio_complete) || DEFAULT_PAYMENT_RATIOS.complete,
           payment_ratio_final: parseFloat(contractForm.payment_ratio_final) || DEFAULT_PAYMENT_RATIOS.final,
@@ -294,15 +308,15 @@ export default function SupplierContractsPage() {
         {stats && (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <button type="button" onClick={() => setFilterStatus(filterStatus === 'active' ? 'all' : 'active')} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'active' ? 'border-emerald-400 bg-emerald-50' : 'border-border bg-white hover:border-emerald-300'}`}>
+              <button type="button" onClick={() => { setFilterStatus(filterStatus === 'active' ? 'all' : 'active'); setPage(1); }} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'active' ? 'border-emerald-400 bg-emerald-50' : 'border-border bg-white hover:border-emerald-300'}`}>
                 <p className="text-xs text-muted-foreground">履约中</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600">{activeCount}</p>
               </button>
-              <button type="button" onClick={() => setFilterStatus(filterStatus === 'done' ? 'all' : 'done')} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'done' ? 'border-blue-400 bg-blue-50' : 'border-border bg-white hover:border-blue-300'}`}>
+              <button type="button" onClick={() => { setFilterStatus(filterStatus === 'done' ? 'all' : 'done'); setPage(1); }} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'done' ? 'border-blue-400 bg-blue-50' : 'border-border bg-white hover:border-blue-300'}`}>
                 <p className="text-xs text-muted-foreground">已完结</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-blue-600">{doneCount}</p>
               </button>
-              <button type="button" onClick={() => setFilterStatus(filterStatus === 'expiring' ? 'all' : 'expiring')} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'expiring' ? 'border-amber-400 bg-amber-50' : 'border-border bg-white hover:border-amber-300'}`}>
+              <button type="button" onClick={() => { setFilterStatus(filterStatus === 'expiring' ? 'all' : 'expiring'); setPage(1); }} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'expiring' ? 'border-amber-400 bg-amber-50' : 'border-border bg-white hover:border-amber-300'}`}>
                 <p className="text-xs text-muted-foreground">30天内到期</p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-amber-600">{expiringCount}</p>
               </button>
@@ -353,7 +367,8 @@ export default function SupplierContractsPage() {
           </div>
         </FilterBar>
 
-        {/* 合同列表 */}
+        {/* 合同列表（桌面表格；移动端使用下方卡片列表，避免重复渲染） */}
+        <div className="hidden md:block">
         <DataTable
           loading={loading}
           error={loadError}
@@ -374,7 +389,7 @@ export default function SupplierContractsPage() {
           )}
         >
           {pagedContracts.length === 0 ? (
-            <EmptyRow colSpan={9} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
+            <EmptyRow colSpan={canManage ? 9 : 8} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
           ) : pagedContracts.map(contract => (
             <TableRow key={contract.id} className="hover:bg-muted/40">
               <TableCell>
@@ -430,6 +445,7 @@ export default function SupplierContractsPage() {
             </TableRow>
           ))}
         </DataTable>
+        </div>
 
         {/* 分页 */}
         <PaginationBar
@@ -502,6 +518,16 @@ export default function SupplierContractsPage() {
                   <SelectTrigger className="mt-1"><SelectValue placeholder="选择供应商" /></SelectTrigger>
                   <SelectContent>
                     {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>所属项目</Label>
+                <Select value={contractForm.project_id || 'none'} onValueChange={v => setContractForm(prev => ({ ...prev, project_id: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="选择项目" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不指定</SelectItem>
+                    {projects.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

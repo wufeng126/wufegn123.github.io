@@ -657,7 +657,7 @@ export default function SupplierRosterPage() {
                 <TableBody>
                   {contractsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">加载中...</TableCell>
+                      <TableCell colSpan={11} className="text-center py-8">加载中...</TableCell>
                     </TableRow>
                   ) : filteredContracts.length === 0 ? (
                     <TableRow>

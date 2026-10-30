@@ -968,10 +968,26 @@ export default function SettlementPage() {
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(s.settlement_amount)}</TableCell>
                       <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.payable_amount)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(s.contract_total_settlement_amount)}</TableCell>
-                      <TableCell className="text-right text-blue-600 font-bold">{formatCurrency(s.contract_total_payable_amount)}</TableCell>
-                      <TableCell className="text-right text-green-600 font-bold">{formatCurrency(s.contract_paid_amount)}</TableCell>
-                      <TableCell className="text-right text-orange-600 font-bold">{formatCurrency(s.contract_progress_pending_amount)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)
+                          ? formatCurrency(s.contract_total_settlement_amount)
+                          : <span title="未审核不计入合同累计" className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-blue-600 font-bold">
+                        {isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)
+                          ? formatCurrency(s.contract_total_payable_amount)
+                          : <span title="未审核不计入合同累计" className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 font-bold">
+                        {isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)
+                          ? formatCurrency(s.contract_paid_amount)
+                          : <span title="未审核不计入合同累计" className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-orange-600 font-bold">
+                        {isReviewedSettlement(s.status) && !isVoidedSettlement(s.status)
+                          ? formatCurrency(s.contract_progress_pending_amount)
+                          : <span title="未审核不计入合同累计" className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell className="text-center">
                         <span
                           className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
