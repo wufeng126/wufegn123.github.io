@@ -52,11 +52,26 @@ function formatTime(value?: string | null): string {
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export function MonthlyReportWorkflowBar({ month, projectId }: { month: string; projectId: string }) {
+export function MonthlyReportWorkflowBar({
+  month,
+  projectId,
+  expanded: expandedProp,
+  onExpandedChange,
+}: {
+  month: string;
+  projectId: string;
+  expanded?: boolean;
+  onExpandedChange?: (value: boolean) => void;
+}) {
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expandedState, setExpandedState] = useState(false);
+  const expanded = expandedProp ?? expandedState;
+  const setExpanded = (value: boolean) => {
+    setExpandedState(value);
+    onExpandedChange?.(value);
+  };
   const [content, setContent] = useState<WorkflowContent>({});
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
@@ -168,7 +183,7 @@ export function MonthlyReportWorkflowBar({ month, projectId }: { month: string; 
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={() => setExpanded((value) => !value)}>
+              <Button variant="outline" size="sm" onClick={() => setExpanded(!expanded)}>
                 <PenLine className="mr-1 h-3.5 w-3.5" />
                 {expanded ? '收起填写' : '填写/查看内容'}
                 {expanded ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />}

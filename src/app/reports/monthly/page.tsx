@@ -196,6 +196,8 @@ export default function MonthlyReportPage() {
   const [data, setData] = useState<MonthlyReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [reportMode, setReportMode] = useState<ReportMode>('boss');
+  const [workflowExpanded, setWorkflowExpanded] = useState(false);
+  const workflowRef = useRef<HTMLDivElement>(null);
   const [aiInterpreting, setAiInterpreting] = useState(false);
   const [aiContent, setAiContent] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -360,11 +362,9 @@ export default function MonthlyReportPage() {
   const handlePrint = () => window.print();
 
   const handleCreateAnalysis = () => {
-    if (analysisData) {
-      router.push(`/knowledge/${analysisData.id}`);
-    } else {
-      router.push(`/knowledge/monthly/new?from=report&month=${month}&project=${projectId}`);
-    }
+    // 融合：写本月分析即进入审批流程（展开审批条分析面板），不再跳知识库
+    setWorkflowExpanded(true);
+    workflowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
   const handleViewAnalysis = () => {
     router.push(`/knowledge/${analysisData?.id}`);
@@ -563,7 +563,14 @@ export default function MonthlyReportPage() {
           </div>
         </div>
 
-        <MonthlyReportWorkflowBar month={month} projectId={projectId} />
+        <div ref={workflowRef}>
+          <MonthlyReportWorkflowBar
+            month={month}
+            projectId={projectId}
+            expanded={workflowExpanded}
+            onExpandedChange={setWorkflowExpanded}
+          />
+        </div>
 
         {loading && !data ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground"><RefreshCw className="w-5 h-5 animate-spin mr-2" />加载中…</div>

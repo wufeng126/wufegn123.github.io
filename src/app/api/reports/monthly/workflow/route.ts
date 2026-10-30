@@ -12,6 +12,7 @@ import {
 } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { pushBusinessNotification } from '@/lib/business-notification';
+import { addKnowledgeDoc } from '@/lib/ai-service';
 
 /**
  * 月度报表协作审批
@@ -178,6 +179,13 @@ export async function POST(request: NextRequest) {
     if (action === 'submit_manager' && !['draft', 'rejected'].includes(currentStatus)) {
       return apiBadRequest('当前状态不能提交（仅草稿/已驳回可提交）');
     }
+    // 提交项目经理前必须填写经营分析（写分析是审批流程的起点）
+    if (action === 'submit_manager') {
+      const analysisText = String(content?.analysis || (workflow?.content as Record<string, unknown> | null | undefined)?.analysis || '').trim();
+      if (!analysisText) {
+        return apiBadRequest('请先填写经营分析再提交');
+      }
+    }
     if (action === 'supplement' && currentStatus !== 'pending_manager') {
       return apiBadRequest('只有待项目经理补充状态可以补充提交');
     }
@@ -232,6 +240,52 @@ export async function POST(request: NextRequest) {
       .select('*')
       .maybeSingle();
     if (saveError) throw new Error(saveError.message);
+
+    // 审批通过 → 经营分析沉淀进知识库（幂等：同月同范围只保留一条）
+    if (action === 'approve') {
+      const approvedContent = (saved?.content || workflow?.content || content || {}) as Record<string, string>;
+      const analysisText = String(approvedContent.analysis || '').trim();
+      if (analysisText) {
+        const kbTitle = `${month} 月度经营分析`;
+        const kbContent = [
+          `${kbTitle}（${scope === 'all' ? '全公司' : `项目 #${scope}`}）`,
+          '',
+          analysisText,
+          String(approvedContent.risk || '').trim() ? `\n存在问题与风险：\n${String(approvedContent.risk).trim()}` : '',
+          String(approvedContent.nextPlan || '').trim() ? `\n下月计划：\n${String(approvedContent.nextPlan).trim()}` : '',
+        ].filter(Boolean).join('\n');
+        const sourceRef = `monthly_report:${month}:${scope}`;
+        try {
+          const { data: existingDoc } = await client
+            .from('ai_knowledge_docs')
+            .select('id')
+            .eq('source_ref', sourceRef)
+            .maybeSingle();
+          if (existingDoc) {
+            await client
+              .from('ai_knowledge_docs')
+              .update({ title: kbTitle, content: kbContent, updated_at: now })
+              .eq('id', existingDoc.id);
+          } else {
+            const kbSuccess = await addKnowledgeDoc(kbTitle, kbContent);
+            await client.from('ai_knowledge_docs').insert({
+              title: kbTitle,
+              category: 'business_data',
+              source_type: 'monthly_report',
+              source_ref: sourceRef,
+              content: kbContent,
+              tags: ['月度经营分析'],
+              status: kbSuccess ? 'active' : 'error',
+              error_message: kbSuccess ? null : '向量库同步失败',
+              chunk_count: kbSuccess ? 1 : 0,
+              last_sync_at: kbSuccess ? new Date().toISOString() : null,
+            });
+          }
+        } catch (kbError) {
+          console.error('[monthly-workflow] 审批通过后沉淀知识库失败:', kbError);
+        }
+      }
+    }
 
     // 流转通知（系统通知 + 钉钉；失败不阻断主流程）
     try {
