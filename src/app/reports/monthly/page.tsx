@@ -584,7 +584,19 @@ export default function MonthlyReportPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="px-4 pb-4">
-                      <div className="text-sm leading-relaxed whitespace-pre-line">{conclusion}</div>
+                      {(() => {
+                        const [headline, ...details] = conclusion.split('\n').filter((line) => line.trim() !== '');
+                        return (
+                          <>
+                            <p className="text-lg font-semibold leading-snug">{headline}</p>
+                            {details.length > 0 && (
+                              <div className="mt-2 space-y-1 text-sm text-muted-foreground leading-relaxed">
+                                {details.map((line, index) => <p key={index}>{line}</p>)}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 )}

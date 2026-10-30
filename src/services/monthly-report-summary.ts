@@ -105,96 +105,38 @@ export function generateConclusion(
   pp: ReturnType<typeof getEmptyPayablePlan>,
   projects: ProjectData[],
 ): string {
+  const operatingProfit = Number(ov.operatingProfit || 0);
+  const profitRate = Number(ov.operatingProfitRate || 0);
+  const judgement = operatingProfit <= 0
+    ? '本月经营亏损'
+    : profitRate >= 10
+      ? '本月经营状况良好'
+      : '本月经营平稳';
   const lines: string[] = [];
 
-  // 1. 经营利润（产值口径）
-  if (ov.operatingProfit > 0) {
-    lines.push(`本月经营利润为正，确认产值${formatWan(ov.monthIncome)}减确认成本${formatWan(ov.monthCost)}，经营利润${formatWan(ov.operatingProfit)}，经营利润率${ov.operatingProfitRate.toFixed(1)}%。`);
-  } else if (ov.operatingProfit < 0) {
-    lines.push(`本月经营利润为负，确认产值${formatWan(ov.monthIncome)}减确认成本${formatWan(ov.monthCost)}，经营亏损${formatWan(Math.abs(ov.operatingProfit))}，经营利润率${ov.operatingProfitRate.toFixed(1)}%，需重点关注成本控制。`);
-  } else {
-    lines.push('本月经营利润为零，需确认数据是否完整录入。');
-  }
+  // 第一行：一句话总评（老板先看这个）
+  lines.push(`本月经营利润 ${formatWan(operatingProfit)}，利润率 ${profitRate.toFixed(1)}%，判断：${judgement}。`);
 
-  // 2. 现金净流（资金口径）
-  if (ov.cashNetFlow > 0) {
-    lines.push(`本月现金净流为正，实际回款${formatWan(ov.monthReceived)}减实际支付${formatWan(ov.monthActualPayment)}，净流入${formatWan(ov.cashNetFlow)}，资金面宽裕。`);
-  } else if (ov.cashNetFlow < 0) {
-    lines.push(`本月现金净流为负，实际回款${formatWan(ov.monthReceived)}减实际支付${formatWan(ov.monthActualPayment)}，净流出${formatWan(Math.abs(ov.cashNetFlow))}，资金承压。`);
-  } else {
-    lines.push('本月现金净流为零，回款与支出持平。');
-  }
+  // 经营情况（中性数字）
+  lines.push(`确认产值 ${formatWan(ov.monthIncome)}，确认成本 ${formatWan(ov.monthCost)}。`);
 
-  // 3. 经营利润 vs 现金净流 差异分析
-  if (ov.operatingProfit > 0 && ov.cashNetFlow < 0) {
-    lines.push(`本月经营利润为正但现金净流为负，主要由于回款滞后和人工/供应商付款集中，需重点跟进回款。`);
-    const lowPaymentProjects = projects.filter(p => p.paymentRate < 50 && p.totalIncome > 0);
-    if (lowPaymentProjects.length > 0) {
-      lines.push(`重点催收项目：${lowPaymentProjects.map(p => `${p.name}(回款率${p.paymentRate.toFixed(0)}%)`).join('、')}。`);
-    }
-  } else if (ov.operatingProfit < 0 && ov.cashNetFlow > 0) {
-    lines.push(`本月经营亏损但现金净流为正，说明回款较好但成本超支，需分析成本结构。`);
-  }
+  // 现金情况
+  lines.push(`实际回款 ${formatWan(ov.monthReceived)}，实际支付 ${formatWan(ov.monthActualPayment)}，现金净流 ${formatWan(ov.cashNetFlow)}。`);
 
-  // 4. Payment collection
+  // 回款进度
   if (ov.totalIncome > 0) {
-    if (ov.paymentRate >= 80) {
-      lines.push(`回款情况良好，累计回款率${ov.paymentRate.toFixed(1)}%，已回款${formatWan(ov.totalReceived)}。`);
-    } else if (ov.paymentRate >= 50) {
-      lines.push(`回款率${ov.paymentRate.toFixed(1)}%，未回款${formatWan(ov.unreceived)}，需加强催收。`);
-    } else {
-      lines.push(`回款率仅${ov.paymentRate.toFixed(1)}%，未回款${formatWan(ov.unreceived)}，回款风险较高，建议重点催收。`);
-    }
-  } else {
-    lines.push('本月暂无产值数据，请确认报量是否已录入。');
+    lines.push(`累计回款率 ${ov.paymentRate.toFixed(1)}%，未回款 ${formatWan(ov.unreceived)}。`);
   }
 
-  // 5. Cost
-  if (ov.cumulativeCost > ov.cumulativeIncome && ov.cumulativeIncome > 0) {
-    lines.push(`累计成本${formatWan(ov.cumulativeCost)}已超过累计收入${formatWan(ov.cumulativeIncome)}，项目整体处于亏损状态。`);
-  }
-
-  // 4. Payable pressure
+  // 应付情况
   if (pp.totalPayable > 0) {
-    lines.push(`本月应付合计${formatWan(pp.totalPayable)}，其中人工未付${formatWan(pp.laborUnpaid)}，供应商未付${formatWan(pp.supplierUnpaid)}。`);
-    if (pp.fundGap > 0) {
-      lines.push(`预计资金缺口${formatWan(pp.fundGap)}，需优先安排资金。`);
-    }
+    lines.push(`本月应付合计 ${formatWan(pp.totalPayable)}（人工未付 ${formatWan(pp.laborUnpaid)}、供应商未付 ${formatWan(pp.supplierUnpaid)}）。`);
   }
 
-  // 5. Salary risk
-  if (pp.laborUnpaid > 0) {
-    lines.push(`存在工资支付风险，未付人工工资${formatWan(pp.laborUnpaid)}，建议优先保障人工工资。`);
-  }
-
-  // 6. Supplier pressure
-  if (pp.supplierUnpaid > 0) {
-    lines.push(`存在供应商付款压力，未付供应商款${formatWan(pp.supplierUnpaid)}。`);
-  }
-
-  // 7. Dragging projects
-  const monthLossProjects = projects.filter(p => p.operatingProfit < 0);
-  const cumulLossProjects = projects.filter(p => p.cumulativeProfit < 0);
-  const lowPaymentProjects = projects.filter(p => p.paymentRate < 50 && p.totalIncome > 0);
+  // 亏损项目（事实陈述）
+  const monthLossProjects = projects.filter((p) => p.operatingProfit < 0);
   if (monthLossProjects.length > 0) {
-    lines.push(`本月亏损项目：${monthLossProjects.map(p => p.name).join('、')}，建议重点分析。`);
-  }
-  if (cumulLossProjects.length > 0) {
-    lines.push(`累计亏损项目：${cumulLossProjects.map(p => p.name).join('、')}，需制定扭亏计划。`);
-  }
-  if (lowPaymentProjects.length > 0) {
-    lines.push(`回款率低项目：${lowPaymentProjects.map(p => `${p.name}(${p.paymentRate.toFixed(0)}%)`).join('、')}，建议重点催收。`);
-  }
-
-  // 8. Next month focus
-  const focusActions: string[] = [];
-  if (pp.laborUnpaid > 0) focusActions.push('优先保障人工工资发放');
-  if (pp.supplierUnpaid > 0) focusActions.push('处理逾期供应商款');
-  if (lowPaymentProjects.length > 0) focusActions.push(`重点催收${lowPaymentProjects[0].name}回款`);
-  if (cumulLossProjects.length > 0) focusActions.push('制定亏损项目扭亏计划');
-  else if (monthLossProjects.length > 0) focusActions.push('分析本月亏损项目成本结构');
-  if (focusActions.length > 0) {
-    lines.push(`下月重点：${focusActions.join('；')}。`);
+    lines.push(`本月亏损项目：${monthLossProjects.map((p) => p.name).join('、')}。`);
   }
 
   return lines.join('\n');
