@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { logSecurityEvent } from '@/lib/security-log';
+import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
 
 // 初始化密钥 - 必须通过环境变量配置，不再使用默认值
 function getInitSecretKey(): string | null {
@@ -293,10 +294,25 @@ async function initPermissions(supabaseUrl: string, serviceKey: string) {
   ];
 
   let permissionsInserted = 0;
+  // 补充权限目录（src/lib/permission-catalog.ts）中尚未包含的码：
+  // 保证"页面可勾选的权限"都能落库，避免勾了不生效
+  const existingPermissionCodes = new Set(
+    permissionsTableData.map((perm) => `${perm.resource}:${perm.action}`),
+  );
+  const catalogExtras = PERMISSION_CATALOG
+    .filter((item) => !existingPermissionCodes.has(item.code))
+    .map((item) => ({
+      resource: item.resource,
+      action: item.action,
+      name: item.name,
+      category: item.module,
+    }));
+  const permissionRows = [...permissionsTableData, ...catalogExtras];
+
   let permissionsUpdated = 0;
 
   // 初始化 permissions 表
-  for (const perm of permissionsTableData) {
+  for (const perm of permissionRows) {
     const code = `${perm.resource}:${perm.action}`;
     const response = await fetch(`${supabaseUrl}/rest/v1/permissions`, {
       method: 'POST',
@@ -366,7 +382,7 @@ async function initPermissions(supabaseUrl: string, serviceKey: string) {
         .filter(Boolean),
     );
 
-    for (const perm of permissionsTableData) {
+    for (const perm of permissionRows) {
       const code = `${perm.resource}:${perm.action}`;
       const permId = permIdMap.get(code);
       if (permId && !existingPermissionIds.has(Number(permId))) {
@@ -391,8 +407,8 @@ async function initPermissions(supabaseUrl: string, serviceKey: string) {
       permissionsInserted,
       permissionsUpdated,
       totalDefinitions: permissionsList.length,
-      totalPermissions: permissionsTableData.length,
-      superAdminPermissions: permissionsTableData.length,
+      totalPermissions: permissionRows.length,
+      superAdminPermissions: permissionRows.length,
     },
   };
 }

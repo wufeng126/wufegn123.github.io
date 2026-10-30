@@ -56,29 +56,31 @@ export async function GET(request: NextRequest) {
     { key: "system", name: "系统配置", actions: ["view", "config", "export", "backup", "restore"] },
   ];
   
-  // 去重并合并同一模块的权限
-  const moduleMap = new Map<string, { key: string; name: string; permissions: typeof permissions }>();
-  
-  for (const mod of modules) {
-    const filteredPerms = permissions?.filter((p) => 
-      p.resource === mod.key && mod.actions.includes(p.action)
-    ) || [];
-    
-    if (filteredPerms.length > 0) {
-      if (moduleMap.has(mod.name)) {
-        const existing = moduleMap.get(mod.name)!;
-        existing.permissions = [...existing.permissions, ...filteredPerms];
-      } else {
-        moduleMap.set(mod.name, { key: mod.key, name: mod.name, permissions: filteredPerms });
-      }
+  // 按 resource 动态分组（覆盖数据库全部权限，避免硬编码白名单漏掉班组/月报等模块）
+  const resourceLabels: Record<string, string> = {
+    projects: '项目中心', work_items: '项目中心', visas: '项目中心', evidence_chain: '项目中心',
+    client_reports: '资金管理', client_payments: '资金管理',
+    workers: '人力与证件', salaries: '人力与证件', certificates: '人力与证件',
+    suppliers: '供应与成本管理', settlements: '供应与成本管理', supplier_payments: '供应与成本管理',
+    comprehensive_expenses: '供应与成本管理', miscellaneous_materials: '供应与成本管理',
+    team_groups: '班组管理', team_settlements: '班组管理',
+    reports: '工作台', monthly_report: '工作台', ai: '工作台',
+    cost_center: '经营分析', data_board: '经营分析',
+    construction_logs: '施工管理', construction_attendance: '施工管理',
+    cost_estimation: '成本测算', knowledge: '知识库', knowledge_base: '知识库',
+    notifications: '系统配置', roles: '系统配置', users: '系统配置', system: '系统配置', audit: '系统配置',
+  };
+  const resourceGroups = new Map<string, { key: string; name: string; permissions: typeof permissions }>();
+  for (const perm of permissions || []) {
+    const resource = String(perm.resource || '');
+    const groupKey = resourceLabels[resource] || resource || '其他';
+    if (!resourceGroups.has(groupKey)) {
+      resourceGroups.set(groupKey, { key: groupKey, name: groupKey, permissions: [] });
     }
+    resourceGroups.get(groupKey)!.permissions.push(perm);
   }
-  
-  const groupedPermissions = Array.from(moduleMap.values()).map((m) => ({
-    key: m.key,
-    name: m.name,
-    permissions: m.permissions,
-  }));
+
+  const groupedPermissions = Array.from(resourceGroups.values());
   
   return NextResponse.json({ 
     permissions,
