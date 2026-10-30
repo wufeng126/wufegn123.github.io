@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { KpiCard, ChartCard, RiskBadge, formatAmountSmart, formatPercent } from '@/components/business/common';
+import { KpiCard, ChartCard, formatAmountSmart, formatPercent } from '@/components/business/common';
 import dynamic from 'next/dynamic';
 // ECharts 体积较大，仅在客户端懒加载，避免进入首屏 JS 包
 const EChartsWrapper = dynamic(() => import('@/components/charts/echarts-wrapper'), {
@@ -484,7 +484,7 @@ export default function MonthlyReportPage() {
       data: [...supplierSettlements].sort((a, b) => a.unpaid - b.unpaid).slice(-10).map(s => s.supplierName.length > 8 ? s.supplierName.slice(0, 8) + '…' : s.supplierName),
       axisLabel: { width: 100, overflow: 'truncate' as const } },
     series: [{ type: 'bar', data: [...supplierSettlements].sort((a, b) => a.unpaid - b.unpaid).slice(-10).map(s => ({
-      value: s.unpaid, itemStyle: { color: s.riskLevel === 'danger' ? '#F53F3F' : '#FF7D00' },
+      value: s.unpaid, itemStyle: { color: '#165DFF' },
     })) }],
   };
 
@@ -507,7 +507,7 @@ export default function MonthlyReportPage() {
     const isPositive = current > previous;
     const isGood = invert ? !isPositive : isPositive;
     return (
-      <span className={`inline-flex items-center gap-0.5 text-xs ${isGood ? 'text-emerald-600' : 'text-red-500'}`}>
+      <span className={`inline-flex items-center gap-0.5 text-xs ${isGood ? 'text-emerald-600' : 'text-muted-foreground'}`}>
         {isPositive ? <TrendingUp className="w-3 h-3" /> : current < previous ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
         {pct}（{amount}）
       </span>
@@ -599,11 +599,9 @@ export default function MonthlyReportPage() {
                     change={comp.mom?.income} changeLabel="环比" />
                   <KpiCard label="本月经营利润" value={fmtAmtUnit(ov.operatingProfit).value} unit={fmtAmtUnit(ov.operatingProfit).unit}
                     tooltip="统计口径：本月确认产值+本月已审批签证-本月确认成本，反映项目当月经营成果"
-                    change={comp.mom?.profit} changeLabel="环比"
-                    risk={ov.operatingProfit < 0 ? 'danger' : undefined} />
+                    change={comp.mom?.profit} changeLabel="环比" />
                   <KpiCard label="本月现金净流" value={fmtAmtUnit(ov.cashNetFlow).value} unit={fmtAmtUnit(ov.cashNetFlow).unit}
-                    tooltip="统计口径：本月实际回款-本月实际支付，反映当月资金收支压力"
-                    risk={ov.cashNetFlow < 0 ? 'warning' : undefined} />
+                    tooltip="统计口径：本月实际回款-本月实际支付，反映当月资金收支压力" />
                   <KpiCard label="本月回款" value={fmtAmtUnit(ov.monthReceived).value} unit={fmtAmtUnit(ov.monthReceived).unit}
                     tooltip="统计口径：甲方付款到账金额" onClick={() => router.push('/client-payments')}
                     change={comp.mom?.received} changeLabel="环比" />
@@ -611,8 +609,7 @@ export default function MonthlyReportPage() {
                     tooltip="统计口径：本月人工+供应商结算+综合费用+材料+税费（确认成本，非实际支付）"
                     change={comp.mom?.cost} changeLabel="环比" />
                   <KpiCard label="未回款/缺口" value={fmtAmtUnit(ov.unreceived).value} unit={fmtAmtUnit(ov.unreceived).unit}
-                    tooltip="统计口径：产值-已回款"
-                    risk={ov.unreceived > 0 ? 'warning' : undefined} />
+                    tooltip="统计口径：产值-已回款" />
                 </div>
 
                 {/* Payable Pressure KPIs */}
@@ -622,16 +619,13 @@ export default function MonthlyReportPage() {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KpiCard label="本月应付合计" value={fmtAmtUnit(pp.totalPayable).value} unit={fmtAmtUnit(pp.totalPayable).unit}
-                    tooltip="人工未付+供应商未付" risk={pp.totalPayable > 0 ? 'warning' : undefined} />
+                    tooltip="人工未付+供应商未付"  />
                   <KpiCard label="人工未付" value={fmtAmtUnit(pp.laborUnpaid).value} unit={fmtAmtUnit(pp.laborUnpaid).unit}
-                    tooltip="工资应付-工资已付" onClick={() => router.push('/workers/salaries')}
-                    risk={pp.laborUnpaid > 0 ? 'danger' : undefined} />
+                    tooltip="工资应付-工资已付" onClick={() => router.push('/workers/salaries')} />
                   <KpiCard label="供应商未付" value={fmtAmtUnit(pp.supplierUnpaid).value} unit={fmtAmtUnit(pp.supplierUnpaid).unit}
-                    tooltip="供应商结算应付-已付" onClick={() => router.push('/data-board/supplier-cost')}
-                    risk={pp.supplierUnpaid > 0 ? 'warning' : undefined} />
+                    tooltip="供应商结算应付-已付" onClick={() => router.push('/data-board/supplier-cost')} />
                   <KpiCard label="预计资金缺口" value={fmtAmtUnit(pp.fundGap).value} unit={fmtAmtUnit(pp.fundGap).unit}
-                    tooltip="应付合计-本月可用回款"
-                    risk={pp.fundGap > 0 ? 'danger' : undefined} />
+                    tooltip="应付合计-本月可用回款" />
                 </div>
 
                 {/* Comparison bar */}
@@ -673,17 +667,14 @@ export default function MonthlyReportPage() {
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <DollarSign className="w-4 h-4" /> 应付资金计划
-                    {pp.fundGap > 0 && <RiskBadge level="danger" label="资金缺口" />}
-                    {pp.laborUnpaid > 0 && <RiskBadge level="warning" label="工资支付风险" />}
-                    {pp.supplierUnpaid > 0 && <RiskBadge level="warning" label="供应商付款压力" />}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <StatBox label="本月应付合计" value={pp.totalPayable} />
-                    <StatBox label="人工未付" value={pp.laborUnpaid} sub={`已付 ${fmtAmt(pp.laborPaid)}`} danger={pp.laborUnpaid > 0} />
-                    <StatBox label="供应商未付" value={pp.supplierUnpaid} sub={`已付 ${fmtAmt(pp.supplierPaid)}`} danger={pp.supplierUnpaid > 0} />
-                    <StatBox label="预计资金缺口" value={pp.fundGap} sub={`可用回款 ${fmtAmt(pp.monthAvailable)}`} danger={pp.fundGap > 0} />
+                    <StatBox label="人工未付" value={pp.laborUnpaid} sub={`已付 ${fmtAmt(pp.laborPaid)}`}  />
+                    <StatBox label="供应商未付" value={pp.supplierUnpaid} sub={`已付 ${fmtAmt(pp.supplierPaid)}`}  />
+                    <StatBox label="预计资金缺口" value={pp.fundGap} sub={`可用回款 ${fmtAmt(pp.monthAvailable)}`}  />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <ChartCard title="项目应付压力排行" unit="元">
@@ -709,68 +700,6 @@ export default function MonthlyReportPage() {
               </div>
             )}
 
-            {/* ─── Risk Alerts ─── */}
-            {riskList.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-destructive" /> 风险预警
-                    <Badge variant="destructive" className="text-xs">{riskList.length}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <div className="overflow-x-auto">
-                    {/* Desktop table */}
-                    <div className="hidden md:block">
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b text-muted-foreground text-xs">
-                          <th className="text-left py-2 px-2">项目</th>
-                          <th className="text-left py-2 px-2">风险类型</th>
-                          <th className="text-center py-2 px-2">等级</th>
-                          <th className="text-right py-2 px-2">影响金额</th>
-                          <th className="text-left py-2 px-2">原因</th>
-                          <th className="text-left py-2 px-2">建议动作</th>
-                          <th className="text-left py-2 px-2">责任人</th>
-                          <th className="text-left py-2 px-2">截止</th>
-                          <th className="text-center py-2 px-2">状态</th>
-                        </tr></thead>
-                        <tbody>{riskList.map((r, i) => (
-                          <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                            <td className="py-2 px-2 font-medium">{r.project}</td>
-                            <td className="py-2 px-2">{r.riskType}</td>
-                            <td className="py-2 px-2 text-center"><Badge variant={riskColor(r.riskLevel)}>{riskLabel(r.riskLevel)}</Badge></td>
-                            <td className="py-2 px-2 text-right">{r.impactAmount > 0 ? fmtAmt(r.impactAmount) : '-'}</td>
-                            <td className="py-2 px-2 max-w-[200px] truncate" title={r.reason}>{r.reason}</td>
-                            <td className="py-2 px-2 max-w-[150px] truncate" title={r.suggestion}>{r.suggestion}</td>
-                            <td className="py-2 px-2">{r.responsible}</td>
-                            <td className="py-2 px-2 text-xs">{r.deadline}</td>
-                            <td className="py-2 px-2 text-center"><Badge variant="outline">{r.status}</Badge></td>
-                          </tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                    {/* Mobile cards */}
-                    <div className="md:hidden space-y-3">
-                      {riskList.map((r, i) => (
-                        <div key={i} className="border rounded-lg p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{r.project}</span>
-                            <Badge variant={riskColor(r.riskLevel)}>{r.riskType}</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{r.reason}</p>
-                          {r.impactAmount > 0 && <p className="text-sm">影响金额：<span className="font-medium text-destructive">{fmtAmt(r.impactAmount)}</span></p>}
-                          <p className="text-sm">建议：{r.suggestion}</p>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>{r.responsible}</span><span>截止 {r.deadline}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* ─── 回款滞后分析 ─── */}
             {data?.collectionLagAnalysis && data.collectionLagAnalysis.length > 0 && (
               <Card>
@@ -791,7 +720,6 @@ export default function MonthlyReportPage() {
                         <th className="text-center py-2 px-2">账龄</th>
                         <th className="text-left py-2 px-2">预计回款时间</th>
                         <th className="text-left py-2 px-2">回款责任人</th>
-                        <th className="text-center py-2 px-2">风险等级</th>
                       </tr></thead>
                       <tbody>
                         {data.collectionLagAnalysis.map((item, idx) => (
@@ -800,31 +728,16 @@ export default function MonthlyReportPage() {
                             <td className="text-right py-2 px-2">{formatAmountSmart(item.cumulativeOutput)}</td>
                             <td className="text-right py-2 px-2">{formatAmountSmart(item.cumulativeReceivable)}</td>
                             <td className="text-right py-2 px-2">{formatAmountSmart(item.cumulativeReceived)}</td>
-                            <td className={`text-right py-2 px-2 font-semibold ${item.unreceived > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                            <td className="text-right py-2 px-2 font-semibold">
                               {item.unreceived > 0 ? formatAmountSmart(item.unreceived) : (item.isOverCollected ? `超收 ${formatAmountSmart(item.overCollectedAmount || 0)}` : '已结清')}
                             </td>
                             <td className="text-center py-2 px-2">
-                              <Badge variant="outline" className={
-                                item.agingDays > 90 ? 'bg-red-50 text-red-700 border-red-200' :
-                                item.agingDays > 60 ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                                item.agingDays > 30 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                'bg-green-50 text-green-700 border-green-200'
-                              }>
+                              <Badge variant="outline">
                                 {item.agingCategory}
                               </Badge>
                             </td>
                             <td className="py-2 px-2 text-muted-foreground">{item.estimatedPaymentDate || '-'}</td>
                             <td className="py-2 px-2">{item.responsiblePerson || '-'}</td>
-                            <td className="text-center py-2 px-2">
-                              <RiskBadge level={
-                                item.riskLevel === 'high' || item.riskLevel === 'critical' ? 'danger' :
-                                item.riskLevel === 'medium' ? 'warning' : 'normal'
-                              } label={
-                                item.riskLevel === 'critical' ? '极高风险' :
-                                item.riskLevel === 'high' ? '高风险' :
-                                item.riskLevel === 'medium' ? '中风险' : '低风险'
-                              } />
-                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -839,14 +752,6 @@ export default function MonthlyReportPage() {
                             <h3 className="truncate text-sm font-medium">{item.projectName}</h3>
                             <p className="mt-1 text-xs text-muted-foreground">{item.responsiblePerson || '未设置责任人'}</p>
                           </div>
-                          <RiskBadge level={
-                            item.riskLevel === 'high' || item.riskLevel === 'critical' ? 'danger' :
-                            item.riskLevel === 'medium' ? 'warning' : 'normal'
-                          } label={
-                            item.riskLevel === 'critical' ? '极高风险' :
-                            item.riskLevel === 'high' ? '高风险' :
-                            item.riskLevel === 'medium' ? '中风险' : '低风险'
-                          } />
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="rounded-md bg-muted/50 p-2">
@@ -863,19 +768,14 @@ export default function MonthlyReportPage() {
                           </div>
                           <div className="rounded-md bg-muted/50 p-2">
                             <div className="text-muted-foreground">应收未回</div>
-                            <div className={`mt-1 font-semibold ${item.unreceived > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                            <div className="mt-1 font-semibold">
                               {item.unreceived > 0 ? formatAmountSmart(item.unreceived) : (item.isOverCollected ? `超收 ${formatAmountSmart(item.overCollectedAmount || 0)}` : '已结清')}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-xs">
                           <span className="text-muted-foreground">账龄</span>
-                          <Badge variant="outline" className={
-                            item.agingDays > 90 ? 'bg-red-50 text-red-700 border-red-200' :
-                            item.agingDays > 60 ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                            item.agingDays > 30 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                            'bg-green-50 text-green-700 border-green-200'
-                          }>
+                          <Badge variant="outline">
                             {item.agingCategory}
                           </Badge>
                         </div>
@@ -943,7 +843,6 @@ export default function MonthlyReportPage() {
                             <th className="text-right py-2.5 px-3">工资未付</th>
                             <th className="text-right py-2.5 px-3">未付人数</th>
                             <th className="text-left py-2.5 px-3">最早欠付</th>
-                            <th className="text-center py-2.5 px-3">风险</th>
                           </tr></thead>
                           <tbody>{laborCosts.map((l, i) => (
                             <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
@@ -951,10 +850,9 @@ export default function MonthlyReportPage() {
                               <td className="py-2.5 px-3 text-right">{l.inServiceCount}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(l.salaryPayable)}</td>
                               <td className="py-2.5 px-3 text-right text-emerald-600">{fmtAmt(l.salaryPaid)}</td>
-                              <td className="py-2.5 px-3 text-right text-red-500">{fmtAmt(l.salaryUnpaid)}</td>
+                              <td className="py-2.5 px-3 text-right text-muted-foreground">{fmtAmt(l.salaryUnpaid)}</td>
                               <td className="py-2.5 px-3 text-right">{l.unpaidWorkers}</td>
                               <td className="py-2.5 px-3">{l.earliestUnpaidMonth || '-'}</td>
-                              <td className="py-2.5 px-3 text-center">{l.riskLevel !== 'normal' ? <Badge variant={riskColor(l.riskLevel)}>{riskLabel(l.riskLevel)}</Badge> : '-'}</td>
                             </tr>
                           ))}</tbody>
                         </table>
@@ -965,12 +863,11 @@ export default function MonthlyReportPage() {
                           <div key={i} className="border rounded-lg p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{l.projectName}</span>
-                              {l.riskLevel !== 'normal' && <Badge variant={riskColor(l.riskLevel)}>风险{l.riskLevel === 'danger' ? '高' : '中'}</Badge>}
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-sm">
                               <div><span className="text-muted-foreground">应付</span><br />{fmtAmt(l.salaryPayable)}</div>
                               <div><span className="text-muted-foreground">已付</span><br /><span className="text-emerald-600">{fmtAmt(l.salaryPaid)}</span></div>
-                              <div><span className="text-muted-foreground">未付</span><br /><span className="text-red-500">{fmtAmt(l.salaryUnpaid)}</span></div>
+                              <div><span className="text-muted-foreground">未付</span><br /><span className="text-muted-foreground">{fmtAmt(l.salaryUnpaid)}</span></div>
                             </div>
                             <div className="text-xs text-muted-foreground">{l.inServiceCount}人 | 未付{l.unpaidWorkers}人{ l.earliestUnpaidMonth ? ` | 最早欠付${l.earliestUnpaidMonth}` : ''}</div>
                           </div>
@@ -998,7 +895,6 @@ export default function MonthlyReportPage() {
                             <th className="text-right py-2.5 px-3">未付</th>
                             <th className="text-right py-2.5 px-3">付款率</th>
                             <th className="text-left py-2.5 px-3">账龄</th>
-                            <th className="text-center py-2.5 px-3">风险</th>
                           </tr></thead>
                           <tbody>{supplierSettlements.map((s, i) => (
                             <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
@@ -1008,10 +904,9 @@ export default function MonthlyReportPage() {
                               <td className="py-2.5 px-3 text-right">{fmtAmt(s.totalSettlement)}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(s.payable)}</td>
                               <td className="py-2.5 px-3 text-right text-emerald-600">{fmtAmt(s.paid)}</td>
-                              <td className="py-2.5 px-3 text-right text-red-500">{fmtAmt(s.unpaid)}</td>
+                              <td className="py-2.5 px-3 text-right text-muted-foreground">{fmtAmt(s.unpaid)}</td>
                               <td className="py-2.5 px-3 text-right">{s.paymentRate.toFixed(1)}%</td>
                               <td className="py-2.5 px-3">{s.aging}</td>
-                              <td className="py-2.5 px-3 text-center">{s.riskLevel !== 'normal' ? <Badge variant={riskColor(s.riskLevel)}>{riskLabel(s.riskLevel)}</Badge> : '-'}</td>
                             </tr>
                           ))}</tbody>
                         </table>
@@ -1021,13 +916,12 @@ export default function MonthlyReportPage() {
                           <div key={i} className="border rounded-lg p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{s.projectName}</span>
-                              {s.riskLevel !== 'normal' && <Badge variant={riskColor(s.riskLevel)}>风险</Badge>}
                             </div>
                             <div className="text-sm text-muted-foreground">{s.supplierName} · {s.contractName}</div>
                             <div className="grid grid-cols-3 gap-2 text-sm">
                               <div><span className="text-muted-foreground">应付</span><br />{fmtAmt(s.payable)}</div>
                               <div><span className="text-muted-foreground">已付</span><br /><span className="text-emerald-600">{fmtAmt(s.paid)}</span></div>
-                              <div><span className="text-muted-foreground">未付</span><br /><span className="text-red-500">{fmtAmt(s.unpaid)}</span></div>
+                              <div><span className="text-muted-foreground">未付</span><br /><span className="text-muted-foreground">{fmtAmt(s.unpaid)}</span></div>
                             </div>
                             <div className="text-xs text-muted-foreground">付款率{s.paymentRate.toFixed(1)}% · 账龄{s.aging}</div>
                           </div>
@@ -1069,10 +963,10 @@ export default function MonthlyReportPage() {
                               <td className="py-2.5 px-3">{s.projectName}</td>
                               <td className="py-2.5 px-3 text-right bg-primary/5 font-medium">{fmtAmt(s.monthSettlement)}</td>
                               <td className="py-2.5 px-3 text-right bg-primary/5 text-emerald-600">{fmtAmt(s.monthPaid)}</td>
-                              <td className="py-2.5 px-3 text-right bg-primary/5 text-red-500">{fmtAmt(monthUnpaid)}</td>
+                              <td className="py-2.5 px-3 text-right bg-primary/5 text-muted-foreground">{fmtAmt(monthUnpaid)}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(s.totalSettlement)}</td>
                               <td className="py-2.5 px-3 text-right text-emerald-600">{fmtAmt(s.totalPaid)}</td>
-                              <td className="py-2.5 px-3 text-right text-red-500">{fmtAmt(s.totalUnpaid)}</td>
+                              <td className="py-2.5 px-3 text-right text-muted-foreground">{fmtAmt(s.totalUnpaid)}</td>
                               <td className="py-2.5 px-3 text-right">{s.paymentRate.toFixed(1)}%</td>
                             </tr>
                           );})}</tbody>
@@ -1081,10 +975,10 @@ export default function MonthlyReportPage() {
                             <td className="py-2.5 px-3" />
                             <td className="py-2.5 px-3 text-right bg-primary/5">{fmtAmt(filteredSuppliers.reduce((sum: number, s: { monthSettlement: number }) => sum + (s.monthSettlement || 0), 0))}</td>
                             <td className="py-2.5 px-3 text-right bg-primary/5 text-emerald-600">{fmtAmt(filteredSuppliers.reduce((sum: number, s: { monthPaid: number }) => sum + (s.monthPaid || 0), 0))}</td>
-                            <td className="py-2.5 px-3 text-right bg-primary/5 text-red-500">{fmtAmt(Math.max(filteredSuppliers.reduce((sum: number, s: { monthSettlement: number; monthPaid: number }) => sum + (s.monthSettlement || 0) - (s.monthPaid || 0), 0), 0))}</td>
+                            <td className="py-2.5 px-3 text-right bg-primary/5 text-muted-foreground">{fmtAmt(Math.max(filteredSuppliers.reduce((sum: number, s: { monthSettlement: number; monthPaid: number }) => sum + (s.monthSettlement || 0) - (s.monthPaid || 0), 0), 0))}</td>
                             <td className="py-2.5 px-3 text-right">{fmtAmt(filteredSuppliers.reduce((sum: number, s: { totalSettlement: number }) => sum + (s.totalSettlement || 0), 0))}</td>
                             <td className="py-2.5 px-3 text-right text-emerald-600">{fmtAmt(filteredSuppliers.reduce((sum: number, s: { totalPaid: number }) => sum + (s.totalPaid || 0), 0))}</td>
-                            <td className="py-2.5 px-3 text-right text-red-500">{fmtAmt(filteredSuppliers.reduce((sum: number, s: { totalUnpaid: number }) => sum + (s.totalUnpaid || 0), 0))}</td>
+                            <td className="py-2.5 px-3 text-right text-muted-foreground">{fmtAmt(filteredSuppliers.reduce((sum: number, s: { totalUnpaid: number }) => sum + (s.totalUnpaid || 0), 0))}</td>
                             <td className="py-2.5 px-3 text-right">—</td>
                           </tr></tfoot>
                         </table>
@@ -1099,12 +993,12 @@ export default function MonthlyReportPage() {
                             <div className="grid grid-cols-3 gap-2 text-sm bg-primary/5 rounded p-2">
                               <div><span className="text-muted-foreground text-xs">本月结算</span><br />{fmtAmt(s.monthSettlement)}</div>
                               <div><span className="text-muted-foreground text-xs">本月付款</span><br /><span className="text-emerald-600">{fmtAmt(s.monthPaid)}</span></div>
-                              <div><span className="text-muted-foreground text-xs">本月未付</span><br /><span className="text-red-500">{fmtAmt(Math.max((s.monthSettlement||0)-(s.monthPaid||0),0))}</span></div>
+                              <div><span className="text-muted-foreground text-xs">本月未付</span><br /><span className="text-muted-foreground">{fmtAmt(Math.max((s.monthSettlement||0)-(s.monthPaid||0),0))}</span></div>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-sm">
                               <div><span className="text-muted-foreground">累计结算</span><br />{fmtAmt(s.totalSettlement)}</div>
                               <div><span className="text-muted-foreground">累计已付</span><br /><span className="text-emerald-600">{fmtAmt(s.totalPaid)}</span></div>
-                              <div><span className="text-muted-foreground">累计未付</span><br /><span className="text-red-500">{fmtAmt(s.totalUnpaid)}</span></div>
+                              <div><span className="text-muted-foreground">累计未付</span><br /><span className="text-muted-foreground">{fmtAmt(s.totalUnpaid)}</span></div>
                             </div>
                             <div className="text-xs text-muted-foreground">付款率 {s.paymentRate.toFixed(1)}%</div>
                           </div>
@@ -1142,11 +1036,11 @@ export default function MonthlyReportPage() {
                               <td className="py-2.5 px-3 text-right">{fmtAmt(p.monthConfirmedOutput)}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(p.monthApprovedVisa)}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(p.monthConfirmedCost)}</td>
-                              <td className={`py-2.5 px-3 text-right font-medium ${p.operatingProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmtAmt(p.operatingProfit)}</td>
+                              <td className={`py-2.5 px-3 text-right font-medium ${p.operatingProfit >= 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>{fmtAmt(p.operatingProfit)}</td>
                               <td className="py-2.5 px-3 text-right">{(p.operatingProfitRate ?? 0).toFixed(1)}%</td>
                               <td className="py-2.5 px-3 text-right text-emerald-600">{fmtAmt(p.totalReceived)}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(p.monthActualPayment)}</td>
-                              <td className={`py-2.5 px-3 text-right font-medium ${p.cashNetFlow >= 0 ? 'text-blue-600' : 'text-red-500'}`}>{fmtAmt(p.cashNetFlow)}</td>
+                              <td className={`py-2.5 px-3 text-right font-medium ${p.cashNetFlow >= 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>{fmtAmt(p.cashNetFlow)}</td>
                               <td className="py-2.5 px-3 text-right">{fmtAmt(p.cumulativeVisa)}</td>
                               <td className="py-2.5 px-3 text-right">{p.paymentRate.toFixed(1)}%</td>
                               <td className="py-2.5 px-3 text-right">{p.inServiceCount}</td>
@@ -1162,8 +1056,8 @@ export default function MonthlyReportPage() {
                               <Badge variant={p.operatingProfit >= 0 ? 'default' : 'destructive'}>{p.operatingProfit >= 0 ? '盈利' : '亏损'}</Badge>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-sm">
-                              <div><span className="text-muted-foreground">经营利润</span><br /><span className={p.operatingProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}>{fmtAmt(p.operatingProfit)}</span></div>
-                              <div><span className="text-muted-foreground">现金净流</span><br /><span className={p.cashNetFlow >= 0 ? 'text-blue-600' : 'text-red-500'}>{fmtAmt(p.cashNetFlow)}</span></div>
+                              <div><span className="text-muted-foreground">经营利润</span><br /><span className={p.operatingProfit >= 0 ? 'text-emerald-600' : 'text-muted-foreground'}>{fmtAmt(p.operatingProfit)}</span></div>
+                              <div><span className="text-muted-foreground">现金净流</span><br /><span className={p.cashNetFlow >= 0 ? 'text-blue-600' : 'text-muted-foreground'}>{fmtAmt(p.cashNetFlow)}</span></div>
                               <div><span className="text-muted-foreground">回款率</span><br />{p.paymentRate.toFixed(1)}%</div>
                             </div>
                             <div className="text-xs text-muted-foreground">月产值{fmtAmt(p.monthConfirmedOutput)} | 月签证{fmtAmt(p.monthApprovedVisa)} | 月成本{fmtAmt(p.monthConfirmedCost)} | {p.inServiceCount}人</div>
@@ -1422,27 +1316,15 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                 {[
                   { label: '应付合计', value: fmtWan(pp.totalPayable), color: 'var(--foreground)' },
-                  { label: '人工未付', value: fmtWan(pp.laborUnpaid), color: (pp.laborUnpaid ?? 0) > 0 ? '#F53F3F' : '#00B42A' },
-                  { label: '供应商未付', value: fmtWan(pp.supplierUnpaid), color: (pp.supplierUnpaid ?? 0) > 0 ? '#F53F3F' : '#00B42A' },
-                  { label: '预计资金缺口', value: fmtWan(pp.fundGap), color: (pp.fundGap ?? 0) > 0 ? '#F53F3F' : '#00B42A' },
+                  { label: '人工未付', value: fmtWan(pp.laborUnpaid), color: 'var(--foreground)' },
+                  { label: '供应商未付', value: fmtWan(pp.supplierUnpaid), color: 'var(--foreground)' },
+                  { label: '预计资金缺口', value: fmtWan(pp.fundGap), color: 'var(--foreground)' },
                 ].map((item, i) => (
                   <div key={i} style={{ background: 'var(--color-muted)', borderRadius: 6, padding: '10px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: '#888' }}>{item.label}</div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: item.color }}>{item.value}</div>
                   </div>
                 ))}
-              </div>
-              {/* 风险提示 */}
-              <div style={{ marginTop: 10 }}>
-                {(pp.laborUnpaid ?? 0) > 0 && (
-                  <p style={{ fontSize: 12, color: '#F53F3F', margin: '2px 0' }}>⚠ 存在工资支付风险：人工未付 {fmtWan(pp.laborUnpaid)}</p>
-                )}
-                {(pp.supplierUnpaid ?? 0) > 0 && (
-                  <p style={{ fontSize: 12, color: '#FF7D00', margin: '2px 0' }}>⚠ 存在供应商付款压力：供应商未付 {fmtWan(pp.supplierUnpaid)}</p>
-                )}
-                {(pp.fundGap ?? 0) > 0 && (
-                  <p style={{ fontSize: 12, color: '#F53F3F', fontWeight: 600, margin: '2px 0' }}>⚠ 预计资金缺口 {fmtWan(pp.fundGap)}，建议优先保障人工工资</p>
-                )}
               </div>
             </section>
           )}
@@ -1456,7 +1338,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--color-muted)' }}>
-                    {['项目', '在场人数', '工资应付', '工资已付', '工资未付', '未付人数', '风险'].map(h => (
+                    {['项目', '在场人数', '工资应付', '工资已付', '工资未付', '未付人数'].map(h => (
                       <th key={h} style={{ padding: '8px 6px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600 }}>{h}</th>
                     ))}
                   </tr>
@@ -1468,9 +1350,8 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
                       <td style={{ padding: '6px' }}>{item.inServiceCount ?? '-'}</td>
                       <td style={{ padding: '6px' }}>{fmtWan(item.salaryPayable)}</td>
                       <td style={{ padding: '6px' }}>{fmtWan(item.salaryPaid)}</td>
-                      <td style={{ padding: '6px', color: (item.salaryUnpaid ?? 0) > 0 ? '#F53F3F' : 'inherit', fontWeight: (item.salaryUnpaid ?? 0) > 0 ? 600 : 400 }}>{fmtWan(item.salaryUnpaid)}</td>
+                      <td style={{ padding: '6px' }}>{fmtWan(item.salaryUnpaid)}</td>
                       <td style={{ padding: '6px' }}>{item.unpaidWorkers}</td>
-                      <td style={{ padding: '6px', color: riskLevelColor(item.riskLevel), fontWeight: 600 }}>{item.riskLevel === 'danger' ? '高' : item.riskLevel === 'warning' ? '中' : '低'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1579,7 +1460,7 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--color-muted)' }}>
-                    {['项目名称', '累计产值', '累计应回款', '累计已回款', '应收未回', '账龄', '预计回款', '风险等级'].map(h => (
+                    {['项目名称', '累计产值', '累计应回款', '累计已回款', '应收未回', '账龄', '预计回款'].map(h => (
                       <th key={h} style={{ padding: '8px 6px', textAlign: h.includes('累计') || h.includes('应收') ? 'right' : 'left', borderBottom: '1px solid #ddd', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -1590,21 +1471,16 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
                       <td style={{ padding: '6px', fontWeight: 500 }}>{item.projectName}</td>
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.cumulativeOutput)}</td>
                       <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.cumulativeReceivable)}</td>
-                      <td style={{ padding: '6px', textAlign: 'right', color: '#00B42A' }}>{fmtWan(item.cumulativeReceived)}</td>
-                      <td style={{ padding: '6px', textAlign: 'right', color: item.unreceived > 0 ? '#F53F3F' : '#00B42A', fontWeight: item.unreceived > 0 ? 600 : 400 }}>
+                      <td style={{ padding: '6px', textAlign: 'right' }}>{fmtWan(item.cumulativeReceived)}</td>
+                      <td style={{ padding: '6px', textAlign: 'right' }}>
                         {item.unreceived > 0 ? fmtWan(item.unreceived) : (item.isOverCollected ? `超收 ${fmtWan(item.overCollectedAmount ?? 0)}` : '已结清')}
                       </td>
                       <td style={{ padding: '6px', textAlign: 'center' }}>
-                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11,
-                          background: item.agingDays > 90 ? '#fef2f2' : item.agingDays > 60 ? '#fff7ed' : item.agingDays > 30 ? '#fefce8' : '#f0fdf4',
-                          color: item.agingDays > 90 ? '#F53F3F' : item.agingDays > 60 ? '#ea580c' : item.agingDays > 30 ? '#ca8a04' : '#00B42A' }}>
+                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11, background: 'var(--color-muted)' }}>
                           {item.agingCategory}
                         </span>
                       </td>
                       <td style={{ padding: '6px', color: '#888' }}>{item.estimatedPaymentDate || '-'}</td>
-                      <td style={{ padding: '6px', textAlign: 'center', color: item.riskLevel === 'high' || item.riskLevel === 'critical' ? '#F53F3F' : item.riskLevel === 'medium' ? '#FF7D00' : '#00B42A', fontWeight: 600 }}>
-                        {item.riskLevel === 'critical' ? '极高' : item.riskLevel === 'high' ? '高' : item.riskLevel === 'medium' ? '中' : '低'}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1615,38 +1491,6 @@ function ReportPreviewDialog({ month, projectName, data, onClose, onExportPDF }:
                   {data.seasonalNote}
                 </div>
               )}
-            </section>
-          )}
-
-          {/* ── Section 6: 风险预警 ── */}
-          {risks.length > 0 && (
-            <section style={{ marginBottom: 32 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, borderBottom: '2px solid #1a1a1a', paddingBottom: 6, marginBottom: 16 }}>
-                六、风险预警清单
-              </h2>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: 'var(--color-muted)' }}>
-                    {['项目', '风险类型', '等级', '影响金额', '原因', '建议动作'].map(h => (
-                      <th key={h} style={{ padding: '8px 6px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {risks.map((r, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '6px' }}>{r.project || '-'}</td>
-                      <td style={{ padding: '6px' }}>{r.riskType}</td>
-                      <td style={{ padding: '6px', color: riskLevelColor(r.riskLevel), fontWeight: 600 }}>
-                        {r.riskLevel === 'danger' ? '高' : r.riskLevel === 'warning' ? '中' : '低'}
-                      </td>
-                      <td style={{ padding: '6px' }}>{r.impactAmount != null ? fmtWan(r.impactAmount) : '-'}</td>
-                      <td style={{ padding: '6px', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason || '-'}</td>
-                      <td style={{ padding: '6px', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.suggestion || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </section>
           )}
 
