@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requirePermission } from '@/lib/api-auth';
+import { auditLog } from '@/lib/audit-log';
 
 const DEFAULT_WORKFLOW_CONFIGS = [
   {
@@ -111,6 +112,16 @@ export async function PUT(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'workflow_type' }).select().single();
     if (error) throw new Error(error.message);
+
+    // 配置变更审计
+    await auditLog({
+      operationType: 'update',
+      resourceType: 'workflow_config',
+      resourceId: Number(data?.id) || undefined,
+      details: { workflow_type, steps: normalizedSteps.length },
+      request,
+    });
+
     return NextResponse.json({ success: true, data });
   } catch (e: unknown) {
     return NextResponse.json({ success: false, error: getErrorMessage(e) }, { status: 500 });

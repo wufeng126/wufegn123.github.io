@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
+import { auditLog } from '@/lib/audit-log';
 import { apiBadRequest, apiForbidden, apiServerError } from '@/lib/api-utils';
 import { runMigrations } from '@/lib/db-migration';
 import { extractWpsFileId, getWpsDbsheetSchema, type WpsFieldMapping, type WpsIntegrationConfig } from '@/lib/wps-openapi';
@@ -221,6 +222,14 @@ export async function PUT(request: NextRequest) {
       await runWpsConfigMigration();
       data = await upsertConfig();
     }
+
+    await auditLog({
+      operationType: 'update',
+      resourceType: 'wps_config',
+      resourceId: Number(data?.id) || undefined,
+      details: { app_id: data?.app_id || null, auto_sync_enabled: data?.auto_sync_enabled },
+      request,
+    });
 
     return NextResponse.json({ success: true, config: toSafeConfig(data) });
   } catch (error) {

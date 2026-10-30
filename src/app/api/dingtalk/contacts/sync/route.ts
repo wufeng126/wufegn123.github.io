@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/api-auth';
 import { syncDingTalkContacts } from '@/lib/dingtalk-contacts-sync';
+import { auditLog } from '@/lib/audit-log';
 
 function formatSyncMessage(data: {
   deptCount: number;
@@ -25,6 +26,18 @@ export async function POST(request: NextRequest) {
     const result = await syncDingTalkContacts();
 
     if (result.success) {
+      await auditLog({
+        operationType: 'update',
+        resourceType: 'dingtalk_contacts',
+        details: {
+          dept_count: result.deptCount,
+          user_count: result.userCount,
+          created_pending: result.createdPendingAccounts,
+          updated_users: result.updatedSystemUsers,
+          disabled_users: result.disabledSystemUsers,
+        },
+        request,
+      });
       return NextResponse.json({
         success: true,
         data: {

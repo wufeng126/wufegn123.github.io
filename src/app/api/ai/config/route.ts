@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getAIConfig, clearAIConfigCache } from '@/lib/ai-service';
 import { requirePermission } from '@/lib/api-auth';
+import { auditLog } from '@/lib/audit-log';
 import { getErrorMessage } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
@@ -91,6 +92,19 @@ export async function PUT(request: NextRequest) {
     }
 
     clearAIConfigCache();
+
+    // 配置变更审计（不记录密钥值）
+    await auditLog({
+      operationType: 'update',
+      resourceType: 'ai_config',
+      resourceId: Number(result.data?.id) || undefined,
+      details: {
+        updated_fields: Object.keys(updateData).filter((key) => !['updated_at', 'api_key'].includes(key)),
+        api_key_changed: Boolean(updateData.api_key),
+        enabled: result.data?.enabled,
+      },
+      request,
+    });
     const safeResult: Record<string, any> = { ...result.data };
     safeResult.api_key = result.data.api_key ? '******' : '';
     safeResult.api_endpoint = result.data.api_endpoint || '';
