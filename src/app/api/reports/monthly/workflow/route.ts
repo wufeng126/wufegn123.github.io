@@ -123,7 +123,41 @@ export async function GET(request: NextRequest) {
     }
 
     const { workflow, needsMigration } = await loadWorkflow(client, month, scope);
-    return apiSuccess({ workflow, needs_migration: needsMigration });
+
+    // 项目负责人（预算员/项目经理）：按项目配置带出，便于确认审批人
+    let fillOwnerName: string | null = null;
+    let managerOwnerName: string | null = null;
+    if (scope !== 'all') {
+      const { data: projRow } = await client
+        .from('projects')
+        .select('budget_user_id, manager_user_id')
+        .eq('id', Number(scope))
+        .maybeSingle();
+      const budgetUserId = Number(projRow?.budget_user_id) || 0;
+      const managerUserId = Number(projRow?.manager_user_id) || 0;
+      const ownerIds = [budgetUserId, managerUserId].filter(Boolean);
+      if (ownerIds.length > 0) {
+        const { data: ownerRows } = await client
+          .from('users')
+          .select('id, name, username')
+          .in('id', ownerIds);
+        const nameById = new Map(
+          (ownerRows || []).map((u: { id?: unknown; name?: unknown; username?: unknown }) => [
+            Number(u.id),
+            String(u.name || u.username || ''),
+          ]),
+        );
+        fillOwnerName = nameById.get(budgetUserId) || null;
+        managerOwnerName = nameById.get(managerUserId) || null;
+      }
+    }
+
+    return apiSuccess({
+      workflow,
+      needs_migration: needsMigration,
+      fill_owner_name: fillOwnerName,
+      manager_owner_name: managerOwnerName,
+    });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '月报审批状态加载失败'));
   }
@@ -291,6 +325,16 @@ export async function POST(request: NextRequest) {
     try {
       const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
       if (action === 'submit_manager') {
+        // 按项目匹配项目经理（项目上指定的 manager_user_id）；全公司月报回退到项目经理角色
+        let managerUserId: number | undefined;
+        if (scope !== 'all') {
+          const { data: projRow } = await client
+            .from('projects')
+            .select('manager_user_id')
+            .eq('id', Number(scope))
+            .maybeSingle();
+          managerUserId = Number(projRow?.manager_user_id) || undefined;
+        }
         await pushBusinessNotification({
           type: 'monthly_report_fill',
           title: `月度报表待补充：${month}（${scopeLabel}）`,
@@ -299,7 +343,8 @@ export async function POST(request: NextRequest) {
           projectId: scope === 'all' ? undefined : Number(scope),
           relatedId: Number(saved?.id) || undefined,
           relatedType: 'monthly_report',
-          recipientRole: 'project_manager',
+          recipientUserIds: managerUserId ? [managerUserId] : undefined,
+          recipientRole: managerUserId ? undefined : 'project_manager',
           metadata: {
             消息分类: '月报协作',
             业务摘要: `${month} 月报待项目经理补充`,

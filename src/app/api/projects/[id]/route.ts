@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import type { RequestAuthUser } from '@/lib/auth';
 import { auditLog } from '@/lib/audit-log';
@@ -234,6 +234,8 @@ export async function PUT(
       warranty_expired_payment_ratio,
       completion_date,
       warranty_days,
+      budget_user_id,
+      manager_user_id,
     } = body;
 
     const client = getSupabaseClient();
@@ -260,6 +262,8 @@ export async function PUT(
         warranty_expired_payment_ratio: nullableValue(warranty_expired_payment_ratio),
         completion_date: nullableValue(completion_date),
         warranty_days: nullableValue(warranty_days),
+        budget_user_id: nullableValue(budget_user_id),
+        manager_user_id: nullableValue(manager_user_id),
       })
       .eq('id', projectId)
       .select()

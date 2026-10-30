@@ -43,6 +43,8 @@ interface Project {
   warranty_expired_payment_ratio: string | number | null;
   completion_date: string | null;
   warranty_days: string | number | null;
+  budget_user_id?: number | null;
+  manager_user_id?: number | null;
   created_at: string;
   budgetAmount?: number;
   reportAmount?: number;
@@ -87,6 +89,8 @@ const createEmptyProjectForm = () => ({
   warranty_expired_payment_ratio: '',
   completion_date: '',
   warranty_days: '',
+  budget_user_id: '',
+  manager_user_id: '',
 });
 
 const normalizeProjectStatus = (status?: string | null) => {
@@ -153,11 +157,32 @@ export default function ProjectsPage() {
 
   
   const [formData, setFormData] = useState(createEmptyProjectForm);
+  const [userOptions, setUserOptions] = useState<Array<{ id: number; name: string }>>([]);
 
   useEffect(() => {
     fetchProjects();
     fetchUser();
+    fetchUserOptions();
   }, []);
+
+  async function fetchUserOptions() {
+    try {
+      const res = await fetch('/api/auth/center/users', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data.users) ? data.users : (Array.isArray(data.data) ? data.data : []);
+      setUserOptions(
+        list
+          .filter((u: { is_disabled?: boolean }) => !u.is_disabled)
+          .map((u: { id: number; name?: string; username?: string }) => ({
+            id: Number(u.id),
+            name: String(u.name || u.username || ''),
+          })),
+      );
+    } catch {
+      // 用户列表加载失败不阻断项目编辑
+    }
+  }
 
   async function fetchUser() {
     try {
@@ -328,6 +353,8 @@ export default function ProjectsPage() {
       warranty_expired_payment_ratio: String(project.warranty_expired_payment_ratio || ''),
       completion_date: project.completion_date || '',
       warranty_days: String(project.warranty_days || ''),
+      budget_user_id: project.budget_user_id ? String(project.budget_user_id) : '',
+      manager_user_id: project.manager_user_id ? String(project.manager_user_id) : '',
     });
     setDialogOpen(true);
   };
@@ -479,6 +506,36 @@ export default function ProjectsPage() {
                     placeholder="请输入合同额"
                     className="mt-1.5"
                   />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目预算员</Label>
+                  <Select
+                    value={formData.budget_user_id || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, budget_user_id: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择预算员" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">不指定</SelectItem>
+                      {userOptions.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>负责本项目月报填写与提交审批</p>
+                </div>
+                <div>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目经理</Label>
+                  <Select
+                    value={formData.manager_user_id || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, manager_user_id: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择项目经理" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">不指定</SelectItem>
+                      {userOptions.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>负责本项目月报补充并提交老板</p>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">

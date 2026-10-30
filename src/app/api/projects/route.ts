@@ -311,6 +311,8 @@ export async function POST(request: NextRequest) {
       warranty_expired_payment_ratio,
       completion_date,
       warranty_days,
+      budget_user_id,
+      manager_user_id,
     } = body;
 
     if (!name || !year) {
@@ -336,6 +338,8 @@ export async function POST(request: NextRequest) {
         warranty_expired_payment_ratio: nullableValue(warranty_expired_payment_ratio),
         completion_date: nullableValue(completion_date),
         warranty_days: nullableValue(warranty_days),
+        budget_user_id: nullableValue(budget_user_id),
+        manager_user_id: nullableValue(manager_user_id),
       }, client);
 
     // insertWithSequenceFix 返回数组，取第一个

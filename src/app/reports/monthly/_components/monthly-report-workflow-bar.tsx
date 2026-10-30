@@ -129,6 +129,7 @@ export function MonthlyReportWorkflowBar({
   const [showReject, setShowReject] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [owners, setOwners] = useState<{ fill?: string | null; manager?: string | null }>({});
 
   useEffect(() => {
     (async () => {
@@ -155,6 +156,10 @@ export function MonthlyReportWorkflowBar({
       const row = (json?.data?.workflow || null) as Workflow | null;
       setWorkflow(row);
       setContent(row?.content || {});
+      setOwners({
+        fill: (json?.data?.fill_owner_name as string | null | undefined) ?? null,
+        manager: (json?.data?.manager_owner_name as string | null | undefined) ?? null,
+      });
     } catch (error) {
       // 表未迁移/未配置时不阻断月报查看
       console.warn('[MonthlyReportWorkflowBar] load failed:', error);
@@ -225,6 +230,8 @@ export function MonthlyReportWorkflowBar({
         {workflow?.manager_user && <span className="text-xs text-muted-foreground">补充：{workflow.manager_user}</span>}
         {workflow?.approved_by && <span className="text-xs text-muted-foreground">审批：{workflow.approved_by}</span>}
         {workflow?.approved_at && <span className="text-xs text-muted-foreground">{formatTime(workflow.approved_at)}</span>}
+        {owners.fill && <span className="text-xs text-muted-foreground">预算员：{owners.fill}</span>}
+        {owners.manager && <span className="text-xs text-muted-foreground">项目经理：{owners.manager}</span>}
         {statusHint && <span className="text-xs text-muted-foreground">{statusHint}</span>}
         {workflow?.reject_reason && status === 'rejected' && (
           <span className="text-xs text-red-600">驳回原因：{workflow.reject_reason}</span>
