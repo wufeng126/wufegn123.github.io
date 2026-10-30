@@ -6,6 +6,7 @@ import { extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type
 import { applyWpsFieldMapping, extractWpsFileId, getWpsDbsheetSchema, listWpsDbsheetRecords, type WpsFieldMapping, type WpsIntegrationConfig, type WpsSheetSchema } from '@/lib/wps-openapi';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 type BindingRow = {
   id: number;
@@ -510,10 +511,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: bindings, error } = await client
+    // 项目范围：非超管只能同步自己有权限项目的绑定（防止只有 workers:import 就触发全公司同步）
+    const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);
+    let bindingQuery = client
       .from('wps_project_bindings')
       .select('*, projects(name)')
       .eq('is_active', true);
+    if (Array.isArray(accessibleProjectIds)) {
+      if (accessibleProjectIds.length === 0) {
+        return NextResponse.json({ success: false, error: '没有可同步的项目（无项目权限）' }, { status: 403 });
+      }
+      bindingQuery = bindingQuery.in('project_id', accessibleProjectIds);
+    }
+    const { data: bindings, error } = await bindingQuery;
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });

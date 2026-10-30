@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { requireAnyPermission, requirePermission } from '@/lib/api-auth';
+import { requireAnyPermission, requirePermission, requireSuperAdmin } from '@/lib/api-auth';
+import { auditLog } from '@/lib/audit-log';
 import { getErrorMessage } from '@/lib/api-utils';
 
 function normalizePageParam(value: string | null, fallback: number, max: number) {
@@ -72,10 +73,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// DELETE /api/audit-logs - 清理审计日志（按日期范围）
+// DELETE /api/audit-logs - 清理审计日志（仅超管，且清理动作本身留痕）
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requirePermission(request, 'system:manage');
+    const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
@@ -94,6 +95,14 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: getErrorMessage(error, '清理审计日志失败') }, { status: 500 });
     }
+
+    // 清理动作本身留痕（记录时间为当前，不会被本次清理覆盖）
+    await auditLog({
+      operationType: 'delete',
+      resourceType: 'audit_log',
+      details: { before_date: beforeDate, deleted_count: count || 0 },
+      request,
+    });
 
     return NextResponse.json({
       success: true,
