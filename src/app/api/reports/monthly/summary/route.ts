@@ -546,7 +546,7 @@ export async function GET(request: NextRequest) {
         unreceived, overReceived, paymentRate,
         supplierCost, salaryCost, salaryPaid, unpaidSalary,
         expenseCost, materialCost, taxCost, totalCost,
-        monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthSupplierSettlement, monthExpenseCost,
+        monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthLaborSalaryCost: safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))), monthTeamSettlementCost, monthSupplierSettlement, monthExpenseCost,
         monthMaterialCost, monthTaxCost, monthCost, monthSupplierPayments,
         profit: monthIncome - monthCost,
         profitRate: monthIncome > 0 ? ((monthIncome - monthCost) / monthIncome) * 100 : 0,

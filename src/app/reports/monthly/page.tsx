@@ -57,6 +57,7 @@ interface ProjectItem {
   totalOutput: number; totalPayment: number; totalCost: number;
   monthCost: number;
   monthIncome: number; monthSalaryCost: number; monthSalaryPaid: number;
+  monthLaborSalaryCost: number; monthTeamSettlementCost: number;
   profit: number; profitRate: number;
   cumulativeIncome: number; cumulativeCost: number;
   cumulativeProfit: number; cumulativeProfitRate: number;
@@ -579,8 +580,9 @@ export default function MonthlyReportPage() {
                 <CardContent className="px-4 pb-4">
                   <p className="mb-3 text-sm text-muted-foreground">
                     本月合计报量 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthIncome)}</span>，
-                    工资应发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthSalaryCost)}</span>，
-                    实发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthSalaryPaid ?? 0)}</span>。
+                    工人工资应发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0))}</span>，
+                    工人实发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthSalaryPaid ?? 0)}</span>，
+                    班组结算 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0))}</span>。
                   </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -588,8 +590,9 @@ export default function MonthlyReportPage() {
                         <tr className="border-b text-xs text-muted-foreground">
                           <th className="py-2 px-2 text-left">项目</th>
                           <th className="py-2 px-2 text-right">本月报量</th>
-                          <th className="py-2 px-2 text-right">工资应发</th>
-                          <th className="py-2 px-2 text-right">工资实发</th>
+                          <th className="py-2 px-2 text-right">工人工资应发</th>
+                          <th className="py-2 px-2 text-right">工人实发</th>
+                          <th className="py-2 px-2 text-right">班组结算</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -597,8 +600,9 @@ export default function MonthlyReportPage() {
                           <tr key={project.id} className="border-b last:border-0">
                             <td className="py-2 px-2">{project.name}</td>
                             <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthIncome)}</td>
-                            <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthSalaryCost)}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthLaborSalaryCost ?? 0)}</td>
                             <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthSalaryPaid ?? 0)}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthTeamSettlementCost ?? 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -606,8 +610,9 @@ export default function MonthlyReportPage() {
                         <tr className="border-t font-semibold">
                           <td className="py-2 px-2">合计</td>
                           <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthIncome || 0), 0))}</td>
-                          <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthSalaryCost || 0), 0))}</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0))}</td>
                           <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthSalaryPaid || 0), 0))}</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0))}</td>
                         </tr>
                       </tfoot>
                     </table>

@@ -26,6 +26,9 @@ export interface ProjectData {
   taxCost: number;
   totalCost: number;
   monthSalaryCost: number;
+  monthSalaryPaid: number;
+  monthLaborSalaryCost: number;
+  monthTeamSettlementCost: number;
   monthSupplierSettlement: number;
   monthExpenseCost: number;
   monthMaterialCost: number;
