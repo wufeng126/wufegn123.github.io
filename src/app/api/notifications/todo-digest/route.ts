@@ -89,7 +89,18 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(1000);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      // 容错：生产库可能尚未执行 add_notification_recipients.sql（缺少 recipient_user_id 列）
+      const message = String(error.message || '');
+      if (message.includes('recipient_user_id')) {
+        return NextResponse.json({
+          success: true,
+          sentCount: 0,
+          message: '通知表缺少「接收人」字段（请执行迁移 add_notification_recipients.sql），暂无法按人推送待办',
+        });
+      }
+      throw new Error(error.message);
+    }
 
     const digestTypes = new Set(
       NOTIFICATION_ROUTE_RULES
