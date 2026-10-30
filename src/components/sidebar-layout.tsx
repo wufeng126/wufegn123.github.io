@@ -55,6 +55,7 @@ import {
   Link2,
   Workflow,
   RefreshCw,
+  Send,
   Bot,
   History,
   type LucideIcon,
@@ -101,6 +102,9 @@ const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; 
 // 二级菜单（子页面显性化；不设 permissions 即按一级菜单可见性控制）
 // 图标统一使用 lucide 单色线性图标（小尺寸下比品牌渐变图标更清晰），保证全局不重复
 const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: LucideIcon; permissions?: string[] }>> = {
+  '/workspace': [
+    { name: '我的提交', href: '/my-submissions', icon: Send },
+  ],
   '/construction-logs': [
     { name: '施工日志', href: '/construction-logs', icon: ClipboardList },
     { name: '项目日报', href: '/construction-daily-reports', icon: FileText },
