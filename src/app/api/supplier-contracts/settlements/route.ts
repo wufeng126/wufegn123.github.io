@@ -25,6 +25,23 @@ function toNumber(value: unknown) {
   return Number.isFinite(num) ? num : 0;
 }
 
+/** 分页拉取全量：PostgREST 单次默认上限 1000 行，超过会被静默截断（列表与统计漏数据） */
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -113,30 +130,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let query = supabase
-      .from('supplier_settlements')
-      .select(`
-        *,
-        contract:contract_id(
-          id, contract_name, contract_no, supplier_id, project_id,
-          payment_ratio_active, payment_ratio_complete, payment_ratio_final,
-          contract_status, total_amount
-        )
-      `)
-      .order('settlement_date', { ascending: false })
-      .order('created_at', { ascending: false });
+    // 分页拉全量（避免 PostgREST 1000 行上限导致列表/统计静默截断）
+    const data = await fetchAllRows<any>((from, to) => {
+      let query = supabase
+        .from('supplier_settlements')
+        .select(`
+          *,
+          contract:contract_id(
+            id, contract_name, contract_no, supplier_id, project_id,
+            payment_ratio_active, payment_ratio_complete, payment_ratio_final,
+            contract_status, total_amount
+          )
+        `)
+        .order('settlement_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (contractId && contractId !== 'all') {
-      query = query.eq('contract_id', parseInt(contractId));
-    } else if (scopedContractIds) {
-      query = query.in('contract_id', scopedContractIds);
-    }
-    if (settlementType && settlementType !== 'all') {
-      query = query.eq('settlement_type', settlementType);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
+      if (contractId && contractId !== 'all') {
+        query = query.eq('contract_id', parseInt(contractId));
+      } else if (scopedContractIds) {
+        query = query.in('contract_id', scopedContractIds);
+      }
+      if (settlementType && settlementType !== 'all') {
+        query = query.eq('settlement_type', settlementType);
+      }
+      return query;
+    });
 
     const supplierIds = [...new Set((data || []).map((s: any) => s.contract?.supplier_id).filter(Boolean))];
     const suppliersMap: Record<number, any> = {};

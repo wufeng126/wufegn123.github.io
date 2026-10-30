@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
-import { requireAuth, requirePermission } from '@/lib/api-auth';
+import { hasPermission, requireAuth, requirePermission } from '@/lib/api-auth';
 import {
   apiBadRequest,
   apiForbidden,
@@ -85,7 +85,10 @@ async function assertScopeAccess(
   user: Parameters<typeof getAccessibleProjectIds>[1],
   scope: string,
 ): Promise<boolean> {
-  if (scope === 'all') return true;
+  if (scope === 'all') {
+    // 全公司月报仅超管/老板可访问与操作（避免单项目预算员改写全公司月报）
+    return Boolean(user.is_super_admin) || user.role === 'boss';
+  }
   const projectId = Number(scope);
   if (!Number.isInteger(projectId) || projectId <= 0) return false;
   const accessible = await getAccessibleProjectIds(client, user);
@@ -103,6 +106,11 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
+
+    // 月报内容与审批流转信息需要月报查看权限（避免任意登录用户读取）
+    if (!hasPermission(auth.user, 'reports:monthly_view')) {
+      return apiForbidden('无权查看月报');
+    }
 
     const month = normalizeMonth(request.nextUrl.searchParams.get('month'));
     if (!month) return apiBadRequest('请提供正确的月份（YYYY-MM）');

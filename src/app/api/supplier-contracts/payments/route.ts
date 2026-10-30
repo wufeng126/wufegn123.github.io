@@ -37,6 +37,23 @@ type SupplierPaymentAmountRow = {
   status?: string | null;
 };
 
+/** 分页拉取全量：PostgREST 单次默认上限 1000 行，超过会被静默截断（列表与统计漏数据） */
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 function normalizePaymentDate(value: unknown, fallback: string): string {
   const text = String(value || '').trim();
   if (!text) return fallback;
@@ -108,44 +125,50 @@ export async function GET(request: NextRequest) {
 
     }
 
-    let query = supabase
-      .from('supplier_payments')
-      .select(`
-        *,
-        contract:contract_id(id, contract_name, contract_no, supplier_id, project_id),
-        settlement:settlement_id(id, settlement_no, settlement_type, payable_amount)
-      `)
-      .order('payment_date', { ascending: false });
+    // 分页拉全量（避免 PostgREST 1000 行上限导致列表/统计静默截断）
+    let earlyReturn: NextResponse | null = null;
+    const data = await fetchAllRows<any>((from, to) => {
+      let query = supabase
+        .from('supplier_payments')
+        .select(`
+          *,
+          contract:contract_id(id, contract_name, contract_no, supplier_id, project_id),
+          settlement:settlement_id(id, settlement_no, settlement_type, payable_amount)
+        `)
+        .order('payment_date', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (contractId && contractId !== 'all') {
-      query = query.eq('contract_id', parseInt(contractId));
-    } else if (scopedContractIds) {
-      const paymentScope: string[] = [];
-      if (scopedContractIds.length > 0) {
-        paymentScope.push(`contract_id.in.(${scopedContractIds.join(',')})`);
+      if (contractId && contractId !== 'all') {
+        query = query.eq('contract_id', parseInt(contractId));
+      } else if (scopedContractIds) {
+        const paymentScope: string[] = [];
+        if (scopedContractIds.length > 0) {
+          paymentScope.push(`contract_id.in.(${scopedContractIds.join(',')})`);
+        }
+        if (requestedProjectId) {
+          paymentScope.push(`project_id.eq.${requestedProjectId}`);
+        } else if (projectScope !== null && projectScope.length > 0) {
+          paymentScope.push(`project_id.in.(${projectScope.join(',')})`);
+        }
+        if (supplierId && supplierId !== 'all') {
+          paymentScope.push(`supplier_id.eq.${parseInt(supplierId)}`);
+        }
+        if (paymentScope.length === 0) {
+          earlyReturn = NextResponse.json({
+            payments: [],
+            summary: { totalPayments: 0, totalAmount: 0 },
+          });
+          return Promise.resolve({ data: [], error: null });
+        }
+        query = query.or(paymentScope.join(','));
       }
-      if (requestedProjectId) {
-        paymentScope.push(`project_id.eq.${requestedProjectId}`);
-      } else if (projectScope !== null && projectScope.length > 0) {
-        paymentScope.push(`project_id.in.(${projectScope.join(',')})`);
+      if (settlementId && settlementId !== 'all') {
+        query = query.eq('settlement_id', parseInt(settlementId));
       }
-      if (supplierId && supplierId !== 'all') {
-        paymentScope.push(`supplier_id.eq.${parseInt(supplierId)}`);
-      }
-      if (paymentScope.length === 0) {
-        return NextResponse.json({
-          payments: [],
-          summary: { totalPayments: 0, totalAmount: 0 },
-        });
-      }
-      query = query.or(paymentScope.join(','));
-    }
-    if (settlementId && settlementId !== 'all') {
-      query = query.eq('settlement_id', parseInt(settlementId));
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
+      return query;
+    });
+    if (earlyReturn) return earlyReturn;
 
     const scopedPayments = (data || []).filter((payment: any) => {
       const paymentProjectId = Number(payment.project_id || payment.contract?.project_id || 0);
