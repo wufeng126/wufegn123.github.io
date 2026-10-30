@@ -24,8 +24,12 @@ export type MigrationResult = {
  */
 const MIGRATIONS_DIR = path.join(process.cwd(), 'migrations');
 
-/** 排除的汇总脚本 */
-const EXCLUDED_FILES = new Set(['apply_all_pending.sql']);
+/** 排除的汇总脚本 + 数据修复类脚本（含 DELETE/去重，不允许自动重放） */
+const EXCLUDED_FILES = new Set([
+  'apply_all_pending.sql',
+  'create_worker_project_unique.sql',
+  'add_worker_salaries_unique.sql',
+]);
 
 export function buildMigrationSql(): string {
   let files: string[];

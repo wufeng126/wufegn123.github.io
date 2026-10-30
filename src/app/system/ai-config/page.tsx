@@ -201,7 +201,8 @@ export default function AIConfigPage() {
   const saveConfig = async () => {
     // 启用状态下，API 密钥、地址与模型为必填（SDK 无默认端点/凭据，缺失将无法调用）
     if (config.enabled) {
-      if (!config.api_key || config.api_key === '******') {
+      // '******' 为已保存密钥的脱敏占位符，视为已配置（后端 PUT 会跳过占位符更新）
+      if (!config.api_key) {
         toast.error('启用 AI 前请先填写 API 密钥（Coze 平台 Token 或 DeepSeek 官方 Key）');
         return;
       }

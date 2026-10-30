@@ -199,6 +199,27 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
     
+    // 越权护栏（P0）：权限管理员不能改超管账号、不能授予超管角色（防止自我提权）
+    if (!auth.user.is_super_admin) {
+      if (String(existingUser.role || '') === 'super_admin') {
+        return NextResponse.json({ error: '不能修改超级管理员账号，请联系超级管理员操作' }, { status: 403 });
+      }
+      if (shouldUpdateRoles && normalizedRoleIds.length > 0) {
+        const { data: superRoles } = await supabase
+          .from('roles')
+          .select('id, code, is_super_admin');
+        const superRoleIds = new Set(
+          (superRoles || [])
+            .filter((role: { code?: string | null; is_super_admin?: boolean | null }) =>
+              role.code === 'super_admin' || role.is_super_admin === true)
+            .map((role: { id?: unknown }) => Number(role.id)),
+        );
+        if (normalizedRoleIds.some((roleId) => superRoleIds.has(roleId))) {
+          return NextResponse.json({ error: '只有超级管理员可以授予超级管理员角色' }, { status: 403 });
+        }
+      }
+    }
+
     // 更新用户角色关联
     // 先删除旧关联
     if (shouldUpdateRoles) {

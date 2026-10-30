@@ -12,8 +12,9 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 app.prepare().then(async () => {
-  // 执行数据库迁移
-  if (process.env.COZE_PROJECT_ENV === 'PROD') {
+  // 数据库迁移：默认不再每次启动自动重放（迁移集合含数据去重/RLS 语句，重放有删数据风险）。
+  // 需要自动迁移时显式设置 AUTO_MIGRATE=1，或由超管调用 POST /api/system/migrate。
+  if (process.env.COZE_PROJECT_ENV === 'PROD' && process.env.AUTO_MIGRATE === '1') {
     try {
       const migrationResult = await runMigrations();
       if (migrationResult.ok) {

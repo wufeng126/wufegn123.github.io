@@ -4,7 +4,11 @@ import { getMigrationManualUrl, MIGRATION_SQL, runMigrations } from '@/lib/db-mi
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 迁移 SQL 含完整表结构与策略，仅超管可查看（防止普通账号获取 schema）
+  const auth = await requireSuperAdmin(request);
+  if (!auth.ok) return auth.response;
+
   return NextResponse.json({
     success: true,
     auto: false,
