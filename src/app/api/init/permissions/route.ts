@@ -353,24 +353,23 @@ async function initPermissions(supabaseUrl: string, serviceKey: string) {
     superAdminRoleId = newRole[0]?.id || newRole?.id;
   }
 
-  // 清除超级管理员的现有权限
+  // 为超级管理员补齐权限（只补缺失，不删除已有，避免重复执行时误清权限）
   if (superAdminRoleId) {
-    await fetch(
-      `${supabaseUrl}/rest/v1/role_permissions?role_id=eq.${superAdminRoleId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          ...headers,
-          'Prefer': 'return=minimal',
-        },
-      }
+    const existingRolePermsResponse = await fetch(
+      `${supabaseUrl}/rest/v1/role_permissions?role_id=eq.${superAdminRoleId}&select=permission_id`,
+      { headers }
+    );
+    const existingRolePerms = await existingRolePermsResponse.json().catch(() => []);
+    const existingPermissionIds = new Set(
+      (Array.isArray(existingRolePerms) ? existingRolePerms : [])
+        .map((row: { permission_id?: unknown }) => Number(row.permission_id))
+        .filter(Boolean),
     );
 
-    // 为超级管理员添加所有权限
     for (const perm of permissionsTableData) {
       const code = `${perm.resource}:${perm.action}`;
       const permId = permIdMap.get(code);
-      if (permId && superAdminRoleId) {
+      if (permId && !existingPermissionIds.has(Number(permId))) {
         await fetch(`${supabaseUrl}/rest/v1/role_permissions`, {
           method: 'POST',
           headers,
@@ -429,14 +428,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // 检查是否已有用户（已初始化则永久禁用）
+    // 检查是否已有用户（已初始化则允许增量补录，不再永久禁用）
     const initialized = await hasExistingUsers(supabaseUrl, serviceKey);
-    if (initialized) {
-      return NextResponse.json(
-        { error: '系统已初始化，此接口已永久禁用' },
-        { status: 403 }
-      );
-    }
 
     // 检查是否有初始化参数
     const url = new URL(request.url);
@@ -523,20 +516,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // 检查是否已初始化
+    // 已初始化时允许增量补录（initPermissions 已改为幂等：只补缺失权限码，不清空已有）
     const initialized = await hasExistingUsers(supabaseUrl, serviceKey);
     if (initialized) {
       await logSecurityEvent({
-        event_type: 'init_permissions_blocked',
+        event_type: 'init_permissions_resync',
         ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
         user_agent: request.headers.get('user-agent') || 'unknown',
-        result: 'blocked',
-        details: { reason: 'already_initialized' },
+        result: 'success',
+        details: { reason: 'existing_system_incremental_sync' },
       });
-      return NextResponse.json(
-        { error: '系统已初始化，此接口已永久禁用' },
-        { status: 403 }
-      );
     }
 
     // 检查授权
