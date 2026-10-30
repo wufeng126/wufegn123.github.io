@@ -501,17 +501,9 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: 执行初始化
+// POST: 执行初始化 / 增量补录（生产环境也可用，但必须持有 INIT_SECRET_KEY；操作幂等，只补缺失权限）
 export async function POST(request: Request) {
   try {
-    // 生产环境完全禁用
-    if (isProduction()) {
-      return NextResponse.json(
-        { error: '此接口在生产环境中已禁用' },
-        { status: 403 }
-      );
-    }
-
     getEnv();
 
     const secretKey = getInitSecretKey();
