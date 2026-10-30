@@ -33,6 +33,7 @@ interface Overview {
   totalReceived: number; monthReceived: number;
   totalCost: number; monthCost: number;
   totalSalary: number; monthSalaryCost: number;
+  monthSalaryPaid?: number;
   totalSupplierCost: number; monthSupplierSettlement: number;
   totalExpense: number; monthExpenseCost: number;
   totalMaterialCost: number; monthMaterialCost: number;
@@ -55,6 +56,7 @@ interface ProjectItem {
   id: number; name: string; status: string;
   totalOutput: number; totalPayment: number; totalCost: number;
   monthCost: number;
+  monthIncome: number; monthSalaryCost: number; monthSalaryPaid: number;
   profit: number; profitRate: number;
   cumulativeIncome: number; cumulativeCost: number;
   cumulativeProfit: number; cumulativeProfitRate: number;
@@ -566,115 +568,58 @@ export default function MonthlyReportPage() {
           <div className="flex items-center justify-center py-20 text-muted-foreground"><RefreshCw className="w-5 h-5 animate-spin mr-2" />加载中…</div>
         ) : (
           <>
-            {/* ─── Core KPIs ─── */}
+            {/* ─── 老板汇报：当月各项目报量与工资（极简） ─── */}
             {reportMode === 'boss' && (
-              <>
-                {/* 经营结论置顶：先给老板结论，再给数字（第一屏主次重构） */}
-                {conclusion && (
-                  <Card className="border-l-4 border-l-primary">
-                    <CardHeader className="pb-2 pt-4 px-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                          <Eye className="w-4 h-4" /> 本月经营结论
-                        </CardTitle>
-                        <Button variant="ghost" size="sm" onClick={handleCopyConclusion} className="h-7" aria-label="复制">
-                          {copied ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
-                          {copied ? '已复制' : '复制'}
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4">
-                      {(() => {
-                        const [headline, ...details] = conclusion.split('\n').filter((line) => line.trim() !== '');
-                        return (
-                          <>
-                            <p className="text-lg font-semibold leading-snug">{headline}</p>
-                            {details.length > 0 && (
-                              <div className="mt-2 space-y-1 text-sm text-muted-foreground leading-relaxed">
-                                {details.map((line, index) => <p key={index}>{line}</p>)}
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-foreground">核心经营指标</h2>
-                  <span className="text-xs text-muted-foreground">产值 / 利润 / 现金净流为老板最关注的三项</span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <KpiCard label="本月产值" value={fmtAmtUnit(ov.monthIncome).value} unit={fmtAmtUnit(ov.monthIncome).unit}
-                    tooltip="统计口径：已审核甲方报量金额" onClick={() => router.push('/client-reports')}
-                    change={comp.mom?.income} changeLabel="环比" />
-                  <KpiCard label="本月经营利润" value={fmtAmtUnit(ov.operatingProfit).value} unit={fmtAmtUnit(ov.operatingProfit).unit}
-                    tooltip="统计口径：本月确认产值+本月已审批签证-本月确认成本，反映项目当月经营成果"
-                    change={comp.mom?.profit} changeLabel="环比" />
-                  <KpiCard label="本月现金净流" value={fmtAmtUnit(ov.cashNetFlow).value} unit={fmtAmtUnit(ov.cashNetFlow).unit}
-                    tooltip="统计口径：本月实际回款-本月实际支付，反映当月资金收支压力" />
-                  <KpiCard label="本月回款" value={fmtAmtUnit(ov.monthReceived).value} unit={fmtAmtUnit(ov.monthReceived).unit}
-                    tooltip="统计口径：甲方付款到账金额" onClick={() => router.push('/client-payments')}
-                    change={comp.mom?.received} changeLabel="环比" />
-                  <KpiCard label="本月确认成本" value={fmtAmtUnit(ov.monthCost).value} unit={fmtAmtUnit(ov.monthCost).unit}
-                    tooltip="统计口径：本月人工+供应商结算+综合费用+材料+税费（确认成本，非实际支付）"
-                    change={comp.mom?.cost} changeLabel="环比" />
-                  <KpiCard label="未回款/缺口" value={fmtAmtUnit(ov.unreceived).value} unit={fmtAmtUnit(ov.unreceived).unit}
-                    tooltip="统计口径：产值-已回款" />
-                </div>
-
-                {/* Payable Pressure KPIs */}
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-foreground">应付压力</h2>
-                  <span className="text-xs text-muted-foreground">本月需关注的未付资金</span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <KpiCard label="本月应付合计" value={fmtAmtUnit(pp.totalPayable).value} unit={fmtAmtUnit(pp.totalPayable).unit}
-                    tooltip="人工未付+供应商未付"  />
-                  <KpiCard label="人工未付" value={fmtAmtUnit(pp.laborUnpaid).value} unit={fmtAmtUnit(pp.laborUnpaid).unit}
-                    tooltip="工资应付-工资已付" onClick={() => router.push('/workers/salaries')} />
-                  <KpiCard label="供应商未付" value={fmtAmtUnit(pp.supplierUnpaid).value} unit={fmtAmtUnit(pp.supplierUnpaid).unit}
-                    tooltip="供应商结算应付-已付" onClick={() => router.push('/data-board/supplier-cost')} />
-                  <KpiCard label="预计资金缺口" value={fmtAmtUnit(pp.fundGap).value} unit={fmtAmtUnit(pp.fundGap).unit}
-                    tooltip="应付合计-本月可用回款" />
-                </div>
-
-                {/* Comparison bar */}
-                {(comp.mom?.prevMonthIncome !== undefined || comp.yoy?.lastYearIncome !== undefined) && (
-                  <Card>
-                    <CardContent className="py-3 px-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="font-medium text-muted-foreground mr-2">环比（vs上月）</span>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                            <span>产值 <ChangeTag current={ov.monthIncome} previous={comp.mom?.prevMonthIncome ?? 0} /></span>
-                            <span>回款 <ChangeTag current={ov.monthReceived} previous={comp.mom?.prevMonthReceived ?? 0} /></span>
-                            <span>成本 <ChangeTag current={ov.monthCost} previous={comp.mom?.prevMonthCost ?? 0} invert /></span>
-                            <span>工资 <ChangeTag current={ov.monthSalaryCost} previous={comp.mom?.prevMonthSalary ?? 0} /></span>
-                            <span>供应商付款 <ChangeTag current={ov.monthSupplierPayments} previous={comp.mom?.prevMonthSupplierPayment ?? 0} /></span>
-                          </div>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground mr-2">同比（vs去年同月）</span>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                            <span>产值 <ChangeTag current={ov.monthIncome} previous={comp.yoy?.lastYearIncome ?? 0} /></span>
-                            <span>回款 <ChangeTag current={ov.monthReceived} previous={comp.yoy?.lastYearReceived ?? 0} /></span>
-                            <span>工资 <ChangeTag current={ov.monthSalaryCost} previous={comp.yoy?.lastYearSalary ?? 0} /></span>
-                            <span>供应商付款 <ChangeTag current={ov.monthSupplierPayments} previous={comp.yoy?.lastYearSupplierPayment ?? 0} /></span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Eye className="w-4 h-4" /> {month} 各项目报量与工资
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    本月合计报量 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthIncome)}</span>，
+                    工资应发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthSalaryCost)}</span>，
+                    实发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthSalaryPaid ?? 0)}</span>。
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-xs text-muted-foreground">
+                          <th className="py-2 px-2 text-left">项目</th>
+                          <th className="py-2 px-2 text-right">本月报量</th>
+                          <th className="py-2 px-2 text-right">工资应发</th>
+                          <th className="py-2 px-2 text-right">工资实发</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projectList.map((project) => (
+                          <tr key={project.id} className="border-b last:border-0">
+                            <td className="py-2 px-2">{project.name}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthIncome)}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthSalaryCost)}</td>
+                            <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthSalaryPaid ?? 0)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t font-semibold">
+                          <td className="py-2 px-2">合计</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthIncome || 0), 0))}</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthSalaryCost || 0), 0))}</td>
+                          <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthSalaryPaid || 0), 0))}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
 
 
             {/* ─── Payable Plan ─── */}
-            {reportMode !== 'detail' && (
+            {reportMode === 'analysis' && (
               <Card>
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -701,7 +646,7 @@ export default function MonthlyReportPage() {
             )}
 
             {/* ─── Project Rankings ─── */}
-            {reportMode === 'boss' && (
+            {reportMode === 'analysis' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ChartCard title="项目利润排行" unit="元">
                   <EChartsWrapper option={profitRankOption} style={{ height: 280 }} />
@@ -713,7 +658,7 @@ export default function MonthlyReportPage() {
             )}
 
             {/* ─── 回款滞后分析 ─── */}
-            {data?.collectionLagAnalysis && data.collectionLagAnalysis.length > 0 && (
+            {reportMode !== 'boss' && data?.collectionLagAnalysis && data.collectionLagAnalysis.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -808,6 +753,7 @@ export default function MonthlyReportPage() {
             )}
 
             {/* ─── Trend Charts ─── */}
+            {reportMode !== 'boss' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ChartCard title="近6个月趋势" unit="元">
                 <EChartsWrapper option={trendOption} style={{ height: 300 }} />
@@ -822,8 +768,10 @@ export default function MonthlyReportPage() {
                 <EChartsWrapper option={supplierTop10Option} style={{ height: 300 }} />
               </ChartCard>
             </div>
+            )}
 
             {/* ─── Detail Tables (Collapsible) ─── */}
+            {reportMode !== 'boss' && (
             <CollapsibleSection
               title="明细台账"
               badge="3"
@@ -1083,9 +1031,10 @@ export default function MonthlyReportPage() {
               </TabsContent>
             </Tabs>
             </CollapsibleSection>
+            )}
 
             {/* ─── AI Interpretation ─── */}
-            {(aiInterpreting || aiContent) && (
+            {reportMode !== 'boss' && (aiInterpreting || aiContent) && (
               <Card className="border-l-4 border-l-primary/60">
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">

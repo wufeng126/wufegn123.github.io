@@ -546,7 +546,7 @@ export async function GET(request: NextRequest) {
         unreceived, overReceived, paymentRate,
         supplierCost, salaryCost, salaryPaid, unpaidSalary,
         expenseCost, materialCost, taxCost, totalCost,
-        monthSalaryCost, monthSupplierSettlement, monthExpenseCost,
+        monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthSupplierSettlement, monthExpenseCost,
         monthMaterialCost, monthTaxCost, monthCost, monthSupplierPayments,
         profit: monthIncome - monthCost,
         profitRate: monthIncome > 0 ? ((monthIncome - monthCost) / monthIncome) * 100 : 0,
