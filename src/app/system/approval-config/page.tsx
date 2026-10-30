@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Check, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Check, RotateCcw, GripVertical } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { getUserDisplayName } from '@/lib/user-display-name';
@@ -202,6 +202,55 @@ export default function ApprovalConfigPage() {
     setEditing({ ...editing, steps: editing.steps.filter((_, idx) => idx !== i) });
   }
 
+  // ─── 拖拽：节点排序 + 拖入人员新增节点 ───
+  const [draggingStep, setDraggingStep] = useState<number | null>(null);
+  const [dragOverStep, setDragOverStep] = useState<number | null>(null);
+
+  function handleDragStart(index: number) {
+    setDraggingStep(index);
+  }
+
+  function handleDragOver(event: React.DragEvent, index: number) {
+    event.preventDefault();
+    setDragOverStep(index);
+  }
+
+  function handleDrop(event: React.DragEvent, index: number) {
+    event.preventDefault();
+    if (!editing) return;
+
+    // 1) 从人员列表拖入 → 在该位置后新增审批节点
+    const userIdRaw = event.dataTransfer.getData('text/user-id');
+    if (userIdRaw) {
+      const user = users.find(u => u.id === Number(userIdRaw));
+      if (user) {
+        const steps = [...editing.steps];
+        steps.splice(index + 1, 0, {
+          state: `step_${steps.length + 1}`,
+          label: `${getUserDisplayName(user)}审批`,
+          role: user.role === 'super_admin' ? 'admin,super_admin' : user.role,
+          actor: getUserDisplayName(user),
+        });
+        setEditing({ ...editing, steps });
+        toast.success(`已添加节点：${getUserDisplayName(user)}审批`);
+      }
+      setDragOverStep(null);
+      return;
+    }
+
+    // 2) 节点拖拽排序
+    if (draggingStep === null || draggingStep === index) {
+      setDragOverStep(null);
+      return;
+    }
+    const steps = [...editing.steps];
+    const [moved] = steps.splice(draggingStep, 1);
+    steps.splice(index, 0, moved);
+    setEditing({ ...editing, steps });
+    setDraggingStep(null);
+    setDragOverStep(null);
+  }
+
   const rolesLabel = (roles: string) => {
     return roles.split(',').map(r => AVAILABLE_ROLES.find(a => a.value.includes(r))?.label || r).join('、');
   };
@@ -308,7 +357,20 @@ export default function ApprovalConfigPage() {
                   </div>
                   <div className="space-y-3">
                     {editing.steps.map((step, i) => (
-                      <div key={i} className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--color-muted)] p-3 sm:flex-row sm:items-center">
+                      <div
+                        key={i}
+                        draggable
+                        onDragStart={() => handleDragStart(i)}
+                        onDragOver={(event) => handleDragOver(event, i)}
+                        onDragEnd={() => { setDraggingStep(null); setDragOverStep(null); }}
+                        onDrop={(event) => handleDrop(event, i)}
+                        className={`flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center ${
+                          dragOverStep === i
+                            ? 'border-[var(--color-primary)] bg-[var(--color-accent)]'
+                            : 'border-[var(--border)] bg-[var(--color-muted)]'
+                        } ${draggingStep === i ? 'opacity-50' : ''}`}
+                      >
+                        <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[var(--color-text-3)]" aria-hidden />
                         <span className="text-xs text-[var(--color-text-3)] w-5 shrink-0">{i + 1}</span>
                         <div className="grid w-full flex-1 gap-2 sm:grid-cols-3">
                           <div>
@@ -342,6 +404,28 @@ export default function ApprovalConfigPage() {
                         </button>
                       </div>
                     ))}
+                  </div>
+
+                  {/* 可用审批人：拖拽到节点之间即可新增节点 */}
+                  <div className="mt-3 rounded-lg border border-dashed border-[var(--border)] bg-card p-3">
+                    <p className="mb-2 text-xs text-[var(--color-text-3)]">
+                      从下面拖拽人员到节点之间，或拖拽节点调整顺序（松手即生效）
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {users
+                        .filter(u => u.username !== 'admin')
+                        .map(u => (
+                          <span
+                            key={u.id}
+                            draggable
+                            onDragStart={(event) => event.dataTransfer.setData('text/user-id', String(u.id))}
+                            className="cursor-grab rounded-full border border-[var(--border)] bg-[var(--color-muted)] px-3 py-1 text-xs text-[var(--foreground)] active:cursor-grabbing"
+                            title="拖到节点之间新增审批节点"
+                          >
+                            {getUserDisplayName(u)} · {u.role}
+                          </span>
+                        ))}
+                    </div>
                   </div>
                 </div>
 
