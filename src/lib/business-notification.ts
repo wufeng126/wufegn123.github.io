@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { sendDingTalkNotification, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
+import { sendDingTalkNotification, sendDingTalkActionCard, formatDingTalkMessage, type NotificationParams } from '@/lib/dingtalk';
 import { sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
 import { getNotificationSettingsMap, isNotificationSettingEnabled } from '@/lib/notification-settings';
 import {
@@ -448,12 +448,27 @@ export async function pushBusinessNotification(params: {
       notificationSettings.dingtalk_webhook?.value &&
       isNotificationSettingEnabled(notificationSettings.dingtalk_webhook?.enabled, true)
     ) {
-      const result = await sendDingTalkNotification(
+      // 群机器人优先发 ActionCard 卡片（带「查看详情」按钮），失败回退 Markdown 文本
+      const cardHref = toAbsoluteNotificationHref(robotParams.extra?.处理入口 || '');
+      const cardActionLabel = robotParams.extra?.建议动作 || '查看详情';
+      let result = await sendDingTalkActionCard(
         notificationSettings.dingtalk_webhook.value,
         notificationSettings.dingtalk_secret?.value,
-        msgTitle,
-        text
+        {
+          title: msgTitle,
+          markdown: text,
+          buttonText: cardHref ? cardActionLabel : undefined,
+          buttonUrl: cardHref || undefined,
+        },
       );
+      if (!result.success) {
+        result = await sendDingTalkNotification(
+          notificationSettings.dingtalk_webhook.value,
+          notificationSettings.dingtalk_secret?.value,
+          msgTitle,
+          text
+        );
+      }
       robotSent = result.success;
     }
 

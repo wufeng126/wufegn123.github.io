@@ -30,7 +30,18 @@ interface DingTalkMarkdownMessage {
   markdown: { title: string; text: string };
 }
 
-type DingTalkMessage = DingTalkTextMessage | DingTalkMarkdownMessage;
+// 钉钉 ActionCard 卡片（群机器人，带跳转按钮）
+interface DingTalkActionCardMessage {
+  msgtype: 'actionCard';
+  actionCard: {
+    title: string;
+    text: string;
+    btnOrientation?: '0' | '1';
+    btns?: Array<{ title: string; actionURL: string }>;
+  };
+}
+
+type DingTalkMessage = DingTalkTextMessage | DingTalkMarkdownMessage | DingTalkActionCardMessage;
 
 /**
  * 发送钉钉消息
@@ -99,6 +110,29 @@ export async function sendDingTalkText(
   return sendDingTalkMessage(webhookUrl, secret, {
     msgtype: 'text',
     text: { content: text },
+  });
+}
+
+/**
+ * 发送 ActionCard 卡片消息（群机器人，带跳转按钮）
+ */
+export async function sendDingTalkActionCard(
+  webhookUrl: string,
+  secret: string | undefined,
+  params: { title: string; markdown: string; buttonText?: string; buttonUrl?: string }
+): Promise<{ success: boolean; errcode?: number; errmsg?: string }> {
+  const btn =
+    params.buttonText && params.buttonUrl
+      ? [{ title: params.buttonText, actionURL: params.buttonUrl }]
+      : undefined;
+  return sendDingTalkMessage(webhookUrl, secret, {
+    msgtype: 'actionCard',
+    actionCard: {
+      title: params.title,
+      text: params.markdown,
+      btnOrientation: '0',
+      ...(btn ? { btns: btn } : {}),
+    },
   });
 }
 
