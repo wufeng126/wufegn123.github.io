@@ -380,9 +380,8 @@ function WorkItemsContent() {
       setProjects(projectsData.projects || []);
       setAllSubitems(subitemsData.subitems || []);
     } catch (error) {
+      // 网络抖动时保留已有数据，避免整页台账变空（观感等同数据被删）
       console.error('获取数据失败:', error);
-      setProjects([]);
-      setAllSubitems([]);
     } finally {
       setLoading(false);
     }
@@ -1024,7 +1023,6 @@ function WorkItemsContent() {
       setAllSubitems(data.subitems || []);
     } catch (error) {
       console.error('刷新数据失败:', error);
-      setAllSubitems([]);
     }
   };
 
