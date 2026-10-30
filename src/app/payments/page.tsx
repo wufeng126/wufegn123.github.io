@@ -104,7 +104,10 @@ const getStatusLabel = (value?: string | null) => {
   return value;
 };
 
-const isEffectivePayment = (payment: Payment) => payment.status !== 'voided' && payment.status !== '作废';
+const isEffectivePayment = (payment: Payment) => {
+  const status = String(payment.status || '').trim().toLowerCase();
+  return status !== 'voided' && status !== '作废' && status !== 'pending' && status !== '待确认';
+};
 
 const getSettlementStatusLabel = (status?: string | null) => {
   if (status === 'reviewed') return '已审核';

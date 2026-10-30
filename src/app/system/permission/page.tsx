@@ -69,6 +69,9 @@ const PERMISSION_MENU = [
     children: [
       { name: '月度经营月报-查看', code: 'reports:monthly_view' },
       { name: '月度经营月报-导出', code: 'reports:monthly_export' },
+      { name: '月度经营月报-预算员填写', code: 'monthly_report:fill' },
+      { name: '月度经营月报-项目经理补充', code: 'monthly_report:supplement' },
+      { name: '月度经营月报-老板审批', code: 'monthly_report:approve' },
       { name: 'AI劳务助手-对话', code: 'ai:chat' },
       { name: 'AI劳务助手-上传文件', code: 'ai:upload' },
       { name: 'AI劳务助手-知识库', code: 'ai:knowledge' },
@@ -159,6 +162,8 @@ const PERMISSION_MENU = [
       { name: '班组结算-新增', code: 'team_settlements:create' },
       { name: '班组结算-编辑', code: 'team_settlements:edit' },
       { name: '班组结算-删除', code: 'team_settlements:delete' },
+      { name: '班组结算-提交审批', code: 'team_settlements:submit' },
+      { name: '班组结算-审批（老板）', code: 'team_settlements:approve' },
     ]
   },
   {

@@ -881,6 +881,7 @@ export function TeamSettlementLedgerPageClient() {
     : settlements;
 
   async function handleSettlementWorkflow(settlement: TeamSettlement, action: 'submit' | 'withdraw' | 'approve') {
+    if (action === 'approve' && !window.confirm(`确认审批通过结算单 ${settlement.settlement_no || `#${settlement.id}`}？通过后将计入成本并生成分账应发工资，不可直接撤销`)) return;
     setMessage('');
     try {
       await readJson(await fetch('/api/team-settlements/workflow', {

@@ -118,6 +118,8 @@ const DEFAULT_PERMISSION_MODULES = [
       { code: 'team_settlements:create', name: '创建班组结算' },
       { code: 'team_settlements:edit', name: '编辑班组结算' },
       { code: 'team_settlements:delete', name: '删除班组结算' },
+      { code: 'team_settlements:submit', name: '提交/撤回班组结算审批' },
+      { code: 'team_settlements:approve', name: '审批班组结算（老板）' },
     ],
   },
   {
