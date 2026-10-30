@@ -66,6 +66,7 @@ interface Contract {
 export default function SupplierRosterPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   // 合同状态快捷筛选：all / signed（已签合同）/ unsigned（待签合同）
@@ -147,18 +148,21 @@ export default function SupplierRosterPage() {
 
   const loadSuppliers = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch('/api/suppliers');
-      if (res.ok) {
-        const data = await res.json();
-        const supplierList = (data.suppliers || []).map((s: any) => ({
-          ...s,
-          has_contract: s.has_contract || false,
-        }));
-        setSuppliers(supplierList);
+      if (!res.ok) {
+        throw new Error(`供应商数据加载失败（${res.status}）`);
       }
+      const data = await res.json();
+      const supplierList = (data.suppliers || []).map((s: any) => ({
+        ...s,
+        has_contract: s.has_contract || false,
+      }));
+      setSuppliers(supplierList);
     } catch (error) {
       console.error('Failed to load suppliers:', error);
+      setLoadError(error instanceof Error ? error.message : '供应商数据加载失败，请重试');
     }
     setLoading(false);
   };
@@ -505,6 +509,13 @@ export default function SupplierRosterPage() {
                   {loading ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-8">加载中...</TableCell>
+                    </TableRow>
+                  ) : loadError ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-red-500">
+                        {loadError}
+                        <button type="button" onClick={() => loadSuppliers()} className="ml-2 underline">重试</button>
+                      </TableCell>
                     </TableRow>
                   ) : filteredSuppliers.length === 0 ? (
                     <TableRow>
