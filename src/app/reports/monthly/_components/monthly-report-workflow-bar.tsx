@@ -129,7 +129,13 @@ export function MonthlyReportWorkflowBar({
   const [showReject, setShowReject] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [owners, setOwners] = useState<{ fill?: string | null; manager?: string | null }>({});
+  const [currentUserId, setCurrentUserId] = useState<number>(0);
+  const [owners, setOwners] = useState<{
+    fill?: string | null;
+    manager?: string | null;
+    fillId?: number | null;
+    managerId?: number | null;
+  }>({});
 
   useEffect(() => {
     (async () => {
@@ -139,6 +145,7 @@ export function MonthlyReportWorkflowBar({
         const user = json?.user || json?.data;
         setPermissions(Array.isArray(user?.permissions) ? user.permissions : []);
         setIsSuperAdmin(user?.role === 'super_admin');
+        setCurrentUserId(Number(user?.id) || 0);
       } catch {
         // 权限加载失败按无权限处理（后端仍会二次校验）
       }
@@ -159,6 +166,8 @@ export function MonthlyReportWorkflowBar({
       setOwners({
         fill: (json?.data?.fill_owner_name as string | null | undefined) ?? null,
         manager: (json?.data?.manager_owner_name as string | null | undefined) ?? null,
+        fillId: (json?.data?.fill_owner_id as number | null | undefined) ?? null,
+        managerId: (json?.data?.manager_owner_id as number | null | undefined) ?? null,
       });
     } catch (error) {
       // 表未迁移/未配置时不阻断月报查看
@@ -178,6 +187,9 @@ export function MonthlyReportWorkflowBar({
   const canFill = isSuperAdmin || permissions.includes('monthly_report:fill');
   const canSupplement = isSuperAdmin || permissions.includes('monthly_report:supplement');
   const canApprove = isSuperAdmin || permissions.includes('monthly_report:approve');
+  // 按项目负责人限制按钮：未配置负责人时不限制；配置了则只有本人（或超管）可见操作
+  const canFillThisProject = isSuperAdmin || !owners.fillId || currentUserId === owners.fillId;
+  const canSupplementThisProject = isSuperAdmin || !owners.managerId || currentUserId === owners.managerId;
 
   const editable = ['draft', 'rejected'].includes(status)
     ? canFill
@@ -247,17 +259,17 @@ export function MonthlyReportWorkflowBar({
                 {expanded ? '收起填写' : '填写/查看内容'}
                 {expanded ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />}
               </Button>
-              {['draft', 'rejected'].includes(status) && canFill && (
+              {['draft', 'rejected'].includes(status) && canFill && canFillThisProject && (
                 <Button size="sm" variant="outline" disabled={saving} onClick={() => void postAction('save', { content })}>
                   {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}保存草稿
                 </Button>
               )}
-              {['draft', 'rejected'].includes(status) && canFill && (
+              {['draft', 'rejected'].includes(status) && canFill && canFillThisProject && (
                 <Button size="sm" disabled={saving} onClick={() => void postAction('submit_manager', { content })}>
                   <Send className="mr-1 h-3.5 w-3.5" />提交项目经理
                 </Button>
               )}
-              {status === 'pending_manager' && canSupplement && (
+              {status === 'pending_manager' && canSupplement && canSupplementThisProject && (
                 <Button size="sm" disabled={saving} onClick={() => void postAction('supplement', { content })}>
                   <Send className="mr-1 h-3.5 w-3.5" />补充完成，提交老板
                 </Button>

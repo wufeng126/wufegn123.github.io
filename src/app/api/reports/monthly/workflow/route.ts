@@ -127,6 +127,8 @@ export async function GET(request: NextRequest) {
     // 项目负责人（预算员/项目经理）：按项目配置带出，便于确认审批人
     let fillOwnerName: string | null = null;
     let managerOwnerName: string | null = null;
+    let fillOwnerId: number | null = null;
+    let managerOwnerId: number | null = null;
     if (scope !== 'all') {
       const { data: projRow } = await client
         .from('projects')
@@ -149,6 +151,8 @@ export async function GET(request: NextRequest) {
         );
         fillOwnerName = nameById.get(budgetUserId) || null;
         managerOwnerName = nameById.get(managerUserId) || null;
+        fillOwnerId = budgetUserId || null;
+        managerOwnerId = managerUserId || null;
       }
     }
 
@@ -157,6 +161,8 @@ export async function GET(request: NextRequest) {
       needs_migration: needsMigration,
       fill_owner_name: fillOwnerName,
       manager_owner_name: managerOwnerName,
+      fill_owner_id: fillOwnerId,
+      manager_owner_id: managerOwnerId,
     });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '月报审批状态加载失败'));
