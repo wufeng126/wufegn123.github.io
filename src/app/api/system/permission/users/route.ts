@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { requirePermission } from '@/lib/api-auth';
+import { auditLog } from '@/lib/audit-log';
 
 type PermissionUser = {
   id: number;
@@ -287,7 +288,20 @@ export async function PUT(request: NextRequest) {
     }
     
     console.log('[Users API] User updated successfully:', userId);
-    
+
+    // 权限变更审计（角色/项目范围/姓名变更）
+    await auditLog({
+      operationType: 'assign',
+      resourceType: 'user',
+      resourceId: userId,
+      details: {
+        role_ids: shouldUpdateRoles ? normalizedRoleIds : undefined,
+        allowed_projects: allowed_projects !== undefined ? normalizedAllowedProjects : undefined,
+        name_changed: name !== undefined,
+      },
+      request,
+    });
+
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error);

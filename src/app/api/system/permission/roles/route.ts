@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { requirePermission } from '@/lib/api-auth';
 import { isSuperAdminUser } from '@/lib/route-permissions';
+import { auditLog } from '@/lib/audit-log';
 
 type PermissionRow = {
   id: number;
@@ -402,6 +403,18 @@ export async function PUT(request: NextRequest) {
     if (shouldUpdatePermissions) {
       await replaceRolePermissions(supabase, roleId, normalizedPermissionCodes);
     }
+
+    // 权限变更审计（记录角色与权限码变更）
+    await auditLog({
+      operationType: 'assign',
+      resourceType: 'role',
+      resourceId: roleId,
+      details: {
+        updated_fields: Object.keys(updateData),
+        permission_codes: shouldUpdatePermissions ? normalizedPermissionCodes : undefined,
+      },
+      request,
+    });
     
     // 获取更新后的角色
     const { data: updatedRole } = await supabase

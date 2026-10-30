@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getUserDisplayName } from '@/lib/user-display-name';
 
-export type OperationType = 'create' | 'update' | 'delete' | 'import' | 'export' | 'transfer' | 'assign' | 'review' | 'unreview' | 'void' | 'payment' | 'salary_pay' | 'bind_auto' | 'bind_manual' | 'unbind' | 'user_disable' | 'user_enable';
+export type OperationType = 'create' | 'update' | 'delete' | 'import' | 'export' | 'transfer' | 'assign' | 'review' | 'unreview' | 'void' | 'payment' | 'salary_pay' | 'bind_auto' | 'bind_manual' | 'unbind' | 'user_disable' | 'user_enable' | 'login' | 'logout';
 
 export type ResourceType =
   | 'project'

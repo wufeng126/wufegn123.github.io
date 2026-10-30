@@ -1,13 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { login } from '@/lib/auth-db';
 import { logSecurityEvent, getClientIP, getUserAgent } from '@/lib/security-log';
 import { getLoginLockSeconds, recordLoginFailure, clearLoginFailures } from '@/lib/login-rate-limit';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { auditLog } from '@/lib/audit-log';
 
 /**
  * POST /api/auth/login - 用户登录
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
   const userAgent = getUserAgent(request);
 
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
     // 登录成功：清除限流计数
     clearLoginFailures(ip, String(username).trim().toLowerCase());
 
-    // 记录登录成功日志
+    // 记录登录成功日志（安全日志 + 审计日志）
     await logSecurityEvent({
       event_type: 'login_success',
       user_id: user.id,
@@ -147,6 +148,13 @@ export async function POST(request: Request) {
       ip_address: ip,
       user_agent: userAgent,
       result: 'success',
+    });
+    await auditLog({
+      operationType: 'login',
+      resourceType: 'user',
+      resourceId: Number(user.id) || undefined,
+      details: { username: user.username, role: user.role },
+      request,
     });
 
     // 构建响应
