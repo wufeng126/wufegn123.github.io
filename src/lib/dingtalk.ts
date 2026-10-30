@@ -183,47 +183,23 @@ export function formatDingTalkMessage(params: NotificationParams): { title: stri
   const actionHref = toAbsoluteNotificationHref(extra?.处理入口 || routeRule?.href || '');
   const amount = extra?.金额 || '';
 
-  let md = `### ${messageTitle}\n\n`;
-  md += `**摘要**：${summary}\n\n`;
-  md += `- **消息分类**：${categoryLabel}\n`;
-  md += `- **级别**：${severityLabel}\n`;
+  const severityEmoji = severity === 'danger' ? '❗' : severity === 'warning' ? '⚠️' : 'ℹ️';
+  let md = `**${severityEmoji} ${messageTitle}**\n\n`;
+  md += `${summary}\n\n`;
 
   if (projectName) {
-    md += `- **项目**：${projectName}\n`;
+    md += `**项目**：${projectName}\n`;
   }
-
   if (amount) {
-    md += `- **金额**：${amount}\n`;
-  }
-
-  if (responsibility) {
-    md += `- **责任人**：${responsibility}\n`;
-  }
-
-  if (actionLabel) {
-    md += `- **建议动作**：${actionLabel}\n`;
-  }
-
-  if (actionHref) {
-    md += `- **处理入口**：[${actionLabel || '打开处理'}](${actionHref})\n`;
+    md += `**金额**：${amount}\n`;
   }
 
   const compactContent = compactMessageText(content, 300);
   if (compactContent && compactContent !== summary) {
-    md += `\n**详情**：${compactContent}\n`;
+    md += `\n${compactContent}\n`;
   }
 
-  if (extra) {
-    const shownKeys = new Set(['消息分类', '业务摘要', '责任人', '提醒对象', '金额', '建议动作', '处理入口']);
-    const extraLines = Object.entries(extra).filter(([key, value]) => !shownKeys.has(key) && value);
-    if (extraLines.length > 0) md += '\n';
-    for (const [key, value] of Object.entries(extra)) {
-      if (shownKeys.has(key) || !value) continue;
-      md += `- **${key}**：${value}\n`;
-    }
-  }
-
-  md += `\n---\n时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
+  md += `\n> ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
 
   return { title: messageTitle, text: md };
 }
