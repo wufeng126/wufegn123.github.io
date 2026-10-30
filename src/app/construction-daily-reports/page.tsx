@@ -14,6 +14,7 @@ import {
   FileText,
   Loader2,
   RefreshCw,
+  Send,
   ShieldCheck,
   Sparkles,
   Truck,
@@ -368,6 +369,32 @@ function ConstructionDailyReportsPageContent() {
     }
   }
 
+  /** 重新生成并推送钉钉（个人互动卡片，失败自动回退工作通知） */
+  async function refreshAndPush() {
+    setRefreshing(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/construction-daily-reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, force: true, push: true }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '日报推送失败');
+      await loadReport(date);
+      const pushedAt = json.data?.pushed_at as string | null | undefined;
+      setMessage(
+        pushedAt
+          ? `日报已生成并推送至钉钉（${new Date(pushedAt).toLocaleString('zh-CN')}）`
+          : '日报已生成，但推送未执行（检查钉钉配置或接收人绑定）',
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '日报推送失败');
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadReport(date);
@@ -447,6 +474,15 @@ function ConstructionDailyReportsPageContent() {
               >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 重新生成
+              </button>
+              <button
+                type="button"
+                onClick={refreshAndPush}
+                disabled={refreshing || loading}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/30 bg-white px-4 text-sm font-semibold text-primary shadow-sm transition hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                推送日报
               </button>
             </div>
           </div>
