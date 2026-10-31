@@ -298,8 +298,8 @@ export async function POST(request: NextRequest) {
 
     // 审批流转通知（系统通知 + 钉钉按通知设置推送；失败不阻断审批主流程）
     try {
-      if (action === 'submit') {
-        // 提交审批 → 通知老板（超管）审批
+      if (action === 'submit' && approverUserId === 0) {
+        // 未指定审批人（旧客户端）→ 通知老板（超管）审批；指定了审批人则只通知该审批人
         const { data: bosses } = await supabase
           .from('users')
           .select('id')
@@ -327,12 +327,21 @@ export async function POST(request: NextRequest) {
         // 互动卡片：老板在钉钉卡片上直接点「通过/驳回」，回调自动回写系统
         if (isDingTalkCardConfigured()) {
           try {
-            const { data: bossCardRows } = await supabase
-              .from('users')
-              .select('dingtalk_user_id')
-              .eq('role', 'super_admin')
-              .eq('is_disabled', false)
-              .not('dingtalk_user_id', 'is', null);
+            // 优先发给「提交时指定的审批人」，取不到再回退老板（超管）
+            const cardQuery = approverUserId > 0
+              ? supabase
+                .from('users')
+                .select('dingtalk_user_id')
+                .eq('id', approverUserId)
+                .eq('is_disabled', false)
+                .not('dingtalk_user_id', 'is', null)
+              : supabase
+                .from('users')
+                .select('dingtalk_user_id')
+                .eq('role', 'super_admin')
+                .eq('is_disabled', false)
+                .not('dingtalk_user_id', 'is', null);
+            const { data: bossCardRows } = await cardQuery;
             const receiverUserIds = Array.from(new Set(
               (bossCardRows || [])
                 .map((row: { dingtalk_user_id?: string | null }) => String(row.dingtalk_user_id || '').trim())

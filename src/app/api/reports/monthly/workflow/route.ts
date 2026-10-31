@@ -402,6 +402,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 审批结果 → 定向通知月报提交人（通过/驳回都通知本人）
+    if (action === 'approve' || action === 'reject') {
+      const submitterId = Number((workflow as { created_by?: number } | null)?.created_by) || 0;
+      if (submitterId > 0) {
+        try {
+          const { pushBusinessNotification } = await import('@/lib/business-notification');
+          const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
+          const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
+          await pushBusinessNotification({
+            type: 'monthly_report_result',
+            title: `${month} 月报${action === 'approve' ? '已通过' : '被驳回'}`,
+            content: action === 'approve'
+              ? `${scopeLabel} ${month} 月报已审批通过并归档。`
+              : `${scopeLabel} ${month} 月报被驳回：${reason || '请查看驳回原因'}`,
+            severity: action === 'approve' ? 'info' : 'warning',
+            relatedId: Number(saved?.id) || undefined,
+            relatedType: 'monthly_report',
+            recipientUserIds: [submitterId],
+            metadata: {
+              业务摘要: action === 'approve' ? '月报审批通过' : `驳回：${reason || ''}`,
+              建议动作: action === 'approve' ? '查看月报' : '修改后重新提交',
+              处理入口: href,
+            },
+          });
+        } catch (notifyError) {
+          console.error('[MonthlyWorkflow] 通知提交人失败:', notifyError);
+        }
+      }
+    }
     // 审批通过 → 经营分析沉淀进知识库（幂等：同月同范围只保留一条）
     if (action === 'approve') {
       const approvedContent = (saved?.content || workflow?.content || content || {}) as Record<string, string>;
