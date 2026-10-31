@@ -2645,7 +2645,7 @@ function WorkItemsContent() {
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
-          <Table className="min-w-[1120px]">
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="bg-slate-50">
                 <TableHead className="px-4 py-3">项目名称</TableHead>
@@ -2653,11 +2653,10 @@ function WorkItemsContent() {
                 <TableHead className="px-3 py-3">状态</TableHead>
                 <TableHead className="px-3 py-3">对上进度</TableHead>
                 <TableHead className="px-3 py-3">对下进度</TableHead>
-                <TableHead className="px-3 py-3 text-right">对上剩余</TableHead>
-                <TableHead className="px-3 py-3 text-right">对下剩余</TableHead>
+                <TableHead className="px-3 py-3 text-right">剩余（对上 / 对下）</TableHead>
                 <TableHead className="px-3 py-3 text-right">差额</TableHead>
-                <TableHead className="px-4 py-3">风险提示</TableHead>
-                <TableHead className="px-4 py-3 text-right">操作</TableHead>
+                <TableHead className="px-3 py-3 text-center">风险</TableHead>
+                <TableHead className="sticky right-0 z-10 bg-slate-50 px-3 py-3 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2691,18 +2690,29 @@ function WorkItemsContent() {
                       <span className="w-12 text-right text-xs text-slate-500">{formatPercent(row.settlementProgress)}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="px-3 py-4 text-right text-slate-700">{formatCurrency(row.reportRemainingAmount)}</TableCell>
-                  <TableCell className="px-3 py-4 text-right text-slate-700">{formatCurrency(row.settlementRemainingAmount)}</TableCell>
-                  <TableCell className={`px-3 py-4 text-right font-semibold ${getGapTextClass(row.amountGap)}`}>
+                  <TableCell className="whitespace-nowrap px-3 py-3 text-right">
+                    <div className="text-slate-700">{formatCurrency(row.reportRemainingAmount)}</div>
+                    <div className="mt-0.5 text-xs text-slate-400">{formatCurrency(row.settlementRemainingAmount)}</div>
+                  </TableCell>
+                  <TableCell className={`whitespace-nowrap px-3 py-3 text-right font-semibold ${getGapTextClass(row.amountGap)}`}>
                     {formatCurrency(row.amountGap)}
                   </TableCell>
-                  <TableCell className="max-w-[260px] px-4 py-4 text-sm leading-5 text-slate-600">
-                    <div className="flex items-start gap-2">
-                      {row.status === '正常' ? <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />}
-                      <span>{row.warning}</span>
-                    </div>
+                  <TableCell className="px-3 py-3 text-center">
+                    <span
+                      title={row.warning}
+                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs ${
+                        row.status === '正常'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : row.status === '重点关注'
+                            ? 'bg-red-50 text-red-700'
+                            : 'bg-amber-50 text-amber-700'
+                      }`}
+                    >
+                      {row.status === '正常' ? <ChevronRight className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                      {row.status === '正常' ? '无异常' : row.status}
+                    </span>
                   </TableCell>
-                  <TableCell className="px-4 py-4 text-right">
+                  <TableCell className="sticky right-0 z-10 bg-white px-3 py-3 text-right shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.12)]">
                     <Button
                       size="sm"
                       onClick={() => {
@@ -2710,16 +2720,16 @@ function WorkItemsContent() {
                         setQuantityView('entry');
                         setEntryPanel('monthly');
                       }}
-                      className="h-9 gap-2 bg-slate-950 hover:bg-slate-800"
+                      className="h-8 gap-1 bg-slate-950 px-3 hover:bg-slate-800"
                     >
-                      进入录入
-                      <ArrowRight className="h-4 w-4" />
+                      录入
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-12 text-center text-slate-500">暂无匹配项目</TableCell>
+                  <TableCell colSpan={9} className="py-12 text-center text-slate-500">暂无匹配项目</TableCell>
                 </TableRow>
               )}
             </TableBody>
