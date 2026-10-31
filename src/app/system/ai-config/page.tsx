@@ -309,6 +309,28 @@ export default function AIConfigPage() {
     }
   };
 
+  // 对已上传合同重新做文字提取/OCR（修复历史扫描件内容为空）
+  const reextractDoc = async (id: string | number) => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/ai/knowledge/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        toast.error(data.error || '识别失败');
+        return;
+      }
+      toast.success(`识别完成：${data.data?.pages ? `共 ${data.data.pages} 页，` : ''}${data.data?.length || 0} 字`);
+      await loadDocs();
+    } catch (e) {
+      toast.error('识别失败，请重试');
+    } finally {
+      setSaving(false);
+    }
+  };
   // 删除知识库文档
   const deleteDoc = async (id: number) => {
     try {
@@ -631,9 +653,14 @@ export default function AIConfigPage() {
                             {doc.last_sync_at ? new Date(doc.last_sync_at).toLocaleString() : '-'}
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteDoc(doc.id)}>
-                              删除
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" disabled={saving} onClick={() => reextractDoc(doc.id)}>
+                                重新识别
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteDoc(doc.id)}>
+                                删除
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

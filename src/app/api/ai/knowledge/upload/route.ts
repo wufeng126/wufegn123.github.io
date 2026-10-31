@@ -5,8 +5,11 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { extractForwardHeaders } from '@/lib/ai-service';
 import { extractPdfText } from '@/lib/pdf-text-extract';
 import { extractDocxText } from '@/lib/docx-text-extract';
+import { extractPdfImages } from '@/lib/pdf-image-extract';
 import { upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 import { requireApiWritePermission } from '@/lib/api-auth';
+
+export const maxDuration = 300; // 扫描件 OCR 需要较长时间
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const SUPPORTED_EXTENSIONS = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|epub|mobi|xml|jpe?g|png|webp|bmp)$/i;
@@ -199,10 +202,33 @@ export async function POST(request: NextRequest) {
               ocrError = ocrResult.error || '扫描件识别失败';
             }
           } else if (/\.pdf$/i.test(fileName)) {
-            // PDF 无法直接转图片（无渲染依赖），提示用户转图片/文字版
+            // 扫描件 PDF：抽取页面内嵌图片，逐页交给多模态模型 OCR
             const wasScanned = !extractedContent || extractedContent.trim().length === 0;
             if (wasScanned) {
-              ocrError = '该 PDF 未提取到文字（可能是扫描件）。请将扫描件转换为图片（jpg/png）或文字版 PDF 后重新上传，AI 才能识别内容。';
+              try {
+                const buffer = Buffer.from(await file.arrayBuffer());
+                const pageImages = extractPdfImages(buffer, 8);
+                if (pageImages.length === 0) {
+                  ocrError = '该 PDF 未提取到文字，也没找到可识别的页面图片。请上传 Word 版或拍照上传合同页。';
+                } else {
+                  const pageTexts: string[] = [];
+                  for (let i = 0; i < pageImages.length; i += 1) {
+                    const ocrResult = await ocrImageWithLLM(pageImages[i], forwardHeaders);
+                    if (ocrResult.text) {
+                      pageTexts.push(`【第 ${i + 1} 页】\n${ocrResult.text}`);
+                    }
+                    if (pageTexts.join('\n').length > 40000) break;
+                  }
+                  if (pageTexts.length > 0) {
+                    extractedContent = `【扫描件 OCR 识别，共 ${pageTexts.length} 页】\n${pageTexts.join('\n\n')}`;
+                  } else {
+                    ocrError = '扫描件识别失败，请确认已配置支持图片识别的模型（如 Doubao 视觉模型）。';
+                  }
+                }
+              } catch (pdfOcrError) {
+                console.warn('[Knowledge Upload] PDF OCR failed:', pdfOcrError);
+                ocrError = '扫描件识别失败，请稍后重试或上传 Word 版合同。';
+              }
             }
           }
         }
