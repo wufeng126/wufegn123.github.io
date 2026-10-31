@@ -1,6 +1,6 @@
-import { useConfirm } from '@/hooks/use-confirm';
 'use client';
 
+import { useConfirm } from '@/hooks/use-confirm';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

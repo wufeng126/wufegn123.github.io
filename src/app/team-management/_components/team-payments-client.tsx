@@ -1,6 +1,6 @@
-import { useConfirm } from '@/hooks/use-confirm';
 'use client';
 
+import { useConfirm } from '@/hooks/use-confirm';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Loader2,
