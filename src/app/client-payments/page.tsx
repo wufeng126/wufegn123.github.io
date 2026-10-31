@@ -285,7 +285,16 @@ export default function ClientPaymentsPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
+    // 导入前先确认，避免选错文件直接写库
+    const confirmed = window.confirm(
+      `即将导入文件：${file.name}（${Math.max(1, Math.round(file.size / 1024))} KB）\n导入后需要逐条删除才能撤回，确认继续？`,
+    );
+    if (!confirmed) {
+      e.target.value = '';
+      return;
+    }
+
     setImporting(true);
     try {
       const formData = new FormData();
