@@ -226,6 +226,30 @@ export async function GET(request: NextRequest) {
     const salariesLastYear = salariesLastYearResult.data || [];
     const salariesTrend = salariesTrendResult.data || [];
     const salaryPayments = salaryPaymentsResult.data || [];
+    // 本月实发（老板视角）= 本月实际支付出去的工资，按发放日期归属到「工资单所属项目」
+    const paymentSalaryIds = Array.from(new Set(
+      salaryPayments.map((p: Record<string, unknown>) => Number(p.salary_id)).filter((id) => Number.isInteger(id) && id > 0),
+    ));
+    const salaryProjectById = new Map<number, number>();
+    for (let i = 0; i < paymentSalaryIds.length; i += 300) {
+      const chunk = paymentSalaryIds.slice(i, i + 300);
+      const { data: salaryProjectRows } = await supabase
+        .from('worker_salaries')
+        .select('id, project_id')
+        .in('id', chunk);
+      (salaryProjectRows || []).forEach((row: { id?: unknown; project_id?: unknown }) => {
+        salaryProjectById.set(Number(row.id), Number(row.project_id) || 0);
+      });
+    }
+    const monthPaidByProject = new Map<number, number>();
+    salaryPayments.forEach((p: Record<string, unknown>) => {
+      const payMonth = String(p.payment_date || '').slice(0, 7) || String(p.year_month || '').slice(0, 7);
+      if (payMonth !== reportMonth) return;
+      const salaryId = Number(p.salary_id) || 0;
+      const pid = (salaryId > 0 ? salaryProjectById.get(salaryId) : 0) || Number(p.project_id) || 0;
+      if (!pid) return;
+      monthPaidByProject.set(pid, (monthPaidByProject.get(pid) || 0) + Number(p.payment_amount || 0));
+    });
     // 工种映射：工资记录引用的工人可能挂在其他项目行下（跨项目），按 worker_id 全量补齐工种
     const referencedWorkerIds = Array.from(new Set(
       [...salariesCurrent, ...salariesPrev, ...salariesLastYear, ...salariesTrend]
@@ -453,6 +477,57 @@ export async function GET(request: NextRequest) {
       cumulativeSalaryCostByProject.set(pid, (cumulativeSalaryCostByProject.get(pid) || 0) + Number(row.gross_pay || 0));
     });
 
+    // 本月班组结算明细（哪些班组、各多少钱），用于月报/填写页展示班组名称
+    const teamSettlementRows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+      supabase
+        .from('team_settlements')
+        .select('id, project_id, team_id, settlement_no, settlement_month, status')
+        .in('project_id', targetProjectIds)
+        .eq('settlement_month', reportMonth)
+        .range(from, to));
+    const teamNameById = new Map<number, string>();
+    const teamIdsForName = Array.from(new Set(
+      teamSettlementRows.map((row) => Number(row.team_id)).filter((id) => Number.isInteger(id) && id > 0),
+    ));
+    if (teamIdsForName.length > 0) {
+      const { data: teamRows } = await supabase.from('team_groups').select('id, name').in('id', teamIdsForName);
+      (teamRows || []).forEach((row: { id?: unknown; name?: unknown }) => {
+        teamNameById.set(Number(row.id), String(row.name || ''));
+      });
+    }
+    const teamSettlementIds = teamSettlementRows
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const teamItemAmountBySettlement = new Map<number, number>();
+    if (teamSettlementIds.length > 0) {
+      const itemRows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+        supabase
+          .from('team_settlement_items')
+          .select('settlement_id, amount')
+          .in('settlement_id', teamSettlementIds)
+          .range(from, to));
+      itemRows.forEach((row) => {
+        const sid = Number(row.settlement_id);
+        teamItemAmountBySettlement.set(sid, (teamItemAmountBySettlement.get(sid) || 0) + Number(row.amount || 0));
+      });
+    }
+    const teamSettlementDetailByProject = new Map<number, Array<{ team_name: string; amount: number; settlement_no: string | null }>>();
+    teamSettlementRows.forEach((row) => {
+      const status = String(row.status || '');
+      if (status !== 'reviewed' && status !== 'confirmed') return; // 只列已审批的
+      const pid = Number(row.project_id);
+      if (!pid) return;
+      const sid = Number(row.id);
+      const amount = teamItemAmountBySettlement.get(sid) || 0;
+      if (amount <= 0) return;
+      const list = teamSettlementDetailByProject.get(pid) || [];
+      list.push({
+        team_name: teamNameById.get(Number(row.team_id)) || '未命名班组',
+        amount: Math.round(amount * 100) / 100,
+        settlement_no: (row.settlement_no as string) || null,
+      });
+      teamSettlementDetailByProject.set(pid, list);
+    });
     // Build per-project data
     const projectDataList: ProjectData[] = projects.map((projectRaw: Record<string, unknown>) => {
       const pid = projectRaw.id as number;
@@ -600,9 +675,11 @@ export async function GET(request: NextRequest) {
           .filter((s: Record<string, unknown>) => s.payment_status === 'paid')
           .map((s: Record<string, unknown>) => Number(s.net_pay || 0)),
       );
-      const monthSalaryPayment = monthSalaryPaymentFromPayments > 0
-        ? monthSalaryPaymentFromPayments
-        : monthSalaryPaymentFromStatus;
+      // 优先用「本月实际支付」口径（按发放日期，含"上月工资本月补发"）；没有发放记录时再回退
+      const monthSalaryPaymentCash = monthPaidByProject.get(pid) || 0;
+      const monthSalaryPayment = monthSalaryPaymentCash > 0
+        ? monthSalaryPaymentCash
+        : (monthSalaryPaymentFromPayments > 0 ? monthSalaryPaymentFromPayments : monthSalaryPaymentFromStatus);
       const monthActualPayment = monthSalaryPayment + monthSupplierPayments + monthExpenseCost + monthMaterialCost + monthTaxCost;
       const cashNetFlow = monthReceived - monthActualPayment;
       const cashNetFlowRate = monthReceived > 0 ? (cashNetFlow / monthReceived) * 100 : 0;
@@ -639,7 +716,8 @@ export async function GET(request: NextRequest) {
         unreceived, overReceived, paymentRate,
         supplierCost, salaryCost, salaryPaid, unpaidSalary,
         expenseCost, materialCost, taxCost, totalCost,
-        monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthLaborSalaryCost: safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))), monthTeamSettlementCost, tradeWages, monthSupplierSettlement, monthExpenseCost,
+        teamSettlements: teamSettlementDetailByProject.get(pid) || [],
+      monthSalaryCost, monthSalaryPaid: monthSalaryPayment, monthLaborSalaryCost: safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))), monthTeamSettlementCost, tradeWages, monthSupplierSettlement, monthExpenseCost,
         monthMaterialCost, monthTaxCost, monthCost, monthSupplierPayments,
         profit: monthIncome - monthCost,
         profitRate: monthIncome > 0 ? ((monthIncome - monthCost) / monthIncome) * 100 : 0,

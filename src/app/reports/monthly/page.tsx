@@ -619,7 +619,7 @@ export default function MonthlyReportPage() {
                         color: '#165DFF',
                       },
                       {
-                        label: '工人实发',
+                        label: '工人实发（本月发出）',
                         value: fmtAmt(
                           ov.monthSalaryPaid
                             ?? projectList.reduce((sum, project) => sum + (project.monthSalaryPaid || 0), 0),
@@ -647,7 +647,7 @@ export default function MonthlyReportPage() {
                           <th className="py-2 px-2 text-left">项目</th>
                           <th className="py-2 px-2 text-right">本月产值（开票额）</th>
                           <th className="py-2 px-2 text-right">工人工资应发</th>
-                          <th className="py-2 px-2 text-right">工人实发</th>
+                          <th className="py-2 px-2 text-right">工人实发（本月发出）</th>
                           <th className="py-2 px-2 text-right">班组结算</th>
                         </tr>
                       </thead>

@@ -57,6 +57,7 @@ type ProjectRow = {
   monthSalaryPaid?: number;
   monthTeamSettlementCost?: number;
   tradeWages?: Record<string, number>;
+  teamSettlements?: Array<{ team_name: string; amount: number; settlement_no: string | null }>;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -269,6 +270,16 @@ export default function MonthlyReportFillPage() {
   const knownTradeWages = tradeWagesMerged.filter(([type]) => type !== '未分类' && type !== '其他');
   const unclassifiedWage = tradeWagesMerged.find(([type]) => type === '未分类')?.[1] || 0;
 
+  const teamSettlementsMerged = useMemo(() => {
+    const map = new Map<string, number>();
+    projects.forEach((project) => {
+      (project.teamSettlements || []).forEach((item) => {
+        const key = item.team_name || '未命名班组';
+        map.set(key, (map.get(key) || 0) + (Number(item.amount) || 0));
+      });
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [projects]);
   const totals = useMemo(() => ({
     laborSalary: projects.reduce((sum, p) => sum + (p.monthLaborSalaryCost || 0), 0),
     salaryPaid: projects.reduce((sum, p) => sum + (p.monthSalaryPaid || 0), 0),
@@ -368,7 +379,7 @@ export default function MonthlyReportFillPage() {
             {[
               { label: '本月产值（开票额）', value: fmtWan(overview.monthIncome), current: Number(overview.monthIncome) || 0, prev: prevTotals?.income },
               { label: '工人工资应发', value: fmtWan(totals.laborSalary), current: totals.laborSalary, prev: prevTotals?.labor },
-              { label: '工人实发', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
+              { label: '工人实发（本月发出）', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
               { label: '班组结算', value: fmtWan(totals.teamSettlement), current: totals.teamSettlement, prev: prevTotals?.team },
               { label: '确认成本', value: fmtWan(overview.monthCost), current: Number(overview.monthCost) || 0, prev: prevTotals?.cost },
             ].map((item) => {
@@ -391,7 +402,11 @@ export default function MonthlyReportFillPage() {
               );
             })}
           </div>
-          {projects.length > 0 ? (
+          {totals.laborSalary > 0 && totals.salaryPaid === 0 ? (
+            <div className="border-t border-[var(--border)] px-5 py-2 text-xs text-[var(--color-danger)]">
+              本月工人工资尚未记录发放（实发 0）；如已发放，请在「工资发放」补录后此处自动更新。
+            </div>
+          ) : null}          {projects.length > 0 ? (
             <div className="border-t border-[var(--border)] px-5 py-3">
               <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">分项目明细</div>
               <div className="overflow-x-auto">
@@ -417,6 +432,18 @@ export default function MonthlyReportFillPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          ) : null}
+          {teamSettlementsMerged.length > 0 ? (
+            <div className="border-t border-[var(--border)] px-5 py-3">
+              <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">本月已审批班组结算</div>
+              <div className="flex flex-wrap gap-2">
+                {teamSettlementsMerged.map(([name, amount]) => (
+                  <span key={name} className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs text-[var(--foreground)]">
+                    {name}：{fmtWan(amount)}
+                  </span>
+                ))}
               </div>
             </div>
           ) : null}
