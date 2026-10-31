@@ -226,10 +226,20 @@ export async function GET(request: NextRequest) {
     const salariesTrend = salariesTrendResult.data || [];
     const salaryPayments = salaryPaymentsResult.data || [];
     // 工资发放索引：worker_id + year_month → 已发金额（用于本月实发精确归属）
+    // 兼容缺少 year_month 的历史发放记录：再用支付日期所属月份兜底
     const salaryPaymentByWorkerMonth = new Map<string, number>();
+    const salaryPaymentByWorkerPayMonth = new Map<string, number>();
     salaryPayments.forEach((sp: Record<string, unknown>) => {
-      const key = `${sp.worker_id}:${sp.year_month}`;
-      salaryPaymentByWorkerMonth.set(key, (salaryPaymentByWorkerMonth.get(key) || 0) + Number(sp.payment_amount || 0));
+      const amount = Number(sp.payment_amount || 0);
+      const yearMonth = String(sp.year_month || '').trim();
+      const payMonth = String(sp.payment_date || '').slice(0, 7);
+      if (yearMonth) {
+        const key = `${sp.worker_id}:${yearMonth}`;
+        salaryPaymentByWorkerMonth.set(key, (salaryPaymentByWorkerMonth.get(key) || 0) + amount);
+      } else if (payMonth) {
+        const key = `${sp.worker_id}:${payMonth}`;
+        salaryPaymentByWorkerPayMonth.set(key, (salaryPaymentByWorkerPayMonth.get(key) || 0) + amount);
+      }
     });
     const expenses = expensesResult.data || [];
     const materials = materialsResult.data || [];
@@ -529,9 +539,10 @@ export async function GET(request: NextRequest) {
       // 本月实发：按「工资发放」记录中对应本月工资单（worker_id + year_month 精确匹配）的金额汇总，
       // 避免按 project_id 归属错配；没有发放记录时回退工资单 payment_status='paid'
       const monthSalaryPaymentFromPayments = safeSum(
-        projSalaries.map((s: Record<string, unknown>) =>
-          Number(salaryPaymentByWorkerMonth.get(`${s.worker_id}:${s.year_month}`) || 0),
-        ),
+        projSalaries.map((s: Record<string, unknown>) => {
+          const key = `${s.worker_id}:${s.year_month}`;
+          return Number(salaryPaymentByWorkerMonth.get(key) ?? salaryPaymentByWorkerPayMonth.get(key) ?? 0);
+        }),
       );
       const monthSalaryPaymentFromStatus = safeSum(
         projSalaries

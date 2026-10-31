@@ -113,6 +113,7 @@ export default function MonthlyReportFillPage() {
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [managerApproverId, setManagerApproverId] = useState(0);
   const [bossApproverId, setBossApproverId] = useState(0);
+  const [approverKeyword, setApproverKeyword] = useState('');
 
   const load = useCallback(async () => {
     if (!month) return;
@@ -177,6 +178,15 @@ export default function MonthlyReportFillPage() {
   const isManagerOwner = managerOwnerId > 0 && myId === managerOwnerId;
   const designatedManagerId = Number(content.managerApproverId) || 0;
   const designatedBossId = Number(content.bossApproverId) || 0;
+
+  const filteredUserOptions = useMemo(() => {
+    const keyword = approverKeyword.trim().toLowerCase();
+    return userOptions
+      .filter((item) => item.id !== myId)
+      .filter((item) => !keyword
+        || item.name.toLowerCase().includes(keyword)
+        || item.role.toLowerCase().includes(keyword));
+  }, [userOptions, approverKeyword, myId]);
 
   const canFill = (status === 'draft' || status === 'rejected') && (isBudgetOwner || isBossOrSuper || fillOwnerId === 0);
   const canSupplement = status === 'pending_manager' && (
@@ -415,13 +425,19 @@ export default function MonthlyReportFillPage() {
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
               <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
                 下一级审批人（项目经理）
+                <input
+                  value={approverKeyword}
+                  onChange={(event) => setApproverKeyword(event.target.value)}
+                  placeholder="搜索姓名"
+                  className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
+                />
                 <select
                   value={managerApproverId}
                   onChange={(event) => setManagerApproverId(Number(event.target.value) || 0)}
                   className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择</option>
-                  {userOptions.filter((item) => item.id !== myId).map((item) => (
+                  {filteredUserOptions.map((item) => (
                     <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
@@ -484,13 +500,19 @@ export default function MonthlyReportFillPage() {
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
                 <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
                   下一级审批人（老板）
+                  <input
+                  value={approverKeyword}
+                  onChange={(event) => setApproverKeyword(event.target.value)}
+                  placeholder="搜索姓名"
+                  className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
+                />
                   <select
                     value={bossApproverId}
                     onChange={(event) => setBossApproverId(Number(event.target.value) || 0)}
                     className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                   >
                     <option value={0}>请选择</option>
-                    {userOptions.filter((item) => item.id !== myId).map((item) => (
+                    {filteredUserOptions.map((item) => (
                       <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
                   </select>

@@ -143,6 +143,28 @@ export async function POST(request: NextRequest) {
       if (approverError && !String(approverError.message || '').includes('approver_user_id')) {
         throw new Error(approverError.message);
       }
+
+      // 通知指定审批人（站内 + 钉钉）
+      try {
+        const { pushBusinessNotification } = await import('@/lib/business-notification');
+        await pushBusinessNotification({
+          type: 'team_settlement_approval',
+          title: `班组结算待你审批：${settlement.settlement_no || `#${settlementId}`}`,
+          content: `${operatorName} 已提交 ${settlement.settlement_month || ''} 班组结算单，请审批。`,
+          severity: 'info',
+          relatedId: settlementId,
+          relatedType: 'team_settlement',
+          recipientUserIds: [approverUserId],
+          metadata: {
+            业务摘要: `班组结算 ${settlement.settlement_no || `#${settlementId}`} 待审批`,
+            责任人: approverName || '',
+            建议动作: '去审批',
+            处理入口: '/team-management/settlements',
+          },
+        });
+      } catch (notifyError) {
+        console.error('[TeamSettlementWorkflow] 通知审批人失败:', notifyError);
+      }
     }
     // 撤回时清空指定审批人
     if (action === 'withdraw') {

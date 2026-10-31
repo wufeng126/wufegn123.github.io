@@ -361,6 +361,37 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (saveError) throw new Error(saveError.message);
 
+    // 提交后通知下一级审批人（站内 + 钉钉个人工作通知）
+    const notifyApproverId =
+      action === 'submit_manager' ? managerApproverId : action === 'supplement' ? bossApproverId : 0;
+    const notifyApproverName =
+      action === 'submit_manager' ? managerApproverName : action === 'supplement' ? bossApproverName : '';
+    if (notifyApproverId > 0) {
+      try {
+        const { pushBusinessNotification } = await import('@/lib/business-notification');
+        const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
+        const stageLabel = action === 'submit_manager' ? '项目经理补充' : '老板审批';
+        const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
+        await pushBusinessNotification({
+          type: 'monthly_report_approval',
+          title: `${month} 月报待你${stageLabel}`,
+          content: `${operatorName} 已提交 ${scopeLabel} ${month} 月报，请作为${stageLabel}人处理。`,
+          severity: 'info',
+          relatedId: Number(saved?.id) || undefined,
+          relatedType: 'monthly_report',
+          recipientUserIds: [notifyApproverId],
+          metadata: {
+            业务摘要: `${month} ${scopeLabel} 月报待${stageLabel}`,
+            责任人: notifyApproverName || '',
+            建议动作: '去处理',
+            处理入口: href,
+          },
+        });
+      } catch (notifyError) {
+        console.error('[MonthlyWorkflow] 通知审批人失败:', notifyError);
+      }
+    }
+
     // 审批通过 → 经营分析沉淀进知识库（幂等：同月同范围只保留一条）
     if (action === 'approve') {
       const approvedContent = (saved?.content || workflow?.content || content || {}) as Record<string, string>;

@@ -71,6 +71,26 @@ export default function MySubmissionsPage() {
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState<'mine' | 'pending'>('mine');
+  const [pendingLoading, setPendingLoading] = useState(true);
+  const [pendingReportList, setPendingReportList] = useState<Array<{ id: number; month: string; status: string; projectScope: string; projectName: string; updatedAt?: string | null }>>([]);
+  const [pendingSettlementList, setPendingSettlementList] = useState<Array<{ id: number; settlementNo: string; month: string; projectName: string; submittedBy?: string; submittedAt?: string | null }>>([]);
+
+  const loadPending = useCallback(async () => {
+    setPendingLoading(true);
+    try {
+      const res = await fetch('/api/my-pending-approvals', { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '加载待审批失败');
+      setPendingReportList(Array.isArray(json.data?.reports) ? json.data.reports : []);
+      setPendingSettlementList(Array.isArray(json.data?.settlements) ? json.data.settlements : []);
+    } catch {
+      setPendingReportList([]);
+      setPendingSettlementList([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +111,12 @@ export default function MySubmissionsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadPending();
+  }, [loadPending]);
+
+  const pendingTotal = pendingReportList.length + pendingSettlementList.length;
 
   const pendingReports = reports.filter((row) => ['pending_manager', 'pending_boss'].includes(row.status)).length;
   const pendingSettlements = settlements.filter((row) => row.status === 'pending').length;
@@ -129,6 +155,89 @@ export default function MySubmissionsPage() {
           </div>
         ) : null}
 
+        <div className="mb-4 inline-flex rounded-lg border border-[var(--border)] bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => setTab('mine')}
+            className={`h-8 rounded-md px-4 text-sm ${tab === 'mine' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-3)]'}`}
+          >
+            我提交的
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('pending')}
+            className={`h-8 rounded-md px-4 text-sm ${tab === 'pending' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-3)]'}`}
+          >
+            待我审批{pendingTotal > 0 ? `（${pendingTotal}）` : ''}
+          </button>
+        </div>
+
+        {tab === 'pending' ? (
+          <div className="space-y-4">
+            <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+                <h2 className="font-semibold text-[var(--foreground)]">待我审批的月报</h2>
+                <span className="text-xs text-[var(--color-text-3)]">{pendingReportList.length} 条</span>
+              </div>
+              {pendingLoading ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">加载中…</div>
+              ) : pendingReportList.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">暂无待你审批的月报</div>
+              ) : (
+                <div className="divide-y divide-[var(--border)]">
+                  {pendingReportList.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5">
+                      <div>
+                        <div className="font-medium text-[var(--foreground)]">{row.month} 月报 · {row.projectName}</div>
+                        <div className="mt-0.5 text-xs text-[var(--color-text-3)]">
+                          {row.status === 'pending_manager' ? '待项目经理补充' : '待老板审批'}
+                          {row.updatedAt ? ` · 更新 ${formatTime(row.updatedAt)}` : ''}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/reports/monthly/fill?month=${encodeURIComponent(row.month)}${row.projectScope !== 'all' ? `&projectId=${row.projectScope}` : ''}`}
+                        className="text-xs text-[var(--color-primary)] hover:underline"
+                      >
+                        去处理
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+                <h2 className="font-semibold text-[var(--foreground)]">待我审批的班组结算</h2>
+                <span className="text-xs text-[var(--color-text-3)]">{pendingSettlementList.length} 条</span>
+              </div>
+              {pendingLoading ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">加载中…</div>
+              ) : pendingSettlementList.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">暂无待你审批的班组结算</div>
+              ) : (
+                <div className="divide-y divide-[var(--border)]">
+                  {pendingSettlementList.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5">
+                      <div>
+                        <div className="font-medium text-[var(--foreground)]">{row.settlementNo} · {row.projectName}</div>
+                        <div className="mt-0.5 text-xs text-[var(--color-text-3)]">
+                          {row.month}
+                          {row.submittedBy ? ` · 提交人 ${row.submittedBy}` : ''}
+                          {row.submittedAt ? ` · ${formatTime(row.submittedAt)}` : ''}
+                        </div>
+                      </div>
+                      <Link href={`/team-management/settlements/${row.id}`} className="text-xs text-[var(--color-primary)] hover:underline">
+                        去审批
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+        <>
         {/* 月报 */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
@@ -251,6 +360,8 @@ export default function MySubmissionsPage() {
             </div>
           )}
         </section>
+        </>
+        )}
       </div>
     </div>
   );
