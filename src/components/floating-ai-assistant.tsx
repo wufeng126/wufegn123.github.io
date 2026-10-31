@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getOfflineResponse, PAGE_SUGGESTIONS, type Suggestion } from '@/lib/ai-assistant-config';
-import { Bot, MessageSquare, History, Plus, Trash2 } from 'lucide-react';
+import { Bot, MessageSquare, History, Plus, Trash2, Copy, RefreshCw } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -258,8 +258,53 @@ export function FloatingAIAssistant() {
   const [uploadStatuses, setUploadStatuses] = useState<UploadStatus[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [listening, setListening] = useState(false);
   const [aiHealth, setAiHealth] = useState<{ ready?: boolean; configured?: boolean; model?: string | null; knowledge_docs?: number; source?: string } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
+  const startVoiceInput = () => {
+    const w = window as unknown as {
+      SpeechRecognition?: new () => any;
+      webkitSpeechRecognition?: new () => any;
+    };
+    const Recognition = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Recognition) {
+      alert('当前浏览器不支持语音输入，请用手机 Chrome / 钉钉或手动输入');
+      return;
+    }
+    try {
+      const recognition = new Recognition();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event: any) => {
+        const text = String(event?.results?.[0]?.[0]?.transcript || '').trim();
+        if (text) setInput((prev) => (prev ? `${prev} ${text}` : text));
+      };
+      recognition.onerror = () => setListening(false);
+      recognition.onend = () => setListening(false);
+      setListening(true);
+      recognition.start();
+    } catch {
+      setListening(false);
+      alert('语音输入启动失败，请手动输入');
+    }
+  };
+  const copyMessage = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('已复制');
+    } catch {
+      alert('复制失败，请手动选择文字复制');
+    }
+  };
+
+  const regenerateMessage = (assistantId: string) => {
+    const index = messages.findIndex((m) => m.id === assistantId);
+    if (index <= 0) return;
+    const prevUser = [...messages.slice(0, index)].reverse().find((m) => m.role === 'user');
+    if (!prevUser) return;
+    sendMessage(prevUser.content);
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // AI 自检：不可用时给出明确原因和入口，而不是只说"不可用"
@@ -825,6 +870,22 @@ export function FloatingAIAssistant() {
                       ))}
                     </div>
                   )}
+                  {msg.role === 'assistant' && !isLoading && msg.content ? (
+                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                      <button
+                        onClick={() => copyMessage(msg.content)}
+                        className="inline-flex items-center gap-1 transition hover:text-foreground"
+                      >
+                        <Copy className="h-3 w-3" /> 复制
+                      </button>
+                      <button
+                        onClick={() => regenerateMessage(msg.id)}
+                        className="inline-flex items-center gap-1 transition hover:text-foreground"
+                      >
+                        <RefreshCw className="h-3 w-3" /> 重新生成
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
 
