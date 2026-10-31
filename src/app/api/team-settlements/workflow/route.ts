@@ -95,6 +95,10 @@ export async function POST(request: NextRequest) {
     if (action === 'reject' && !reason) {
       return apiBadRequest('请填写驳回原因');
     }
+    // 不允许指定自己为审批人（否则等于自己批自己）
+    if (action === 'submit' && approverUserId > 0 && approverUserId === Number(auth.user.id)) {
+      return apiBadRequest('审批人不能选自己，请选择老板或其他负责人');
+    }
 
     // 反审核前校验：分账工资一旦已有发放记录（钱已付出），禁止反审核，避免连发放流水一起删掉
     if (action === 'unapprove') {

@@ -20,9 +20,10 @@ export async function GET(request: NextRequest) {
       .order('id', { ascending: true });
     if (error) throw new Error(error.message);
 
+    const selfId = Number(auth.user.id);
     const options = (data || [])
-      .filter((row: { is_disabled?: boolean | null; role?: string | null }) =>
-        row.is_disabled !== true && row.role !== 'pending',
+      .filter((row: { is_disabled?: boolean | null; role?: string | null; id?: unknown }) =>
+        row.is_disabled !== true && row.role !== 'pending' && Number(row.id) !== selfId,
       )
       .map((row: Record<string, unknown>) => ({
         id: Number(row.id),

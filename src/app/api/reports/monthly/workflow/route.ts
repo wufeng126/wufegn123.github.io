@@ -229,6 +229,13 @@ export async function POST(request: NextRequest) {
     if (action === 'supplement' && !bossApproverId) {
       return apiBadRequest('请选择老板作为下一级审批人');
     }
+    // 不允许指定自己为审批人
+    if (action === 'submit_manager' && managerApproverId === Number(auth.user.id)) {
+      return apiBadRequest('项目经理审批人不能选自己');
+    }
+    if (action === 'supplement' && bossApproverId === Number(auth.user.id)) {
+      return apiBadRequest('老板审批人不能选自己');
+    }
     // 只有被指定的审批人（或超管/老板）才能处理对应环节
     if (action === 'supplement' && designatedManagerApproverId > 0
       && Number(auth.user.id) !== designatedManagerApproverId && !isSuperOrBoss) {
