@@ -195,6 +195,7 @@ export default function MonthlyReportPage() {
   const [data, setData] = useState<MonthlyReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [reportMode, setReportMode] = useState<ReportMode>('boss');
+  const [showZeroProjects, setShowZeroProjects] = useState(false);
   const [aiInterpreting, setAiInterpreting] = useState(false);
   const [aiContent, setAiContent] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -256,6 +257,22 @@ export default function MonthlyReportPage() {
   // Extract data
   const ov = (data?.overview ?? {}) as Overview;
   const projectList = (data?.projects ?? []) as ProjectItem[];
+  const hasAmount = (value?: number) => Math.abs(Number(value) || 0) > 0.005;
+  const projectsWithData = projectList.filter(
+    (project) =>
+      hasAmount(project.monthIncome) ||
+      hasAmount(project.monthLaborSalaryCost) ||
+      hasAmount(project.monthSalaryPaid) ||
+      hasAmount(project.monthTeamSettlementCost),
+  );
+  const zeroProjects = projectList.filter(
+    (project) =>
+      !hasAmount(project.monthIncome) &&
+      !hasAmount(project.monthLaborSalaryCost) &&
+      !hasAmount(project.monthSalaryPaid) &&
+      !hasAmount(project.monthTeamSettlementCost),
+  );
+  const visibleBossProjects = showZeroProjects ? projectList : projectsWithData;
   const pp = (data?.payablePlan ?? {}) as PayablePlan;
   const laborCosts = (data?.laborCostByProject ?? []) as LaborCostItem[];
   const supplierSettlements = (data?.supplierSettlementByProject ?? []) as SupplierSettlementItem[];
@@ -574,18 +591,41 @@ export default function MonthlyReportPage() {
             {/* ─── 老板汇报：当月各项目报量与工资（极简） ─── */}
             {reportMode === 'boss' && (
               <Card>
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Eye className="w-4 h-4" /> {month} 各项目报量与工资
-                  </CardTitle>
+                <CardHeader className="pb-3 pt-4 px-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Eye className="w-4 h-4" /> {month} 各项目报量与工资
+                    </CardTitle>
+                    <span className="text-xs text-muted-foreground">
+                      {projectsWithData.length} 个项目有数据
+                      {zeroProjects.length > 0 ? ` · ${zeroProjects.length} 个无数据已折叠` : ''}
+                    </span>
+                  </div>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
-                  <p className="mb-3 text-sm text-muted-foreground">
-                    本月合计报量 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthIncome)}</span>，
-                    工人工资应发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0))}</span>，
-                    工人实发 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(ov.monthSalaryPaid ?? 0)}</span>，
-                    班组结算 <span className="font-semibold text-foreground tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0))}</span>。
-                  </p>
+                  <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      { label: '本月报量', value: fmtAmt(ov.monthIncome), color: 'var(--foreground)' },
+                      {
+                        label: '工人工资应发',
+                        value: fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0)),
+                        color: '#165DFF',
+                      },
+                      { label: '工人实发', value: fmtAmt(ov.monthSalaryPaid ?? 0), color: '#00B42A' },
+                      {
+                        label: '班组结算',
+                        value: fmtAmt(projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0)),
+                        color: '#FF7D00',
+                      },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-lg bg-muted/40 px-3 py-2">
+                        <div className="text-xs text-muted-foreground">{item.label}</div>
+                        <div className="mt-0.5 text-lg font-semibold tabular-nums" style={{ color: item.color }}>
+                          {item.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -598,8 +638,11 @@ export default function MonthlyReportPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {projectList.map((project) => (
-                          <tr key={project.id} className="border-b last:border-0">
+                        {visibleBossProjects.map((project, index) => (
+                          <tr
+                            key={project.id}
+                            className={`border-b last:border-0 hover:bg-muted/30 ${index % 2 === 1 ? 'bg-muted/10' : ''}`}
+                          >
                             <td className="py-2 px-2">{project.name}</td>
                             <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthIncome)}</td>
                             <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthLaborSalaryCost ?? 0)}</td>
@@ -607,9 +650,24 @@ export default function MonthlyReportPage() {
                             <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(project.monthTeamSettlementCost ?? 0)}</td>
                           </tr>
                         ))}
+                        {zeroProjects.length > 0 ? (
+                          <tr className="border-b last:border-0">
+                            <td colSpan={5} className="py-2 px-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowZeroProjects((value) => !value)}
+                                className="text-xs text-[#165DFF] hover:underline"
+                              >
+                                {showZeroProjects
+                                  ? `收起 ${zeroProjects.length} 个无数据项目`
+                                  : `还有 ${zeroProjects.length} 个项目本月无数据（展开查看）`}
+                              </button>
+                            </td>
+                          </tr>
+                        ) : null}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t font-semibold">
+                        <tr className="border-t-2 border-[#165DFF]/25 bg-muted/40 font-semibold">
                           <td className="py-2 px-2">合计</td>
                           <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthIncome || 0), 0))}</td>
                           <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0))}</td>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>月报老板视图 · 排版优化预览</title>
+<style>
+  :root{
+    --primary:#165DFF; --muted:#F7F8FA; --border:#E5E6EB;
+    --text:#1D2129; --text-3:#86909C; --green:#00B42A; --orange:#FF7D00;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#F2F3F5;color:var(--text);padding:16px;font-size:14px;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto}
+  .tip{margin-bottom:12px;border:1px dashed var(--primary);background:#E8F0FF;color:var(--primary);
+    border-radius:10px;padding:8px 12px;font-size:12px}
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .title{font-size:18px;font-weight:700}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;
+    border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text)}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 16px 8px;margin-bottom:14px}
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .card-head h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .card-head .meta{font-size:12px;color:var(--text-3)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .stat{background:#F7F8FA;border-radius:8px;padding:8px 12px}
+  .stat .l{font-size:12px;color:var(--text-3)}
+  .stat .v{margin-top:2px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-weight:500;padding:8px;color:var(--text-3);font-size:12px;border-bottom:1px solid var(--border)}
+  th.r,td.r{text-align:right}
+  td{padding:8px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(even){background:#FAFBFC}
+  tbody tr:hover{background:#F2F6FF}
+  tfoot td{border-top:2px solid rgba(22,93,255,.25);background:#F7F8FA;font-weight:600;border-bottom:none}
+  .expand-row td{border-bottom:none;background:#fff !important}
+  .link{color:var(--primary);font-size:12px;cursor:pointer;text-decoration:none}
+  .link:hover{text-decoration:underline}
+  .zero-row{color:var(--text-3)}
+  .hidden{display:none}
+  .legend{margin-top:10px;font-size:12px;color:var(--text-3)}
+  @media (max-width:720px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .title{font-size:16px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tip">👀 排版优化预览：零数据项目默认折叠，汇总指标改成卡片，合计行更醒目。点蓝色文字可展开/收起无数据项目。</div>
+
+  <div class="toolbar">
+    <div class="title">月度经营月报</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span class="btn">老板汇报</span>
+      <span class="btn">分析</span>
+      <span class="btn">项目明细</span>
+      <button class="btn primary">📄 写本月分析</button>
+      <span class="btn">刷新</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>👁 2026-09 各项目报量与工资</h2>
+      <span class="meta">5 个项目有数据 · 6 个无数据已折叠</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="l">本月报量</div><div class="v">264.65 万</div></div>
+      <div class="stat"><div class="l">工人工资应发</div><div class="v" style="color:#165DFF">231.03 万</div></div>
+      <div class="stat"><div class="l">工人实发</div><div class="v" style="color:#00B42A">125.40 万</div></div>
+      <div class="stat"><div class="l">班组结算</div><div class="v" style="color:#FF7D00">3.57 万</div></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>项目</th>
+          <th class="r">本月报量</th>
+          <th class="r">工人工资应发</th>
+          <th class="r">工人实发</th>
+          <th class="r">班组结算</th>
+        </tr>
+      </thead>
+      <tbody id="dataRows">
+        <tr><td>两寺渡安置房（陕建）</td><td class="r">0</td><td class="r">55.03 万</td><td class="r">30.10 万</td><td class="r">0</td></tr>
+        <tr><td>南京中交智慧港</td><td class="r">31.18 万</td><td class="r">31.39 万</td><td class="r">18.20 万</td><td class="r">0</td></tr>
+        <tr><td>宝鸡机场</td><td class="r">7.85 万</td><td class="r">7.60 万</td><td class="r">7.60 万</td><td class="r">0</td></tr>
+        <tr><td>咸阳两寺渡项目</td><td class="r">141.53 万</td><td class="r">67.89 万</td><td class="r">52.40 万</td><td class="r">0</td></tr>
+        <tr><td>山海境TOD</td><td class="r">33.11 万</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td>扶风五小项目</td><td class="r">50.98 万</td><td class="r">20.75 万</td><td class="r">12.10 万</td><td class="r">3.57 万</td></tr>
+      </tbody>
+      <tbody id="zeroRows" class="hidden">
+        <tr class="zero-row"><td>延安能源产业基地－腻子涂料</td><td class="r">0</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr class="zero-row"><td>公司公共项目/非项目日志</td><td class="r">0</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr class="zero-row"><td>延安能源产业基地-主体劳务</td><td class="r">0</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr class="zero-row"><td>欧亚四路住宅</td><td class="r">0</td><td class="r">5292.00</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr class="zero-row"><td>延安能源产业基地-二次结构</td><td class="r">0</td><td class="r">47.85 万</td><td class="r">0</td><td class="r">0</td></tr>
+      </tbody>
+      <tbody>
+        <tr class="expand-row">
+          <td colspan="5">
+            <a class="link" id="toggleLink" onclick="toggleZero()">还有 5 个项目本月无数据（展开查看）</a>
+          </td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td>合计</td>
+          <td class="r">264.65 万</td>
+          <td class="r">231.03 万</td>
+          <td class="r">125.40 万</td>
+          <td class="r">3.57 万</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="legend">说明：本预览中“工人实发”填了示例金额，真实页面部署后会从「工资发放」记录汇总。</div>
+  </div>
+</div>
+
+<script>
+  var open = false;
+  function toggleZero() {
+    open = !open;
+    document.getElementById('zeroRows').classList.toggle('hidden', !open);
+    document.getElementById('toggleLink').textContent = open
+      ? '收起 5 个无数据项目'
+      : '还有 5 个项目本月无数据（展开查看）';
+  }
+</script>
+</body>
+</html>
