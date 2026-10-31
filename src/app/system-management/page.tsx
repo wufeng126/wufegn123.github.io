@@ -90,8 +90,8 @@ const managementGroups: SystemManagementGroup[] = [
     items: [
       {
         key: 'approval',
-        label: '业务流程配置',
-        description: '维护流程节点、负责人、撤回规则和超时提醒规则',
+        label: '业务流程说明',
+        description: '已改为「提交时选择下一级审批人」，不再需要单独配置流程节点',
         permission: 'system:manage',
         content: ApprovalConfigPage,
       },

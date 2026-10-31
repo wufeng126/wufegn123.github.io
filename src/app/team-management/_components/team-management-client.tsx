@@ -790,6 +790,11 @@ export function TeamSettlementLedgerPageClient() {
   const [rejectSettlement, setRejectSettlement] = useState<TeamSettlement | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectLoading, setRejectLoading] = useState(false);
+  // 提交审批：选择下一级审批人
+  const [approverTarget, setApproverTarget] = useState<TeamSettlement | null>(null);
+  const [approverOptions, setApproverOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
+  const [selectedApproverId, setSelectedApproverId] = useState(0);
+  const [approverLoading, setApproverLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -882,6 +887,21 @@ export function TeamSettlementLedgerPageClient() {
     : settlements;
 
   async function handleSettlementWorkflow(settlement: TeamSettlement, action: 'submit' | 'withdraw' | 'approve' | 'unapprove') {
+    // 提交审批：先选下一级审批人
+    if (action === 'submit') {
+      setApproverTarget(settlement);
+      setSelectedApproverId(0);
+      if (approverOptions.length === 0) {
+        try {
+          const json = await readJson(await fetch('/api/users/options', { credentials: 'include' }));
+          const options = ((json as { data?: { options?: Array<{ id: number; name: string; role: string }> } })?.data?.options || []);
+          setApproverOptions(Array.isArray(options) ? options : []);
+        } catch {
+          setApproverOptions([]);
+        }
+      }
+      return;
+    }
     if (action === 'approve' && !window.confirm(`确认审批通过结算单 ${settlement.settlement_no || `#${settlement.id}`}？通过后将计入成本并生成分账应发工资`)) return;
     if (action === 'unapprove' && !window.confirm(`确认反审核结算单 ${settlement.settlement_no || `#${settlement.id}`}？将退回待审批状态，并撤销该结算生成的分账工资`)) return;
     setMessage('');
@@ -894,14 +914,42 @@ export function TeamSettlementLedgerPageClient() {
       }));
       const revoked = Number((json as { revoked_salary_count?: number })?.revoked_salary_count || 0);
       setMessage(
-        action === 'submit' ? '已提交审批'
-          : action === 'approve' ? '审批通过，已计入成本'
+        action === 'approve' ? '审批通过，已计入成本'
           : action === 'unapprove' ? `已反审核，退回待审批${revoked > 0 ? `（已撤销 ${revoked} 条分账工资）` : ''}`
           : '已撤回',
       );
       await reload();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '操作失败');
+    }
+  }
+
+  async function submitWithApprover() {
+    if (!approverTarget) return;
+    if (!selectedApproverId) { setMessage('请选择下一级审批人'); return; }
+    setApproverLoading(true);
+    setMessage('');
+    try {
+      const approver = approverOptions.find((option) => option.id === selectedApproverId);
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          settlement_id: approverTarget.id,
+          action: 'submit',
+          approverUserId: selectedApproverId,
+          approverName: approver?.name || '',
+        }),
+      }));
+      setApproverTarget(null);
+      setSelectedApproverId(0);
+      setMessage(`已提交审批，审批人：${approver?.name || ''}`);
+      await reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '提交失败');
+    } finally {
+      setApproverLoading(false);
     }
   }
 
@@ -1327,6 +1375,54 @@ export function TeamSettlementLedgerPageClient() {
               <button onClick={() => setRejectSettlement(null)} disabled={rejectLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50">取消</button>
               <button onClick={() => void submitReject()} disabled={rejectLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#F53F3F] px-4 text-sm font-medium text-white hover:bg-[#D9363E] disabled:opacity-50">
                 {rejectLoading ? '提交中…' : '确认驳回'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {approverTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { if (!approverLoading) setApproverTarget(null); }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-lg font-semibold">提交审批</h3>
+            <p className="mt-1 text-sm text-[#86909C]">
+              {approverTarget.team_name || `#${approverTarget.id}`} · {approverTarget.settlement_month} ·
+              实付 <b>{formatMoney(approverTarget.payable_amount || 0)}</b>
+            </p>
+            <div className="mt-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[#86909C]">下一级审批人（必选）</span>
+                <select
+                  value={selectedApproverId}
+                  onChange={(event) => setSelectedApproverId(Number(event.target.value) || 0)}
+                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value={0}>请选择审批人</option>
+                  {approverOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}{option.role ? `（${option.role}）` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="mt-2 text-xs text-[#86909C]">提交后只有该审批人（或老板/超管）可以审批通过或驳回。</p>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setApproverTarget(null)}
+                disabled={approverLoading}
+                className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => void submitWithApprover()}
+                disabled={approverLoading}
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E42D2] disabled:opacity-50"
+              >
+                {approverLoading ? '提交中…' : '确认提交'}
               </button>
             </div>
           </div>

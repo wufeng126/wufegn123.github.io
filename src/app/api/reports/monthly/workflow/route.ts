@@ -185,6 +185,10 @@ export async function POST(request: NextRequest) {
           bossSupplement: String(body.content.bossSupplement || '').slice(0, 5000),
         }
       : null;
+    const managerApproverId = Number(body?.managerApproverId) || 0;
+    const managerApproverName = String(body?.managerApproverName || '').trim().slice(0, 100);
+    const bossApproverId = Number(body?.bossApproverId) || 0;
+    const bossApproverName = String(body?.bossApproverName || '').trim().slice(0, 100);
 
     if (!month) return apiBadRequest('请提供正确的月份（YYYY-MM）');
     if (!['save', 'submit_manager', 'supplement', 'approve', 'reject'].includes(action)) {
@@ -213,6 +217,27 @@ export async function POST(request: NextRequest) {
     const currentStatus = (workflow?.status || 'draft') as WorkflowStatus;
     const now = new Date().toISOString();
     const operatorName = auth.user.name || auth.user.username || 'system';
+    const existingContent = (workflow?.content || {}) as Record<string, unknown>;
+    const isSuperOrBoss = Boolean(auth.user.is_super_admin) || auth.user.role === 'boss';
+    const designatedManagerApproverId = Number(existingContent.managerApproverId) || 0;
+    const designatedBossApproverId = Number(existingContent.bossApproverId) || 0;
+
+    // 提交时必须选择下一级审批人（每级提交时选）
+    if (action === 'submit_manager' && !managerApproverId) {
+      return apiBadRequest('请选择项目经理作为下一级审批人');
+    }
+    if (action === 'supplement' && !bossApproverId) {
+      return apiBadRequest('请选择老板作为下一级审批人');
+    }
+    // 只有被指定的审批人（或超管/老板）才能处理对应环节
+    if (action === 'supplement' && designatedManagerApproverId > 0
+      && Number(auth.user.id) !== designatedManagerApproverId && !isSuperOrBoss) {
+      return apiForbidden('你不是本流程指定的项目经理，无法补充');
+    }
+    if ((action === 'approve' || action === 'reject') && designatedBossApproverId > 0
+      && Number(auth.user.id) !== designatedBossApproverId && !isSuperOrBoss) {
+      return apiForbidden('你不是本流程指定的审批人，无法审批');
+    }
 
     // 状态流转校验
     if (action === 'save' && !['draft', 'rejected'].includes(currentStatus)) {
@@ -270,7 +295,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 内容合并：预算员保存覆盖自己的部分；项目经理/老板只补自己那部分，不覆盖已有内容
-    const existingContent = (workflow?.content || {}) as Record<string, unknown>;
     let mergedContent: Record<string, unknown> | null = null;
     if (content) {
       if (action === 'save' || action === 'submit_manager') {
@@ -281,6 +305,21 @@ export async function POST(request: NextRequest) {
           if (String(value || '').trim()) mergedContent[key] = value;
         }
       }
+    }
+    // 记录每一级提交时指定的下一级审批人
+    if (action === 'submit_manager') {
+      mergedContent = {
+        ...(mergedContent || existingContent),
+        managerApproverId,
+        managerApproverName: managerApproverName || '',
+      };
+    }
+    if (action === 'supplement' && bossApproverId > 0) {
+      mergedContent = {
+        ...(mergedContent || existingContent),
+        bossApproverId,
+        bossApproverName: bossApproverName || '',
+      };
     }
 
     // 组装更新数据

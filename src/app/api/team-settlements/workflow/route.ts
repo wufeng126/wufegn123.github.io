@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
     const settlementId = Number(body?.settlement_id);
     const action = String(body?.action || '');
     const reason = body?.reason ? String(body.reason).trim() : '';
+    const approverUserId = Number(body?.approverUserId) || 0;
+    const approverName = String(body?.approverName || '').trim().slice(0, 100);
 
     if (!Number.isInteger(settlementId) || settlementId <= 0) {
       return apiBadRequest('结算单ID无效');
@@ -53,11 +55,21 @@ export async function POST(request: NextRequest) {
 
     const { data: settlement, error } = await supabase
       .from('team_settlements')
-      .select('id, project_id, team_id, settlement_month, status, settlement_no, created_by, advance_deduct, labor_insurance_deduct, helper_deduct, safety_fund_deduct')
+      .select('*')
       .eq('id', settlementId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!settlement) return apiNotFound('结算单不存在');
+
+    // 提交时指定的审批人只能处理自己那一单（老板/超管仍可代为审批）
+    const designatedApproverId = Number((settlement as Record<string, unknown>).approver_user_id) || 0;
+    const isBossOrSuper = Boolean(auth.user.is_super_admin) || auth.user.role === 'boss';
+    if (['approve', 'reject', 'unapprove'].includes(action)
+      && designatedApproverId > 0
+      && Number(auth.user.id) !== designatedApproverId
+      && !isBossOrSuper) {
+      return apiForbidden('你不是本结算单指定的审批人，无法审批');
+    }
 
     const projectId = Number(settlement.project_id);
     const access = await assertProjectAccess(supabase, auth.user, projectId);
@@ -120,6 +132,27 @@ export async function POST(request: NextRequest) {
     if (updateError) throw new Error(updateError.message);
     if (!updatedRows || updatedRows.length === 0) {
       return apiBadRequest('结算单状态已变化（可能已被他人处理），请刷新后重试');
+    }
+
+    // 提交时记录「下一级审批人」（幂等：列缺失时降级为不指定审批人，不影响提交流程）
+    if (action === 'submit' && approverUserId > 0) {
+      const { error: approverError } = await supabase
+        .from('team_settlements')
+        .update({ approver_user_id: approverUserId, approver_name: approverName || null })
+        .eq('id', settlementId);
+      if (approverError && !String(approverError.message || '').includes('approver_user_id')) {
+        throw new Error(approverError.message);
+      }
+    }
+    // 撤回时清空指定审批人
+    if (action === 'withdraw') {
+      const { error: clearError } = await supabase
+        .from('team_settlements')
+        .update({ approver_user_id: null, approver_name: null })
+        .eq('id', settlementId);
+      if (clearError && !String(clearError.message || '').includes('approver_user_id')) {
+        throw new Error(clearError.message);
+      }
     }
 
     // 审批通过：生成分账应发工资（失败不阻断审批结果，但记录错误）

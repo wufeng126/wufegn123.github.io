@@ -24,7 +24,13 @@ type WorkflowContent = {
   remark?: string;
   managerSupplement?: string;
   bossSupplement?: string;
+  managerApproverId?: number;
+  managerApproverName?: string;
+  bossApproverId?: number;
+  bossApproverName?: string;
 };
+
+type UserOption = { id: number; name: string; role: string };
 
 type WorkflowRow = {
   status?: string;
@@ -104,6 +110,9 @@ export default function MonthlyReportFillPage() {
   const [remark, setRemark] = useState('');
   const [managerSupplement, setManagerSupplement] = useState('');
   const [bossSupplement, setBossSupplement] = useState('');
+  const [userOptions, setUserOptions] = useState<UserOption[]>([]);
+  const [managerApproverId, setManagerApproverId] = useState(0);
+  const [bossApproverId, setBossApproverId] = useState(0);
 
   const load = useCallback(async () => {
     if (!month) return;
@@ -111,11 +120,15 @@ export default function MonthlyReportFillPage() {
     try {
       const params = new URLSearchParams({ month });
       if (projectId && projectId !== 'all') params.set('projectId', projectId);
-      const [meRes, summaryRes, workflowRes] = await Promise.all([
+      const [meRes, summaryRes, workflowRes, optionsRes] = await Promise.all([
         fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }),
         fetch(`/api/reports/monthly/summary?${params.toString()}`, { credentials: 'include', cache: 'no-store' }),
         fetch(`/api/reports/monthly/workflow?${params.toString()}`, { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/users/options', { credentials: 'include', cache: 'no-store' }),
       ]);
+      const optionsJson = await optionsRes.json().catch(() => ({}));
+      const options = (optionsJson?.data?.options || []) as UserOption[];
+      setUserOptions(Array.isArray(options) ? options : []);
       const meJson = await meRes.json().catch(() => ({}));
       const me = meJson?.user || meJson?.data || {};
       setMyId(Number(me.id) || 0);
@@ -146,6 +159,8 @@ export default function MonthlyReportFillPage() {
       setRemark(String(c.remark || ''));
       setManagerSupplement(String(c.managerSupplement || ''));
       setBossSupplement(String(c.bossSupplement || ''));
+      setManagerApproverId(Number(c.managerApproverId) || 0);
+      setBossApproverId(Number(c.bossApproverId) || 0);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '月报数据加载失败');
     } finally {
@@ -160,10 +175,16 @@ export default function MonthlyReportFillPage() {
   const isBossOrSuper = myRole === 'super_admin' || myRole === 'boss';
   const isBudgetOwner = fillOwnerId > 0 && myId === fillOwnerId;
   const isManagerOwner = managerOwnerId > 0 && myId === managerOwnerId;
+  const designatedManagerId = Number(content.managerApproverId) || 0;
+  const designatedBossId = Number(content.bossApproverId) || 0;
 
   const canFill = (status === 'draft' || status === 'rejected') && (isBudgetOwner || isBossOrSuper || fillOwnerId === 0);
-  const canSupplement = status === 'pending_manager' && (isManagerOwner || isBossOrSuper);
-  const canApprove = status === 'pending_boss' && isBossOrSuper;
+  const canSupplement = status === 'pending_manager' && (
+    (designatedManagerId > 0 && myId === designatedManagerId) || isManagerOwner || isBossOrSuper
+  );
+  const canApprove = status === 'pending_boss' && (
+    (designatedBossId > 0 && myId === designatedBossId) || isBossOrSuper
+  );
 
   const tradeWagesMerged = useMemo(() => {
     const merged: Record<string, number> = {};
@@ -183,6 +204,23 @@ export default function MonthlyReportFillPage() {
 
   async function post(action: string, extra?: { content?: WorkflowContent; reason?: string }) {
     if (!month) return;
+    const body: Record<string, unknown> = { month, action };
+    if (action === 'submit_manager') {
+      if (!managerApproverId) {
+        toast.error('请选择项目经理作为下一级审批人');
+        return;
+      }
+      body.managerApproverId = managerApproverId;
+      body.managerApproverName = userOptions.find((item) => item.id === managerApproverId)?.name || '';
+    }
+    if (action === 'supplement') {
+      if (!bossApproverId) {
+        toast.error('请选择老板作为下一级审批人');
+        return;
+      }
+      body.bossApproverId = bossApproverId;
+      body.bossApproverName = userOptions.find((item) => item.id === bossApproverId)?.name || '';
+    }
     setSaving(true);
     try {
       const body: Record<string, unknown> = { month, action };
@@ -375,6 +413,19 @@ export default function MonthlyReportFillPage() {
           </div>
           {canFill ? (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+              <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
+                下一级审批人（项目经理）
+                <select
+                  value={managerApproverId}
+                  onChange={(event) => setManagerApproverId(Number(event.target.value) || 0)}
+                  className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
+                >
+                  <option value={0}>请选择</option>
+                  {userOptions.filter((item) => item.id !== myId).map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={() => post('save', { content: budgetContent })}
@@ -402,7 +453,9 @@ export default function MonthlyReportFillPage() {
               <UserRoundCheck className="h-4 w-4 text-[var(--color-primary)]" />
               <h2 className="font-semibold text-[var(--foreground)]">项目经理补充</h2>
               <span className="text-xs text-[var(--color-text-3)]">
-                {managerOwnerName ? `项目经理：${managerOwnerName}` : ''}
+                {content.managerApproverName
+                  ? `指定审批人：${content.managerApproverName}`
+                  : managerOwnerName ? `项目经理：${managerOwnerName}` : ''}
               </span>
               {canSupplement ? (
                 <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
@@ -429,6 +482,19 @@ export default function MonthlyReportFillPage() {
             </div>
             {canSupplement ? (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+                <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
+                  下一级审批人（老板）
+                  <select
+                    value={bossApproverId}
+                    onChange={(event) => setBossApproverId(Number(event.target.value) || 0)}
+                    className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
+                  >
+                    <option value={0}>请选择</option>
+                    {userOptions.filter((item) => item.id !== myId).map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={() => post('supplement', { content: { managerSupplement } })}
@@ -450,6 +516,8 @@ export default function MonthlyReportFillPage() {
               <h2 className="font-semibold text-[var(--foreground)]">老板审批</h2>
               {status === 'approved' && approvedBy ? (
                 <span className="text-xs text-[var(--color-text-3)]">审批人：{approvedBy}</span>
+              ) : content.bossApproverName ? (
+                <span className="text-xs text-[var(--color-text-3)]">指定审批人：{content.bossApproverName}</span>
               ) : null}
               {canApprove ? (
                 <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
