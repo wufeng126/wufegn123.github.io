@@ -686,10 +686,10 @@ export function TeamGroupsPageClient() {
               <div className="mt-2 text-sm text-[#4E5969]">{group.leader_name || '未填负责人'} {group.phone ? ` · ${group.phone}` : ''}</div>
               {confirmDeleteId === group.id ? (
                 <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-8 items-center rounded-md bg-[var(--color-danger)] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
+                  <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-9 items-center rounded-md bg-[var(--color-danger)] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
                     {deleting ? '删除中' : '确认删除'}
                   </button>
-                  <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969]">
+                  <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969]">
                     取消
                   </button>
                 </div>
@@ -1074,13 +1074,13 @@ export function TeamSettlementLedgerPageClient() {
       <div className="inline-flex rounded-lg border border-[#E5E8EF] bg-white p-1 shadow-sm">
         <button
           onClick={() => { setViewMode('summary'); setProjectId(''); }}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'summary' ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
+          className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'summary' ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
         >
           <BarChart3 className="h-3.5 w-3.5" />按项目汇总
         </button>
         <button
           onClick={() => setViewMode('detail')}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'detail' ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
+          className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'detail' ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
         >
           <List className="h-3.5 w-3.5" />结算明细
         </button>
@@ -1923,7 +1923,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
         </div>
         <div className="p-4">
           <div className="mb-3 flex justify-end">
-            <button onClick={() => setQuantityRows((rows) => [...rows, newQuantityRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[var(--color-primary)]">
+            <button onClick={() => setQuantityRows((rows) => [...rows, newQuantityRow()])} className="inline-flex h-9 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[var(--color-primary)]">
               <Plus className="h-3.5 w-3.5" />
               新增一行
             </button>
@@ -1983,7 +1983,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#86909C]" />
               <input value={splitKeyword} onChange={(event) => setSplitKeyword(event.target.value)} placeholder={splitTeamWorkType ? `搜索${splitTeamWorkType}工人` : '搜索工人姓名/身份证'} className="h-8 w-44 rounded-md border border-[#DDE2EB] pl-8 pr-2 text-xs outline-none focus:border-[var(--color-primary)]" />
             </div>
-            <button onClick={() => setSplitRows((rows) => [...rows, newSplitRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[var(--color-primary)]">
+            <button onClick={() => setSplitRows((rows) => [...rows, newSplitRow()])} className="inline-flex h-9 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[var(--color-primary)]">
               <Plus className="h-3.5 w-3.5" />
               新增分账
             </button>
@@ -2514,17 +2514,17 @@ export function TeamSettlementDetailPageClient() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`w-fit rounded-md px-3 py-1 text-sm ${statusBadgeClass(settlement.status)}`}>{statusText(settlement.status)}</span>
                 {((settlement.status || 'draft') === 'draft' || settlement.status === 'rejected') && canSubmitSettlement && (
-                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[var(--color-primary)] px-3 text-xs font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
+                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-9 items-center rounded-md bg-[var(--color-primary)] px-3 text-xs font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
                     {workflowLoading ? '提交中…' : '提交审批'}
                   </button>
                 )}
                 {settlement.status === 'pending' && (
                   canApproveSettlement ? (
                     <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={() => void handleApproveSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[var(--color-success)] px-3 text-xs font-medium text-white hover:bg-[#009A29] disabled:opacity-50">
+                      <button onClick={() => void handleApproveSettlement()} disabled={workflowLoading} className="inline-flex h-9 items-center rounded-md bg-[var(--color-success)] px-3 text-xs font-medium text-white hover:bg-[#009A29] disabled:opacity-50">
                         {workflowLoading ? '处理中…' : '通过'}
                       </button>
-                      <button onClick={() => setRejectOpen(true)} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md border border-[#FFC9C9] bg-white px-3 text-xs font-medium text-[var(--color-danger)] disabled:opacity-50">
+                      <button onClick={() => setRejectOpen(true)} disabled={workflowLoading} className="inline-flex h-9 items-center rounded-md border border-[#FFC9C9] bg-white px-3 text-xs font-medium text-[var(--color-danger)] disabled:opacity-50">
                         驳回
                       </button>
                       {(settlement as unknown as { approver_name?: string }).approver_name ? (
@@ -2548,8 +2548,8 @@ export function TeamSettlementDetailPageClient() {
                       className="w-full rounded-md border border-[#FFC9C9] px-3 py-2 text-sm outline-none"
                     />
                     <div className="mt-2 flex justify-end gap-2">
-                      <button onClick={() => { setRejectOpen(false); setRejectReason(''); }} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-xs">取消</button>
-                      <button onClick={() => void handleRejectSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[var(--color-danger)] px-3 text-xs font-medium text-white disabled:opacity-50">
+                      <button onClick={() => { setRejectOpen(false); setRejectReason(''); }} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-xs">取消</button>
+                      <button onClick={() => void handleRejectSettlement()} disabled={workflowLoading} className="inline-flex h-9 items-center rounded-md bg-[var(--color-danger)] px-3 text-xs font-medium text-white disabled:opacity-50">
                         {workflowLoading ? '处理中…' : '确认驳回'}
                       </button>
                     </div>
@@ -2658,7 +2658,7 @@ export function TeamSettlementDetailPageClient() {
                 </div>
                 <button
                   onClick={() => setShowPaymentForm((current) => !current)}
-                  className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                  className="inline-flex h-9 items-center gap-1 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
                 >
                   <Plus className="h-3.5 w-3.5" />记一笔付款
                 </button>
