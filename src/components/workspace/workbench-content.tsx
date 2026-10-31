@@ -203,7 +203,7 @@ const roleWorkbenches: Record<RoleKey, RoleWorkbench> = {
       { title: '成本利润中心', desc: '按项目查看利润和成本结构', href: '/business-analysis?tab=cost-center', icon: 'chart', tone: 'violet' },
       { title: '供应商成本', desc: '查看分项目应付、已付和未付', href: '/business-analysis?tab=supplier-cost', icon: 'wrench', tone: 'amber' },
       { title: '风险项目', desc: '查看滞后、超付、资料缺口和账期风险', href: '/business-analysis?tab=overview', icon: 'alert', tone: 'rose' },
-      { title: '审批确认', desc: '只处理需要老板确认的事项', href: '/notifications', icon: 'doc', tone: 'slate' },
+      { title: '审批确认', desc: '只处理需要老板确认的事项', href: '/my-submissions?tab=pending', icon: 'doc', tone: 'slate' },
     ],
     todoKeys: ['monthlyReportsPending', 'visasPending', 'knowledgePending', 'businessNotificationsPending'],
     todoTitle: '老板待确认',

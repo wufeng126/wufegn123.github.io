@@ -72,6 +72,15 @@ export default function MySubmissionsPage() {
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'mine' | 'pending' | 'reviewed'>('mine');
+
+  // 支持从工作台「审批确认」等入口带参数直达对应页签
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const param = new URLSearchParams(window.location.search).get('tab');
+    if (param === 'pending' || param === 'reviewed' || param === 'mine') {
+      setTab(param);
+    }
+  }, []);
   const [pendingLoading, setPendingLoading] = useState(true);
   const [pendingReportList, setPendingReportList] = useState<Array<{ id: number; month: string; status: string; projectScope: string; projectName: string; updatedAt?: string | null }>>([]);
   const [pendingSettlementList, setPendingSettlementList] = useState<Array<{ id: number; settlementNo: string; month: string; projectName: string; submittedBy?: string; submittedAt?: string | null }>>([]);
