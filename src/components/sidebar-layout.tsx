@@ -617,13 +617,11 @@ export default function SidebarLayout({
                       onMouseOver={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
                       onMouseOut={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                       title={isEffectivelyCollapsed ? menu.name : undefined}
-                      onClick={(e) => {
-                        // 有二级菜单：手风琴展开/收起（不跳转，点二级再跳）
+                      onClick={() => {
+                        // 有二级菜单：点击直接进入模块首页，同时展开二级（不再"点了没反应"）
                         if (secondaryMenus.length > 0) {
-                          e.preventDefault();
-                          setExpandedMenu(prev => (prev === menu.href ? null : menu.href));
+                          setExpandedMenu(menu.href);
                           setHoverExpanded(false);
-                          return;
                         }
                         setSidebarOpen(false);
                         setHoverExpanded(false);
