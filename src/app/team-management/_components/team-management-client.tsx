@@ -1211,53 +1211,51 @@ export function TeamSettlementLedgerPageClient() {
           <ClipboardList className="h-5 w-5 text-[var(--color-primary)]" />
         </div>
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[1040px] text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead className="bg-[#F7F8FA] text-xs font-medium text-[#86909C]">
               <tr>
-                <th className="px-4 py-3 text-left">结算单号</th>
-                <th className="px-4 py-3 text-left">项目</th>
-                <th className="px-4 py-3 text-left">班组</th>
-                <th className="px-4 py-3 text-left">月份</th>
-                <th className="px-4 py-3 text-left">周期</th>
-                <th className="px-4 py-3 text-right">结算金额</th>
-                <th className="px-4 py-3 text-right">扣款合计</th>
-                <th className="px-4 py-3 text-right">实付金额</th>
-                <th className="px-4 py-3 text-right">付款比例</th>
-                <th className="px-4 py-3 text-right">本期计划付</th>
-                <th className="px-4 py-3 text-right">尾款/预留</th>
-                <th className="px-4 py-3 text-right">班组已付</th>
-                <th className="px-4 py-3 text-right">班组未付</th>
-                <th className="px-4 py-3 text-right">分账金额</th>
-                <th className="px-4 py-3 text-right">总工时</th>
-                <th className="px-4 py-3 text-center">状态</th>
-                <th className="px-4 py-3 text-center">操作</th>
+                <th className="whitespace-nowrap px-4 py-3 text-left">结算单号</th>
+                <th className="whitespace-nowrap px-4 py-3 text-left">项目 / 班组</th>
+                <th className="whitespace-nowrap px-4 py-3 text-left">月份 / 周期</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">结算金额</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">扣款</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">实付金额</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">已付 / 未付</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">计划付 / 尾款</th>
+                <th className="whitespace-nowrap px-4 py-3 text-center">状态</th>
+                <th className="whitespace-nowrap px-4 py-3 text-center">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EEF0F5]">
               {loading ? (
-                <tr><td colSpan={17} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
+                <tr><td colSpan={10} className="py-10 text-center text-[#86909C]">加载中...</td></tr>
               ) : visibleSettlements.length === 0 ? (
-                <tr><td colSpan={17} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
+                <tr><td colSpan={10} className="py-10 text-center text-[#86909C]">暂无班组结算记录</td></tr>
               ) : visibleSettlements.map((row) => (
                 <tr key={row.id} className="hover:bg-[#FAFBFF]">
-                  <td className="px-4 py-3 font-medium">{row.settlement_no || `#${row.id}`}</td>
-                  <td className="px-4 py-3 text-[#4E5969]">{row.project_name || '-'}</td>
-                  <td className="px-4 py-3 text-[#4E5969]">{row.team_name || '-'}</td>
-                  <td className="px-4 py-3 text-[#4E5969]">{row.settlement_month}</td>
-                  <td className="px-4 py-3 text-[#4E5969]">{row.period_start} 至 {row.period_end}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
-                  <td className="px-4 py-3 text-right text-[var(--color-danger)]">{formatMoney(row.deduction_total)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.payable_amount)}</td>
-                  <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.payment_ratio ?? 100)}%</td>
-                  <td className="px-4 py-3 text-right text-[var(--color-success)]">{formatMoney(row.planned_payment ?? row.payable_amount)}</td>
-                  <td className="px-4 py-3 text-right text-[#FF7D00]">{formatMoney(row.retained_amount ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-[var(--color-success)]">{formatMoney(row.team_paid_total ?? row.paid_amount ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-[var(--color-danger)]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-[#4E5969]">{formatMoney(row.split_amount)}</td>
-                  <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.total_hours)}</td>
-                  <td className="px-4 py-3 text-center"><span className={`rounded-md px-2 py-1 text-xs ${statusBadgeClass(row.status)}`}>{statusText(row.status)}</span></td>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium">{row.settlement_no || `#${row.id}`}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-[#1D2129]">{row.project_name || '-'}</div>
+                    <div className="mt-0.5 text-xs text-[#86909C]">{row.team_name || '-'}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <div className="text-[#1D2129]">{row.settlement_month}</div>
+                    <div className="mt-0.5 text-xs text-[#86909C]">{row.period_start} 至 {row.period_end}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-[var(--color-danger)]">{formatMoney(row.deduction_total)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatMoney(row.payable_amount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <div className="text-[var(--color-success)]">{formatMoney(row.team_paid_total ?? row.paid_amount ?? 0)}</div>
+                    <div className="mt-0.5 text-xs text-[var(--color-danger)]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <div className="text-[var(--color-success)]">{formatMoney(row.planned_payment ?? row.payable_amount)}</div>
+                    <div className="mt-0.5 text-xs text-[#FF7D00]">尾款 {formatMoney(row.retained_amount ?? 0)}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center"><span className={`whitespace-nowrap rounded-md px-2 py-1 text-xs ${statusBadgeClass(row.status)}`}>{statusText(row.status)}</span></td>
                   <td className="px-4 py-3 text-center">
-                    <div className="flex flex-wrap items-center justify-center gap-2">
+                    <div className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
                       <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[var(--color-primary)] hover:underline">查看详情</Link>
                       {(['draft', 'rejected'].includes(row.status || 'draft')) && canEditSettlement && (
                         <Link href={`/team-management/settlements/${row.id}/edit`} className="text-sm font-medium text-[var(--color-primary)] hover:underline">编辑</Link>
