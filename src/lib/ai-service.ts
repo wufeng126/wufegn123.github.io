@@ -57,11 +57,43 @@ export async function getAIConfig(): Promise<AIConfig | null> {
     return configCache;
   }
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from('ai_configs').select('*').order('id', { ascending: true }).limit(1).single();
-  if (error || !data) return null;
-  configCache = data as AIConfig;
-  configCacheTime = now;
-  return configCache;
+  const { data, error } = await supabase.from('ai_configs').select('*').order('id', { ascending: true }).limit(1).maybeSingle();
+  if (!error && data) {
+    configCache = data as AIConfig;
+    configCacheTime = now;
+    return configCache;
+  }
+
+  // 兜底：库里没有配置时，用环境变量里的托管模型配置，避免 AI 助手直接不可用
+  const envBase = process.env.COZE_INTEGRATION_MODEL_BASE_URL || process.env.AI_BASE_URL || '';
+  const envKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || process.env.AI_API_KEY || '';
+  if (envBase || envKey) {
+    const fallback: AIConfig = {
+      id: 0,
+      model_id: process.env.AI_MODEL || 'doubao-1-5-pro-32k',
+      api_endpoint: envBase || null,
+      api_key: envKey || null,
+      max_context_length: Number(process.env.AI_MAX_CONTEXT || 32000),
+      daily_limit: Number(process.env.AI_DAILY_LIMIT || 200),
+      temperature: 0.3,
+      enabled: true,
+      module_data_query: true,
+      module_report_analysis: true,
+      module_error_diagnosis: true,
+      module_doc_generation: true,
+      module_supplier_analysis: true,
+      module_salary_analysis: true,
+      module_visa_assistant: true,
+      content_filter_enabled: false,
+      mask_sensitive: false,
+      offline_fallback_enabled: false,
+    };
+    configCache = fallback;
+    configCacheTime = now;
+    return configCache;
+  }
+
+  return null;
 }
 
 export function clearAIConfigCache() {

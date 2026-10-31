@@ -258,8 +258,21 @@ export function FloatingAIAssistant() {
   const [uploadStatuses, setUploadStatuses] = useState<UploadStatus[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [aiHealth, setAiHealth] = useState<{ ready?: boolean; configured?: boolean; model?: string | null; knowledge_docs?: number; source?: string } | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // AI 自检：不可用时给出明确原因和入口，而不是只说"不可用"
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ai/health', { credentials: 'include', cache: 'no-store' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled && json?.success) setAiHealth(json.data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -721,6 +734,13 @@ export function FloatingAIAssistant() {
               </div>
             )}
 
+            {/* AI 不可用提示 */}
+            {aiHealth && !aiHealth.ready ? (
+              <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                AI 助手暂不可用：{aiHealth.configured ? '服务已被禁用' : '尚未配置模型'}。
+                <a href="/system/ai-config" className="ml-1 font-medium underline">去「系统管理 → AI 配置」</a>开启后即可使用。
+              </div>
+            ) : null}
             {/* 消息区域 */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={scrollRef}>
               {messages.length === 0 && (

@@ -70,10 +70,11 @@ export async function POST(request: NextRequest) {
     const lastMessage = filteredMessages[filteredMessages.length - 1];
     const inputSummary = typeof lastMessage.content === 'string' ? lastMessage.content : '';
 
-    // 内容过滤检查（仅允许建筑劳务/财务/项目相关）
-    if (!isBusinessRelated(inputSummary)) {
+    // 内容过滤：只拦截明显的闲聊/无关请求；正常业务问句即使没命中关键词也放行（由系统提示词约束范围）
+    const OFF_TOPIC_PATTERN = /(写代码|编程|python|javascript|typescript|java\b|c\+\+|翻译成|讲个笑话|写首诗|电影|电视剧|彩票|游戏攻略|股票行情)/i;
+    if (!isBusinessRelated(inputSummary) && inputSummary.length > 8 && OFF_TOPIC_PATTERN.test(inputSummary)) {
       return new Response(
-        JSON.stringify({ success: false, error: '仅允许建筑劳务/财务/项目相关问题' }),
+        JSON.stringify({ success: false, error: '仅允许建筑劳务/财务/项目相关问题', code: 'OFF_TOPIC' }),
         { status: 403, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -166,10 +167,25 @@ export async function POST(request: NextRequest) {
     ];
 
     // 调用 LLM 流式输出（SDK API: client.stream(messages, options)）
-    const stream = await llmClient.stream(chatMessages, {
-      model: aiConfig.model_id || 'doubao-1-5-pro-256k-250815',
-      temperature: aiConfig.temperature ?? 0.7,
-    });
+    let stream: Awaited<ReturnType<typeof llmClient.stream>>;
+    try {
+      stream = await llmClient.stream(chatMessages, {
+        model: aiConfig.model_id || 'doubao-1-5-pro-256k-250815',
+        temperature: aiConfig.temperature ?? 0.7,
+      });
+    } catch (llmError) {
+      const detail = llmError instanceof Error ? llmError.message : String(llmError);
+      console.error('[AI] LLM call failed:', detail);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `AI 模型调用失败：${detail.slice(0, 200)}`,
+          code: 'AI_LLM_ERROR',
+          model: aiConfig.model_id || null,
+        }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 记录 Token 使用量
     incrementDailyUsage(payload.id).catch(e =>
