@@ -142,6 +142,15 @@ export default function BidEstimationPage() {
             <p className="mt-1 text-sm text-[var(--color-text-3)]">先看历史中标价趋势，再结合内部成本形成新项目报价。</p>
           </div>
           <div className="flex gap-2">
+        <Link
+              href="/cost-estimation/bid/import"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] hover:border-[var(--color-primary)]"
+            >
+              导入历史中标价
+            </Link>
+            <Link href="/cost-estimation/bid/history" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] hover:border-[var(--color-primary)]">
+              历史价查询
+            </Link>
             <Link href="/cost-estimation/bid/library" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-card px-4 text-sm text-[var(--foreground)] hover:bg-[var(--color-muted)]">
               <BookOpen className="h-4 w-4" />资料库
             </Link>
