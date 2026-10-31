@@ -165,7 +165,9 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { name, type, contact_person, phone, remark } = body;
+    const { name, type, contact_person, contact, phone, remark, category } = body;
+    // 前端历史上用 contact 字段，统一兼容两种写法，避免联系人丢失
+    const contactPerson = contact_person ?? contact ?? null;
 
     if (!name || !type) {
       return NextResponse.json({ error: '请填写供应商名称和类型' }, { status: 400 });
@@ -176,9 +178,10 @@ export async function POST(request: NextRequest) {
     const { data, error } = await insertWithSequenceFix('suppliers', {
         name,
         type,
-        contact_person: contact_person || null,
+        contact_person: contactPerson || null,
         phone: phone || null,
         remark: remark || null,
+        ...(category ? { category } : {}),
       }, client);
 
     const supplierData = Array.isArray(data) ? data[0] : data;
@@ -192,7 +195,7 @@ export async function POST(request: NextRequest) {
       operationType: 'create',
       resourceType: 'supplier',
       resourceId: supplierData?.id,
-      details: { name, type, contact_person, phone },
+      details: { name, type, contact_person: contactPerson, phone, category },
       request,
     });
 
@@ -212,7 +215,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { id: bodyId, name, type, contact_person, phone, remark } = body;
+    const { id: bodyId, name, type, contact_person, contact, phone, remark, category } = body;
 
     // 优先使用 body 中的 id，其次使用 query 参数
     const { searchParams } = new URL(request.url);
@@ -235,7 +238,9 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, any> = {};
     if (name !== undefined) updateData.name = name;
     if (type !== undefined) updateData.type = type;
-    if (contact_person !== undefined) updateData.contact_person = contact_person || null;
+    const resolvedContact = contact_person !== undefined ? contact_person : contact;
+    if (resolvedContact !== undefined) updateData.contact_person = resolvedContact || null;
+    if (category) updateData.category = category;
     if (phone !== undefined) updateData.phone = phone || null;
     if (remark !== undefined) updateData.remark = remark || null;
     // BUG-3 修复：仅更新前端实际提交的字段，不再无条件清空银行字段，

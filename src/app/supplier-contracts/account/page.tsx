@@ -34,6 +34,8 @@ interface Supplier {
   type: string;
   contact: string;
   phone: string;
+  /** 供应商分类：材料 / 机械租赁 / 钢化租赁 / 周转料具 / 劳务班组 / 其他 */
+  category?: string | null;
   has_contract: boolean;
   created_at: string;
 }
@@ -83,6 +85,7 @@ export default function SupplierRosterPage() {
   const [formData, setFormData] = useState({
     name: '',
     type: 'supplier',
+    category: '',
     contact: '',
     phone: '',
     remark: '',
@@ -157,6 +160,9 @@ export default function SupplierRosterPage() {
       const data = await res.json();
       const supplierList = (data.suppliers || []).map((s: any) => ({
         ...s,
+        // 后端字段是 contact_person，这里统一映射成 contact 供页面使用
+        contact: s.contact_person || s.contact || '',
+        category: s.category || '',
         has_contract: s.has_contract || false,
       }));
       setSuppliers(supplierList);
@@ -282,6 +288,7 @@ export default function SupplierRosterPage() {
       setFormData({
         name: supplier.name,
         type: supplier.type,
+        category: supplier.category || '',
         contact: supplier.contact || '',
         phone: supplier.phone || '',
         remark: '',
@@ -291,6 +298,7 @@ export default function SupplierRosterPage() {
       setFormData({
         name: '',
         type: 'supplier',
+        category: '',
         contact: '',
         phone: '',
         remark: '',
@@ -524,9 +532,14 @@ export default function SupplierRosterPage() {
                       <TableRow key={supplier.id}>
                         <TableCell className="font-medium">{supplier.name}</TableCell>
                         <TableCell>
-                          <Badge variant={supplier.type === 'supplier' ? 'default' : 'secondary'}>
-                            {supplier.type === 'supplier' ? '供应商' : '班组'}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant={supplier.type === 'supplier' ? 'default' : 'secondary'}>
+                              {supplier.type === 'supplier' ? '供应商' : '班组'}
+                            </Badge>
+                            {supplier.category ? (
+                              <Badge variant="outline" className="font-normal">{supplier.category}</Badge>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div>{supplier.contact || '-'}</div>
@@ -631,6 +644,26 @@ export default function SupplierRosterPage() {
                 <SelectContent>
                   <SelectItem value="supplier">供应商</SelectItem>
                   <SelectItem value="team">班组</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="category">分类（材料 / 机械租赁 / 钢化租赁 / 周转料具 …）</Label>
+              <Select
+                value={formData.category || 'none'}
+                onValueChange={(v) => setFormData({ ...formData, category: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="请选择分类（可不选）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">未分类</SelectItem>
+                  <SelectItem value="材料">材料</SelectItem>
+                  <SelectItem value="机械租赁">机械租赁</SelectItem>
+                  <SelectItem value="钢化租赁">钢化租赁</SelectItem>
+                  <SelectItem value="周转料具">周转料具</SelectItem>
+                  <SelectItem value="劳务班组">劳务班组</SelectItem>
+                  <SelectItem value="其他">其他</SelectItem>
                 </SelectContent>
               </Select>
             </div>
