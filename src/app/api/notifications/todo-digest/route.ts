@@ -119,14 +119,46 @@ export async function POST(request: NextRequest) {
     });
 
     const userIds = Array.from(grouped.keys());
-    if (userIds.length === 0) {
+
+    // 待审批（月报 / 班组结算）也计入待办，避免"没有通知就推 0 人"
+    const pendingMonthlyByUser = new Map<number, number>();
+    const { data: pendingMonthlyRows } = await supabase
+      .from('monthly_report_workflows')
+      .select('status, content')
+      .in('status', ['pending_manager', 'pending_boss']);
+    ((pendingMonthlyRows || []) as Array<{ status?: string; content?: Record<string, unknown> | null }>).forEach((row) => {
+      const content = (row.content || {}) as Record<string, unknown>;
+      const approverId = Number(row.status === 'pending_manager' ? content.managerApproverId : content.bossApproverId) || 0;
+      if (approverId > 0) {
+        pendingMonthlyByUser.set(approverId, (pendingMonthlyByUser.get(approverId) || 0) + 1);
+      }
+    });
+
+    const pendingSettlementByUser = new Map<number, number>();
+    const { data: pendingSettlementRows } = await supabase
+      .from('team_settlements')
+      .select('approver_user_id')
+      .eq('status', 'pending');
+    ((pendingSettlementRows || []) as Array<{ approver_user_id?: number | null }>).forEach((row) => {
+      const approverId = Number(row.approver_user_id) || 0;
+      if (approverId > 0) {
+        pendingSettlementByUser.set(approverId, (pendingSettlementByUser.get(approverId) || 0) + 1);
+      }
+    });
+
+    const allUserIds = Array.from(new Set([
+      ...userIds,
+      ...pendingMonthlyByUser.keys(),
+      ...pendingSettlementByUser.keys(),
+    ]));
+    if (allUserIds.length === 0) {
       return NextResponse.json({ success: true, sentCount: 0, message: '当前没有需要推送的个人待办' });
     }
 
     const { data: users, error: userError } = await supabase
       .from('users')
       .select('id,username,name,dingtalk_name,dingtalk_user_id,is_disabled,dingtalk_active')
-      .in('id', userIds);
+      .in('id', allUserIds);
 
     if (userError) throw new Error(userError.message);
 
@@ -137,7 +169,9 @@ export async function POST(request: NextRequest) {
 
     for (const user of ((users || []) as UserRow[])) {
       const notifications = grouped.get(Number(user.id)) || [];
-      if (!notifications.length) continue;
+      const monthlyPending = pendingMonthlyByUser.get(Number(user.id)) || 0;
+      const settlementPending = pendingSettlementByUser.get(Number(user.id)) || 0;
+      if (!notifications.length && monthlyPending === 0 && settlementPending === 0) continue;
 
       if (!user.dingtalk_user_id || user.is_disabled === true || user.dingtalk_active === false) {
         skippedCount++;
@@ -145,10 +179,16 @@ export async function POST(request: NextRequest) {
       }
 
       const userName = user.name || user.dingtalk_name || user.username || `用户${user.id}`;
+      const pendingNotes: string[] = [];
+      if (monthlyPending > 0) pendingNotes.push(`月报待你审批：${monthlyPending} 项`);
+      if (settlementPending > 0) pendingNotes.push(`班组结算待你审批：${settlementPending} 项`);
+      const digestContent = [buildDigestContent(userName, notifications), ...pendingNotes]
+        .filter(Boolean)
+        .join('\n');
       const result = await sendDingTalkWorkNotification([user.dingtalk_user_id], {
         type: 'todo_digest',
         title: '待办事项提醒',
-        content: buildDigestContent(userName, notifications),
+        content: digestContent,
         severity: notifications.some((item) => item.severity === 'danger') ? 'danger' : 'warning',
         extra: appUrl ? { 打开系统: `${appUrl.replace(/\/$/, '')}/workspace` } : undefined,
       });

@@ -71,10 +71,12 @@ export default function MySubmissionsPage() {
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'mine' | 'pending'>('mine');
+  const [tab, setTab] = useState<'mine' | 'pending' | 'reviewed'>('mine');
   const [pendingLoading, setPendingLoading] = useState(true);
   const [pendingReportList, setPendingReportList] = useState<Array<{ id: number; month: string; status: string; projectScope: string; projectName: string; updatedAt?: string | null }>>([]);
   const [pendingSettlementList, setPendingSettlementList] = useState<Array<{ id: number; settlementNo: string; month: string; projectName: string; submittedBy?: string; submittedAt?: string | null }>>([]);
+  const [approvedReportList, setApprovedReportList] = useState<Array<{ id: number; month: string; status: string; projectName: string; approvedAt?: string | null }>>([]);
+  const [approvedSettlementList, setApprovedSettlementList] = useState<Array<{ id: number; settlementNo: string; month: string; status: string; projectName: string; reviewedAt?: string | null }>>([]);
 
   const loadPending = useCallback(async () => {
     setPendingLoading(true);
@@ -84,9 +86,13 @@ export default function MySubmissionsPage() {
       if (!res.ok || json.success === false) throw new Error(json.error || '加载待审批失败');
       setPendingReportList(Array.isArray(json.data?.reports) ? json.data.reports : []);
       setPendingSettlementList(Array.isArray(json.data?.settlements) ? json.data.settlements : []);
+      setApprovedReportList(Array.isArray(json.data?.approvedReports) ? json.data.approvedReports : []);
+      setApprovedSettlementList(Array.isArray(json.data?.approvedSettlements) ? json.data.approvedSettlements : []);
     } catch {
       setPendingReportList([]);
       setPendingSettlementList([]);
+      setApprovedReportList([]);
+      setApprovedSettlementList([]);
     } finally {
       setPendingLoading(false);
     }
@@ -170,6 +176,13 @@ export default function MySubmissionsPage() {
           >
             待我审批{pendingTotal > 0 ? `（${pendingTotal}）` : ''}
           </button>
+          <button
+            type="button"
+            onClick={() => setTab('reviewed')}
+            className={`h-8 rounded-md px-4 text-sm ${tab === 'reviewed' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-3)]'}`}
+          >
+            我审批的
+          </button>
         </div>
 
         {tab === 'pending' ? (
@@ -229,6 +242,69 @@ export default function MySubmissionsPage() {
                       </div>
                       <Link href={`/team-management/settlements/${row.id}`} className="text-xs text-[var(--color-primary)] hover:underline">
                         去审批
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : tab === 'reviewed' ? (
+          <div className="space-y-4">
+            <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+                <h2 className="font-semibold text-[var(--foreground)]">我审批过的月报</h2>
+                <span className="text-xs text-[var(--color-text-3)]">{approvedReportList.length} 条</span>
+              </div>
+              {pendingLoading ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">加载中…</div>
+              ) : approvedReportList.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">还没有审批过的月报</div>
+              ) : (
+                <div className="divide-y divide-[var(--border)]">
+                  {approvedReportList.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5">
+                      <div>
+                        <div className="font-medium text-[var(--foreground)]">{row.month} 月报 · {row.projectName}</div>
+                        <div className="mt-0.5 text-xs text-[var(--color-text-3)]">
+                          {row.status === 'approved' ? '已通过' : '已驳回'}
+                          {row.approvedAt ? ` · ${formatTime(row.approvedAt)}` : ''}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/reports/monthly?month=${encodeURIComponent(row.month)}`}
+                        className="text-xs text-[var(--color-primary)] hover:underline"
+                      >
+                        查看
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+                <h2 className="font-semibold text-[var(--foreground)]">我审批过的班组结算</h2>
+                <span className="text-xs text-[var(--color-text-3)]">{approvedSettlementList.length} 条</span>
+              </div>
+              {pendingLoading ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">加载中…</div>
+              ) : approvedSettlementList.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">还没有审批过的班组结算</div>
+              ) : (
+                <div className="divide-y divide-[var(--border)]">
+                  {approvedSettlementList.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5">
+                      <div>
+                        <div className="font-medium text-[var(--foreground)]">{row.settlementNo} · {row.projectName}</div>
+                        <div className="mt-0.5 text-xs text-[var(--color-text-3)]">
+                          {row.month} · {row.status === 'reviewed' ? '已通过' : '已驳回'}
+                          {row.reviewedAt ? ` · ${formatTime(row.reviewedAt)}` : ''}
+                        </div>
+                      </div>
+                      <Link href={`/team-management/settlements/${row.id}`} className="text-xs text-[var(--color-primary)] hover:underline">
+                        查看
                       </Link>
                     </div>
                   ))}

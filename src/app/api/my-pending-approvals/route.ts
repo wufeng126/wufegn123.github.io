@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const isBoss = Boolean(auth.user.is_super_admin) || auth.user.role === 'boss';
     const client = getSupabaseClient();
 
-    const [{ data: reportRows }, { data: settlementRows }] = await Promise.all([
+    const [{ data: reportRows }, { data: settlementRows }, { data: approvedReportRows }, { data: approvedSettlementRows }] = await Promise.all([
       client
         .from('monthly_report_workflows')
         .select('id, year_month, project_scope, status, content, updated_at')
@@ -29,6 +29,19 @@ export async function GET(request: NextRequest) {
         .eq('status', 'pending')
         .order('submitted_at', { ascending: false })
         .limit(200),
+      // 我审批过的（按审批人姓名匹配，历史数据没有 id 只能这样关联）
+      client
+        .from('monthly_report_workflows')
+        .select('id, year_month, project_scope, status, approved_by, approved_at')
+        .in('status', ['approved', 'rejected'])
+        .order('approved_at', { ascending: false })
+        .limit(100),
+      client
+        .from('team_settlements')
+        .select('id, settlement_no, settlement_month, project_id, status, reviewed_by, reviewed_at')
+        .in('status', ['reviewed', 'rejected'])
+        .order('reviewed_at', { ascending: false })
+        .limit(100),
     ]);
 
     const reports = (reportRows || []).filter((row: Record<string, unknown>) => {
@@ -46,9 +59,19 @@ export async function GET(request: NextRequest) {
       return isBoss || (designated > 0 && designated === userId);
     });
 
+    const operatorName = String(auth.user.name || auth.user.username || '');
+    const approvedReports = (approvedReportRows || []).filter(
+      (row: Record<string, unknown>) => operatorName && String(row.approved_by || '') === operatorName,
+    );
+    const approvedSettlements = (approvedSettlementRows || []).filter(
+      (row: Record<string, unknown>) => operatorName && String(row.reviewed_by || '') === operatorName,
+    );
+
     const projectIds = Array.from(new Set([
       ...reports.map((row: Record<string, unknown>) => Number(row.project_scope) || 0),
       ...settlements.map((row: Record<string, unknown>) => Number(row.project_id) || 0),
+      ...approvedReports.map((row: Record<string, unknown>) => Number(row.project_scope) || 0),
+      ...approvedSettlements.map((row: Record<string, unknown>) => Number(row.project_id) || 0),
     ].filter(Boolean)));
     const projectNameById = new Map<number, string>();
     if (projectIds.length > 0) {
@@ -76,6 +99,24 @@ export async function GET(request: NextRequest) {
         projectName: projectNameById.get(Number(row.project_id)) || `项目 #${row.project_id ?? '-'}`,
         submittedBy: String(row.submitted_by || ''),
         submittedAt: row.submitted_at || null,
+      })),
+      approvedReports: approvedReports.map((row: Record<string, unknown>) => ({
+        id: Number(row.id),
+        month: String(row.year_month || ''),
+        status: String(row.status || ''),
+        projectScope: String(row.project_scope || 'all'),
+        projectName: String(row.project_scope) === 'all'
+          ? '全公司'
+          : projectNameById.get(Number(row.project_scope)) || `项目 #${row.project_scope}`,
+        approvedAt: row.approved_at || null,
+      })),
+      approvedSettlements: approvedSettlements.map((row: Record<string, unknown>) => ({
+        id: Number(row.id),
+        settlementNo: String(row.settlement_no || `#${row.id}`),
+        month: String(row.settlement_month || ''),
+        status: String(row.status || ''),
+        projectName: projectNameById.get(Number(row.project_id)) || `项目 #${row.project_id ?? '-'}`,
+        reviewedAt: row.reviewed_at || null,
       })),
     });
   } catch (error: unknown) {

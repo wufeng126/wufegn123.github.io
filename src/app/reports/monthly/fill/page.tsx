@@ -94,6 +94,7 @@ export default function MonthlyReportFillPage() {
   const [myRole, setMyRole] = useState<string>('');
 
   const [overview, setOverview] = useState<SummaryOverview>({});
+  const [prevTotals, setPrevTotals] = useState<{ income: number; labor: number; paid: number; team: number; cost: number } | null>(null);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [status, setStatus] = useState<string>('draft');
   const [content, setContent] = useState<WorkflowContent>({});
@@ -141,6 +142,29 @@ export default function MonthlyReportFillPage() {
       }
       setOverview(summaryJson.data?.overview || {});
       setProjects(Array.isArray(summaryJson.data?.projects) ? (summaryJson.data.projects as ProjectRow[]) : []);
+
+      // 上月对比（取上月汇总用于环比展示，失败不影响主流程）
+      try {
+        const [yearPart, monthPart] = month.split('-').map((part) => Number(part));
+        const prevDate = new Date(yearPart, monthPart - 2, 1);
+        const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+        const prevParams = new URLSearchParams({ month: prevMonth });
+        if (projectId && projectId !== 'all') prevParams.set('projectId', projectId);
+        const prevRes = await fetch(`/api/reports/monthly/summary?${prevParams.toString()}`, { credentials: 'include', cache: 'no-store' });
+        const prevJson = await prevRes.json().catch(() => ({}));
+        if (prevRes.ok && prevJson.success !== false) {
+          const prevProjects = Array.isArray(prevJson.data?.projects) ? (prevJson.data.projects as ProjectRow[]) : [];
+          setPrevTotals({
+            income: Number(prevJson.data?.overview?.monthIncome) || 0,
+            labor: prevProjects.reduce((sum, p) => sum + (p.monthLaborSalaryCost || 0), 0),
+            paid: prevProjects.reduce((sum, p) => sum + (p.monthSalaryPaid || 0), 0),
+            team: prevProjects.reduce((sum, p) => sum + (p.monthTeamSettlementCost || 0), 0),
+            cost: Number(prevJson.data?.overview?.monthCost) || 0,
+          });
+        }
+      } catch {
+        setPrevTotals(null);
+      }
 
       const workflowJson = await workflowRes.json().catch(() => ({}));
       const data = workflowJson?.data || {};
@@ -304,17 +328,26 @@ export default function MonthlyReportFillPage() {
           </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-5">
             {[
-              { label: '本月报量', value: fmtWan(overview.monthIncome) },
-              { label: '工人工资应发', value: fmtWan(totals.laborSalary) },
-              { label: '工人实发', value: fmtWan(totals.salaryPaid) },
-              { label: '班组结算', value: fmtWan(totals.teamSettlement) },
-              { label: '确认成本', value: fmtWan(overview.monthCost) },
-            ].map((item) => (
-              <div key={item.label} className="bg-white px-4 py-3">
-                <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--foreground)]">{item.value}</div>
-              </div>
-            ))}
+              { label: '本月报量', value: fmtWan(overview.monthIncome), current: Number(overview.monthIncome) || 0, prev: prevTotals?.income },
+              { label: '工人工资应发', value: fmtWan(totals.laborSalary), current: totals.laborSalary, prev: prevTotals?.labor },
+              { label: '工人实发', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
+              { label: '班组结算', value: fmtWan(totals.teamSettlement), current: totals.teamSettlement, prev: prevTotals?.team },
+              { label: '确认成本', value: fmtWan(overview.monthCost), current: Number(overview.monthCost) || 0, prev: prevTotals?.cost },
+            ].map((item) => {
+              const prevValue = Number(item.prev) || 0;
+              const delta = prevValue > 0 ? ((item.current - prevValue) / prevValue) * 100 : null;
+              return (
+                <div key={item.label} className="bg-white px-4 py-3">
+                  <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--foreground)]">{item.value}</div>
+                  {delta !== null ? (
+                    <div className={`mt-0.5 text-[11px] tabular-nums ${delta >= 0 ? 'text-[#00B42A]' : 'text-[#F53F3F]'}`}>
+                      环比 {delta >= 0 ? '+' : ''}{delta.toFixed(1)}%
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
           {projects.length > 0 ? (
             <div className="border-t border-[var(--border)] px-5 py-3">
