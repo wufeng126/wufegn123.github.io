@@ -1,3 +1,4 @@
+import { getReportRevenue } from '@/lib/revenue';
 /**
  * 数据汇总中间层 — 全局唯一数据源
  *
@@ -600,7 +601,7 @@ export async function getProjectFinancialSummary(
   let taxFromInvoice = 0;
   let untaxedIncome = 0;
   (clientReports || []).forEach((r: ClientReportRow) => {
-    const inv = parseNumeric(r.invoice_amount) || parseNumeric(r.settlement_amount) || parseNumeric(r.report_amount);
+    const inv = getReportRevenue(r);
     const tr = parseNumeric(r.tax_rate) || projectTaxRate;
     invoiceAmount += inv;
     const untaxed = inv / (1 + tr / 100);
@@ -1030,7 +1031,7 @@ async function getMultiProjectFinancialSummariesImpl(
       | undefined;
     const projectTaxRate = parseNumeric(project?.tax_rate || '9');
     const a = getAcc(pid);
-    const inv = parseNumeric(r.invoice_amount) || parseNumeric(r.settlement_amount) || parseNumeric(r.report_amount);
+    const inv = getReportRevenue(r);
     const tr = parseNumeric(r.tax_rate) || projectTaxRate;
     a.invoiceAmount += inv;
     const untaxed = inv / (1 + tr / 100);

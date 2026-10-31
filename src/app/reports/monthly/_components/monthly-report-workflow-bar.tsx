@@ -82,7 +82,7 @@ function buildDraft(summary: WorkflowSummary): string {
     (p) => (p.monthIncome || 0) > 0 || (p.monthLaborSalaryCost || 0) > 0 || (p.monthTeamSettlementCost || 0) > 0,
   );
   const lines = [
-    `本月报量合计 ${formatWan(summary.monthIncome)}，工人工资应发 ${formatWan(summary.laborSalary)}（实发 ${formatWan(summary.salaryPaid)}），班组结算 ${formatWan(summary.teamSettlement)}。`,
+    `本月开票产值合计 ${formatWan(summary.monthIncome)}，工人工资应发 ${formatWan(summary.laborSalary)}（实发 ${formatWan(summary.salaryPaid)}），班组结算 ${formatWan(summary.teamSettlement)}。`,
     `本月确认成本 ${formatWan(summary.monthCost)}，经营利润 ${formatWan(summary.operatingProfit)}（利润率 ${(Number(summary.operatingProfitRate) || 0).toFixed(1)}%），累计回款率 ${(Number(summary.paymentRate) || 0).toFixed(1)}%，未回款 ${formatWan(summary.unreceived)}。`,
     '',
     '分项目情况：',

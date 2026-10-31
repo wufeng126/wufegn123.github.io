@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getReportRevenue } from '@/lib/revenue';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import type { RequestAuthUser } from '@/lib/auth';
 import { auditLog } from '@/lib/audit-log';
@@ -87,7 +88,7 @@ export async function GET(
       .neq('status', 'voided');
 
     const totalReport = reportData?.reduce((sum, r) => {
-      const amount = parseFloat(r.settlement_amount || r.report_amount || '0');
+      const amount = getReportRevenue(r);
       return sum + amount;
     }, 0) || 0;
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getReportRevenue } from '@/lib/revenue';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries } from '@/lib/data-aggregation';
@@ -213,7 +214,7 @@ export async function GET(request: Request) {
     const { data: allReports } = await allReportsQuery;
 
     const totalMeasurementAmount = allReports?.filter(r => r.status !== 'voided').reduce((sum, r) => {
-      return sum + parseFloat(r.settlement_amount || r.report_amount || '0');
+      return sum + getReportRevenue(r);
     }, 0) || 0;
 
     // 全量甲方付款 - 只统计已完成的
@@ -294,7 +295,7 @@ export async function GET(request: Request) {
       return yearMonth === currentMonth;
     }) || [];
     const currentMonthClientReportAmount = currentMonthClientReports.filter(r => r.status !== 'voided').reduce((sum, r) => {
-      return sum + parseFloat(r.settlement_amount || r.report_amount || '0');
+      return sum + getReportRevenue(r);
     }, 0);
 
     // 甲方付款（按时间范围）
@@ -493,7 +494,7 @@ export async function GET(request: Request) {
       const date = new Date(r.report_date);
       const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (monthlyOutput[yearMonth] !== undefined) {
-        monthlyOutput[yearMonth] += parseFloat(r.settlement_amount || r.report_amount || '0') || 0;
+        monthlyOutput[yearMonth] += getReportRevenue(r);
       }
     });
     
@@ -581,7 +582,7 @@ export async function GET(request: Request) {
       const date = new Date(r.report_date);
       const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (monthlyIncomeMap[yearMonth] !== undefined) {
-        monthlyIncomeMap[yearMonth] += parseFloat(r.settlement_amount || r.report_amount || '0') || 0;
+        monthlyIncomeMap[yearMonth] += getReportRevenue(r);
       }
     });
 
@@ -678,7 +679,7 @@ export async function GET(request: Request) {
       const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       return ym === lastMonth && (!projectId || r.project_id === parseInt(projectId));
     });
-    const lastMonthIncome = lastMonthClientReports.reduce((sum: number, r: any) => sum + (parseFloat(r.settlement_amount || r.report_amount || '0') || 0), 0);
+    const lastMonthIncome = lastMonthClientReports.reduce((sum: number, r: any) => sum + getReportRevenue(r), 0);
     const curMonthIncome = monthlyIncomeMap[currentMonth] || 0;
     const incomeChange = lastMonthIncome > 0 ? ((curMonthIncome - lastMonthIncome) / lastMonthIncome * 100) : 0;
     const lastMonthCost = monthlyCostMap[lastMonth] || 0;

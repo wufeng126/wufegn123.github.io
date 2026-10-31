@@ -605,7 +605,7 @@ export default function MonthlyReportPage() {
                 <CardContent className="px-4 pb-4">
                   <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
-                      { label: '本月报量', value: fmtAmt(ov.monthIncome), color: 'var(--foreground)' },
+                      { label: '本月产值（开票额）', value: fmtAmt(ov.monthIncome), color: 'var(--foreground)' },
                       {
                         label: '工人工资应发',
                         value: fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0)),
@@ -638,7 +638,7 @@ export default function MonthlyReportPage() {
                       <thead>
                         <tr className="border-b text-xs text-muted-foreground">
                           <th className="py-2 px-2 text-left">项目</th>
-                          <th className="py-2 px-2 text-right">本月报量</th>
+                          <th className="py-2 px-2 text-right">本月产值（开票额）</th>
                           <th className="py-2 px-2 text-right">工人工资应发</th>
                           <th className="py-2 px-2 text-right">工人实发</th>
                           <th className="py-2 px-2 text-right">班组结算</th>

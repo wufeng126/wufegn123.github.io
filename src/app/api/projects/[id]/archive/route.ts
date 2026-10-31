@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { OSSStorage } from '@/lib/oss-storage';
+import { getReportRevenue } from '@/lib/revenue';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth, requireSuperAdmin } from '@/lib/api-auth';
 import { assertProjectAccess } from '@/lib/api-project-scope';
@@ -251,7 +252,7 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
       },
       finance: {
         clientReportAmount: effectiveClientReports.reduce((sum: number, row: Record<string, unknown>) => (
-          sum + toNumber(row.invoice_amount || row.settlement_amount || row.report_amount)
+          sum + getReportRevenue(row)
         ), 0),
         clientPaymentAmount: sumRows(effectiveClientPayments, 'payment_amount'),
         visaAmount: sumRows(visasResult.data, 'visa_amount'),

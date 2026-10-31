@@ -8,6 +8,7 @@ import { ChartCard, KpiCard } from '@/components/business/common';
 import { StandardDashboardLayout } from '@/components/dashboard/standard-layout';
 import { CollapsibleSection } from '@/components/dashboard/collapsible-section';
 import { LinkableCell } from '@/components/linkable-cell';
+import { getReportRevenue } from '@/lib/revenue';
 
 // 工具函数：将数据库numeric类型转换为数字
 const toNumber = (value: any): number => {
@@ -159,7 +160,7 @@ export default function FundManagementDashboard() {
       filteredPayments = filteredPayments.filter(p => toNumber(p.project_id) === Number(selectedProject));
     }
 
-    const totalReceivable = filteredReports.reduce((sum, r) => sum + toNumber(r.invoice_amount || r.settlement_amount || r.report_amount), 0);
+    const totalReceivable = filteredReports.reduce((sum, r) => sum + getReportRevenue(r), 0);
     const totalReceived = filteredPayments.reduce((sum, p) => sum + toNumber(p.payment_amount), 0);
     const totalUnreceived = Math.max(0, totalReceivable - totalReceived);
     const totalOverReceived = totalReceived > totalReceivable ? totalReceived - totalReceivable : 0;
@@ -240,7 +241,7 @@ export default function FundManagementDashboard() {
       const project = projects.find(p => p.id === pid);
       const name = project?.name || `项目${pid}`;
       const existing = projectMap.get(pid) || { name, settlement: 0, payment: 0 };
-      existing.settlement += toNumber(r.invoice_amount || r.settlement_amount || r.report_amount);
+      existing.settlement += getReportRevenue(r);
       projectMap.set(pid, existing);
     });
 
@@ -273,7 +274,7 @@ export default function FundManagementDashboard() {
     filteredReports.forEach(r => {
       const date = r.report_date ? r.report_date.substring(0, 7) : '未知';
       const existing = monthlyMap.get(date) || { month: date, settlement: 0, payment: 0 };
-      existing.settlement += toNumber(r.invoice_amount || r.settlement_amount || r.report_amount);
+      existing.settlement += getReportRevenue(r);
       monthlyMap.set(date, existing);
     });
 
@@ -305,7 +306,7 @@ export default function FundManagementDashboard() {
       const project = projects.find(p => p.id === pid);
       const name = project?.name || `项目${pid}`;
       const existing = projectMap.get(pid) || { project: name, projectId: pid, settlement: 0, payment: 0, unpaid: 0 };
-      existing.settlement += toNumber(r.invoice_amount || r.settlement_amount || r.report_amount);
+      existing.settlement += getReportRevenue(r);
       projectMap.set(pid, existing);
     });
 

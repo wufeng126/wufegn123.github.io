@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getReportRevenue } from '@/lib/revenue';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import {
   isEffectiveClientPaymentStatus,
@@ -443,7 +444,7 @@ export async function GET(request: NextRequest) {
       const projMaterials = materials.filter((m: Record<string, unknown>) => m.project_id === pid);
       const projVisas = visas.filter((v: Record<string, unknown>) => v.project_id === pid);
       const projWorkers = workers.filter((w: Record<string, unknown>) => w.project_id === pid);
-      const totalSettlement = safeSum(projReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
+      const totalSettlement = safeSum(projReports.map((r: Record<string, unknown>) => getReportRevenue(r)));
       const totalVisa = safeSum(projVisas.filter((v: Record<string, unknown>) => isVisaDoneStatus(v.status as string | null)).map(getVisaAmount));
       const totalIncome = totalSettlement + totalVisa;
 
@@ -451,7 +452,7 @@ export async function GET(request: NextRequest) {
         const d = r.report_date as string;
         return d && d.startsWith(reportMonth);
       });
-      const monthIncome = safeSum(monthReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
+      const monthIncome = safeSum(monthReports.map((r: Record<string, unknown>) => getReportRevenue(r)));
 
       const totalReceived = safeSum(projPayments.map((p: Record<string, unknown>) => Number(p.payment_amount || 0)));
       const monthPayments = projPayments.filter((p: Record<string, unknown>) => {
@@ -876,7 +877,7 @@ export async function GET(request: NextRequest) {
       const projPayments = clientPayments.filter((p: Record<string, unknown>) => toNumber(p.project_id) === pid && !isInactiveClientPaymentStatus(p.status as string | null));
       const projVisas = visas.filter((v: Record<string, unknown>) => toNumber(v.project_id) === pid && isVisaDoneStatus(v.status as string | null));
 
-      const cumulativeConfirmed = safeSum(projReports.map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0)));
+      const cumulativeConfirmed = safeSum(projReports.map((r: Record<string, unknown>) => getReportRevenue(r)));
       const cumulativeVisa = safeSum(projVisas.map(getVisaAmount));
       const cumulativeReceivable = cumulativeConfirmed + cumulativeVisa;
       const cumulativeReceived = safeSum(projPayments.filter((p: Record<string, unknown>) => isEffectiveClientPaymentStatus(p.status as string | null)).map((p: Record<string, unknown>) => Number(p.payment_amount || 0)));
@@ -968,7 +969,7 @@ export async function GET(request: NextRequest) {
       clientReports.filter((r: Record<string, unknown>) => {
         const d = r.report_date as string;
         return d && d.startsWith(prevMonth);
-      }).map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0))
+      }).map((r: Record<string, unknown>) => getReportRevenue(r))
     );
     const prevMonthReceived = safeSum(
       clientPayments.filter((p: Record<string, unknown>) => {
@@ -1017,7 +1018,7 @@ export async function GET(request: NextRequest) {
       clientReports.filter((r: Record<string, unknown>) => {
         const d = r.report_date as string;
         return d && d.startsWith(lastYearMonth);
-      }).map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0))
+      }).map((r: Record<string, unknown>) => getReportRevenue(r))
     );
     const lastYearReceived = safeSum(
       clientPayments.filter((p: Record<string, unknown>) => {
@@ -1116,7 +1117,7 @@ export async function GET(request: NextRequest) {
         clientReports.filter((r: Record<string, unknown>) => {
           const d = r.report_date as string;
           return d && d.startsWith(trendMonth);
-        }).map((r: Record<string, unknown>) => Number(r.settlement_amount || r.report_amount || 0))
+        }).map((r: Record<string, unknown>) => getReportRevenue(r))
       );
       const trendReceived = safeSum(
         clientPayments.filter((p: Record<string, unknown>) => {

@@ -332,7 +332,7 @@ export default function MonthlyReportFillPage() {
           </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-5">
             {[
-              { label: '本月报量', value: fmtWan(overview.monthIncome), current: Number(overview.monthIncome) || 0, prev: prevTotals?.income },
+              { label: '本月产值（开票额）', value: fmtWan(overview.monthIncome), current: Number(overview.monthIncome) || 0, prev: prevTotals?.income },
               { label: '工人工资应发', value: fmtWan(totals.laborSalary), current: totals.laborSalary, prev: prevTotals?.labor },
               { label: '工人实发', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
               { label: '班组结算', value: fmtWan(totals.teamSettlement), current: totals.teamSettlement, prev: prevTotals?.team },
