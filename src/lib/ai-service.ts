@@ -191,36 +191,78 @@ export async function searchKnowledge(query: string, topK: number = 5, customHea
   }
 }
 
-/** 搜索系统知识库文档（ai_knowledge_docs） */
+/** 中文检索分词：去掉口语停用词后，按片段与 2~4 字滑窗生成检索词 */
+function buildQueryTokens(query: string): string[] {
+  const cleaned = String(query || '')
+    .replace(/[，,。.！!？?；;：:、「」（）()【】\[\]""''\n\r\t]/g, ' ')
+    .replace(/(请问|帮我|帮忙|查一下|查询一下|看一下|告诉我|是不是|是否|有没有|我们|咱们|这个|那个|项目|合同里|合同|里面|内容|一下|吗|呢|的|是|有|在|和|与|或|以及)/g, ' ')
+    .trim();
+  const tokens = new Set<string>();
+  cleaned.split(/\s+/).filter(Boolean).forEach((segment) => {
+    if (segment.length >= 2) tokens.add(segment);
+    // 长片段再切 3~4 字关键词，提高"外架踢脚板"这类词的命中率
+    for (let size = 2; size <= 4; size += 1) {
+      for (let i = 0; i + size <= segment.length; i += 1) {
+        tokens.add(segment.slice(i, i + size));
+      }
+    }
+  });
+  return Array.from(tokens).filter((token) => token.length >= 2).slice(0, 40);
+}
+
+/** 在文档正文里取命中词附近的一段，作为引用片段 */
+function pickSnippet(content: string, tokens: string[], maxLength = 700): string {
+  const text = String(content || '');
+  if (!text) return '';
+  let hitIndex = -1;
+  for (const token of tokens) {
+    const index = text.indexOf(token);
+    if (index >= 0 && (hitIndex < 0 || index < hitIndex)) hitIndex = index;
+  }
+  if (hitIndex < 0) return text.slice(0, Math.min(maxLength, 400));
+  const start = Math.max(0, hitIndex - 220);
+  return text.slice(start, start + maxLength);
+}
+
+/** 搜索系统知识库文档（ai_knowledge_docs）：按关键词打分召回，合同类优先 */
 export async function searchSystemKnowledge(query: string): Promise<string> {
   try {
     const supabase = getSupabaseClient();
     const parts: string[] = [];
+    const tokens = buildQueryTokens(query);
 
-    // 搜索知识库文档
     const { data: docs } = await supabase
       .from('ai_knowledge_docs')
-      .select('title, content, category, tags, created_at, source_type, source_ref')
+      .select('title, content, category, tags, created_at, source_type, source_ref, file_name')
       .eq('status', 'active')
       .neq('source_type', 'construction_log')
-      .neq('source_type', 'auto_sync') // 业务台账同步文档已下线，知识库仅保留经验类内容
-      .limit(5)
-      .order('created_at', { ascending: false });
+      .neq('source_type', 'auto_sync')
+      .order('created_at', { ascending: false })
+      .limit(80);
 
-    if (docs && docs.length > 0) {
-      const filtered = docs.filter(d => {
-        const isConstructionLogKnowledge = d.source_type === 'construction_log' || String(d.source_ref || '').startsWith('cl:');
-        const matchesQuery = !query
-          || d.title?.includes(query)
-          || d.content?.includes(query)
-          || d.tags?.some((t: any) => String(t).includes(query));
-        return !isConstructionLogKnowledge && matchesQuery;
-      });
-      filtered.slice(0, 3).forEach(d => {
-        const excerpt = (d.content || '').slice(0, 300);
-        parts.push(`[知识库] ${d.title} (${d.category || '未分类'})\n${excerpt}`);
-      });
-    }
+    if (!docs || docs.length === 0) return '';
+
+    const scored = docs
+      .map((doc) => {
+        const haystack = `${doc.title || ''} ${doc.file_name || ''} ${doc.content || ''}`;
+        let score = 0;
+        tokens.forEach((token) => {
+          if (haystack.includes(token)) score += Math.min(4, token.length);
+        });
+        if (score > 0 && String(doc.category || '') === 'contract') score += 2;
+        if (score > 0 && String(doc.source_type || '') === 'upload') score += 1;
+        return { doc, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    scored.forEach(({ doc }) => {
+      const snippet = pickSnippet(String(doc.content || ''), tokens);
+      if (!snippet) return;
+      const label = doc.file_name || doc.title || '知识库文档';
+      parts.push(`[知识库·${doc.category || '未分类'}] ${label}\n${snippet}`);
+    });
 
     return parts.length > 0 ? parts.join('\n\n') : '';
   } catch (e) {
@@ -228,7 +270,6 @@ export async function searchSystemKnowledge(query: string): Promise<string> {
     return '';
   }
 }
-
 // 添加文档到知识库
 export async function addKnowledgeDoc(title: string, content: string, dataset?: string, customHeaders?: Record<string, string>): Promise<boolean> {
   try {
@@ -1037,6 +1078,8 @@ export function buildSystemPrompt(
 - 回答供应商款项时：列出供应商名→合同名→合同总额→已审核结算→审核应付→有效已付→应付未付→合同状态；如存在合同级预付款或历史旧表数据，要单独说明，不能混入正式结算金额
 - 回答合同清单时：列出项目名、清单项/分项工程、单位、匹配量/预算量、合同单价、工作内容/备注、来源入口
 - 合同清单、金额、单价必须来自业务台账或知识库；只找到合同文件但没有结构化清单时，明确说明“未找到结构化清单，需先导入/解析”，不能编造扫描件内容
+- **回答合同条款问题（谁提供、含不含、由谁负责、工期、付款方式等）时**：先查"知识库"片段，用「原文引用 + 出处文件名」的方式回答，例如：> 合同原文：“外脚手架踢脚板由甲方提供”（出处：《扶风五小-外架分包合同.pdf》）；找不到就明确回答"已在已上传合同中检索，未找到相关条款"，并列出检索过的文件名，绝不猜测
+- 合同问题优先用"是/否 + 依据原文 + 出处"，再补充影响说明
 - 发现风险时主动提醒（🔴高危 🟡警告 🟢正常）
 - 引用业务数据时生成可点击链接，优先使用：[月度工资](/workers/salaries)、[工人档案](/workers/query)、[报量管理](/quantity-reporting)、[项目详情](/projects/ID)、[供应商](/supplier-contracts)
 - 如无法回答，建议用户联系管理员或查阅系统帮助

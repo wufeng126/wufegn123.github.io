@@ -3,6 +3,8 @@ import { KnowledgeClient, FetchClient, Config, DataSourceType } from 'coze-codin
 import { OSSStorage } from '@/lib/oss-storage';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { extractForwardHeaders } from '@/lib/ai-service';
+import { extractPdfText } from '@/lib/pdf-text-extract';
+import { extractDocxText } from '@/lib/docx-text-extract';
 import { upsertKnowledgeQualityTag } from '@/lib/knowledge-taxonomy';
 import { requireApiWritePermission } from '@/lib/api-auth';
 
@@ -158,6 +160,30 @@ export async function POST(request: NextRequest) {
           console.warn('[Knowledge Upload] FetchClient extract failed:', fetchError);
         }
 
+        // Step 2.2: SDK 提取失败/过短时，用内置解析兜底（文字版 PDF），保证合同条款能进知识库
+        if ((!extractedContent || extractedContent.trim().length < 30) && /\.pdf$/i.test(fileName)) {
+          try {
+            const buffer = Buffer.from(await file.arrayBuffer());
+            const pdfText = extractPdfText(buffer);
+            if (pdfText.length >= 30) {
+              extractedContent = pdfText;
+            }
+          } catch (pdfError) {
+            console.warn('[Knowledge Upload] 内置 PDF 解析失败:', pdfError);
+          }
+        }
+        // Step 2.3: Word 合同用内置解析兜底（zip + document.xml，解析可靠）
+        if ((!extractedContent || extractedContent.trim().length < 30) && /\.docx?$/i.test(fileName)) {
+          try {
+            const buffer = Buffer.from(await file.arrayBuffer());
+            const docxText = extractDocxText(buffer);
+            if (docxText.length >= 30) {
+              extractedContent = docxText;
+            }
+          } catch (docxError) {
+            console.warn('[Knowledge Upload] 内置 DOCX 解析失败:', docxError);
+          }
+        }
         // Step 2.5: 扫描件兜底——文本提取为空/过短时，图片走 LLM 视觉 OCR，PDF 提示转图片
         let ocrError = '';
         if (!extractedContent || extractedContent.trim().length < 30) {
