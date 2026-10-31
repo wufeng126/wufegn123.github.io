@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>系统全面审查报告 · 2026-10-31</title>
+<style>
+  :root{--primary:#165DFF;--green:#00B42A;--red:#F53F3F;--orange:#FF7D00;--purple:#722ED1;--t1:#1D2129;--t2:#4E5969;--t3:#86909C;--border:#E5E6EB;--bg:#F2F3F5}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.65;padding:20px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:14px}
+  h1{font-size:22px}
+  .sub{color:var(--t3);font-size:13px;margin-top:6px}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:16px}
+  .kpi{background:var(--bg);border-radius:10px;padding:12px}
+  .kpi b{display:block;font-size:22px;line-height:1.2}
+  .kpi span{font-size:12px;color:var(--t3)}
+  .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:14px}
+  h2{font-size:17px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  h3{font-size:14px;margin:16px 0 6px;color:var(--t2)}
+  .tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;margin-right:6px;vertical-align:2px}
+  .p0{background:#FFECE8;color:#CB2634}
+  .p1{background:#FFF7E8;color:#B35B00}
+  .p2{background:#E8F1FC;color:#165DFF}
+  .item{border-left:3px solid var(--border);padding:2px 0 2px 12px;margin:10px 0}
+  .item.p0{border-color:var(--red)}
+  .item.p1{border-color:var(--orange)}
+  .item.p2{border-color:var(--primary)}
+  .item h4{font-size:13.5px;margin-bottom:3px}
+  .item p{font-size:13px;color:var(--t2)}
+  .ev{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#6B7785;background:var(--bg);padding:1px 5px;border-radius:4px;word-break:break-all}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{border:1px solid var(--border);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--bg);font-weight:600;color:var(--t2)}
+  .ok{color:var(--green);font-weight:600}
+  .warn{color:var(--orange);font-weight:600}
+  .bad{color:var(--red);font-weight:600}
+  code{font-family:ui-monospace,Consolas,monospace;background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  pre{background:#0F172A;color:#E2E8F0;padding:12px 14px;border-radius:10px;font-size:12.5px;overflow-x:auto;margin:8px 0}
+  ul,ol{padding-left:20px;margin:6px 0}
+  li{margin:3px 0;font-size:13px}
+  .note{background:#FFF7E8;border:1px solid #FFE4BA;border-radius:10px;padding:10px 14px;font-size:13px;color:#8A5300;margin:10px 0}
+  .quote{background:var(--bg);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--t2);margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>系统全面审查报告</h1>
+  <div class="sub">审查日期 2026-10-31 · 范围：481 个 ts/tsx、223 个 API 路由、86 个页面 · 已核对最近 20+ 次提交的改动 · 只读审查，未修改任何代码</div>
+  <div class="kpis">
+    <div class="kpi"><b style="color:#CB2634">19</b><span>P0 严重（金额错/越权/丢数据）</span></div>
+    <div class="kpi"><b style="color:#B35B00">28</b><span>P1 重要（口径不一致/性能）</span></div>
+    <div class="kpi"><b style="color:#165DFF">23</b><span>P2 一般（可维护性）</span></div>
+    <div class="kpi"><b>43</b><span>无人调用的死接口</span></div>
+    <div class="kpi"><b>约 3000</b><span>可删除死代码（行）</span></div>
+  </div>
+</header>
+
+<div class="card">
+  <h2>一句话结论</h2>
+  <p style="font-size:14.5px"><b>明细数据可信、部分汇总口径不可信；越权风险集中在"项目范围"与"签证审批人身份"；数据污染风险集中在"导入无查重"与"删除不清理子表"。</b></p>
+  <p style="margin-top:8px;color:var(--t2)">好消息：鉴权骨架完整（163 个写接口仅 6 个公开入口，其余都有校验），没有硬编码密钥，XSS 处理正确，PostgREST 截断问题已有统一工具（只是没铺开用）。问题不是"架构烂"，而是<b>同一件事有 2~4 套实现，逐渐分叉</b>。</p>
+  <div class="note">这份报告只做诊断，没有改一行代码。请看完第七节的"修复路线"后告诉我先做哪一批。</div>
+</div>
+
+<div class="card">
+  <h2>一、P0 严重问题（19 项）</h2>
+  <p class="sub" style="color:var(--t3);font-size:12.5px">判定标准：会导致金额算错、数据静默丢失、越权读写他人项目，或让审批/审核形同虚设。</p>
+
+  <h3>A. 金额与口径错（7 项）</h3>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-1</span>草稿报量直接算进产值和利润</h4>
+    <p>甲方报量新建默认是"草稿"，但月报/成本中心/首页只排除了"作废"，<b>草稿全部计入产值</b>，越录越多、产值越虚高。</p>
+    <p>证据：<span class="ev">api/client-reports/route.ts:241</span>（强制 draft）、<span class="ev">monthly/summary:196</span>、<span class="ev">lib/data-aggregation.ts:588-595</span>（注释写"仅已审核"、实际只排 voided）、<span class="ev">dashboard:220</span></p>
+    <p>建议：统一走 <code>isReviewedStatus</code>；或业务确认"草稿要算"后，把注释和标签改对。</p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-2</span>供应商"应付=0"被当成空值，回退成结算全额</h4>
+    <p>最终结算付款比例 0% 时应付本就是 0，但代码 <code>payable_amount || settlement_amount</code> 把 0 当空，<b>月报把整笔结算算成应付</b>，供应商未付和资金缺口虚增，还和成本中心对不上。</p>
+    <p>证据：<span class="ev">monthly/summary:372</span>；对照 <span class="ev">data-aggregation:86-90</span>（只对 null 回退）</p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-3</span>未发工资只算当月、且用应发口径，跨月欠薪永远看不到</h4>
+    <p>"未发工资/欠薪风险"只查了报告月当月工资，且用 gross_pay；<b>上月欠的工资不计入</b>，<code>earliestUnpaidMonth &lt; reportMonth</code> 永远不成立，风险灯永远不红。累计应付与未付也对不上。</p>
+    <p>证据：<span class="ev">monthly/summary:203,693,697-702,830,808-817</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-4</span>"现金净流"把税费、应计费用当成了现金支出</h4>
+    <p>本月实际支付 = 已发工资 + 供应商付款 + 当月综合费用 + 当月材料 + 当月税费。<b>税费和没付现的费用/材料被算成现金流出</b>，部分发放被忽略，班组付款没计入，现金净流与趋势图口径也不一致。</p>
+    <p>证据：<span class="ev">monthly/summary:673-683,1275</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-5</span>成本中心/资金看板漏计老表 <code>payments</code> 的已付款</h4>
+    <p>供应商结算同时读老表和新表，但"已付"只读新表 <code>supplier_payments</code>，<b>老表的历史付款完全不算</b> → 已付偏低、未付偏高，与月报给出的付款率不一样。</p>
+    <p>证据：<span class="ev">data-aggregation:730-756</span> vs <span class="ev">monthly/summary:200-201,394-429</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-6</span>Excel/PDF 导出字段名对不上，导出的金额是 0</h4>
+    <p>summary 返回 <code>totalSettlement/totalPaid/…</code>，导出代码却读 <code>settlementAmount/paidAmount/…</code>；回款滞后同理。<b>导出的"供应商付款明细""回款滞后"大量为 0</b>，与页面不一致。</p>
+    <p>证据：<span class="ev">summary:950-957,1035-1042</span> vs <span class="ev">export-excel:192-201,224-236</span>、<span class="ev">export-pdf:428-440</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-7</span>供应商结算明细里，每张结算单都被填了"全部已付"</h4>
+    <p>同一供应商+项目的所有付款，被重复算到每一张结算单头上；前端求和/导出时<b>已付翻倍、未付失真</b>，风险排序也错。</p>
+    <p>证据：<span class="ev">monthly/summary:848-855,858,1330-1337</span></p>
+  </div>
+
+  <h3>B. 数据污染与丢失（6 项）</h3>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-8</span>供应商结算导入/新增完全无查重</h4>
+    <p>同一个 Excel 导两次，结算金额就双份计入成本。只有"总结算"有拦截，进度结算没有任何保护。</p>
+    <p>证据：<span class="ev">supplier-contracts/settlements/import:171-187</span>、<span class="ev">supplier-settlements/route.ts:218-234</span>、建表无业务唯一索引</p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-9</span>甲方回款导入无查重 + 未知状态静默变"已完成"</h4>
+    <p>回款重复导入直接翻倍；Excel 里写"待确认/作废/已取消"等未映射文本，一律 <code>|| 'completed'</code> 当作<b>已回款</b>，未收余额可能出现负数。</p>
+    <p>证据：<span class="ev">client-payments/import:200-201,224-229</span>；报量导入反而有查重（<span class="ev">client-reports/import:229-243</span>）</p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-10</span>零星材料查重只加载前 1000 行，超过就失效</h4>
+    <p>查重集合一次性 select，没有分页。<b>第 1000 行以后的记录不在集合里</b>，重导后半段全部重复入库（之前的 1191 条冗余就是这么来的）。</p>
+    <p>证据：<span class="ev">miscellaneous-materials/import:301-307</span>（未用 <span class="ev">lib/fetch-all-rows.ts</span>）</p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-11</span>供应商结算"录入即已审核"，绕过刚恢复的审批流</h4>
+    <p>新增/导入直接写 <code>reviewed</code>，永远不进"待审核"；而页面已经有提交审核/反审核按钮。<b>审批语义失效，导入还能直接触发合同完结锁定</b>。</p>
+    <p>证据：<span class="ev">supplier-contracts/settlements/route.ts:314</span>、<span class="ev">.../import:182</span>、<span class="ev">supplier-settlements/route.ts:228</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-12</span>班组结算审批通过后，生成分账工资失败被吞掉</h4>
+    <p>状态已经置为"已通过"（计入成本），但生成工资抛错只 <code>console.error</code>，工人冲突只 warn。<b>结果：成本算了、工资台账漏人</b>，且没有重试入口。</p>
+    <p>证据：<span class="ev">team-settlements/workflow:185-194,239-263</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-13</span>删除供应商合同/项目时不清理子表，留下孤儿数据</h4>
+    <p>合同删除时子表失败只 log 后继续删；<code>supplier_settlements/payments/logs</code> 三张表<b>没有任何外键</b>。删项目更简单粗暴：只 <code>delete projects</code>，工人变"无项目"，费用/材料/合同留下悬挂 project_id，成本归零。</p>
+    <p>证据：<span class="ev">supplier-contracts/[id]:258-288</span>、<span class="ev">projects/[id]:306-331</span>（已有 related-counts 接口却没人调用）</p>
+  </div>
+
+  <h3>C. 越权与审批（6 项）</h3>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-14</span>撤销超管最长 7 天不生效</h4>
+    <p>权限码 60 秒刷新，但 <code>is_super_admin</code> 直接用登录时写进 JWT 的值，从不回写。<b>被降级的人仍能调超管接口</b>。</p>
+    <p>证据：<span class="ev">lib/api-auth.ts:99-111</span>、<span class="ev">lib/auth.ts:154</span>、<span class="ev">proxy.ts:222</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-15</span>签证可以"自己提、自己签、自己结"，还能跨项目操作</h4>
+    <p>submit/review/settle 三个接口都只校验 <code>visas:edit</code>，不校验审批人身份，也不校验项目范围。一个预算员账号能走完全流程，A 项目的人能改 B 项目签证。</p>
+    <p>证据：<span class="ev">visas/[id]/submit:12,31-66</span>、<span class="ev">review:17,48-97</span>、<span class="ev">settle:12,30-52</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-16</span>多个写接口可以写任意项目的数据</h4>
+    <p><code>work-items</code>、<code>project-internal-addons</code>、<code>internal-addon-settlements</code>、<code>subitem-monthly-reports</code> 都只校验权限码，<b>不校验 body 里的 project_id/subitem_id 属于自己</b>，可篡改他人项目工程量与报量。</p>
+    <p>证据：<span class="ev">work-items:170-190</span>、<span class="ev">project-internal-addons:58-128</span>、<span class="ev">subitem-monthly-reports:59-70</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-17</span>班组结算反审核可能丢掉发放记录和生活费抵扣</h4>
+    <p>只检查了 <code>salary_payments.salary_id</code> 和回单明细，但发放记录的 salary_id 可能为空（按工人+项目+月匹配），生活费抵扣是 SET NULL。检查与删除也不同事务 → <b>反审核会静默删掉已发流水或断开抵扣链</b>。</p>
+    <p>证据：<span class="ev">team-settlements/workflow:104-122,268-294</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-18</span>供应商结算"提交审核"对普通财务/预算员必然 403</h4>
+    <p>按钮所有人可见，接口 <code>/api/review</code> 要求 <code>system:manage</code>。只有结算编辑权限的人一点就报无权，<b>结算单永远卡在草稿、不计成本</b>——和之前"草稿不计入"的故障同一类。</p>
+    <p>证据：<span class="ev">supplier-contracts/settlement/page.tsx:588-614</span>、<span class="ev">lib/route-permissions.ts:297</span></p>
+  </div>
+
+  <div class="item p0">
+    <h4><span class="tag p0">P0-19</span>月报切月份不清空旧数据，还能把上月数据存成新月份快照</h4>
+    <p>切月只 setLoading，不清 data、无请求序号；失败时旧数据仍在。此时点"存档"→ <b>上月数字被归档成新月份</b>，历史月报永久错。</p>
+    <p>证据：<span class="ev">reports/monthly/page.tsx:245-256,594,395-402</span></p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>二、P1 重要问题（28 项，按主题）</h2>
+
+  <h3>1. 口径不一致（同一指标不同页面不同数）</h3>
+  <table>
+    <tr><th style="width:22%">问题</th><th>说明与证据</th></tr>
+    <tr><td>月报环比/同比口径不一</td><td>当月成本含税、上月不含税；当月回款过滤状态、上月不过滤 → 环比百分比系统性偏差（<span class="ev">summary:642,1083-1106</span>）</td></tr>
+    <tr><td>班组结算月份混用</td><td>当月成本按 <code>period_end</code>，明细/趋势按 <code>settlement_month</code>，跨月时对不上（<span class="ev">summary:460,481-487</span>）</td></tr>
+    <tr><td>老新表去重规则不同</td><td>月报用严格指纹，成本中心用宽松指纹且会误删（<span class="ev">data-aggregation:208-229</span>）</td></tr>
+    <tr><td>工人成本看板 vs 月报</td><td>看板把班组生成工资计入应付，月报排除后另加班组结算；已付也不含班组付款（<span class="ev">worker-cost/page.tsx:180-231</span>）</td></tr>
+    <tr><td>"在场人数"四套判定</td><td>月报认中文"在场"、首页认"非 left"、聚合层认 <code>in_service</code>，而默认值是 <code>in_service</code> → <b>月报在场人数恒为 0</b>（<span class="ev">summary:692</span> vs <span class="ev">dashboard:104</span>）</td></tr>
+    <tr><td>税率兜底不一致</td><td>月报每行 <code>tax_rate || 9</code>，成本中心读项目税率（<span class="ev">summary:597-601</span>）</td></tr>
+    <tr><td>签证口径三处不同</td><td>月报用 occurrence/visa_date，成本中心只用 created_at，首页含全部状态且不按项目过滤</td></tr>
+    <tr><td>"累计"不是截至报告月末</td><td>累计查询没有上界，取当前全量 → 补看历史月份时数字包含之后的数据，归档不可复现（<span class="ev">summary:195-214,465-472</span>）</td></tr>
+    <tr><td>首页趋势"成本"混入对下结算量</td><td>用"完成量×合同价"当成本，与财务口径不同（<span class="ev">dashboard:599-628</span>）</td></tr>
+    <tr><td>班组结算成本 vs 实付</td><td>月报用分项全额（不扣四项扣款），台账用净额，差额=预付/劳保/帮工/安全基金（需业务确认）</td></tr>
+  </table>
+
+  <h3>2. 写入与并发</h3>
+  <ul>
+    <li><b>金额解析静默出错</b>：<code>parseFloat("1,234.00")</code> 只得到 1 却能通过校验；NaN 被变 0 或 null（<span class="ev">client-reports/import:193</span>、<span class="ev">team-settlement-salary:66</span> → 生成 0 元工资）</li>
+    <li><b>报量 POST 静默丢行</b>：缺字段的行被 filter 掉，接口仍返回成功（<span class="ev">client-reports/route.ts:243</span>）</li>
+    <li><b>畸形日期回退"今天"</b>：材料采购日期解析失败就用当天，月份成本错配（<span class="ev">miscellaneous-materials/import:362-365</span>）</li>
+    <li><b>工人导入无身份证不查重</b>：每次导入都新增（<span class="ev">workers/batch:242-246</span>）</li>
+    <li><b>工资删除守卫看状态不看实物</b>：只查 payment_status，而外键是 CASCADE，状态同步失败就会连发放流水一起删（<span class="ev">worker-salaries/[id]:47-53</span>）</li>
+    <li><b>工资批量导入 check-then-insert</b>：无事务、无 upsert、不刷缓存（<span class="ev">worker-salaries/batch:629-684</span>）</li>
+    <li><b>班组结算创建先主表后明细</b>：明细失败留下 0 元结算单；编辑时"先删后插"，失败就丢全部明细（<span class="ev">team-settlements:457-519</span>、<span class="ev">[id]:175-193</span>）</li>
+    <li><b>同班组同月可建多张结算单</b>：无唯一约束，重复计成本（<span class="ev">team-settlements:447-476</span>）</li>
+    <li><b>班组付款无查重、无超额校验</b>：双击即重复付款（<span class="ev">team-settlement-payments:243-298</span>）</li>
+    <li><b>多条写入路径不刷聚合缓存</b>：导入后 30 秒内首页/月报还是旧数（9 处）</li>
+    <li><b>历史中标价导入无事务</b>：会留下半批数据 + 孤儿标准清单（<span class="ev">bid library/import:133-159,230-238</span>）</li>
+  </ul>
+
+  <h3>3. 权限与通知</h3>
+  <ul>
+    <li><b>月报保存会清空项目经理/老板补充意见</b>：content 六个字段统一字符串化再整体覆盖（<span class="ev">workflow:178-187,307-308</span>）</li>
+    <li><b>月报审批无乐观锁 + 同一动作两套通知</b>：并发可重复流转；指定审批人 + 超管广播双发（<span class="ev">workflow:212-217,374-410,520-542</span>）</li>
+    <li><b>结果类通知没有路由规则 → 钉钉不发</b>：<code>monthly_report_result/approved/rejected</code>、<code>team_settlement_approved/rejected/unapproved</code> 都不在规则表（<span class="ev">notification-routing.ts</span>）</li>
+    <li><b>recipientRole 从不解析</b>：项目没有预算员时风险提醒只落成"无收件人"记录，谁都不通知</li>
+    <li><b>角标与工作台待办两套算法</b>：角标看业务表，待办只看未读通知 → 数字不一致</li>
+    <li><b>广播通知跨项目泄露</b>：收件人为空的记录对所有登录用户可见（<span class="ev">notifications/route.ts:58-77</span>）</li>
+    <li><b>已审批签证可删除/改名</b>（<span class="ev">visas/[id]:194-209,100-111</span>）</li>
+    <li><b>权限撤销在 middleware 层不生效</b>：页面入口与只读接口仍按旧 token 放行</li>
+  </ul>
+
+  <h3>4. 前端交互（会导致错数据的）</h3>
+  <ul>
+    <li><b>报量/结算弹窗切月后旧数据仍能保存</b>：切月加载失败不清空，保存按钮不受 loading 保护 → 上月报量写进新月份（<span class="ev">quantity-reporting:1614-1643,3773</span>）</li>
+    <li><b>报量/结算"历史记录"入口全部失效</b>：<code>selectedSubitem</code> 从未被赋值，弹窗永远显示"暂无记录"（<span class="ev">quantity-reporting:191,2069-2071,3761-3841</span>）</li>
+    <li><b>班组结算编辑态改了项目/班组但保存被忽略</b>：界面显示新项目，保存后仍挂旧班组（<span class="ev">team-management-client:1886,1790-1792</span>）</li>
+    <li><b>"记付款"默认填本期计划全额</b>：部分付款后再打开会预填全额，直接保存即超付（<span class="ev">team-management-client:1279</span>）</li>
+    <li><b>投标测算小数输入被吞</b>：输入"12."再输"5"得到 125，单价/利润率放大 10 倍（<span class="ev">bid/new:640,644,709,713</span>）</li>
+    <li><b>AI 助手流式解析不缓冲半行</b>：回答会缺字/断句（<span class="ev">floating-ai-assistant:528-556</span>）</li>
+    <li><b>AI 面板纵向拖拽方向反了</b>：一拖就跑到页面顶部（<span class="ev">floating-ai-assistant:604-613</span>）</li>
+    <li><b>供应商结算/合同保存无防重</b>：双击产生两条重复记录（<span class="ev">settlement/page.tsx:527-565</span>）</li>
+  </ul>
+
+  <h3>5. 性能</h3>
+  <ul>
+    <li><b>月报单次请求 18 条全表并发查询</b>（还都是 <code>select('*')</code>），首屏统计慢的主要原因（<span class="ev">monthly/summary:195-214</span>）</li>
+    <li><b>PostgREST 1000 行截断仍广泛存在</b>：已有 <code>fetchAllRows</code> 但全仓只有 3 个文件用；dashboard 有 12 处、client-reports、client-payments、workers、supplier-contracts、archives 等未改</li>
+    <li><b>N+1 查询</b>：通知检测循环里查项目名、合同列表循环查结算（合同数=查询数）</li>
+    <li><b>前端重复请求</b>：报量页两个 effect 互相触发，首屏至少拉 2 轮；全站 53 处 setState-in-effect</li>
+    <li><b>xlsx 800KB 打进 7 个页面首包</b>（只有点导出/导入时才用）</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>三、跨板块交互问题（专门排查）</h2>
+  <table>
+    <tr><th style="width:20%">链路</th><th>问题</th><th style="width:10%">级别</th></tr>
+    <tr><td>报量 → 产值 → 回款率</td><td>草稿报量计入产值；产值只认开票额后，未开票项目产值=0（业务已确认，但会让回款率分母变小、百分比虚高）</td><td class="bad">P0</td></tr>
+    <tr><td>班组结算 → 分账工资 → 工资看板</td><td>结算通过的工资被看板当成应付、月报又排除它另加结算成本 → 两条线各算一遍；生成失败还静默丢人</td><td class="bad">P0</td></tr>
+    <tr><td>班组结算 → 反审核 → 工资发放</td><td>反审核删工资时，发放记录可能按 CASCADE 一起消失，生活费抵扣断链</td><td class="bad">P0</td></tr>
+    <tr><td>供应商结算 → 合同完结 → 付款</td><td>录入即 reviewed 会直接触发合同完结并锁定，绕过了页面上的审批与反审核</td><td class="bad">P0</td></tr>
+    <tr><td>合同 → 结算台账 → 成本中心</td><td>成本中心漏老表付款，月报不漏 → 同一合同在两个页面付款率不同</td><td class="bad">P0</td></tr>
+    <tr><td>月报 → 导出 Excel/PDF</td><td>字段名不匹配，导出的金额/单数大量为 0</td><td class="bad">P0</td></tr>
+    <tr><td>审批 → 通知 → 待办角标</td><td>结果类通知无规则不发钉钉；角标与工作台待办算法不同</td><td class="warn">P1</td></tr>
+    <tr><td>删除项目/供应商 → 各业务表</td><td>不预检、不清理，留孤儿数据；project id 复用时可能挂到新项目</td><td class="bad">P0</td></tr>
+    <tr><td>历史中标价 → 投标测算</td><td>重复导入（旧版批量接口）会污染最低/中位价；查询接口全量无分页，超 1000 条后匹配缺数据</td><td class="warn">P1</td></tr>
+    <tr><td>AI 助手 → 合同知识库</td><td>已修（关键词召回 + OCR），但历史上传的扫描件仍是空内容，需重新识别</td><td class="ok">已修</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>四、数据污染风险清单</h2>
+  <ol>
+    <li><b>导入无查重</b>：供应商结算、甲方回款、历史中标价（旧批量）、工人（无身份证）——重复导入直接翻倍。</li>
+    <li><b>查重集被 1000 行截断</b>：零星材料（已验证发生过 1191 条冗余）。</li>
+    <li><b>状态静默默认</b>：回款未知状态→completed；供应商结算→reviewed。</li>
+    <li><b>金额解析</b>：千分位被截断（"1,234"→1）、NaN→0/null。</li>
+    <li><b>日期解析失败回退今天</b>：材料采购日期错到当月。</li>
+    <li><b>删除不清理子表</b>：合同删了结算还在；项目删了材料/费用/合同还挂着旧 project_id。</li>
+    <li><b>反审核物理删除工资</b>：无审计快照，删了找不回。</li>
+    <li><b>跨表重复录入</b>：同一张发票既录综合费用又录零星材料，成本双扣（需业务确认是否发生过）。</li>
+    <li><b>sequence 回卷风险</b>：删掉最大 id 后若 setval(max)，新数据会复用旧 id，孤儿数据"复活"挂到新记录上（需实测）。</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2>五、冗余与死代码（可删除约 3000 行）</h2>
+  <table>
+    <tr><th style="width:26%">类别</th><th>清单</th><th style="width:12%">可回收</th></tr>
+    <tr><td>死页面（6 个，全仓零引用）</td><td><code>reports/monthly/fill</code>（736 行，注意：这是旧版填报页，新入口是 <code>/reports/monthly</code> 内弹窗）<br><code>cost-estimation/import</code>、<code>knowledge/project/[id]</code>、<code>auth/center</code>（998 行）、<code>team-management/settlements/[id]/edit</code>、<code>system/storage-diagnostic</code></td><td>约 2200 行</td></tr>
+    <tr><td>幽灵 redirect 页（14 个）</td><td>settlement、suppliers、supplier-settlements、team-settlement、team-management、limit-prices、cost-estimation、workers、account-dashboard… 建议只留 <code>/work-items</code>、<code>/settlements</code> 兼容旧书签</td><td>约 150 行</td></tr>
+    <tr><td>死接口（43 个）</td><td>limit-prices(5)、settlements(3)、supplier-settlements(2)、auth/center(6)、work-items、payments(2)、dashboard、auth/debug、workers/clean、notifications/feishu…</td><td>约 600 行</td></tr>
+    <tr><td>重复实现</td><td>19 处金额格式化（口径已分叉：有的抹零、有的不补零）、22 处 toNumber、两套 AI 助手组件（972+586 行）、两套权限体系、两套供应商结算统计（前端一套已导致"统计卡归零"事故）</td><td>—</td></tr>
+    <tr><td>杂项</td><td><code>hooks/use-mobile.ts</code> 零引用、<code>app/loading.tsx</code> 空 effect、<code>roundMoney</code> 未使用、表格里残留字面量 <code>`n</code> 两处（页面会显示 "`n"）</td><td>—</td></tr>
+  </table>
+  <div class="note">注意：死页面里 <code>reports/monthly/fill</code> 是我们最近改了很多次的"独立填写页"。它当前没有被任何菜单/链接引用（入口在月报页内），要么恢复入口、要么删掉——需要你确认，别误删还在用的东西。</div>
+</div>
+
+<div class="card">
+  <h2>六、需要你拍板的业务口径（这几个不是 bug，是选择）</h2>
+  <table>
+    <tr><th style="width:6%">#</th><th style="width:30%">问题</th><th>选项</th></tr>
+    <tr><td>1</td><td>甲方报量的"草稿"要不要计入产值？</td><td>A 不计（改代码，推荐·与注释一致）／B 计入（改标签和注释）</td></tr>
+    <tr><td>2</td><td>"未发工资"按应发(gross)还是实发(net)？</td><td>A 实发（推荐）／B 应发</td></tr>
+    <tr><td>3</td><td>班组结算成本用"分项全额"还是"扣款后净额"？</td><td>A 全额（当前月报）／B 净额（当前台账）——两者需统一</td></tr>
+    <tr><td>4</td><td>供应商结算是否恢复"草稿→提交审核→计入成本"？</td><td>A 恢复（推荐，与审批按钮一致）／B 保持录入即生效，删掉审批按钮</td></tr>
+    <tr><td>5</td><td>供应商老表 <code>payments</code> 是否还有效？</td><td>A 并入统计（推荐）／B 已废弃，代码停用并标注</td></tr>
+    <tr><td>6</td><td>月报独立填写页 <code>/reports/monthly/fill</code> 还留吗？</td><td>A 恢复入口（推荐，手机端好用）／B 删除</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>七、修复路线（建议分 4 批，每批可独立验证）</h2>
+  <table>
+    <tr><th style="width:8%">批次</th><th style="width:42%">内容</th><th>为什么先做它</th><th style="width:10%">预估</th></tr>
+    <tr>
+      <td><b>第 1 批</b><br>金额正确性</td>
+      <td>P0-1 草稿报量、P0-2 应付 0、P0-3 跨月欠薪、P0-5 老表付款、P0-7 重复已付、P0-6 导出字段、P0-4 现金净流</td>
+      <td>这些直接决定报表数字对不对；改动集中在 3 个文件（summary / data-aggregation / export）</td>
+      <td>1.5 天</td>
+    </tr>
+    <tr>
+      <td><b>第 2 批</b><br>数据污染</td>
+      <td>P0-8/9/10 导入查重（3 个模块）、P0-12 生成工资失败回滚、P0-13 删除预检、P1 金额/日期解析统一</td>
+      <td>不修就会持续产生脏数据，越晚修清理成本越高</td>
+      <td>2 天</td>
+    </tr>
+    <tr>
+      <td><b>第 3 批</b><br>越权与审批</td>
+      <td>P0-14 超管实时校验、P0-15 签证身份+项目范围、P0-16 写接口项目范围、P0-17 反审核事务、P0-18 review 权限、P0-11 结算默认草稿、P1 月报内容覆盖/通知规则</td>
+      <td>安全与流程正确性；改动触及权限中间件，需单独回归</td>
+      <td>2 天</td>
+    </tr>
+    <tr>
+      <td><b>第 4 批</b><br>性能与瘦身</td>
+      <td>1000 行截断铺开、月报 18 查询合并 + 缓存、N+1、xlsx 动态加载、死代码清理、工具函数收敛、前端交互修复（切月/历史记录/小数输入/防重）</td>
+      <td>用户体感提升最明显，但不动数字；放在正确性之后</td>
+      <td>3 天</td>
+    </tr>
+  </table>
+  <p style="margin-top:10px;color:var(--t2)">每批结束都会：ts-check + vitest + 关键页面手工走查 + 出一份改动说明（含"部署后行为会变什么"）。</p>
+</div>
+
+<div class="card">
+  <h2>八、部署前置检查（这些不跑，代码改了也不生效）</h2>
+  <table>
+    <tr><th style="width:34%">SQL / 配置</th><th>作用</th><th style="width:16%">状态</th></tr>
+    <tr><td><code>add_team_settlement_approver.sql</code></td><td>班组结算指定审批人字段</td><td class="warn">需确认已执行</td></tr>
+    <tr><td><code>add_supplier_category.sql</code></td><td>供应商分类字段（不执行=分类存不进）</td><td class="warn">需确认已执行</td></tr>
+    <tr><td><code>create_worker_project_unique.sql</code> / <code>..._name_unique.sql</code></td><td>工人同项目防重</td><td class="bad">AGENTS 记录未应用</td></tr>
+    <tr><td><code>add_monthly_report_workflow.sql</code></td><td>月报审批表</td><td class="ok">已执行</td></tr>
+    <tr><td><code>CONSTRUCTION_RISK_ENABLED</code></td><td>风险池开关（当前默认关闭）</td><td class="ok">按需</td></tr>
+    <tr><td><code>COZE_PROJECT_ENV=PROD</code></td><td>未登记路由才会被拦（不设=fail-open）</td><td class="warn">需确认</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>九、附：审查方法说明（可复核）</h2>
+  <ul>
+    <li>5 路并行只读审查：<b>财务口径</b>、<b>权限审批通知</b>、<b>写入与污染</b>、<b>前端交互</b>、<b>冗余与性能</b>；每条结论都带 <code>文件:行号</code>，可点开复核。</li>
+    <li>额外做了：223 个 API 与权限声明表比对、481 个源文件扫描、eslint 全量（1431 warning / 185 文件）、金额格式化函数与状态判断函数的重复度统计。</li>
+    <li>标注"需实测"的项，是因为涉及数据库约束/线上环境变量，静态读代码无法 100% 确认，修复前应先在库里核对。</li>
+    <li>本次审查<b>未修改任何代码、未连数据库</b>。</li>
+  </ul>
+</div>
+
+<div class="sub" style="text-align:center;padding:8px 0 24px">报告生成于 2026-10-31 · 共 70 项问题（P0 19 / P1 28 / P2 23）</div>
+
+</div>
+</body>
+</html>
