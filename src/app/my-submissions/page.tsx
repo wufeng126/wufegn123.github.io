@@ -326,7 +326,7 @@ export default function MySubmissionsPage() {
           {loading ? (
             <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">加载中…</div>
           ) : reports.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">还没有提交过的月报</div>
+            <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]"><p>还没有提交过的月报</p><Link href="/reports/monthly" className="mt-2 inline-block text-[var(--color-primary)] hover:underline">去写本月分析</Link></div>
           ) : (
             <div className="divide-y divide-[var(--border)]">
               {reports.map((row) => {
@@ -399,7 +399,7 @@ export default function MySubmissionsPage() {
           {loading ? (
             <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">加载中…</div>
           ) : settlements.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]">还没有提交过的班组结算</div>
+            <div className="px-5 py-8 text-center text-sm text-[var(--color-text-3)]"><p>还没有提交过的班组结算</p><Link href="/team-management/settlements/new" className="mt-2 inline-block text-[var(--color-primary)] hover:underline">去新建结算单</Link></div>
           ) : (
             <div className="divide-y divide-[var(--border)]">
               {settlements.map((row) => {

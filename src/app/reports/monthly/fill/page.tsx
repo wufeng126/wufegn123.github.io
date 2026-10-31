@@ -197,6 +197,19 @@ export default function MonthlyReportFillPage() {
     void load();
   }, [load]);
 
+  // 分析内容未提交时离开页面提醒，避免白写
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      const dirty = [analysis, risk, nextPlan, remark, managerSupplement, bossSupplement]
+        .some((value) => value.trim().length > 0);
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [analysis, risk, nextPlan, remark, managerSupplement, bossSupplement]);
+
   const isBossOrSuper = myRole === 'super_admin' || myRole === 'boss';
   const isBudgetOwner = fillOwnerId > 0 && myId === fillOwnerId;
   const isManagerOwner = managerOwnerId > 0 && myId === managerOwnerId;
@@ -344,7 +357,11 @@ export default function MonthlyReportFillPage() {
                   <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--foreground)]">{item.value}</div>
                   {delta !== null ? (
-                    <div className={`mt-0.5 text-[11px] tabular-nums ${delta >= 0 ? 'text-[#00B42A]' : 'text-[#F53F3F]'}`}>
+                    <div className={`mt-0.5 text-[11px] tabular-nums ${
+                  item.label === '确认成本'
+                    ? (delta >= 0 ? 'text-[#FF7D00]' : 'text-[#00B42A]')
+                    : (delta >= 0 ? 'text-[#00B42A]' : 'text-[#F53F3F]')
+                }`}>
                       环比 {delta >= 0 ? '+' : ''}{delta.toFixed(1)}%
                     </div>
                   ) : null}

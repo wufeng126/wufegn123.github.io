@@ -442,14 +442,10 @@ export default function SupplierRosterPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="suppliers">供应商列表</TabsTrigger>
-          <TabsTrigger value="contracts">合同台账</TabsTrigger>
-        </TabsList>
+      <div className="mb-4">
 
         {/* Suppliers Tab */}
-        <TabsContent value="suppliers" className="space-y-4">
+        <div className="space-y-4">
           {/* Filters */}
           <div className="flex flex-col md:flex-row gap-3 mb-4">
             <Select value={filterType} onValueChange={setFilterType}>
@@ -605,186 +601,10 @@ export default function SupplierRosterPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
         {/* Contracts Tab */}
-        <TabsContent value="contracts" className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-3 mb-4">
-            <Select value={filterProject} onValueChange={setFilterProject}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="选择项目" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部项目</SelectItem>
-                {projects.map(p => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-full md:w-32">
-                <SelectValue placeholder="合同状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="active">履约中</SelectItem>
-                <SelectItem value="locked">已完结</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索合同名称/编号/供应商..."
-                value={contractSearch}
-                onChange={(e) => setContractSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Button onClick={() => openContractDialog()} className="w-full bg-blue-600 hover:bg-blue-700 md:w-auto">
-              <Plus className="w-4 h-4 mr-1" /> 新增合同
-            </Button>
-          </div>
-
-          {/* Table */}
-          <Card>
-            <CardContent className="p-0">
-              <Table className="hidden md:table">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[120px]">供应商</TableHead>
-                    <TableHead className="min-w-[120px]">项目</TableHead>
-                    <TableHead className="min-w-[150px]">合同名称</TableHead>
-                    <TableHead className="min-w-[100px] text-right">累计结算金额</TableHead>
-                    <TableHead className="min-w-[100px] text-right">履约应付金额</TableHead>
-                    <TableHead className="min-w-[100px] text-right">决算应付金额</TableHead>
-                    <TableHead className="min-w-[100px] text-right">已付金额</TableHead>
-                    <TableHead className="min-w-[100px] text-right">进度未付</TableHead>
-                    <TableHead className="min-w-[100px] text-right">决算未付</TableHead>
-                    <TableHead className="min-w-[80px]">状态</TableHead>
-                    <TableHead className="min-w-[80px] text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {contractsLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8">加载中...</TableCell>
-                    </TableRow>
-                  ) : filteredContracts.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                        暂无合同数据
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredContracts.map((contract) => {
-                      const supplier = suppliers.find(s => s.id === contract.supplier_id);
-                      const project = projects.find(p => p.id === contract.project_id);
-                      return (
-                        <TableRow key={contract.id}>
-                          <TableCell className="font-medium">{supplier?.name || '-'}</TableCell>
-                          <TableCell>{project?.name || '-'}</TableCell>
-                          <TableCell>{contract.contract_name || '-'}</TableCell>
-                          <TableCell className="text-right text-blue-600">
-                            ¥{Number(contract.total_settlement_amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ¥{Number(contract.total_payable_amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-purple-600">
-                            ¥{Number(contract.total_final_payable_amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-green-600">
-                            ¥{Number(contract.total_paid_amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-orange-600">
-                            ¥{Number(contract.progress_pending_amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-red-600">
-                            ¥{Number(contract.final_pending_amount || 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            {contract.has_final_settlement ? (
-                              <Badge variant="secondary">已决算</Badge>
-                            ) : contract.locked ? (
-                              <Badge variant="secondary">已完结</Badge>
-                            ) : (
-                              <Badge className="bg-green-100 text-green-800">履约中</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button size="sm" variant="ghost" onClick={() => openContractDialog(undefined, contract)}>
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => handleDeleteContract(contract.id)} className="text-red-600" aria-label="删除">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-              <div className="space-y-3 p-3 md:hidden">
-                {contractsLoading ? (
-                  <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-muted-foreground">加载中...</div>
-                ) : filteredContracts.length === 0 ? (
-                  <div className="rounded-lg border border-gray-100 py-8 text-center text-sm text-muted-foreground">暂无合同数据</div>
-                ) : filteredContracts.map((contract) => {
-                  const supplier = suppliers.find(s => s.id === contract.supplier_id);
-                  const project = projects.find(p => p.id === contract.project_id);
-                  return (
-                    <article key={contract.id} className="rounded-lg border border-gray-100 bg-white p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-gray-900">{contract.contract_name || '-'}</p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{supplier?.name || '-'} / {project?.name || '-'}</p>
-                        </div>
-                        {contract.has_final_settlement ? (
-                          <Badge variant="secondary" className="shrink-0">已决算</Badge>
-                        ) : contract.locked ? (
-                          <Badge variant="secondary" className="shrink-0">已完结</Badge>
-                        ) : (
-                          <Badge className="shrink-0 bg-green-100 text-green-800">履约中</Badge>
-                        )}
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-md bg-gray-50 p-2">
-                          <p className="text-muted-foreground">累计结算</p>
-                          <p className="mt-1 font-semibold text-blue-600">¥{Number(contract.total_settlement_amount || 0).toLocaleString()}</p>
-                        </div>
-                        <div className="rounded-md bg-gray-50 p-2">
-                          <p className="text-muted-foreground">已付金额</p>
-                          <p className="mt-1 font-semibold text-green-600">¥{Number(contract.total_paid_amount || 0).toLocaleString()}</p>
-                        </div>
-                        <div className="rounded-md bg-gray-50 p-2">
-                          <p className="text-muted-foreground">进度未付</p>
-                          <p className="mt-1 font-semibold text-orange-600">¥{Number(contract.progress_pending_amount || 0).toLocaleString()}</p>
-                        </div>
-                        <div className="rounded-md bg-gray-50 p-2">
-                          <p className="text-muted-foreground">决算未付</p>
-                          <p className="mt-1 font-semibold text-red-600">¥{Number(contract.final_pending_amount || 0).toLocaleString()}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-gray-100 pt-3">
-                        <Button size="sm" variant="outline" onClick={() => openContractDialog(undefined, contract)}>
-                          <Edit className="mr-1 h-4 w-4" />编辑
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeleteContract(contract.id)} className="text-red-600">
-                          <Trash2 className="mr-1 h-4 w-4" />删除
-                        </Button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
 
       {/* Supplier Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

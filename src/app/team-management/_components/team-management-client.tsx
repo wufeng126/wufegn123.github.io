@@ -1498,6 +1498,18 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
     setProjectId((current) => current || (projects[0]?.id ? String(projects[0].id) : ''));
   }, [projects]);
 
+  // 有未保存内容时，离开页面提醒（防止在工地录一半误触返回全丢）
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      const hasInput = quantityRows.some((row) => row.content.trim()) || splitRows.some((row) => Number(row.worker_id) > 0);
+      if (!hasInput) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [quantityRows, splitRows]);
+
   // 编辑模式：加载结算单并预填表单（仅草稿/已驳回可编辑，后端会再次校验状态）
   const isEditMode = Boolean(editSettlementId && editSettlementId > 0);
   useEffect(() => {
