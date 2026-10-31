@@ -396,7 +396,9 @@ export async function POST(request: NextRequest) {
       payment_type: payment_type || '月度工资',
       payer_type: resolvedPayerType,
       team_id: resolvedTeamId,
-      year_month: matchedSalary.yearMonth || year_month || null,
+      year_month: matchedSalary.yearMonth
+        || year_month
+        || (payment_date ? String(payment_date).slice(0, 7) : new Date().toISOString().slice(0, 7)),
       remark,
     };
 

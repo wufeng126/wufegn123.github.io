@@ -96,6 +96,61 @@ export async function POST(request: NextRequest) {
       return apiBadRequest('请填写驳回原因');
     }
 
+    // 反审核前校验：分账工资一旦已有发放记录（钱已付出），禁止反审核，避免连发放流水一起删掉
+    if (action === 'unapprove') {
+      const { data: salaryRowsForCheck } = await supabase
+        .from('worker_salaries')
+        .select('id')
+        .eq('settlement_id', settlementId);
+      const salaryIdsForCheck = (salaryRowsForCheck || [])
+        .map((row: { id?: unknown }) => Number(row.id))
+        .filter(Boolean);
+      if (salaryIdsForCheck.length > 0) {
+        const { data: paidRows } = await supabase
+          .from('salary_payments')
+          .select('id')
+          .in('salary_id', salaryIdsForCheck)
+          .limit(1);
+        if (paidRows && paidRows.length > 0) {
+          return apiBadRequest('该结算单生成的分账工资已有发放记录，不能反审核；请先撤销对应的工资发放记录后再试');
+        }
+      }
+    }
+
+    // 审批通过前校验：分账工人本月若已有工资记录，禁止审批（避免同一人同一月重复计成本）
+    if (action === 'approve') {
+      const { data: splitRowsForCheck } = await supabase
+        .from('team_settlement_splits')
+        .select('worker_id')
+        .eq('settlement_id', settlementId);
+      const splitWorkerIds = Array.from(new Set(
+        (splitRowsForCheck || [])
+          .map((row: { worker_id?: unknown }) => Number(row.worker_id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ));
+      if (splitWorkerIds.length > 0) {
+        const { data: conflictRows } = await supabase
+          .from('worker_salaries')
+          .select('worker_id, workers(name)')
+          .in('worker_id', splitWorkerIds)
+          .eq('year_month', String(settlement.settlement_month || ''))
+          .neq('settlement_id', settlementId);
+        if (conflictRows && conflictRows.length > 0) {
+          const names = conflictRows
+            .slice(0, 5)
+            .map((row: { worker_id?: unknown; workers?: { name?: string } | Array<{ name?: string }> | null }) => {
+              const relation = row.workers;
+              const worker = Array.isArray(relation) ? relation[0] : relation;
+              return worker?.name || `工人#${row.worker_id}`;
+            })
+            .join('、');
+          return apiBadRequest(
+            `以下工人本月已有工资记录，不能重复生成分账工资，请先处理：${names}${conflictRows.length > 5 ? ` 等 ${conflictRows.length} 人` : ''}`,
+          );
+        }
+      }
+    }
+
     // 更新状态与流转字段
     const patch: Record<string, unknown> = { status: '', updated_at: now };
     if (action === 'submit') {

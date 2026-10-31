@@ -1284,7 +1284,7 @@ export function TeamSettlementLedgerPageClient() {
                 <span className="rounded-md bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{statusText(row.status)}</span>
               </div>
               <dl className="grid grid-cols-2 gap-2 text-sm">
-                <div><dt className="text-xs text-[#86909C]">结算金额</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.quantity_amount)}</dd></div>
+                <div><dt className="text-xs text-[#86909C]">结算金额（计入成本）</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.quantity_amount)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">扣款合计</dt><dd className="mt-0.5 text-[#F53F3F]">{formatMoney(row.deduction_total)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">实付金额</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.payable_amount)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">付款比例/计划付</dt><dd className="mt-0.5 text-[#00B42A]">{formatNumber(row.payment_ratio ?? 100)}% / {formatMoney(row.planned_payment ?? row.payable_amount)}</dd></div>
@@ -2110,7 +2110,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
               <span className="text-[#4E5969]">结算金额：<b className="text-[#165DFF]">{formatMoney(quantityTotal)}</b></span>
               <span className="text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(deductionTotal)}</b></span>
-              <span className="text-[#4E5969]">实付金额：<b className="text-[#165DFF]">{formatMoney(payableAmount)}</b></span>
+              <span className="text-[#4E5969]">实付金额（应发）：<b className="text-[#165DFF]">{formatMoney(payableAmount)}</b></span>
               <span className="text-[#4E5969]">本期计划付款（{formatNumber(normalizedRatio)}%）：<b className="text-[#00B42A]">{formatMoney(plannedPayment)}</b></span>
               <span className="text-[#4E5969]">尾款/预留款：<b className="text-[#FF7D00]">{formatMoney(retainedAmount)}</b></span>
             </div>
@@ -2197,21 +2197,101 @@ export function TeamSettlementDetailPageClient() {
   }, []);
 
   const canSubmitSettlement = isSuperAdmin || permissions.includes('team_settlements:submit');
+  const canApproveSettlement = isSuperAdmin || permissions.includes('team_settlements:approve');
+  const [wfOptions, setWfOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
+  const [wfApproverId, setWfApproverId] = useState(0);
+  const [approverDialogOpen, setApproverDialogOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   async function submitSettlementApproval() {
     if (!settlement) return;
+    setWfApproverId(0);
+    setApproverDialogOpen(true);
+    if (wfOptions.length === 0) {
+      try {
+        const json = await readJson(await fetch('/api/users/options', { credentials: 'include' }));
+        const options = json?.data?.options || [];
+        setWfOptions(Array.isArray(options) ? options : []);
+      } catch {
+        setWfOptions([]);
+      }
+    }
+  }
+
+  /** 选择审批人后提交 */
+  async function confirmSubmitApproval() {
+    if (!settlement) return;
+    if (!wfApproverId) {
+      setMessage('请选择审批人');
+      return;
+    }
+    setWorkflowLoading(true);
+    try {
+      const approver = wfOptions.find((option) => option.id === wfApproverId);
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          settlement_id: settlement.id,
+          action: 'submit',
+          approverUserId: wfApproverId,
+          approverName: approver?.name || '',
+        }),
+      }));
+      setApproverDialogOpen(false);
+      setMessage(`已提交审批，审批人：${approver?.name || ''}`);
+      await loadSettlement();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '提交审批失败');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }
+
+  /** 审批通过 */
+  async function handleApproveSettlement() {
+    if (!settlement) return;
+    if (!window.confirm('确认审批通过？通过后将计入成本并生成分账应发工资')) return;
     setWorkflowLoading(true);
     try {
       await readJson(await fetch('/api/team-settlements/workflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ settlement_id: settlement.id, action: 'submit' }),
+        body: JSON.stringify({ settlement_id: settlement.id, action: 'approve' }),
       }));
-      setMessage('已提交审批，待老板审批通过后计入成本');
+      setMessage('审批通过，已计入成本');
       await loadSettlement();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '提交审批失败');
+      setMessage(error instanceof Error ? error.message : '审批失败');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }
+
+  /** 驳回 */
+  async function handleRejectSettlement() {
+    if (!settlement) return;
+    if (!rejectReason.trim()) {
+      setMessage('请填写驳回原因');
+      return;
+    }
+    setWorkflowLoading(true);
+    try {
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settlement_id: settlement.id, action: 'reject', reason: rejectReason.trim() }),
+      }));
+      setRejectOpen(false);
+      setRejectReason('');
+      setMessage('已驳回，预算员可修改后重新提交');
+      await loadSettlement();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '驳回失败');
     } finally {
       setWorkflowLoading(false);
     }
@@ -2347,7 +2427,37 @@ export function TeamSettlementDetailPageClient() {
           </>
         )}
       />
-      <Message>{message}</Message>
+            <Message>{message}</Message>
+
+      {approverDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!workflowLoading) setApproverDialogOpen(false); }}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-lg font-semibold">提交审批</h3>
+            <p className="mt-1 text-sm text-[#86909C]">请选择下一级审批人，提交后只有该审批人（或老板/超管）可以审批。</p>
+            <div className="mt-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[#86909C]">审批人（必选）</span>
+                <select
+                  value={wfApproverId}
+                  onChange={(event) => setWfApproverId(Number(event.target.value) || 0)}
+                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value={0}>请选择审批人</option>
+                  {wfOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.name}{option.role ? `（${option.role}）` : ''}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setApproverDialogOpen(false)} disabled={workflowLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] disabled:opacity-50">取消</button>
+              <button onClick={() => void confirmSubmitApproval()} disabled={workflowLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white disabled:opacity-50">
+                {workflowLoading ? '提交中…' : '确认提交'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-10 text-center text-sm text-[#86909C]">加载中...</div>
@@ -2367,7 +2477,41 @@ export function TeamSettlementDetailPageClient() {
                   </button>
                 )}
                 {settlement.status === 'pending' && (
-                  <span className="text-xs text-[#D25F00]">待老板审批，通过后计入成本</span>
+                  canApproveSettlement ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => void handleApproveSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#00B42A] px-3 text-xs font-medium text-white hover:bg-[#009A29] disabled:opacity-50">
+                        {workflowLoading ? '处理中…' : '通过'}
+                      </button>
+                      <button onClick={() => setRejectOpen(true)} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md border border-[#FFC9C9] bg-white px-3 text-xs font-medium text-[#F53F3F] disabled:opacity-50">
+                        驳回
+                      </button>
+                      {(settlement as unknown as { approver_name?: string }).approver_name ? (
+                        <span className="text-xs text-[#86909C]">
+                          下一审批人：{(settlement as unknown as { approver_name?: string }).approver_name}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-[#D25F00]">待审批，通过后计入成本</span>
+                  )
+                )}
+                {rejectOpen && (
+                  <div className="mt-2 w-full rounded-md border border-[#FFC9C9] bg-[#FFF1F0] p-3">
+                    <div className="mb-1 text-xs font-medium text-[#F53F3F]">驳回原因（必填）</div>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(event) => setRejectReason(event.target.value)}
+                      rows={3}
+                      placeholder="请说明需要修改的内容，预算员据此修改后重新提交"
+                      className="w-full rounded-md border border-[#FFC9C9] px-3 py-2 text-sm outline-none"
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button onClick={() => { setRejectOpen(false); setRejectReason(''); }} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-xs">取消</button>
+                      <button onClick={() => void handleRejectSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#F53F3F] px-3 text-xs font-medium text-white disabled:opacity-50">
+                        {workflowLoading ? '处理中…' : '确认驳回'}
+                      </button>
+                    </div>
+                  </div>
                 )}
                 {settlement.status === 'rejected' && settlement.reject_reason && (
                   <span className="text-xs text-[#F53F3F]">驳回原因：{settlement.reject_reason}</span>
@@ -2379,7 +2523,7 @@ export function TeamSettlementDetailPageClient() {
               <div><dt className="text-xs text-[#86909C]">班组</dt><dd className="mt-1 font-medium">{settlement.team_name || '-'}</dd></div>
               <div><dt className="text-xs text-[#86909C]">结算月份</dt><dd className="mt-1 font-medium">{settlement.settlement_month}</dd></div>
               <div><dt className="text-xs text-[#86909C]">结算周期</dt><dd className="mt-1 font-medium">{settlement.period_start} 至 {settlement.period_end}</dd></div>
-              <div><dt className="text-xs text-[#86909C]">结算金额</dt><dd className="mt-1 font-semibold text-[#165DFF]">{formatMoney(settlement.quantity_amount)}</dd></div>
+              <div><dt className="text-xs text-[#86909C]">结算金额（计入成本）</dt><dd className="mt-1 font-semibold text-[#165DFF]">{formatMoney(settlement.quantity_amount)}</dd></div>
               <div><dt className="text-xs text-[#86909C]">分账金额</dt><dd className="mt-1 font-medium">{formatMoney(settlement.split_amount)}</dd></div>
               <div><dt className="text-xs text-[#86909C]">总工时</dt><dd className="mt-1 font-medium">{formatNumber(settlement.total_hours)}</dd></div>
               <div><dt className="text-xs text-[#86909C]">制单人</dt><dd className="mt-1 font-medium">{settlement.created_by_name || '-'}</dd></div>
@@ -2394,7 +2538,7 @@ export function TeamSettlementDetailPageClient() {
               </dl>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#E5E8EF] pt-3">
                 <span className="text-sm text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(settlement.deduction_total)}</b></span>
-                <span className="text-sm text-[#4E5969]">实付金额：<b className="text-[#165DFF]">{formatMoney(settlement.payable_amount)}</b></span>
+                <span className="text-sm text-[#4E5969]">实付金额（应发）：<b className="text-[#165DFF]">{formatMoney(settlement.payable_amount)}</b></span>
                 <span className="text-sm text-[#4E5969]">付款比例：<b className="text-[#4E5969]">{formatNumber(settlement.payment_ratio ?? 100)}%</b></span>
                 <span className="text-sm text-[#4E5969]">本期计划付：<b className="text-[#00B42A]">{formatMoney(settlement.planned_payment ?? settlement.payable_amount)}</b></span>
                 <span className="text-sm text-[#4E5969]">尾款/预留：<b className="text-[#FF7D00]">{formatMoney(settlement.retained_amount ?? 0)}</b></span>

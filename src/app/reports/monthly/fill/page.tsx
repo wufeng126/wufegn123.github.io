@@ -259,10 +259,9 @@ export default function MonthlyReportFillPage() {
       body.bossApproverId = bossApproverId;
       body.bossApproverName = userOptions.find((item) => item.id === bossApproverId)?.name || '';
     }
+    if (projectId && projectId !== 'all') body.projectId = projectId;
     setSaving(true);
     try {
-      const body: Record<string, unknown> = { month, action };
-      if (projectId && projectId !== 'all') body.projectId = projectId;
       if (extra?.content) body.content = extra.content;
       if (extra?.reason) body.reason = extra.reason;
       const res = await fetch('/api/reports/monthly/workflow', {

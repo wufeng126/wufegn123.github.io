@@ -243,17 +243,26 @@ export async function GET(request: NextRequest) {
         if (type) globalWorkerTypeMap.set(Number(row.id), type);
       });
     }
-    // 工资发放索引：worker_id + year_month → 已发金额（用于本月实发精确归属）
-    // 兼容缺少 year_month 的历史发放记录：再用支付日期所属月份兜底
+    // 工资发放索引：worker_id + 月份 → 已发金额（用于本月实发精确归属）
+    // 主键带 project_id 防止一人多项目时同一笔发放被重复计入；兼容缺 project_id 的历史记录
     const salaryPaymentByWorkerMonth = new Map<string, number>();
     const salaryPaymentByWorkerPayMonth = new Map<string, number>();
+    const salaryPaymentByWorkerProjectMonth = new Map<string, number>();
     salaryPayments.forEach((sp: Record<string, unknown>) => {
       const amount = Number(sp.payment_amount || 0);
       const yearMonth = String(sp.year_month || '').trim();
       const payMonth = String(sp.payment_date || '').slice(0, 7);
+      const projectId = Number(sp.project_id) || 0;
       if (yearMonth) {
         const key = `${sp.worker_id}:${yearMonth}`;
         salaryPaymentByWorkerMonth.set(key, (salaryPaymentByWorkerMonth.get(key) || 0) + amount);
+        if (projectId > 0) {
+          const projectKey = `${sp.worker_id}:${projectId}:${yearMonth}`;
+          salaryPaymentByWorkerProjectMonth.set(
+            projectKey,
+            (salaryPaymentByWorkerProjectMonth.get(projectKey) || 0) + amount,
+          );
+        }
       } else if (payMonth) {
         const key = `${sp.worker_id}:${payMonth}`;
         salaryPaymentByWorkerPayMonth.set(key, (salaryPaymentByWorkerPayMonth.get(key) || 0) + amount);
@@ -428,6 +437,21 @@ export async function GET(request: NextRequest) {
     teamCostMap.forEach((amount, pid) => {
       teamSettlementCostByProject.set(pid, { month: amount });
     });
+    // 累计口径：班组结算与工人工资都取"全部历史+本月"，避免累计成本只含本月而偏低
+    const teamCostCumulativeMap = await getTeamSettlementCostByProjects(supabase, targetProjectIds);
+    const salariesAllRows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+      supabase
+        .from('worker_salaries')
+        .select('project_id, gross_pay')
+        .in('project_id', targetProjectIds)
+        .or('source.is.null,source.neq.team_settlement')
+        .range(from, to));
+    const cumulativeSalaryCostByProject = new Map<number, number>();
+    salariesAllRows.forEach((row) => {
+      const pid = Number(row.project_id) || 0;
+      if (!pid) return;
+      cumulativeSalaryCostByProject.set(pid, (cumulativeSalaryCostByProject.get(pid) || 0) + Number(row.gross_pay || 0));
+    });
 
     // Build per-project data
     const projectDataList: ProjectData[] = projects.map((projectRaw: Record<string, unknown>) => {
@@ -435,7 +459,11 @@ export async function GET(request: NextRequest) {
       const project = { id: pid, name: projectRaw.name as string, status: projectRaw.status as string };
 
       const projReports = clientReports.filter((r: Record<string, unknown>) => r.project_id === pid);
-      const projPayments = clientPayments.filter((p: Record<string, unknown>) => p.project_id === pid);
+      // 回款只统计有效付款（排除作废/未审核），与首页看板、成本利润中心口径一致
+      const projPayments = clientPayments.filter(
+        (p: Record<string, unknown>) =>
+          p.project_id === pid && isEffectiveClientPaymentStatus(p.status as string | null | undefined),
+      );
       const projSettlements = allSettlements.filter(s => s.projectId === pid);
       const projSupplierPayments = allPayments.filter(p => p.projectId === pid);
       const projSalaries = salariesCurrent.filter((s: Record<string, unknown>) => s.project_id === pid);
@@ -467,7 +495,7 @@ export async function GET(request: NextRequest) {
 
       const supplierCost = safeSum(projSettlements.map(s => s.settlementAmount));
       const teamSettlementCost = teamSettlementCostByProject.get(pid)?.month || 0;
-      const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + teamSettlementCost;
+      const salaryCost = (cumulativeSalaryCostByProject.get(pid) || 0) + (teamCostCumulativeMap.get(pid) || 0);
       const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)));
       // 工种工资拆分（按工人 work_type 汇总当月应发；优先用全量工种映射，兼容跨项目工资记录）
       const workerTypeMap = new Map<number, string>();
@@ -559,6 +587,10 @@ export async function GET(request: NextRequest) {
       // 避免按 project_id 归属错配；没有发放记录时回退工资单 payment_status='paid'
       const monthSalaryPaymentFromPayments = safeSum(
         projSalaries.map((s: Record<string, unknown>) => {
+          // 优先按 工人+项目+月份 精确匹配，避免一人多项目时同一笔发放被重复计入
+          const projectKey = `${s.worker_id}:${Number(s.project_id) || 0}:${s.year_month}`;
+          const projectMatched = salaryPaymentByWorkerProjectMonth.get(projectKey);
+          if (projectMatched !== undefined) return Number(projectMatched);
           const key = `${s.worker_id}:${s.year_month}`;
           return Number(salaryPaymentByWorkerMonth.get(key) ?? salaryPaymentByWorkerPayMonth.get(key) ?? 0);
         }),

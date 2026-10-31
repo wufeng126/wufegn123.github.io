@@ -183,6 +183,8 @@ async function getSupplierSettlementMetricsByProjects(
       // 同时写入宽松指纹（供老表迁移重复判重）
       projectLooseFingerprints.get(pid)!.add(looseFingerprint(supplierId, pid, amount));
       projectAmountFingerprints.get(pid)!.add(round2(amount));
+      // 记录本项目实际有结算的供应商（用于判定"老表供应商是否已改挂"）
+      if (supplierId > 0) projectSupplierIds.get(pid)!.add(supplierId);
     }
   }
 
@@ -205,14 +207,14 @@ async function getSupplierSettlementMetricsByProjects(
       const amount = parseNumeric(s.settlement_amount);
       // 1) 宽松判重：新表已存在同供应商+同项目+同金额，视为迁移重复，丢弃
       if (projectLooseFingerprints.get(pid)!.has(looseFingerprint(sid, pid, amount))) continue;
-      // 1.5) 跨供应商改挂判重：新表存在同项目+同金额记录，且老表该供应商已不在该项目
-      //     现有合同供应商名单中（该结算可能已从旧供应商改挂到新供应商），视为改挂残留丢弃。
-      //     带安全网：若该供应商仍在本项目有合同，则可能是真实的不同供应商同额结算，不丢弃。
+      // 1.5) 跨供应商改挂判重：仅在"老表供应商无任何合同/结算"时才认为是改挂残留；
+      //      不再按金额模糊丢弃（此前会把真实的不同供应商同额结算误删，导致成本偏低）。
+      //      真正的重复由下方严格指纹（同供应商+同金额+同日期+同类型）兜底。
       const currentSuppliers = projectSupplierIds.get(pid);
       if (
-        projectAmountFingerprints.get(pid)!.has(round2(amount)) &&
-        currentSuppliers &&
-        !currentSuppliers.has(sid)
+        projectAmountFingerprints.get(pid)!.has(round2(amount))
+        && currentSuppliers
+        && sid === 0
       ) continue;
       // 2) 严格判重（同 supplier 同额同日同类型），避免老表自身/多次重复并入
       const fp = supplierSettlementFingerprint({

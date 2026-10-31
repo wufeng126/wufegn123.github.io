@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Download, FileText, Printer, History,
   Sparkles, RefreshCw, AlertTriangle, TrendingUp, TrendingDown,
@@ -186,11 +186,18 @@ function riskLabel(level: string): string {
 // ─── Component ─────────────────────────────────────────
 export default function MonthlyReportPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [month, setMonth] = useState(() => {
+    // 支持从链接带入月份（我的提交、工作台待办、审批完成后跳回都会带 ?month=）
+    const urlMonth = searchParams.get('month');
+    if (urlMonth && /^\d{4}-\d{2}$/.test(urlMonth)) return urlMonth;
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [projectId, setProjectId] = useState('all');
+  const [projectId, setProjectId] = useState(() => {
+    const urlProject = searchParams.get('projectId');
+    return urlProject && urlProject.trim() ? urlProject.trim() : 'all';
+  });
   const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([]);
   const [data, setData] = useState<MonthlyReportData | null>(null);
   const [loading, setLoading] = useState(false);
