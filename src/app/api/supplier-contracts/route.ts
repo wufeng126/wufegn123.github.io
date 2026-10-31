@@ -102,6 +102,12 @@ export async function GET(request: NextRequest) {
         // 获取已完结结算单
         const completeSettlement = activeSettlements.find((s) => isFinalSettlementType(s.settlement_type));
 
+        // 拆成两个口径：进度应付（非最终结算）与决算应付（最终结算）
+        const finalSettlements = activeSettlements.filter((s: any) => isFinalSettlementType(s.settlement_type));
+        const progressSettlements = activeSettlements.filter((s: any) => !isFinalSettlementType(s.settlement_type));
+        const progressPayable = progressSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
+        const finalPayable = finalSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
+
         // 获取付款统计
         const { data: payments } = await supabase
           .from('supplier_payments')
@@ -118,6 +124,8 @@ export async function GET(request: NextRequest) {
           ...contract,
           total_settlement: totalSettlement,
           total_payable: totalPayable,
+          progress_payable: progressPayable,
+          final_payable: finalPayable,
           total_paid: totalPaid,
           pending_amount: Math.max(0, totalPayable - totalPaid),
           has_complete_settlement: !!completeSettlement,
@@ -133,6 +141,8 @@ export async function GET(request: NextRequest) {
       avgPaymentRatio: contractsWithStats.length > 0 ? Math.round((ratioSum / contractsWithStats.length) * 100) / 100 : 0,
       totalSettlement: contractsWithStats.reduce((sum: number, c: any) => sum + c.total_settlement, 0),
       totalPayable: contractsWithStats.reduce((sum: number, c: any) => sum + c.total_payable, 0),
+      totalProgressPayable: contractsWithStats.reduce((sum: number, c: any) => sum + Number(c.progress_payable || 0), 0),
+      totalFinalPayable: contractsWithStats.reduce((sum: number, c: any) => sum + Number(c.final_payable || 0), 0),
       totalPaid: contractsWithStats.reduce((sum: number, c: any) => sum + c.total_paid, 0),
       totalPending: contractsWithStats.reduce((sum: number, c: any) => sum + c.pending_amount, 0),
     };

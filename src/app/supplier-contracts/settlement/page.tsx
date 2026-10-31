@@ -813,38 +813,32 @@ export default function SettlementPage() {
       {/* 核心指标卡（点击筛选） */}
       {filteredStats && (
         <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <button
-              type="button"
-              onClick={() => setFilterStatus(filterStatus === 'draft' ? 'all' : 'draft')}
-              className={`rounded-xl border p-3 text-left transition ${filterStatus === 'draft' ? 'border-amber-400 bg-amber-50' : 'border-border bg-white hover:border-amber-300'}`}
-            >
-              <div className="text-xs text-muted-foreground">待审核</div>
-              <div className="mt-1 text-xl font-bold text-amber-600">{draftCount}</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterStatus(filterStatus === 'reviewed' ? 'all' : 'reviewed')}
-              className={`rounded-xl border p-3 text-left transition ${filterStatus === 'reviewed' ? 'border-emerald-400 bg-emerald-50' : 'border-border bg-white hover:border-emerald-300'}`}
-            >
-              <div className="text-xs text-muted-foreground">已审核</div>
-              <div className="mt-1 text-xl font-bold text-emerald-600">{reviewedCount}</div>
-            </button>
-            <div className="rounded-xl border border-border bg-white p-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-xl border border-border bg-white p-4">
               <div className="text-xs text-muted-foreground">合同累计结算</div>
-              <div className="mt-1 text-xl font-bold text-[var(--color-primary)]">{formatCurrency(filteredStats.totalAmount)}</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-primary)] sm:text-3xl">{formatCurrency(filteredStats.totalAmount)}</div>
             </div>
-            <div className="rounded-xl border border-border bg-white p-3">
-              <div className="text-xs text-muted-foreground">合同进度未付</div>
-              <div className="mt-1 text-xl font-bold text-red-500">{formatCurrency(filteredStats.totalProgressPending)}</div>
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="text-xs text-muted-foreground">进度应付</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-[#FF7D00] sm:text-3xl">{formatCurrency(filteredStats.totalPayable)}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="text-xs text-muted-foreground">决算应付（100%）</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-purple-600 sm:text-3xl">{formatCurrency(filteredStats.totalFinalPayable)}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="text-xs text-muted-foreground">已付</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-success)] sm:text-3xl">{formatCurrency(filteredStats.totalPaid)}</div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
-            <span>合同进度应付 <b className="text-[var(--color-primary)]">{formatCurrency(filteredStats.totalPayable)}</b></span>
-            <span>合同100%应付 <b className="text-purple-600">{formatCurrency(filteredStats.totalFinalPayable)}</b></span>
-            <span>合同累计已付 <b className="text-emerald-600">{formatCurrency(filteredStats.totalPaid)}</b></span>
-            <span>合同100%未付 <b className="text-red-500">{formatCurrency(filteredStats.totalFinalPending)}</b></span>
-            <span>结算单数 <b>{filteredStats.totalSettlements}</b></span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
+            <span>进度未付 <b className="text-base text-[var(--color-danger)]">{formatCurrency(filteredStats.totalProgressPending)}</b></span>
+            <span>决算未付 <b className="text-base text-[var(--color-danger)]">{formatCurrency(filteredStats.totalFinalPending)}</b></span>
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              <button type="button" onClick={() => setFilterStatus(filterStatus === 'draft' ? 'all' : 'draft')} className={`rounded-md border px-2 py-1 transition ${filterStatus === 'draft' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-border bg-white hover:border-amber-300'}`}>待审核 {draftCount}</button>
+              <button type="button" onClick={() => setFilterStatus(filterStatus === 'reviewed' ? 'all' : 'reviewed')} className={`rounded-md border px-2 py-1 transition ${filterStatus === 'reviewed' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-border bg-white hover:border-emerald-300'}`}>已审核 {reviewedCount}</button>
+              <span className="rounded-md border border-border px-2 py-1">结算单数 {filteredStats.totalSettlements}</span>
+            </span>
           </div>
         </div>
       )}

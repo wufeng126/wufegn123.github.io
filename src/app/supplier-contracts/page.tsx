@@ -61,6 +61,10 @@ interface Stats {
   avgPaymentRatio: number;
   totalSettlement: number;
   totalPayable: number;
+  /** 进度应付（非最终结算的应付合计） */
+  totalProgressPayable?: number;
+  /** 决算应付（最终结算的应付合计） */
+  totalFinalPayable?: number;
   totalPaid: number;
   totalPending: number;
 }
@@ -304,33 +308,36 @@ export default function SupplierContractsPage() {
           ) : undefined}
         />
 
-        {/* 核心指标卡（点击筛选） */}
+        {/* 核心指标卡：金额是重点，状态做成小筛选条 */}
         {stats && (
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <button type="button" onClick={() => { setFilterStatus(filterStatus === 'active' ? 'all' : 'active'); setPage(1); }} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'active' ? 'border-emerald-400 bg-emerald-50' : 'border-border bg-white hover:border-emerald-300'}`}>
-                <p className="text-xs text-muted-foreground">履约中</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600">{activeCount}</p>
-              </button>
-              <button type="button" onClick={() => { setFilterStatus(filterStatus === 'done' ? 'all' : 'done'); setPage(1); }} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'done' ? 'border-blue-400 bg-blue-50' : 'border-border bg-white hover:border-blue-300'}`}>
-                <p className="text-xs text-muted-foreground">已完结</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-blue-600">{doneCount}</p>
-              </button>
-              <button type="button" onClick={() => { setFilterStatus(filterStatus === 'expiring' ? 'all' : 'expiring'); setPage(1); }} className={`rounded-xl border p-3 text-left transition ${filterStatus === 'expiring' ? 'border-amber-400 bg-amber-50' : 'border-border bg-white hover:border-amber-300'}`}>
-                <p className="text-xs text-muted-foreground">30天内到期</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-amber-600">{expiringCount}</p>
-              </button>
-              <div className="rounded-xl border border-border bg-white p-3">
-                <p className="text-xs text-muted-foreground">合同总数</p>
-                <p className="mt-1 text-xl font-bold tabular-nums">{stats.totalContracts}</p>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-border bg-white p-4">
+                <p className="text-xs text-muted-foreground">累计结算</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-primary)] sm:text-3xl">{formatCurrency(stats.totalSettlement)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-white p-4">
+                <p className="text-xs text-muted-foreground">进度应付</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-[#FF7D00] sm:text-3xl">{formatCurrency(stats.totalProgressPayable ?? stats.totalPayable)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-white p-4">
+                <p className="text-xs text-muted-foreground">决算应付</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-purple-600 sm:text-3xl">{formatCurrency(stats.totalFinalPayable ?? 0)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-white p-4">
+                <p className="text-xs text-muted-foreground">已付</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-success)] sm:text-3xl">{formatCurrency(stats.totalPaid)}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
-              <span>累计结算 <b className="text-[var(--color-primary)]">{formatCurrency(stats.totalSettlement)}</b></span>
-              <span>应付 <b className="text-amber-600">{formatCurrency(stats.totalPayable)}</b></span>
-              <span>已付 <b className="text-emerald-600">{formatCurrency(stats.totalPaid)}</b></span>
-              <span>未付 <b className="text-red-500">{formatCurrency(stats.totalPending)}</b></span>
-              <span>平均付款比例 <b>{stats.avgPaymentRatio ?? 0}%</b></span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
+              <span>未付 <b className="text-base text-[var(--color-danger)]">{formatCurrency(stats.totalPending)}</b></span>
+              <span>平均付款比例 <b className="text-base text-foreground">{stats.avgPaymentRatio ?? 0}%</b></span>
+              <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                <button type="button" onClick={() => { setFilterStatus(filterStatus === 'active' ? 'all' : 'active'); setPage(1); }} className={`rounded-md border px-2 py-1 transition ${filterStatus === 'active' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-border bg-white hover:border-emerald-300'}`}>履约中 {activeCount}</button>
+                <button type="button" onClick={() => { setFilterStatus(filterStatus === 'done' ? 'all' : 'done'); setPage(1); }} className={`rounded-md border px-2 py-1 transition ${filterStatus === 'done' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-border bg-white hover:border-blue-300'}`}>已完结 {doneCount}</button>
+                <button type="button" onClick={() => { setFilterStatus(filterStatus === 'expiring' ? 'all' : 'expiring'); setPage(1); }} className={`rounded-md border px-2 py-1 transition ${filterStatus === 'expiring' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-border bg-white hover:border-amber-300'}`}>30天内到期 {expiringCount}</button>
+                <span className="rounded-md border border-border px-2 py-1">合同总数 {stats.totalContracts}</span>
+              </span>
             </div>
           </div>
         )}
@@ -380,7 +387,8 @@ export default function SupplierContractsPage() {
               <TH className="text-center">进度/结算比例</TH>
               <TH className="text-center">决算比例</TH>
               <TH className={numCell()}>累计结算</TH>
-              <TH className={numCell()}>应付</TH>
+              <TH className={numCell()}>进度应付</TH>
+              <TH className={numCell()}>决算应付</TH>
               <TH className={numCell()}>已付</TH>
               <TH>到期日</TH>
               <TH className="text-center">状态</TH>
@@ -389,7 +397,7 @@ export default function SupplierContractsPage() {
           )}
         >
           {pagedContracts.length === 0 ? (
-            <EmptyRow colSpan={canManage ? 9 : 8} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
+            <EmptyRow colSpan={canManage ? 10 : 9} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
           ) : pagedContracts.map(contract => (
             <TableRow key={contract.id} className="hover:bg-muted/40">
               <TableCell>
@@ -407,7 +415,7 @@ export default function SupplierContractsPage() {
                 <div className="font-medium text-purple-600">{Number(contract.payment_ratio_final || 0)}%</div>
               </TableCell>
               <TableCell className={numCell("font-medium text-primary")}>{formatCurrency(contract.total_settlement)}</TableCell>
-              <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency(contract.total_payable)}</TableCell>
+              <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency((contract as any).progress_payable ?? contract.total_payable)}</TableCell>`n              <TableCell className={numCell("font-medium text-purple-600")}>{formatCurrency((contract as any).final_payable ?? 0)}</TableCell>
               <TableCell className={numCell("text-green-600")}>{formatCurrency(contract.total_paid)}</TableCell>
               <TableCell>
                 {contract.expire_date ? (() => {
