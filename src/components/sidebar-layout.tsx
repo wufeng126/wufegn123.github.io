@@ -236,9 +236,31 @@ export default function SidebarLayout({
   const [hoverExpanded, setHoverExpanded] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // 待我审批数量（用于侧边栏「我的提交」角标）
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [isMobile, setIsMobile] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(768);
   const pathname = usePathname();
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPending = async () => {
+      try {
+        const res = await fetch('/api/my-pending-approvals', { credentials: 'include', cache: 'no-store' });
+        if (!res.ok) return;
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const reports = Array.isArray(json?.data?.reports) ? json.data.reports.length : 0;
+        const settlements = Array.isArray(json?.data?.settlements) ? json.data.settlements.length : 0;
+        setPendingApprovalCount(reports + settlements);
+      } catch {
+        // 角标失败不影响导航
+      }
+    };
+    void loadPending();
+    const timer = window.setInterval(loadPending, 120000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -689,6 +711,11 @@ export default function SidebarLayout({
                                 style={{ color: isSubActive ? 'var(--color-primary)' : '#94A3B8' }}
                               />
                               <span>{item.name}</span>
+                              {item.href.startsWith('/my-submissions') && pendingApprovalCount > 0 ? (
+                                <span className="ml-auto rounded-full bg-[#F53F3F] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                                  {pendingApprovalCount}
+                                </span>
+                              ) : null}
                             </Link>
                           );
                         })}

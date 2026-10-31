@@ -232,6 +232,15 @@ function formatNumber(value: unknown) {
   return toNumber(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 
+/** 结算单状态配色：草稿灰 / 待审批橙 / 已审批绿 / 已驳回红 */
+function statusBadgeClass(status?: string) {
+  if (status === 'pending') return 'bg-[#FFF7E8] text-[#B35B00]';
+  if (status === 'reviewed' || status === 'confirmed') return 'bg-[#E8FFEA] text-[#00A870]';
+  if (status === 'rejected') return 'bg-[#FFECE8] text-[#CB2634]';
+  if (status === 'draft') return 'bg-[#F2F3F5] text-[#4E5969]';
+  return 'bg-[#E8F3FF] text-[#165DFF]';
+}
+
 function statusText(status?: string) {
   if (status === 'inactive') return '停用';
   if (status === 'pending') return '待审批';
@@ -773,7 +782,13 @@ export function TeamSettlementLedgerPageClient() {
   const [groups, setGroups] = useState<TeamGroup[]>([]);
   const [settlements, setSettlements] = useState<TeamSettlement[]>([]);
   const [summary, setSummary] = useState(emptySummary);
-  const [viewMode, setViewMode] = useState<'summary' | 'detail'>(searchParams.get('view') === 'detail' ? 'detail' : 'summary');
+  const [viewMode, setViewMode] = useState<'summary' | 'detail'>(() => {
+    const urlView = searchParams.get('view');
+    if (urlView === 'detail' || urlView === 'summary') return urlView;
+    // 手机默认进「结算明细」卡片视图，避免一进来就是需要左右拖的宽表
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) return 'detail';
+    return 'summary';
+  });
   const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
   const [teamId, setTeamId] = useState(searchParams.get('teamId') || '');
   // 月份默认空（全部月份），仅用户主动选择时才按月份筛选
@@ -1234,7 +1249,7 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatMoney(row.split_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.total_hours)}</td>
-                  <td className="px-4 py-3 text-center"><span className="rounded-md bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{statusText(row.status)}</span></td>
+                  <td className="px-4 py-3 text-center"><span className={`rounded-md px-2 py-1 text-xs ${statusBadgeClass(row.status)}`}>{statusText(row.status)}</span></td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[#165DFF] hover:underline">查看详情</Link>
@@ -1281,7 +1296,7 @@ export function TeamSettlementLedgerPageClient() {
                   <h3 className="truncate font-medium">{row.team_name || row.settlement_no || `#${row.id}`}</h3>
                   <p className="mt-1 truncate text-xs text-[#86909C]">{row.project_name || '-'} / {row.settlement_month}</p>
                 </div>
-                <span className="rounded-md bg-[#E8F3FF] px-2 py-1 text-xs text-[#165DFF]">{statusText(row.status)}</span>
+                <span className={`rounded-md px-2 py-1 text-xs ${statusBadgeClass(row.status)}`}>{statusText(row.status)}</span>
               </div>
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <div><dt className="text-xs text-[#86909C]">结算金额（计入成本）</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.quantity_amount)}</dd></div>
@@ -1724,6 +1739,14 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
 
     if (mode === 'submit' && items.length === 0) {
       setMessage('提交审批前请至少录入一条结算工程量');
+      return;
+    }
+    if (items.some((item) => item.quantity < 0 || item.unit_price < 0)) {
+      setMessage('工程量、单价不能为负数，请检查');
+      return;
+    }
+    if (deductionTotal > quantityTotal + 0.005) {
+      setMessage('扣款合计不能大于结算金额，请检查借支/劳保/帮工/安全基金');
       return;
     }
 
@@ -2470,7 +2493,7 @@ export function TeamSettlementDetailPageClient() {
                 <p className="mt-1 text-sm text-[#86909C]">{settlement.settlement_no || `#${settlement.id}`}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="w-fit rounded-md bg-[#E8F3FF] px-3 py-1 text-sm text-[#165DFF]">{statusText(settlement.status)}</span>
+                <span className={`w-fit rounded-md px-3 py-1 text-sm ${statusBadgeClass(settlement.status)}`}>{statusText(settlement.status)}</span>
                 {((settlement.status || 'draft') === 'draft' || settlement.status === 'rejected') && canSubmitSettlement && (
                   <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#722ED1] px-3 text-xs font-medium text-white hover:bg-[#5B21B6] disabled:opacity-50">
                     {workflowLoading ? '提交中…' : '提交审批'}
