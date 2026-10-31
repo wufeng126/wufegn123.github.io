@@ -1,5 +1,8 @@
 export type ConstructionRiskType = 'change' | 'visa' | 'delay' | 'quality' | 'safety' | 'cost';
 export type ConstructionRiskLevel = 'low' | 'medium' | 'high';
+/** 施工日志风险识别总开关：默认关闭（风险池功能暂停使用）；需要恢复时配置环境变量 CONSTRUCTION_RISK_ENABLED=1 */
+export const RISK_DETECTION_ENABLED = process.env.CONSTRUCTION_RISK_ENABLED === '1';
+
 export type ConstructionRiskWorkflowStatus = 'pending' | 'confirmed' | 'ignored' | 'resolved' | 'monthly' | 'monthly_included' | 'visa_created';
 
 export interface ConstructionLogRisk {
@@ -248,6 +251,8 @@ export function detectConstructionLogRisk(input: { content?: string | null; issu
     summary: '未识别到风险',
     recommendation: '',
   };
+  // 风险池暂停使用：默认不识别风险（测试环境保留，便于规则用例）
+  if (!RISK_DETECTION_ENABLED && process.env.NODE_ENV !== 'test') return emptyResult;
   if (!text) return emptyResult;
 
   // 逐关键词匹配，并应用降误报过滤：

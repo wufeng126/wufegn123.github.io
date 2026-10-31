@@ -316,6 +316,9 @@ function TabButton({
   );
 }
 
+/** 风险池功能开关：暂停使用，需要恢复时改成 true */
+const RISK_POOL_ENABLED = false;
+
 export default function ConstructionLogsClient() {
   const { user, isSuperAdmin } = usePermission();
   const canManageSubmitters = useMemo(() => {
@@ -346,7 +349,9 @@ export default function ConstructionLogsClient() {
   const [loading, setLoading] = useState(true);
   const [riskLoading, setRiskLoading] = useState(false);
   const [tab, setTab] = useState<'stats' | 'logs' | 'risks' | 'submitters'>(
-    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'risks' || tabParam === 'submitters' ? tabParam : 'logs',
+    tabParam === 'stats' || tabParam === 'logs' || tabParam === 'submitters'
+      ? tabParam
+      : (RISK_POOL_ENABLED && tabParam === 'risks' ? 'risks' : 'logs'),
   );
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [statsProjectId, setStatsProjectId] = useState('all');
@@ -769,7 +774,7 @@ export default function ConstructionLogsClient() {
 
         <div className="mobile-tab-strip overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <div className="flex min-w-max gap-1">
-          <TabButton active={tab === 'risks'} onClick={() => setTab('risks')} icon={AlertTriangle}>风险池</TabButton>
+          {RISK_POOL_ENABLED && (<TabButton active={tab === 'risks'} onClick={() => setTab('risks')} icon={AlertTriangle}>风险池</TabButton>)}
           <TabButton active={tab === 'stats'} onClick={() => setTab('stats')} icon={BarChart3}>提交统计</TabButton>
           <TabButton active={tab === 'logs'} onClick={() => setTab('logs')} icon={ClipboardList}>日志记录</TabButton>
           {canManageSubmitters && (
@@ -778,7 +783,7 @@ export default function ConstructionLogsClient() {
           </div>
         </div>
 
-        {tab === 'risks' && (
+        {RISK_POOL_ENABLED && tab === 'risks' && (
           <div className="space-y-3">
             <section className="mobile-filter-panel overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
