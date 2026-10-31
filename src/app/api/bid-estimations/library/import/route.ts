@@ -14,6 +14,8 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
  */
 type ImportRow = {
   code?: string;
+  /** 人工指定的标准清单 ID（同名不同叫法时由用户在预览里选） */
+  standard_item_id?: number;
   standard_name?: string;
   unit?: string;
   price?: number | string;
@@ -103,6 +105,12 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      const manualId = Number(row.standard_item_id) || 0;
+      if (manualId > 0) {
+        const manualStandard = standardList.find((item) => item.id === manualId) || null;
+        resolved.push({ standard: manualStandard, row, price, rowIndex: index });
+        return;
+      }
       const code = String(row.code || '').trim().toUpperCase();
       let standard = code ? byCode.get(code) : undefined;
       if (!standard) {
@@ -150,6 +158,31 @@ export async function POST(request: NextRequest) {
       item.standard = standard;
     }
 
+    // 记住"同一工作不同叫法"：把本次匹配上的原始名称存成别名，下次自动命中
+    try {
+      const aliasMap = new Map<string, { standard_item_id: number; alias_name: string; source_type: string }>();
+      resolved.forEach((item) => {
+        if (!item.standard) return;
+        const original = String(item.row.standard_name || '').trim();
+        if (!original) return;
+        if (normalizeName(original) === normalizeName(item.standard.name)) return;
+        const key = `${item.standard.id}|${normalizeName(original)}`;
+        if (!aliasMap.has(key)) {
+          aliasMap.set(key, { standard_item_id: item.standard.id, alias_name: original, source_type: 'import' });
+        }
+      });
+      const aliasRows = Array.from(aliasMap.values());
+      if (aliasRows.length > 0) {
+        const { error: aliasError } = await supabase
+          .from('bid_item_aliases')
+          .upsert(aliasRows, { onConflict: 'standard_item_id,alias_name', ignoreDuplicates: true });
+        if (aliasError) {
+          errors.push(`别名保存失败（不影响历史价）：${aliasError.message}`);
+        }
+      }
+    } catch (aliasError) {
+      errors.push(`别名保存失败（不影响历史价）：${aliasError instanceof Error ? aliasError.message : '未知错误'}`);
+    }
     // 第三轮：写入历史价
     const priceRows = resolved
       .filter((item) => item.standard)

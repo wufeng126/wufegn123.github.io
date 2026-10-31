@@ -16,7 +16,8 @@ type ParsedRow = {
   project_type: string;
   material_included: boolean;
   remark: string;
-  matched: 'code' | 'name' | 'fuzzy' | 'new';
+  matched: 'code' | 'name' | 'fuzzy' | 'new' | 'manual';
+  standard_item_id?: number;
 };
 
 type ImportResult = {
@@ -92,18 +93,21 @@ export default function BidPriceImportPage() {
     return { matched, created, total };
   }, [rows]);
 
-  async function loadStandards() {
+  async function loadStandards(): Promise<Array<{ id: number; code: string; name: string }>> {
     try {
       const res = await fetch('/api/bid-estimations/library', { credentials: 'include' });
       const json = await res.json();
       const list = json?.data?.standards || json?.standards || [];
-      setStandards(Array.isArray(list) ? list.map((item: { id?: unknown; code?: string; name?: string }) => ({
+      const mapped = Array.isArray(list) ? list.map((item: { id?: unknown; code?: string; name?: string }) => ({
         id: Number(item.id),
         code: String(item.code || ''),
         name: String(item.name || ''),
-      })) : []);
+      })) : [];
+      setStandards(mapped);
+      return mapped;
     } catch {
       setStandards([]);
+      return [];
     }
   }
 
@@ -180,8 +184,8 @@ export default function BidPriceImportPage() {
           return;
         }
 
-        if (standards.length === 0) await loadStandards();
-        setRows(markMatched(parsed, standards));
+        const list = standards.length > 0 ? standards : await loadStandards();
+        setRows(markMatched(parsed, list));
       } catch (error) {
         setParseError(error instanceof Error ? error.message : '文件解析失败，请确认是 Excel 文件');
         setRows([]);
@@ -347,10 +351,32 @@ export default function BidPriceImportPage() {
                       <td className="px-3 py-2 text-[var(--color-text-3)]">{row.project_name || '-'}</td>
                       <td className="px-3 py-2 text-[var(--color-text-3)]">{row.material_included ? '含' : '否'}</td>
                       <td className="px-3 py-2">
-                        {row.matched === 'new' ? (
-                          <span className="rounded-md bg-[#FFF7E8] px-2 py-0.5 text-xs text-[#B35B00]">将新建清单</span>
-                        ) : row.matched === 'fuzzy' ? (
-                          <span className="rounded-md bg-[#E8F1FC] px-2 py-0.5 text-xs text-[var(--color-primary)]">模糊匹配</span>
+                        {row.matched === 'new' || row.matched === 'fuzzy' ? (
+                          <select
+                            value={row.standard_item_id || 0}
+                            onChange={(event) => {
+                              const id = Number(event.target.value) || 0;
+                              setRows((prev) => prev.map((item, itemIndex) => (
+                                itemIndex === index
+                                  ? {
+                                    ...item,
+                                    standard_item_id: id || undefined,
+                                    matched: id ? 'manual' : (item.matched === 'manual' ? 'new' : item.matched),
+                                  }
+                                  : item
+                              )));
+                            }}
+                            className="h-8 w-full max-w-[230px] rounded-md border border-[var(--border)] px-1 text-xs"
+                          >
+                            <option value={0}>按原名新建清单项</option>
+                            {standards.map((standard) => (
+                              <option key={standard.id} value={standard.id}>
+                                {standard.name}{standard.code ? `（${standard.code}）` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : row.matched === 'manual' ? (
+                          <span className="rounded-md bg-[#E8F1FC] px-2 py-0.5 text-xs text-[var(--color-primary)]">已指定清单项</span>
                         ) : (
                           <span className="rounded-md bg-[#E8FFEA] px-2 py-0.5 text-xs text-[#00A870]">已匹配</span>
                         )}
