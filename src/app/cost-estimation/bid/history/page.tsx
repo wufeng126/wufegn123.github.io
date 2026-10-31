@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ChevronDown, Search, TrendingUp, Upload } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Search, Trash2, TrendingUp, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+import { useConfirm } from '@/hooks/use-confirm';
 
 type PriceRow = {
   id: number;
@@ -59,6 +61,7 @@ export default function BidHistoryPage() {
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [keyword, setKeyword] = useState('');
   const [expanded, setExpanded] = useState<number | null>(null);
+  const confirm = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +82,28 @@ export default function BidHistoryPage() {
     return () => { cancelled = true; };
   }, []);
 
+  async function handleDeletePrice(row: PriceRow) {
+    const ok = await confirm({
+      title: '删除这条历史价？',
+      description: [row.project_name || '未填项目', row.bid_year || '未填年份', money(row.price)].join(' · '),
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch('/api/bid-estimations/library', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ type: 'bidPrice', id: row.id }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '删除失败');
+      setPrices((prev) => prev.filter((item) => item.id !== row.id));
+      toast.success('已删除');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '删除失败');
+    }
+  }
   const groups = useMemo<Group[]>(() => {
     const byStandard = new Map<number, PriceRow[]>();
     prices.forEach((row) => {
@@ -232,7 +257,7 @@ export default function BidHistoryPage() {
                             <th className="px-4 py-2 text-left">地区 / 类型</th>
                             <th className="px-4 py-2 text-right">中标单价</th>
                             <th className="px-4 py-2 text-left">含材料</th>
-                            <th className="px-4 py-2 text-left">备注</th>
+                            <th className="px-4 py-2 text-left">备注</th>`n                            <th className="px-4 py-2 text-right">操作</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border)]">
@@ -246,6 +271,16 @@ export default function BidHistoryPage() {
                               <td className="px-4 py-2 text-right font-medium tabular-nums">{money(row.price)}</td>
                               <td className="px-4 py-2 text-[var(--color-text-3)]">{row.material_included ? '含' : '否'}</td>
                               <td className="px-4 py-2 text-[var(--color-text-3)]">{row.remark || '-'}</td>
+                              <td className="px-4 py-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePrice(row)}
+                                  className="rounded p-1 text-[var(--color-text-3)] transition hover:bg-red-50 hover:text-[var(--color-danger)]"
+                                  aria-label="删除这条历史价"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>

@@ -22,6 +22,7 @@ type ParsedRow = {
 
 type ImportResult = {
   imported?: number;
+  duplicated?: number;
   created_standards?: number;
   skipped?: number;
   errors?: string[];
@@ -284,7 +285,7 @@ export default function BidPriceImportPage() {
             <ul className="mt-2 space-y-1 text-sm text-[var(--foreground)]">
               <li>成功写入历史价：<b>{result.imported || 0}</b> 条</li>
               <li>新建标准清单：<b>{result.created_standards || 0}</b> 项</li>
-              <li>跳过：<b>{result.skipped || 0}</b> 行</li>
+              <li>跳过（重复或无效）：<b>{result.skipped || 0}</b> 行，其中重复 <b>{result.duplicated || 0}</b> 行</li>
             </ul>
             {result.errors && result.errors.length > 0 ? (
               <div className="mt-2 max-h-40 overflow-y-auto rounded-lg bg-white p-2 text-xs text-[var(--color-danger)]">

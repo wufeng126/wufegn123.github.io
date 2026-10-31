@@ -199,8 +199,36 @@ export async function POST(request: NextRequest) {
         remark: String(item.row.remark || '').trim() || null,
       }));
 
-    for (let i = 0; i < priceRows.length; i += 200) {
-      const chunk = priceRows.slice(i, i + 200);
+    // 去重：同一清单项 + 同一单价 + 同年份 + 同项目 → 视为重复（避免重复导入把中位价带偏）
+    let duplicateCount = 0;
+    let rowsToInsert = priceRows;
+    try {
+      const standardIds = Array.from(new Set(priceRows.map((row) => row.standard_item_id)));
+      const existing: Array<{ standard_item_id: number; price: unknown; bid_year: unknown; project_name: unknown }> = [];
+      for (const standardId of standardIds) {
+        const { data: existingRows } = await supabase
+          .from('bid_price_history')
+          .select('standard_item_id, price, bid_year, project_name')
+          .eq('standard_item_id', standardId);
+        (existingRows || []).forEach((row) => existing.push(row as typeof existing[number]));
+      }
+      const keyOf = (standardId: number, price: unknown, year: unknown, project: unknown) =>
+        `${standardId}|${Number(price).toFixed(2)}|${Number(year) || 0}|${String(project || '').trim()}`;
+      const seen = new Set(existing.map((row) => keyOf(Number(row.standard_item_id), row.price, row.bid_year, row.project_name)));
+      rowsToInsert = priceRows.filter((row) => {
+        const key = keyOf(row.standard_item_id, row.price, row.bid_year, row.project_name);
+        if (seen.has(key)) {
+          duplicateCount += 1;
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    } catch {
+      // 去重失败不阻断导入
+    }
+    for (let i = 0; i < rowsToInsert.length; i += 200) {
+      const chunk = rowsToInsert.slice(i, i + 200);
       const { error } = await supabase.from('bid_price_history').insert(chunk);
       if (error) {
         errors.push(`写入历史价失败（第 ${i + 1}~${i + chunk.length} 条）：${error.message}`);
@@ -212,7 +240,8 @@ export async function POST(request: NextRequest) {
     return apiSuccess({
       imported,
       created_standards: createdStandards,
-      skipped: rows.length - priceRows.length,
+      skipped: rows.length - rowsToInsert.length,
+      duplicated: duplicateCount,
       errors: errors.slice(0, 20),
       new_standards: pendingStandards.slice(0, 50),
     });

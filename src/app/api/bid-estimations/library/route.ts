@@ -130,6 +130,30 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireApiWritePermission(request);
+    if (!auth.ok) return auth.response;
+
+    const body = await request.json().catch(() => ({}));
+    const type = body.type as string | null;
+    const ids: number[] = Array.isArray(body.ids)
+      ? body.ids.map((value: unknown) => toNumber(value)).filter((value: number) => value > 0)
+      : [toNumber(body.id)].filter((value: number) => value > 0);
+
+    if (!isLibraryType(type) || ids.length === 0) {
+      return NextResponse.json({ success: false, error: '缺少删除参数' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from(tableByType[type]).delete().in('id', ids);
+    if (error) throw new Error(error.message);
+
+    return NextResponse.json({ success: true, data: { deleted: ids.length } });
+  } catch (e: unknown) {
+    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : '删除投标资料失败' }, { status: 500 });
+  }
+}
 function buildPayload(type: LibraryType, body: Record<string, unknown>) {
   if (type === 'standard') {
     return buildStandardPayload(body);
