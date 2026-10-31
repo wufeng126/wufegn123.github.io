@@ -225,6 +225,23 @@ export async function GET(request: NextRequest) {
     const salariesLastYear = salariesLastYearResult.data || [];
     const salariesTrend = salariesTrendResult.data || [];
     const salaryPayments = salaryPaymentsResult.data || [];
+    // 工种映射：工资记录引用的工人可能挂在其他项目行下（跨项目），按 worker_id 全量补齐工种
+    const referencedWorkerIds = Array.from(new Set(
+      [...salariesCurrent, ...salariesPrev, ...salariesLastYear, ...salariesTrend]
+        .map((s: Record<string, unknown>) => Number(s.worker_id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ));
+    const globalWorkerTypeMap = new Map<number, string>();
+    if (referencedWorkerIds.length > 0) {
+      const { data: typeRows } = await supabase
+        .from('workers')
+        .select('id, work_type')
+        .in('id', referencedWorkerIds);
+      (typeRows || []).forEach((row: Record<string, unknown>) => {
+        const type = String(row.work_type || '').trim();
+        if (type) globalWorkerTypeMap.set(Number(row.id), type);
+      });
+    }
     // 工资发放索引：worker_id + year_month → 已发金额（用于本月实发精确归属）
     // 兼容缺少 year_month 的历史发放记录：再用支付日期所属月份兜底
     const salaryPaymentByWorkerMonth = new Map<string, number>();
@@ -451,14 +468,15 @@ export async function GET(request: NextRequest) {
       const teamSettlementCost = teamSettlementCostByProject.get(pid)?.month || 0;
       const salaryCost = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.gross_pay || 0))) + teamSettlementCost;
       const salaryPaid = safeSum(projSalaryPayments.filter((sp: Record<string, unknown>) => sp.project_id === pid).map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)));
-      // 工种工资拆分（按工人 work_type 汇总当月应发）
+      // 工种工资拆分（按工人 work_type 汇总当月应发；优先用全量工种映射，兼容跨项目工资记录）
       const workerTypeMap = new Map<number, string>();
       projWorkers.forEach((w: Record<string, unknown>) => {
         workerTypeMap.set(Number(w.id), String(w.work_type || '未分类'));
       });
       const tradeWages: Record<string, number> = {};
       projSalaries.forEach((s: Record<string, unknown>) => {
-        const type = workerTypeMap.get(Number(s.worker_id)) || '未分类';
+        const workerId = Number(s.worker_id);
+        const type = globalWorkerTypeMap.get(workerId) || workerTypeMap.get(workerId) || '未分类';
         tradeWages[type] = Math.round(((tradeWages[type] || 0) + Number(s.gross_pay || 0)) * 100) / 100;
       });
 
