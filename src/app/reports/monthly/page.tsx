@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';import { useRouter } from 'next/navigation';
 import {
   Download, FileText, Printer, History,
   Sparkles, RefreshCw, AlertTriangle, TrendingUp, TrendingDown,
@@ -23,7 +22,6 @@ const EChartsWrapper = dynamic(() => import('@/components/charts/echarts-wrapper
 import { StandardDashboardLayout } from '@/components/dashboard/standard-layout';
 import { CollapsibleSection } from '@/components/dashboard/collapsible-section';
 import { HistoryArchiveDialog } from '@/components/dashboard/history-archive-dialog';
-import { MonthlyReportWorkflowBar } from './_components/monthly-report-workflow-bar';
 import { toast } from 'sonner';
 
 // ─── Types ─────────────────────────────────────────────
@@ -197,8 +195,6 @@ export default function MonthlyReportPage() {
   const [data, setData] = useState<MonthlyReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [reportMode, setReportMode] = useState<ReportMode>('boss');
-  const [workflowExpanded, setWorkflowExpanded] = useState(false);
-  const workflowRef = useRef<HTMLDivElement>(null);
   const [aiInterpreting, setAiInterpreting] = useState(false);
   const [aiContent, setAiContent] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -555,7 +551,13 @@ export default function MonthlyReportPage() {
                 </button>
               ))}
             </div>
-            <Button variant="outline" size="sm" onClick={handleCreateAnalysis}><FileText className="w-3.5 h-3.5 mr-1" />{analysisData ? '查看本月分析' : '写本月分析'}</Button>
+            <Button
+              size="sm"
+              className="bg-[#165DFF] text-white shadow-sm hover:bg-[#0E42D2]"
+              onClick={handleCreateAnalysis}
+            >
+              <FileText className="w-3.5 h-3.5 mr-1" />{analysisData ? '查看本月分析' : '写本月分析'}
+            </Button>
             <Button variant="outline" size="sm" onClick={loadData} disabled={loading}><RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />刷新</Button>
             <Button variant="outline" size="sm" onClick={handleExportPDF}><FileText className="w-3.5 h-3.5 mr-1" />PDF</Button>
             <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}><Eye className="w-3.5 h-3.5 mr-1" />预览</Button>
@@ -563,39 +565,6 @@ export default function MonthlyReportPage() {
             <Button variant="outline" size="sm" onClick={handleArchiveReport} disabled={!data}><Archive className="w-3.5 h-3.5 mr-1" />存档</Button>
             <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}><History className="w-3.5 h-3.5 mr-1" />历史</Button>
           </div>
-        </div>
-
-        <div ref={workflowRef}>
-          <MonthlyReportWorkflowBar
-            month={month}
-            projectId={projectId}
-            expanded={workflowExpanded}
-            onExpandedChange={setWorkflowExpanded}
-            summary={{
-              monthIncome: ov.monthIncome,
-              laborSalary: projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0),
-              salaryPaid: ov.monthSalaryPaid ?? 0,
-              teamSettlement: projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0),
-              monthCost: ov.monthCost,
-              operatingProfit: ov.operatingProfit,
-              operatingProfitRate: ov.operatingProfitRate,
-              paymentRate: ov.paymentRate,
-              unreceived: ov.unreceived,
-              tradeWages: projectList.reduce<Record<string, number>>((acc, project) => {
-                Object.entries(project.tradeWages || {}).forEach(([type, amount]) => {
-                  acc[type] = Math.round(((acc[type] || 0) + Number(amount || 0)) * 100) / 100;
-                });
-                return acc;
-              }, {}),
-              projects: projectList.map((project) => ({
-                name: project.name,
-                monthIncome: project.monthIncome,
-                monthLaborSalaryCost: project.monthLaborSalaryCost,
-                monthSalaryPaid: project.monthSalaryPaid,
-                monthTeamSettlementCost: project.monthTeamSettlementCost,
-              })),
-            }}
-          />
         </div>
 
         {loading && !data ? (

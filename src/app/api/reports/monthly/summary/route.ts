@@ -520,7 +520,24 @@ export async function GET(request: NextRequest) {
       const operatingProfitRate = (monthIncome + monthVisaIncome) > 0 ? (operatingProfit / (monthIncome + monthVisaIncome)) * 100 : 0;
 
       // 现金净流 = 本月实际回款 - 本月实际支付（收付实现制）
-      const monthSalaryPayment = safeSum(projSalaries.filter((s: Record<string, unknown>) => s.payment_status === 'paid').map((s: Record<string, unknown>) => Number(s.net_pay || 0)));
+      // 本月实发：优先按「工资发放」记录（salary_payments）的本月支付金额汇总；无发放记录时回退工资单已付状态
+      const monthSalaryPaymentFromPayments = safeSum(
+        projSalaryPayments
+          .filter((sp: Record<string, unknown>) => {
+            const payDate = String(sp.payment_date || '').slice(0, 10);
+            if (payDate) return payDate.startsWith(reportMonth);
+            return String(sp.year_month || '') === reportMonth;
+          })
+          .map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)),
+      );
+      const monthSalaryPaymentFromStatus = safeSum(
+        projSalaries
+          .filter((s: Record<string, unknown>) => s.payment_status === 'paid')
+          .map((s: Record<string, unknown>) => Number(s.net_pay || 0)),
+      );
+      const monthSalaryPayment = monthSalaryPaymentFromPayments > 0
+        ? monthSalaryPaymentFromPayments
+        : monthSalaryPaymentFromStatus;
       const monthActualPayment = monthSalaryPayment + monthSupplierPayments + monthExpenseCost + monthMaterialCost + monthTaxCost;
       const cashNetFlow = monthReceived - monthActualPayment;
       const cashNetFlowRate = monthReceived > 0 ? (cashNetFlow / monthReceived) * 100 : 0;
