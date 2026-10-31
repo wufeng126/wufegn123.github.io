@@ -670,7 +670,7 @@ function CostCenterContent() {
               <div className="flex-1">
                 <p className="text-sm font-medium" style={{ color: 'var(--color-text-3)' }}>人工总成本</p>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-2xl font-bold" style={{ color: '#722ED1' }}>
+                  <span className="text-2xl font-bold" style={{ color: '#165DFF' }}>
                     {formatWanYuan(filteredData?.summary.totalSalary || 0).replace('¥', '')}
                   </span>
                   <span className="text-xs font-medium" style={{ color: 'var(--color-text-3)' }}>万元</span>
@@ -920,7 +920,7 @@ function CostCenterContent() {
                           <td className="px-4 py-3 text-right text-sm" style={{ color: '#FF7D00' }}>
                             {project.settlementAmount > 0 ? formatWanYuan(project.settlementAmount) : '暂无数据'}
                           </td>
-                          <td className="px-4 py-3 text-right text-sm" style={{ color: '#722ED1' }}>
+                          <td className="px-4 py-3 text-right text-sm" style={{ color: '#165DFF' }}>
                             {project.salaryAmount > 0 ? formatWanYuan(project.salaryAmount) : '暂无数据'}
                           </td>
                           <td className="px-4 py-3 text-right text-sm" style={{ color: 'var(--color-cyan)' }}>
@@ -1010,7 +1010,7 @@ function CostCenterContent() {
                         <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#FF7D00' }}>
                           {formatWanYuan(filteredData.summary.totalSettlement)}
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#722ED1' }}>
+                        <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#165DFF' }}>
                           {formatWanYuan(filteredData.summary.totalSalary)}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-semibold" style={{ color: 'var(--color-cyan)' }}>
@@ -1070,7 +1070,7 @@ function CostCenterContent() {
                         </div>
                         <div>
                           <span style={{ color: 'var(--color-text-3)' }}>工人工资：</span>
-                          <span style={{ color: '#722ED1' }}>{project.salaryAmount > 0 ? `${formatWanYuan(project.salaryAmount)} 万元` : '暂无数据'}</span>
+                          <span style={{ color: '#165DFF' }}>{project.salaryAmount > 0 ? `${formatWanYuan(project.salaryAmount)} 万元` : '暂无数据'}</span>
                         </div>
                         <div>
                           <span style={{ color: 'var(--color-text-3)' }}>综合费用：</span>

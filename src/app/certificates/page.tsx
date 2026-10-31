@@ -734,7 +734,7 @@ export default function CertificatesPage() {
               </div>
               <div>
                 <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>人员证件</p>
-                <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{stats.personnelCount}</p>
+                <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{stats.personnelCount}</p>
               </div>
             </div>
           </CardContent>
@@ -951,7 +951,7 @@ export default function CertificatesPage() {
                           {cert.owner_type === 'company' ? (
                             <Building2 className="w-3.5 h-3.5" style={{ color: '#00B42A' }} />
                           ) : (
-                            <User className="w-3.5 h-3.5" style={{ color: '#722ED1' }} />
+                            <User className="w-3.5 h-3.5" style={{ color: '#165DFF' }} />
                           )}
                           <span className="text-sm" style={{ color: 'var(--color-text-2)' }}>
                             {cert.owner_type === 'company' ? '公司' : '人员'}
@@ -1507,7 +1507,7 @@ export default function CertificatesPage() {
                     {currentCertificate.owner_type === 'company' ? (
                       <Building2 className="w-4 h-4" style={{ color: '#00B42A' }} />
                     ) : (
-                      <User className="w-4 h-4" style={{ color: '#722ED1' }} />
+                      <User className="w-4 h-4" style={{ color: '#165DFF' }} />
                     )}
                     <span style={{ color: 'var(--foreground)' }}>
                       {currentCertificate.owner_type === 'company' ? '公司证件' : '人员证件'}

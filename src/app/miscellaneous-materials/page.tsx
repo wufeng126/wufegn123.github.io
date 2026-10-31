@@ -40,7 +40,7 @@ const CATEGORY_OPTIONS: string[] = [...MISC_MATERIAL_CATEGORIES];
 
 // 分类配色（圆点 + 浅底）
 const CATEGORY_STYLES: Record<string, { dot: string; bg: string; color: string }> = {
-  '五金电料': { dot: '#722ED1', bg: '#F5EDFF', color: '#531DAB' },
+  '五金电料': { dot: '#165DFF', bg: '#F5EDFF', color: '#531DAB' },
   '电线电气': { dot: '#165DFF', bg: '#E8F3FF', color: '#0E42D2' },
   '水暖管件': { dot: '#0FC6C2', bg: '#E8FFFB', color: '#0B8A87' },
   '焊接耗材': { dot: '#F77234', bg: '#FFF3E8', color: '#C45418' },

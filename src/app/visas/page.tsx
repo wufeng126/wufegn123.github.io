@@ -1189,7 +1189,7 @@ export default function VisasPage() {
               </div>
               <div>
                 <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>签证总金额</p>
-                <p className="text-2xl font-bold" style={{ color: '#722ED1' }}>
+                <p className="text-2xl font-bold" style={{ color: '#165DFF' }}>
                   ¥<AnimatedNumber value={stats.totalAmount} format={(v) => v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })} />
                 </p>
               </div>
@@ -1277,12 +1277,12 @@ export default function VisasPage() {
             <CardContent className="pt-5 pb-5">
               <div className="flex min-w-0 items-center justify-between gap-2 mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F5E8FF' }}>
-                  <CheckCircle2 className="w-5 h-5" style={{ color: '#722ED1' }} />
+                  <CheckCircle2 className="w-5 h-5" style={{ color: '#165DFF' }} />
                 </div>
               </div>
-              <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{stats.completedCount}</p>
+              <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{stats.completedCount}</p>
               <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>已完成签证</p>
-              <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#722ED1' }}>点击查看 →</p>
+              <p className="text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#165DFF' }}>点击查看 →</p>
             </CardContent>
           </Card>
         </div>
@@ -1578,7 +1578,7 @@ export default function VisasPage() {
                       <TableCell className="text-right text-sm py-3" style={{ color: 'var(--color-text-2)' }}>
                         {visa.visa_quantity ? `${parseFloat(visa.visa_quantity).toLocaleString()} ${visa.visa_unit || ''}` : '-'}
                       </TableCell>
-                      <TableCell className="text-right font-medium py-3" style={{ color: '#722ED1' }}>
+                      <TableCell className="text-right font-medium py-3" style={{ color: '#165DFF' }}>
                         ¥{parseFloat(visa.visa_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-center py-3">
@@ -1667,7 +1667,7 @@ export default function VisasPage() {
                               onClick={() => handleReview(visa)}
                               className="h-7 px-2"
                               title="商务确认"
-                              style={{ color: '#722ED1' }}
+                              style={{ color: '#165DFF' }}
                             >
                               商务确认
                             </Button>
@@ -1746,7 +1746,7 @@ export default function VisasPage() {
                         </div>
                         <div className="rounded-md bg-[#F7F8FA] p-2">
                           <div style={{ color: 'var(--color-text-3)' }}>金额</div>
-                          <div className="mt-1 font-semibold" style={{ color: '#722ED1' }}>
+                          <div className="mt-1 font-semibold" style={{ color: '#165DFF' }}>
                             ¥{parseFloat(visa.visa_amount || '0').toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                           </div>
                         </div>
@@ -2207,7 +2207,7 @@ export default function VisasPage() {
                 </div>
                 <div>
                   <p className="text-sm mb-1" style={{ color: 'var(--color-text-3)' }}>签证金额</p>
-                  <p className="font-medium" style={{ color: '#722ED1' }}>
+                  <p className="font-medium" style={{ color: '#165DFF' }}>
                     ¥{parseFloat(currentVisa.visa_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -2398,7 +2398,7 @@ export default function VisasPage() {
               <p className="text-sm mb-2" style={{ color: 'var(--color-text-3)' }}>签证信息</p>
               <p className="font-mono font-medium mb-1" style={{ color: 'var(--color-primary)' }}>{currentVisa?.visa_number}</p>
               <p className="text-sm" style={{ color: 'var(--color-text-2)' }}>{currentVisa?.visa_name}</p>
-              <p className="text-lg font-medium mt-2" style={{ color: '#722ED1' }}>
+              <p className="text-lg font-medium mt-2" style={{ color: '#165DFF' }}>
                 ¥{currentVisa ? parseFloat(currentVisa.visa_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '0.00'}
               </p>
             </div>

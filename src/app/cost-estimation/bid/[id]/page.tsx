@@ -355,7 +355,7 @@ export default function BidDetailPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="rounded-xl border border-[#E5E6EB] bg-white">
             <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
-              <Users className="h-4 w-4 text-[#722ED1]" />
+              <Users className="h-4 w-4 text-[#165DFF]" />
               <span className="font-medium text-[#1D2129]">管理费明细</span>
             </div>
             <div className="divide-y divide-[#E5E6EB]">

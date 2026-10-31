@@ -159,7 +159,7 @@ export default function ProjectKnowledgePage() {
               {monthlyDocs.slice(0, 6).map(doc => {
                 const tags = normalizeTags(doc.tags);
                 const state = tags.find(t => t.startsWith('状态:'))?.replace('状态:', '') || '草稿';
-                const stateColors: Record<string, string> = { '草稿': 'bg-[#F2F3F5] text-[#4E5969]', '待项目经理补充': 'bg-[#E8F3FF] text-[#165DFF]', '待预算确认': 'bg-[#F5EEFF] text-[#722ED1]', '待老板批复': 'bg-[#FFF7E8] text-[#D46B08]', '已完成': 'bg-[#E8FFEA] text-[#00A870]' };
+                const stateColors: Record<string, string> = { '草稿': 'bg-[#F2F3F5] text-[#4E5969]', '待项目经理补充': 'bg-[#E8F3FF] text-[#165DFF]', '待预算确认': 'bg-[#F5EEFF] text-[#165DFF]', '待老板批复': 'bg-[#FFF7E8] text-[#D46B08]', '已完成': 'bg-[#E8FFEA] text-[#00A870]' };
                 return (
                   <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between p-3 rounded-lg border border-[#E5E6EB] hover:border-[#165DFF]/30 transition group">
                     <div className="min-w-0 flex-1">

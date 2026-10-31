@@ -44,7 +44,7 @@ const TYPE_COLORS: Record<string, string> = {
   '招待费': 'var(--color-primary)',
   '差旅费': '#00B42A',
   '房租水电': '#FF7D00',
-  '现金帮工': '#722ED1',
+  '现金帮工': '#165DFF',
   '办公用品': 'var(--color-cyan)',
   '其他杂费': 'var(--color-text-3)',
 };
@@ -676,10 +676,10 @@ function ComprehensiveExpenseContent() {
                 <Card style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   <CardContent className="pt-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="w-4 h-4" style={{ color: '#722ED1' }} />
+                      <Building2 className="w-4 h-4" style={{ color: '#165DFF' }} />
                       <p className="text-sm" style={{ color: 'var(--color-text-3)' }}>涉及项目</p>
                     </div>
-                    <p className="text-3xl font-bold" style={{ color: '#722ED1' }}>{fullStats.projectDetails.length}</p>
+                    <p className="text-3xl font-bold" style={{ color: '#165DFF' }}>{fullStats.projectDetails.length}</p>
                   </CardContent>
                 </Card>
               </div>

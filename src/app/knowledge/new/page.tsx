@@ -286,7 +286,7 @@ export default function NewKnowledgePage() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-dashed border-[#C9CDD4] bg-[#FBFCFF] px-3 py-2 text-left text-sm text-[#4E5969] transition hover:border-[#165DFF] hover:bg-white"
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-dashed border-[#C9CDD4] bg-[#FBFCFF] px-3 py-2 text-left text-sm text-[#4E5969] transition hover:border-[#165DFF] hover:bg-white"
               >
                 <span className="inline-flex items-center gap-2">
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin text-[#165DFF]" /> : <Upload className="h-4 w-4 text-[#165DFF]" />}

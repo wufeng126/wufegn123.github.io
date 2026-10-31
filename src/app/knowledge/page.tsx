@@ -66,9 +66,9 @@ const categoryColors: Record<string, string> = {
   成本经验: '#0EA5E9',
   签证变更: '#14B8A6',
   施工管理: '#FF7D00',
-  合同结算: '#722ED1',
+  合同结算: '#165DFF',
   标准资料: 'var(--color-text-3)',
-  投标策略: '#722ED1',
+  投标策略: '#165DFF',
   月度分析: '#FF7D00',
   default: 'var(--color-text-3)',
 };
@@ -112,7 +112,7 @@ const monthlyStateTagMap: Record<string, MonthlyWorkflowState> = {
 const monthlyStateBadgeClasses: Record<MonthlyWorkflowState, string> = {
   draft: 'bg-[var(--color-muted)] text-[var(--color-text-2)]',
   manager_review: 'bg-[var(--color-accent)] text-[var(--color-primary)]',
-  budget_confirm: 'bg-[#F5EEFF] text-[#722ED1]',
+  budget_confirm: 'bg-[#F5EEFF] text-[#165DFF]',
   boss_review: 'bg-[#FFF7E8] text-[#FF7D00]',
   completed: 'bg-[#E8FFEA] text-[#00B42A]',
 };

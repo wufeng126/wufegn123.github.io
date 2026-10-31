@@ -164,7 +164,7 @@ const notificationCategoryGroups: Array<{
   { category: 'todo', label: '待办', desc: '需要某个人继续处理，进入工作台待办', tone: 'var(--color-primary)' },
   { category: 'risk', label: '风险', desc: '异常、超期、风险确认类提醒，要求尽快确认', tone: '#F53F3F' },
   { category: 'result', label: '结果', desc: '结算、付款、回款、工资等业务结果同步', tone: '#00A870' },
-  { category: 'cc', label: '抄送', desc: '公司级广播或结果知会，不进入个人待办', tone: '#722ED1' },
+  { category: 'cc', label: '抄送', desc: '公司级广播或结果知会，不进入个人待办', tone: '#165DFF' },
 ];
 
 const notificationSettings = [
@@ -930,7 +930,7 @@ export default function NotificationsPage() {
                   label: '已绑定接收人',
                   value: `${boundRecipientCount}`,
                   desc: '消息类型已勾选',
-                  color: '#722ED1',
+                  color: '#165DFF',
                 },
                 {
                   label: '定时任务',

@@ -131,7 +131,7 @@ export default function WorkerRosterPage() {
   const [multiProjectWorker, setMultiProjectWorker] = useState<Worker | null>(null);
 
   // 饼图颜色
-  const PIE_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#F53F3F', 'var(--color-cyan)', '#FF7D00'];
+  const PIE_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#165DFF', '#F53F3F', 'var(--color-cyan)', '#FF7D00'];
 
   useEffect(() => {
     fetchWorkers();
@@ -1278,7 +1278,7 @@ export default function WorkerRosterPage() {
                                       >
                                         {worker.status === 'left' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
                                       </Button>
-                                      <Button size="sm" variant="ghost" onClick={() => handleOpenTransfer(worker)} className="h-7 px-2" style={{ color: '#722ED1' }} title="调动"><Building2 className="w-4 h-4" /></Button>
+                                      <Button size="sm" variant="ghost" onClick={() => handleOpenTransfer(worker)} className="h-7 px-2" style={{ color: '#165DFF' }} title="调动"><Building2 className="w-4 h-4" /></Button>
                                       <Button size="sm" variant="ghost" onClick={() => handleDelete(worker.id)} className="h-7 px-2" style={{ color: '#F53F3F' }} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>
                                     </div>
                                   </TableCell>
@@ -1346,7 +1346,7 @@ export default function WorkerRosterPage() {
                                 <Button size="sm" variant="outline" onClick={() => handleToggleStatus(worker)} className="h-8 px-0" style={{ color: worker.status === 'left' ? '#00B42A' : '#FF7D00' }} aria-label="切换状态">
                                   {worker.status === 'left' ? <UserPlus className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => handleOpenTransfer(worker)} className="h-8 px-0" style={{ color: '#722ED1' }}><Building2 className="w-4 h-4" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => handleOpenTransfer(worker)} className="h-8 px-0" style={{ color: '#165DFF' }}><Building2 className="w-4 h-4" /></Button>
                                 <Button size="sm" variant="outline" onClick={() => handleDelete(worker.id)} className="h-8 px-0" style={{ color: '#F53F3F' }} aria-label="删除"><Trash2 className="w-4 h-4" /></Button>
                               </div>
                             </article>

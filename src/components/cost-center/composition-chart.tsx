@@ -371,7 +371,7 @@ export function CostCompositionChart({ projectId }: CompositionChartProps) {
   }, [fetchData]);
 
   const pieData = data ? [
-    { name: '人工费', value: data.cost.salary?.amount || 0, color: '#722ED1' },
+    { name: '人工费', value: data.cost.salary?.amount || 0, color: '#165DFF' },
     { name: '材料机械', value: data.cost.settlement?.amount || 0, color: '#FF7D00' },
     { name: '综合费用', value: data.cost.expense?.amount || 0, color: '#0FC6C2' },
     { name: '税费', value: data.cost.tax?.amount || 0, color: '#F77234' },
@@ -479,11 +479,11 @@ export function CostCompositionChart({ projectId }: CompositionChartProps) {
               {/* 人工费 */}
               <div className="flex items-center justify-between p-2 rounded-lg" style={{ background: '#F5E8FF' }}>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ background: '#722ED1' }} />
+                  <div className="w-3 h-3 rounded-full" style={{ background: '#165DFF' }} />
                   <span className="text-sm" style={{ color: '#1D2129' }}>人工费</span>
                 </div>
                 <div className="text-right flex items-center gap-2">
-                  <span className="text-sm font-bold" style={{ color: '#722ED1' }}>
+                  <span className="text-sm font-bold" style={{ color: '#165DFF' }}>
                     {formatWanYuan(data.cost.salary?.amount || 0)}
                   </span>
                   <span className="text-xs font-medium" style={{ color: '#86909C' }}>万元</span>

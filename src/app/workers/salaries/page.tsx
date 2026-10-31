@@ -739,7 +739,7 @@ export default function WorkerSalariesPage() {
                       <TableCell className="text-right" style={{ color: 'var(--color-primary)' }}>{formatCurrency(item.total_gross_pay)}</TableCell>
                       <TableCell className="text-right" style={{ color: '#F53F3F' }}>{formatCurrency(item.total_income_tax)}</TableCell>
                       <TableCell className="text-right" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_advance_pay)}</TableCell>
-                      <TableCell className="text-right" style={{ color: '#722ED1' }}>{formatCurrency(item.total_labor_insurance)}</TableCell>
+                      <TableCell className="text-right" style={{ color: '#165DFF' }}>{formatCurrency(item.total_labor_insurance)}</TableCell>
                       <TableCell className="text-right" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_fine)}</TableCell>
                       <TableCell className="text-right font-semibold" style={{ color: '#00B42A' }}>{formatCurrency(item.total_net_pay)}</TableCell>
                       <TableCell className="text-right" style={{ color: 'var(--color-text-3)' }}>{item.worker_count}人</TableCell>
@@ -757,7 +757,7 @@ export default function WorkerSalariesPage() {
                     <TableCell className="text-right font-bold" style={{ color: '#FF7D00' }}>
                       {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_advance_pay, 0))}
                     </TableCell>
-                    <TableCell className="text-right font-bold" style={{ color: '#722ED1' }}>
+                    <TableCell className="text-right font-bold" style={{ color: '#165DFF' }}>
                       {formatCurrency(projectSummary.reduce((sum, p) => sum + p.total_labor_insurance, 0))}
                     </TableCell>
                     <TableCell className="text-right font-bold" style={{ color: '#FF7D00' }}>
@@ -790,7 +790,7 @@ export default function WorkerSalariesPage() {
                     <div><span style={{ color: 'var(--color-text-3)' }}>应发 </span><span className="font-medium" style={{ color: 'var(--color-primary)' }}>{formatCurrency(item.total_gross_pay)}</span></div>
                     <div><span style={{ color: 'var(--color-text-3)' }}>个税 </span><span className="font-medium" style={{ color: '#F53F3F' }}>{formatCurrency(item.total_income_tax)}</span></div>
                     <div><span style={{ color: 'var(--color-text-3)' }}>预支 </span><span className="font-medium" style={{ color: '#FF7D00' }}>{formatCurrency(item.total_advance_pay)}</span></div>
-                    <div><span style={{ color: 'var(--color-text-3)' }}>劳保 </span><span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(item.total_labor_insurance)}</span></div>
+                    <div><span style={{ color: 'var(--color-text-3)' }}>劳保 </span><span className="font-medium" style={{ color: '#165DFF' }}>{formatCurrency(item.total_labor_insurance)}</span></div>
                   </div>
                 </div>
               ))}
@@ -905,7 +905,7 @@ export default function WorkerSalariesPage() {
                           <div className="grid grid-cols-3 gap-2 text-sm sm:flex sm:items-center sm:gap-6">
                             <span style={{ color: 'var(--color-text-3)' }}>应发: <span className="font-medium" style={{ color: 'var(--color-primary)' }}>{formatCurrency(projectGrossPay)}</span></span>
                             <span style={{ color: 'var(--color-text-3)' }}>实发: <span className="font-medium" style={{ color: '#00B42A' }}>{formatCurrency(projectNetPay)}</span></span>
-                            <span style={{ color: 'var(--color-text-3)' }}>已发: <span className="font-medium" style={{ color: '#722ED1' }}>{formatCurrency(projectPaid)}</span></span>
+                            <span style={{ color: 'var(--color-text-3)' }}>已发: <span className="font-medium" style={{ color: '#165DFF' }}>{formatCurrency(projectPaid)}</span></span>
                           </div>
                         </div>
                         {/* 项目内明细表格 */}
@@ -958,7 +958,7 @@ export default function WorkerSalariesPage() {
                                       <p className="mt-1 text-xs text-red-600">{salary.payment_warning}</p>
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-right" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : 'var(--color-text-3)' }}>
+                                  <TableCell className="text-right" style={{ color: salary.paid && salary.paid > 0 ? '#165DFF' : 'var(--color-text-3)' }}>
                                     {formatCurrency(salary.paid || 0)}
                                   </TableCell>
                                 </TableRow>
@@ -996,7 +996,7 @@ export default function WorkerSalariesPage() {
                                       </div>
                                       <div>
                                         <p style={{ color: 'var(--color-text-3)' }}>已发</p>
-                                        <p className="font-semibold" style={{ color: salary.paid && salary.paid > 0 ? '#722ED1' : 'var(--color-text-3)' }}>{formatCurrency(salary.paid || 0)}</p>
+                                        <p className="font-semibold" style={{ color: salary.paid && salary.paid > 0 ? '#165DFF' : 'var(--color-text-3)' }}>{formatCurrency(salary.paid || 0)}</p>
                                       </div>
                                       <div>
                                         <p style={{ color: 'var(--color-text-3)' }}>包工</p>

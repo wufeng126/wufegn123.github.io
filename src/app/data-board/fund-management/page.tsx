@@ -220,7 +220,7 @@ export default function FundManagementDashboard() {
       { name: '未收金额', value: stats.totalUnpaid, color: '#F53F3F' },
     ];
     if (stats.overPayment > 0) {
-      items.push({ name: '超收/预收', value: stats.overPayment, color: '#722ED1' });
+      items.push({ name: '超收/预收', value: stats.overPayment, color: '#165DFF' });
     }
     return items.filter(d => d.value > 0);
   }, [stats]);
@@ -434,7 +434,7 @@ export default function FundManagementDashboard() {
               <YAxis tickFormatter={(v: number) => formatCurrency(v)} fontSize={12} />
               <Tooltip formatter={(value: number) => formatCurrency(value)} />
               <Legend />
-              <Line type="monotone" dataKey="settlement" name="开票金额" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#722ED1' }} />
+              <Line type="monotone" dataKey="settlement" name="开票金额" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#165DFF' }} />
               <Line type="monotone" dataKey="payment" name="付款金额" stroke="#10b981" strokeWidth={2} dot={{ fill: '#00B42A' }} />
             </LineChart>
           </ResponsiveContainer>

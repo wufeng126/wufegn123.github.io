@@ -108,7 +108,7 @@ const stateTagMap: Record<string, WorkflowState> = {
 const stateBadgeClasses: Record<WorkflowState, string> = {
   draft: 'bg-[#F2F3F5] text-[#4E5969]',
   manager_review: 'bg-[#E8F3FF] text-[#165DFF]',
-  budget_confirm: 'bg-[#F5EEFF] text-[#722ED1]',
+  budget_confirm: 'bg-[#F5EEFF] text-[#165DFF]',
   boss_review: 'bg-[#FFF7E8] text-[#D46B08]',
   completed: 'bg-[#E8FFEA] text-[#00A870]',
 };

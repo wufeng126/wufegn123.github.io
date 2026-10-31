@@ -85,7 +85,7 @@ function formatCurrency(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const CHART_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#ec4899', '#06b6d4', '#84cc16'];
+const CHART_COLORS = ['var(--color-primary)', '#00B42A', '#FF7D00', '#F53F3F', '#165DFF', '#ec4899', '#06b6d4', '#84cc16'];
 
 export default function WorkerCostDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);

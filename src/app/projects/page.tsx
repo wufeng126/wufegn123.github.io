@@ -59,12 +59,12 @@ const ICON_OPTIONS = [
   { value: 'HardHat', label: '安全帽', icon: HardHat, color: 'var(--color-primary)', bg: '#E8F3FF' },
   { value: 'Building', label: '商业建筑', icon: Building, color: '#FF7D00', bg: '#FFF7E8' },
   { value: 'Home', label: '住宅', icon: Home, color: '#00B42A', bg: '#E8FFEA' },
-  { value: 'Factory', label: '工厂', icon: Factory, color: '#722ED1', bg: '#F5E8FF' },
+  { value: 'Factory', label: '工厂', icon: Factory, color: '#165DFF', bg: '#F5E8FF' },
   { value: 'Plane', label: '机场', icon: Plane, color: 'var(--color-primary)', bg: '#E8F3FF' },
   { value: 'Ship', label: '港口', icon: Ship, color: '#00B42A', bg: '#E8FFEA' },
   { value: 'Warehouse', label: '仓库', icon: Warehouse, color: '#FF7D00', bg: '#FFF7E8' },
   { value: 'Store', label: '商业', icon: Store, color: '#FF7D00', bg: '#FFF7E8' },
-  { value: 'Landmark', label: '地标', icon: Landmark, color: '#722ED1', bg: '#F5E8FF' },
+  { value: 'Landmark', label: '地标', icon: Landmark, color: '#165DFF', bg: '#F5E8FF' },
   { value: 'Mountain', label: '基建', icon: Mountain, color: 'var(--color-text-3)', bg: 'var(--color-muted)' },
   { value: 'Hammer', label: '施工', icon: Hammer, color: 'var(--color-primary)', bg: '#E8F3FF' },
   { value: 'Wrench', label: '维修', icon: Wrench, color: 'var(--color-text-3)', bg: 'var(--color-muted)' },
@@ -423,7 +423,7 @@ export default function ProjectsPage() {
       case '已完成':
         return { bg: '#E8FFEA', color: '#00B42A', border: '#9FD9A8' };
       case '质保期':
-        return { bg: '#F5EEFF', color: '#722ED1', border: '#D8B9FF' };
+        return { bg: '#F5EEFF', color: '#165DFF', border: '#D8B9FF' };
       case '质保期满':
         return { bg: '#FFF7E8', color: '#FF7D00', border: '#FFCF8B' };
       case '暂停':

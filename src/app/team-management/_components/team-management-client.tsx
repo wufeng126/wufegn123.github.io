@@ -1,3 +1,4 @@
+import { useConfirm } from '@/hooks/use-confirm';
 'use client';
 
 import Link from 'next/link';
@@ -255,7 +256,7 @@ const TAG_PALETTE = [
   { bg: '#E8F3FF', fg: '#165DFF' },
   { bg: '#E8FFEA', fg: '#00875A' },
   { bg: '#FFF4E8', fg: '#D25F00' },
-  { bg: '#F0ECFF', fg: '#722ED1' },
+  { bg: '#F0ECFF', fg: '#165DFF' },
   { bg: '#E6FFFB', fg: '#008B82' },
   { bg: '#FFE8F1', fg: '#C41D6B' },
   { bg: '#FFFBE6', fg: '#A96200' },
@@ -803,6 +804,7 @@ export function TeamSettlementLedgerPageClient() {
   const [payMessage, setPayMessage] = useState('');
   const [payLoading, setPayLoading] = useState(false);
   // 审批流：驳回弹窗 + 状态筛选 + 当前用户权限（提交/审批/删除按钮按权限显示）
+  const confirmDialog = useConfirm();
   const [rejectSettlement, setRejectSettlement] = useState<TeamSettlement | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectLoading, setRejectLoading] = useState(false);
@@ -918,8 +920,8 @@ export function TeamSettlementLedgerPageClient() {
       }
       return;
     }
-    if (action === 'approve' && !window.confirm(`确认审批通过结算单 ${settlement.settlement_no || `#${settlement.id}`}？通过后将计入成本并生成分账应发工资`)) return;
-    if (action === 'unapprove' && !window.confirm(`确认反审核结算单 ${settlement.settlement_no || `#${settlement.id}`}？将退回待审批状态，并撤销该结算生成的分账工资`)) return;
+    if (action === 'approve' && !(await confirmDialog({ title: '确认审批通过', description: `确认审批通过结算单 ${settlement.settlement_no || `#${settlement.id}`}？通过后将计入成本并生成分账应发工资`, variant: 'default' }))) return;
+    if (action === 'unapprove' && !(await confirmDialog({ title: '确认反审核', description: `确认反审核结算单 ${settlement.settlement_no || `#${settlement.id}`}？将退回待审批状态，并撤销该结算生成的分账工资`, variant: 'destructive' }))) return;
     setMessage('');
     try {
       const json = await readJson(await fetch('/api/team-settlements/workflow', {
@@ -992,7 +994,11 @@ export function TeamSettlementLedgerPageClient() {
   }
 
   async function handleDeleteSettlement(settlement: TeamSettlement) {
-    if (!window.confirm(`确认删除结算单 ${settlement.settlement_no || `#${settlement.id}`}？删除后不可恢复`)) return;
+    if (!(await confirmDialog({
+      title: '确认删除结算单',
+      description: `确认删除结算单 ${settlement.settlement_no || `#${settlement.id}`}？删除后不可恢复`,
+      variant: 'destructive',
+    }))) return;
     try {
       await readJson(await fetch(`/api/team-settlements/${settlement.id}`, { method: 'DELETE', credentials: 'include' }));
       setMessage('结算单已删除');
@@ -1257,7 +1263,7 @@ export function TeamSettlementLedgerPageClient() {
                         <Link href={`/team-management/settlements/${row.id}/edit`} className="text-sm font-medium text-[#165DFF] hover:underline">编辑</Link>
                       )}
                       {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
-                        <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="text-sm font-medium text-[#722ED1] hover:underline">提交审批</button>
+                        <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="text-sm font-medium text-[#165DFF] hover:underline">提交审批</button>
                       )}
                       {row.status === 'pending' && canSubmitSettlement && (
                         <button onClick={() => handleSettlementWorkflow(row, 'withdraw')} className="text-sm font-medium text-[#86909C] hover:underline">撤回</button>
@@ -1311,7 +1317,7 @@ export function TeamSettlementLedgerPageClient() {
               <div className="flex flex-wrap items-center gap-2">
                 <Link href={`/team-management/settlements/${row.id}`} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-sm font-medium text-[#165DFF]">查看详情</Link>
                 {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
-                  <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="inline-flex h-9 items-center rounded-md border border-[#722ED1] bg-white px-3 text-sm font-medium text-[#722ED1]">提交审批</button>
+                  <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="inline-flex h-9 items-center rounded-md border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF]">提交审批</button>
                 )}
                 {(['draft', 'rejected'].includes(row.status || 'draft')) && canEditSettlement && (
                   <Link href={`/team-management/settlements/${row.id}/edit`} className="inline-flex h-9 items-center rounded-md border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF]">编辑</Link>
@@ -2235,6 +2241,7 @@ export function TeamSettlementDetailPageClient() {
   const canApproveSettlement = isSuperAdmin || permissions.includes('team_settlements:approve');
   const [wfOptions, setWfOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
   const [wfApproverId, setWfApproverId] = useState(0);
+  const confirmDialog = useConfirm();
   const [approverDialogOpen, setApproverDialogOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -2288,7 +2295,7 @@ export function TeamSettlementDetailPageClient() {
   /** 审批通过 */
   async function handleApproveSettlement() {
     if (!settlement) return;
-    if (!window.confirm('确认审批通过？通过后将计入成本并生成分账应发工资')) return;
+    if (!(await confirmDialog({ title: '确认操作', description: '', variant: 'destructive' }))) return;
     setWorkflowLoading(true);
     try {
       await readJson(await fetch('/api/team-settlements/workflow', {
@@ -2426,7 +2433,7 @@ export function TeamSettlementDetailPageClient() {
   }
 
   async function deletePayment(paymentId: number) {
-    if (!window.confirm('确定删除这条付款记录？')) return;
+    if (!(await confirmDialog({ title: '确认操作', description: '', variant: 'destructive' }))) return;
     setPaymentLoading(true);
     setPaymentMessage('');
     try {
@@ -2507,7 +2514,7 @@ export function TeamSettlementDetailPageClient() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`w-fit rounded-md px-3 py-1 text-sm ${statusBadgeClass(settlement.status)}`}>{statusText(settlement.status)}</span>
                 {((settlement.status || 'draft') === 'draft' || settlement.status === 'rejected') && canSubmitSettlement && (
-                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#722ED1] px-3 text-xs font-medium text-white hover:bg-[#5B21B6] disabled:opacity-50">
+                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#165DFF] px-3 text-xs font-medium text-white hover:bg-[#0E42D2] disabled:opacity-50">
                     {workflowLoading ? '提交中…' : '提交审批'}
                   </button>
                 )}
