@@ -225,6 +225,12 @@ export async function GET(request: NextRequest) {
     const salariesLastYear = salariesLastYearResult.data || [];
     const salariesTrend = salariesTrendResult.data || [];
     const salaryPayments = salaryPaymentsResult.data || [];
+    // 工资发放索引：worker_id + year_month → 已发金额（用于本月实发精确归属）
+    const salaryPaymentByWorkerMonth = new Map<string, number>();
+    salaryPayments.forEach((sp: Record<string, unknown>) => {
+      const key = `${sp.worker_id}:${sp.year_month}`;
+      salaryPaymentByWorkerMonth.set(key, (salaryPaymentByWorkerMonth.get(key) || 0) + Number(sp.payment_amount || 0));
+    });
     const expenses = expensesResult.data || [];
     const materials = materialsResult.data || [];
     const visas = visasResult.data || [];
@@ -520,15 +526,12 @@ export async function GET(request: NextRequest) {
       const operatingProfitRate = (monthIncome + monthVisaIncome) > 0 ? (operatingProfit / (monthIncome + monthVisaIncome)) * 100 : 0;
 
       // 现金净流 = 本月实际回款 - 本月实际支付（收付实现制）
-      // 本月实发：优先按「工资发放」记录（salary_payments）的本月支付金额汇总；无发放记录时回退工资单已付状态
+      // 本月实发：按「工资发放」记录中对应本月工资单（worker_id + year_month 精确匹配）的金额汇总，
+      // 避免按 project_id 归属错配；没有发放记录时回退工资单 payment_status='paid'
       const monthSalaryPaymentFromPayments = safeSum(
-        projSalaryPayments
-          .filter((sp: Record<string, unknown>) => {
-            const payDate = String(sp.payment_date || '').slice(0, 10);
-            if (payDate) return payDate.startsWith(reportMonth);
-            return String(sp.year_month || '') === reportMonth;
-          })
-          .map((sp: Record<string, unknown>) => Number(sp.payment_amount || 0)),
+        projSalaries.map((s: Record<string, unknown>) =>
+          Number(salaryPaymentByWorkerMonth.get(`${s.worker_id}:${s.year_month}`) || 0),
+        ),
       );
       const monthSalaryPaymentFromStatus = safeSum(
         projSalaries
@@ -627,6 +630,8 @@ export async function GET(request: NextRequest) {
       paymentRate: 0,
       inServiceCount: safeSum(projectDataList.map(p => p.inServiceCount)),
       totalSalaryPaid: safeSum(projectDataList.map(p => p.salaryPaid)),
+      // 本月实发（本月工资已发放金额）
+      monthSalaryPaid: safeSum(projectDataList.map(p => p.monthSalaryPaid)),
       totalUnpaidSalary: safeSum(projectDataList.map(p => p.unpaidSalary)),
       // New payable fields
       totalSupplierPayable: safeSum(projectDataList.map(p => p.supplierPayable)),

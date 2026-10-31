@@ -611,7 +611,14 @@ export default function MonthlyReportPage() {
                         value: fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0)),
                         color: '#165DFF',
                       },
-                      { label: '工人实发', value: fmtAmt(ov.monthSalaryPaid ?? 0), color: '#00B42A' },
+                      {
+                        label: '工人实发',
+                        value: fmtAmt(
+                          ov.monthSalaryPaid
+                            ?? projectList.reduce((sum, project) => sum + (project.monthSalaryPaid || 0), 0),
+                        ),
+                        color: '#00B42A',
+                      },
                       {
                         label: '班组结算',
                         value: fmtAmt(projectList.reduce((sum, project) => sum + (project.monthTeamSettlementCost || 0), 0)),
