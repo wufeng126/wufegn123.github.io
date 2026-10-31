@@ -20,7 +20,7 @@ const tabs: TabItem[] = [
 export default function SupplierExpensePage() {
   return (
     <div className="h-full">
-      <TabContainer tabs={tabs} defaultTab="suppliers" />
+      <TabContainer showTabs={false} tabs={tabs} defaultTab="suppliers" />
     </div>
   );
 }

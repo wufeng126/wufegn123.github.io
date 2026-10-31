@@ -22,7 +22,7 @@ const tabs: TabItem[] = [
 export default function HRSalaryPage() {
   return (
     <div className="min-h-full bg-slate-50">
-      <TabContainer tabs={tabs} defaultTab="roster" showTabs={false} />
+      <TabContainer showTabs={false} tabs={tabs} defaultTab="roster" />
     </div>
   );
 }

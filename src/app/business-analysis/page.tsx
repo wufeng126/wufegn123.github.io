@@ -667,7 +667,7 @@ const tabs: TabItem[] = [
 export default function BusinessAnalysisPage() {
   return (
     <div className="h-full">
-      <TabContainer tabs={tabs} defaultTab="overview" />
+      <TabContainer showTabs={false} tabs={tabs} defaultTab="overview" />
     </div>
   );
 }

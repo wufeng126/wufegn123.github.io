@@ -22,7 +22,7 @@ const tabs: TabItem[] = [
 export default function ProjectCenterPage() {
   return (
     <div className="min-h-full bg-slate-50">
-      <TabContainer tabs={tabs} defaultTab="projects" showTabs={false} />
+      <TabContainer showTabs={false} tabs={tabs} defaultTab="projects" />
     </div>
   );
 }

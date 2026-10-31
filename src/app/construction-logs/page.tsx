@@ -20,7 +20,7 @@ export default function ConstructionManagementPage() {
   return (
     <div className="min-h-full bg-muted/50">
       <Suspense fallback={null}>
-        <TabContainer tabs={tabs} defaultTab="logs" showTabs={false} />
+        <TabContainer showTabs={false} tabs={tabs} defaultTab="logs" />
       </Suspense>
     </div>
   );
