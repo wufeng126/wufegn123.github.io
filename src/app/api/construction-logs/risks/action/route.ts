@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const action = String(body.action || 'acknowledge');
 
     if (!logId) return apiBadRequest('缺少施工日志ID');
-    if (action !== 'acknowledge') return apiBadRequest('风险池只支持确认提醒');
+    if (action !== 'acknowledge' && action !== 'ignore') return apiBadRequest('风险池只支持确认或忽略提醒');
 
     const supabase = getSupabaseClient();
     const { data: log, error: logError } = await supabase
@@ -76,7 +76,8 @@ export async function POST(request: NextRequest) {
     if (result.error) throw new Error(result.error.message);
 
     // 同步更新风险事件流状态（confirmed + 操作人/时间）；表不存在时静默跳过（向后兼容）
-    await updateConstructionRiskEventStatus(supabase, logId, 'confirmed', Number(auth.user.id));
+    const nextStatus = action === 'ignore' ? 'ignored' : 'confirmed';
+    await updateConstructionRiskEventStatus(supabase, logId, nextStatus, Number(auth.user.id));
 
     return apiSuccess({
       logId,

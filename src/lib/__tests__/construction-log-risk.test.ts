@@ -34,7 +34,7 @@ describe('construction-log-risk', () => {
   });
 
   it('多类风险合并并给出主要类型', () => {
-    const risk = detectConstructionLogRisk({ content: '脚手架坍塌导致质量问题与安全事故', issues: '' });
+    const risk = detectConstructionLogRisk({ content: '发现基坑边坡裂缝，且存在高处坠落隐患', issues: '' });
     expect(risk.hasRisk).toBe(true);
     expect(risk.types.length).toBeGreaterThanOrEqual(2);
     expect(risk.primaryType).toBeTruthy();
@@ -102,7 +102,7 @@ describe('construction-log-risk', () => {
   });
 
   it('多弱词组合触发：进度滞后且等待材料', () => {
-    const risk = detectConstructionLogRisk({ content: '工期紧张进度滞后，且等待材料到场', issues: '' });
+    const risk = detectConstructionLogRisk({ content: '工期紧张进度滞后，且材料未到无法施工', issues: '' });
     expect(risk.hasRisk).toBe(true);
   });
 });

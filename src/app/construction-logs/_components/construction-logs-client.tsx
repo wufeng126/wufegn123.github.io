@@ -632,7 +632,7 @@ export default function ConstructionLogsClient() {
   const hasActiveRiskFilter = riskProjectId !== 'all' || riskLevelFilter !== 'all' || Boolean(riskKeyword.trim());
   const highRiskReminders = risks.filter(risk => risk.risk_level === 'high').length;
 
-  async function handleRiskAction(logId: number) {
+  async function handleRiskAction(logId: number, action: 'acknowledge' | 'ignore' = 'acknowledge') {
     setActionBusy(logId);
     setMessage('');
     try {
@@ -647,7 +647,7 @@ export default function ConstructionLogsClient() {
       });
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '标记失败');
-      setMessage('已确认该风险提醒');
+      setMessage(action === 'ignore' ? '已忽略该风险（判定无影响）' : '已确认该风险提醒');
       await loadRisks();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '标记失败');
@@ -889,7 +889,14 @@ export default function ConstructionLogsClient() {
                     </Link>
                     <button disabled={actionBusy === risk.log_id || !isPending} onClick={() => handleRiskAction(risk.log_id)} className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${isPending ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
                       {isPending ? <FileCheck2 className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                      {risk.workflow_status === 'confirmed' ? '已确认' : '确认提醒'}
+                      {risk.workflow_status === 'confirmed' ? '已确认' : (String(risk.workflow_status) === 'ignored' ? '已忽略' : '确认提醒')}
+                    </button>
+                    <button
+                      disabled={actionBusy === risk.log_id || !isPending}
+                      onClick={() => handleRiskAction(risk.log_id, 'ignore')}
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      忽略（无影响）
                     </button>
                   </div>
                 </div>
