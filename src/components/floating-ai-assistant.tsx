@@ -937,6 +937,14 @@ export function FloatingAIAssistant() {
                     e.target.value = '';
                   }}
                 />
+                <button
+                  onClick={startVoiceInput}
+                  className={`shrink-0 rounded p-2 text-sm hover:bg-muted ${listening ? 'bg-red-50 text-red-600' : ''}`}
+                  title={listening ? '正在听…' : '语音输入'}
+                  disabled={isLoading}
+                >
+                  🎤
+                </button>
                 <Input
                   ref={inputRef}
                   value={input}
