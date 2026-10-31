@@ -67,6 +67,10 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   // === API 路由（生产环境必需注册，否则 403） ===
   '/api/workspace/todos': {},
   '/api/auth/logout': {},
+  // 我的提交 / 待我审批 / 审批人候选：只读本人相关数据，登录即可访问
+  '/api/my-submissions': {},
+  '/api/my-pending-approvals': {},
+  '/api/users/options': {},
   '/api/construction-logs': { permission: 'projects:view' },
   '/api/construction-logs/attendance-summary': { permission: 'construction_attendance:view' },
   '/api/construction-logs/stats': { permission: 'projects:view' },
