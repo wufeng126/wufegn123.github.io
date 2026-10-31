@@ -115,6 +115,8 @@ export default function MonthlyReportFillPage() {
   const [managerApproverId, setManagerApproverId] = useState(0);
   const [bossApproverId, setBossApproverId] = useState(0);
   const [approverKeyword, setApproverKeyword] = useState('');
+  const [managerApproverText, setManagerApproverText] = useState('');
+  const [bossApproverText, setBossApproverText] = useState('');
 
   const load = useCallback(async () => {
     if (!month) return;
@@ -129,7 +131,25 @@ export default function MonthlyReportFillPage() {
         fetch('/api/users/options', { credentials: 'include', cache: 'no-store' }),
       ]);
       const optionsJson = await optionsRes.json().catch(() => ({}));
-      const options = (optionsJson?.data?.options || []) as UserOption[];
+      let options = (optionsJson?.data?.options || []) as UserOption[];
+      // 兜底：选项接口异常时，尝试用用户管理接口拿一份（有权限的账号可用）
+      if (!Array.isArray(options) || options.length === 0) {
+        try {
+          const fallbackRes = await fetch('/api/auth/center/users', { credentials: 'include', cache: 'no-store' });
+          const fallbackJson = await fallbackRes.json().catch(() => ({}));
+          const rows = Array.isArray(fallbackJson?.users) ? fallbackJson.users : [];
+          options = rows
+            .filter((row: { is_disabled?: boolean | null; role?: string | null }) => row?.is_disabled !== true && row?.role !== 'pending')
+            .map((row: { id?: unknown; name?: string | null; username?: string | null; role?: string | null }) => ({
+              id: Number(row.id),
+              name: String(row.name || row.username || `用户${row.id}`),
+              role: String(row.role || ''),
+            }))
+            .filter((row: UserOption) => Number.isInteger(row.id) && row.id > 0);
+        } catch {
+          options = [];
+        }
+      }
       setUserOptions(Array.isArray(options) ? options : []);
       const meJson = await meRes.json().catch(() => ({}));
       const me = meJson?.user || meJson?.data || {};
@@ -186,6 +206,8 @@ export default function MonthlyReportFillPage() {
       setBossSupplement(String(c.bossSupplement || ''));
       setManagerApproverId(Number(c.managerApproverId) || 0);
       setBossApproverId(Number(c.bossApproverId) || 0);
+      setManagerApproverText(String(c.managerApproverName || ''));
+      setBossApproverText(String(c.bossApproverName || ''));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '月报数据加载失败');
     } finally {
@@ -487,22 +509,19 @@ export default function MonthlyReportFillPage() {
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
               <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
                 下一级审批人（项目经理）
-                <input
-                  value={approverKeyword}
-                  onChange={(event) => setApproverKeyword(event.target.value)}
-                  placeholder="搜索姓名"
-                  className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
-                />
                 <select
                   value={managerApproverId}
                   onChange={(event) => setManagerApproverId(Number(event.target.value) || 0)}
                   className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择</option>
-                  {filteredUserOptions.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
+                  {filteredUserOptions.filter((item) => item.id !== myId).map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}{item.role ? `（${item.role}）` : ''}</option>
                   ))}
                 </select>
+                {userOptions.length === 0 ? (
+                  <span className="text-[var(--color-danger)]">未获取到可选审批人，请检查账号是否启用</span>
+                ) : null}
               </label>
               <button
                 type="button"
@@ -562,22 +581,19 @@ export default function MonthlyReportFillPage() {
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
                 <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
                   下一级审批人（老板）
-                  <input
-                  value={approverKeyword}
-                  onChange={(event) => setApproverKeyword(event.target.value)}
-                  placeholder="搜索姓名"
-                  className="h-9 w-24 rounded-lg border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
-                />
                   <select
                     value={bossApproverId}
                     onChange={(event) => setBossApproverId(Number(event.target.value) || 0)}
                     className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                   >
                     <option value={0}>请选择</option>
-                    {filteredUserOptions.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
+                    {filteredUserOptions.filter((item) => item.id !== myId).map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}{item.role ? `（${item.role}）` : ''}</option>
                     ))}
                   </select>
+                {userOptions.length === 0 ? (
+                  <span className="text-[var(--color-danger)]">未获取到可选审批人，请检查账号是否启用</span>
+                ) : null}
                 </label>
                 <button
                   type="button"
