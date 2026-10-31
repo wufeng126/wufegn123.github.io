@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>建筑劳务管理系统 · 全面审查与优化报告</title>
+<style>
+  :root{
+    --primary:#165DFF; --orange:#FF7D00; --green:#00B42A; --red:#F53F3F;
+    --text:#1D2129; --text2:#4E5969; --text3:#86909C; --border:#E5E6EB; --bg:#F7F8FA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--text);background:var(--bg);line-height:1.75;font-size:15px;padding:24px 16px 60px}
+  .wrap{max-width:960px;margin:0 auto}
+  header.cover{background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px 26px;margin-bottom:20px}
+  header.cover h1{font-size:26px;letter-spacing:-.3px}
+  header.cover .sub{color:var(--text3);margin-top:6px;font-size:14px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .meta div{background:var(--bg);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--text2)}
+  .meta b{display:block;font-size:20px;color:var(--text)}
+  section{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px 24px;margin-bottom:18px}
+  h2{font-size:19px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+  h3{font-size:16px;margin:20px 0 8px}
+  h3:first-of-type{margin-top:0}
+  p{margin:6px 0;color:var(--text2)}
+  ul,ol{margin:8px 0 8px 22px;color:var(--text2)}
+  li{margin:4px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0 4px;font-size:14px}
+  th,td{border:1px solid var(--border);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--bg);font-weight:600;color:var(--text)}
+  td{color:var(--text2)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .t-high{background:#FFECE8;color:#CB2634}
+  .t-mid{background:#FFF7E8;color:#B35B00}
+  .t-low{background:#E8F0FF;color:#0E42D2}
+  .card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:12px 0}
+  .card .h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600;color:var(--text);margin-bottom:8px}
+  .row{display:grid;grid-template-columns:110px 1fr;gap:8px;margin:6px 0;font-size:14px}
+  .row .k{color:var(--text3)}
+  .row .v{color:var(--text2)}
+  .callout{border-left:4px solid var(--primary);background:#F5F8FF;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;color:var(--text2)}
+  .callout.warn{border-color:var(--red);background:#FFF6F5}
+  .callout.good{border-color:var(--green);background:#F4FFF6}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:760px){.two{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+  .small{font-size:13px;color:var(--text3)}
+  .num{font-variant-numeric:tabular-nums}
+  footer{text-align:center;color:var(--text3);font-size:13px;margin-top:24px}
+  @media print{body{background:#fff;padding:0}section,header.cover{border:none;box-shadow:none;page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <h1>建筑劳务管理系统 · 全面审查与优化报告</h1>
+  <div class="sub">审查范围：代码稳定性、模块精简、数据一致性、操作流程、界面观感　·　只读审查，未改动任何线上数据</div>
+  <div class="meta">
+    <div><b class="num">46</b>发现问题总数</div>
+    <div><b class="num">12</b>会算错钱或卡流程</div>
+    <div><b class="num">2</b>数据可信度：明细可信 / 汇总待修</div>
+    <div><b class="num">6/10</b>界面整体评价</div>
+  </div>
+</header>
+
+<section>
+  <h2>一、先看结论（三句话）</h2>
+  <p><b>1. 系统能跑，明细能信，汇总不能直接汇报。</b>单条工资、单张结算单、单笔付款的字段和计算都是自洽的；但"利润、回款率、供应商应付"这三个对外数字，在不同页面有三套算法，同一个项目能算出三个结果。</p>
+  <p><b>2. 最危险的不是算错，而是"悄悄算错还看不出来"。</b>数据超过一千条时，首页看板、项目详情、签证、生活费等多处统计会静默少算，不报错、不提示。</p>
+  <p><b>3. 界面像几个时期拼起来的。</b>业务骨架完整、口径做得很细，但入口重复、移动端信息密度过重，属于"熟人带一次能用、新人自己摸会卡"的水平。</p>
+  <div class="callout warn">
+    <b>必须先修的一条（我们自己上一轮改动引入）</b>：月报填写页选好审批人后点"提交"，系统会报"请选择项目经理作为下一级审批人"，提交必失败、钉钉也不会通知到人。
+  </div>
+</section>
+
+<section>
+  <h2>二、会算错钱、会卡流程的 11 条（建议立刻修）</h2>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">最高</span>1. 反审核班组结算，会把已经发出去的工资删掉</div>
+    <div class="row"><div class="k">现在</div><div class="v">班组结算审批通过后会生成工人应发工资。之后点"反审核"，系统会删掉这批工资——连已经付过钱、有银行流水的发放记录一起删。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">钱明明付了，系统里变成"没付"，现金流凭空变好；事后无法还原，只剩一行后台日志。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">反审核前先检查有没有发放记录，付过钱就禁止反审核。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">已经发生的付款，任何审批动作都抹不掉，能和银行流水对上。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">最高</span>2. 月报"已回款"把退票、作废、没审核的钱也算进去了</div>
+    <div class="row"><div class="k">现在</div><div class="v">月报取甲方付款时没有筛状态，直接求和；而首页看板、成本利润中心都会先筛"有效付款"。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">收错的、重复录的、退票作废的钱都被当成"已到账"，回款率虚高、应收未收被低估，按这个数排资金计划会踩坑。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">月报也按"有效付款"筛选，和首页同源。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">月报、首页、成本中心三处回款数字一致。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">最高</span>3. 月报"累计人工成本"只算了本月班组结算</div>
+    <div class="row"><div class="k">现在</div><div class="v">累计成本里的班组结算取的是"当月区间"，却拼进了"累计"总额。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">历史月份的班组结算在累计里凭空消失，累计人工成本偏低、累计利润偏高；和成本利润中心对不上，差额正好是历史班组结算总额。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">累计和本月分开取数。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">月报累计利润 = 成本中心累计利润。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">最高</span>4. 同一笔供应商结算，三个页面算出三个数</div>
+    <div class="row"><div class="k">现在</div><div class="v">老系统迁过来的结算数据，在"月报""成本利润中心""供应商台账"三处各用了一套去重方法，其中成本中心那套会把真实的旧数据误判成重复丢掉。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">月报偏高（重复算）、成本中心偏低（有的项目整块算 0）、台账折中。同一个项目永远对不上，且查不出原因。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">三处统一用同一套合并规则。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">供应商结算成本三页一致，老数据不重不漏。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">最高</span>5. 班组结算的"成本"和"应发"是两套算法</div>
+    <div class="row"><div class="k">现在</div><div class="v">成本按分项合计（不减借支、劳保、帮工、安全基金四项扣款）；应发是扣完这四项的。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">同一张结算单，"班组成本"比"班组应发"多一个扣款额。老板问"这个班组到底花了多少"会得到两个数。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">台账并列显示"分项合计 / 四项扣款 / 应发"三行，成本口径固定为分项合计。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">差额一眼能看出来，正好等于四项扣款。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">最高</span>6. 同一工人同月"手工工资 + 班组分账"被算两次成本</div>
+    <div class="row"><div class="k">现在</div><div class="v">审批通过时如果发现这工人本月已有工资，系统悄悄跳过不生成分账工资，只写一行后台日志；但成本侧仍按整张结算单全额计入。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">人工成本虚高、利润偏低；工人台账里看不到这笔分账应发，工人来对账对不上。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">审批前拦住并提示"这几人本月已有工资"，让审批人二选一。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">一人一月只记一次成本，台账能对上。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">高</span>7. 产值有三种算法，利润率会出两个数</div>
+    <div class="row"><div class="k">现在</div><div class="v">月报按"结算额"、成本中心按"开票额"、税费又按开票额算。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">报量 100 万只开票 60 万的月份，一个页面利润率 8%、另一个 25%，老板没法判断到底赚没赚。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">全站定一个收入口径（建议结算额），开票额单独显示为"未开票额"。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">利润率全站一个数。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">高</span>8. "本月实发"在月报和工资页不一样</div>
+    <div class="row"><div class="k">现在</div><div class="v">有的发放记录没填"哪个月的工资"，月报按付款日期算进去了，工资页却当无效记录不算；一人多项目时同一笔钱还可能算两遍。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">月报实发偏高、工资页"已发"偏低，按哪页发钱都可能错。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">统一按"工人 + 项目 + 月份"匹配，发放时强制填月份。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">两页实发相等，跨项目不串账。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">高</span>9. 月报提交时选了审批人，但提交会失败</div>
+    <div class="row"><div class="k">现在</div><div class="v">填写页把"分析内容"和"审批人"分两次发送，真正提交的那次没带上审批人，后台报"请选择项目经理作为下一级审批人"。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">预算员反复选人、反复失败，流程永远卡在第一步，钉钉也不会通知到人。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">提交时一次性带上审批人（小改动）。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">一次提交成功，被选中的审批人马上收到钉钉待办。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">高</span>10. 待我审批点进去，批不了</div>
+    <div class="row"><div class="k">现在</div><div class="v">从"待我审批"点"去审批"，进的是结算单详情页，而详情页没有"通过/驳回"按钮（按钮只在台账列表行内）；详情页自己也能"提交审批"，但不选审批人、也不显示谁审批。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">老板顺着钉钉通知点进来，翻到底也找不到"通过"，只能退回台账一个个找。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">详情页补齐"通过/驳回"，所有提交入口统一走同一个选人弹窗，并显示"下一审批人：某某"。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">点进来就能批完，谁批、批到哪一步一目了然。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="h"><span class="tag t-high">高</span>11. 从链接点进月报，永远显示"本月"</div>
+    <div class="row"><div class="k">现在</div><div class="v">月报页面不读链接里的月份和项目参数，永远显示当前月和"全部项目"。</div></div>
+    <div class="row"><div class="k">会导致什么</div><div class="v">点 9 月的"查看月报"，打开的是 10 月；审批完回来核对，看到的不是刚处理的那张。</div></div>
+    <div class="row"><div class="k">怎么改</div><div class="v">进页面先读链接里的月份、项目，页头写清"正在看 2026-09 · 某某项目"。</div></div>
+    <div class="row"><div class="k">改完效果</div><div class="v">点哪个月看哪个月，审批完能马上核对。</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>三、会影响系统长期运行的问题（工程层面）</h2>
+  <table>
+    <thead><tr><th style="width:36%">问题</th><th style="width:34%">会导致什么</th><th>怎么改</th></tr></thead>
+    <tbody>
+      <tr><td>数据超过一千条就悄悄少算（首页看板、项目详情工资、签证、生活费等多处）</td><td>不报错、不提示，数字直接偏小；项目详情里工资能少一半，KPI 和明细对不上</td><td>改成分批取全量再统计，或让数据库直接汇总</td></tr>
+      <tr><td>删一条工资发放记录，系统会把所有发放记录重算一遍并逐条写库</td><td>数据一多就超时、改一半报失败，用户反复点会<b>重复发放</b>；写失败被吞掉，工资长期标成"未发"</td><td>只重算受影响的那几个人，批量一次写完</td></tr>
+      <tr><td>有问题的手工点"执行迁移"仍会重放删除脚本；没有数据时还显示"成功"</td><td>点一次可能删掉知识库文档、合并工人，不可逆；失败时还以为成功</td><td>改成只跑新增部分，执行前二次确认</td></tr>
+      <tr><td>4 个接口没有登录校验（投标估价、内部单价、内部附加结算等）</td><td>未登录就能拉走商业机密，登录用户也能看非授权项目金额</td><td>加登录校验 + 项目范围校验</td></tr>
+      <tr><td>删项目、删供应商会留下"悬空但还在算钱"的数据</td><td>供应商成本凭空消失或删不掉，反复删也不知道被什么卡住</td><td>补关联校验，删除前提示"卡在哪张表"</td></tr>
+      <tr><td>综合费用、供应商结算、零星材料之间没有互斥校验</td><td>同一笔机械租赁可以在两处各录一次，成本翻倍</td><td>录入时检测"疑似重复"并提示</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>四、模块重复，可以精简</h2>
+  <table>
+    <thead><tr><th style="width:22%">重复的地方</th><th style="width:46%">具体表现</th><th>建议</th></tr></thead>
+    <tbody>
+      <tr><td><b>合同管理</b></td><td>供应商库里藏了一个"合同台账"，侧边栏又有一个"合同管理"，两套都能新增/修改，统计口径还不一样</td><td>只留侧边栏那个，供应商库只管档案</td></tr>
+      <tr><td><b>结算管理</b></td><td>同一个页面有 5 个网址（侧边栏、通知、外加三个旧地址），页面标题又叫"供应商结算台账"</td><td>只留一个正式地址，其余跳转过去</td></tr>
+      <tr><td><b>用户权限</b></td><td>认证中心 / 权限中心 / 后台账号，三套用户管理，同一个功能三个名字</td><td>合成一个"用户与权限"页</td></tr>
+      <tr><td><b>工资发放</b></td><td>同一个页面 3 个网址，打开时侧边栏高亮还不一样；生活费、工资、班组付款三套口径</td><td>只留一个入口，明确互斥规则</td></tr>
+      <tr><td><b>AI 助手</b></td><td>悬浮窗一个、全页一个，两套会话、两套功能</td><td>统一用悬浮窗</td></tr>
+      <tr><td><b>幽灵页面</b></td><td>限价管理、应付台账、旧工人页、存储诊断，4 个页面没有菜单入口，只能靠收藏进</td><td>确认不用就删；限价并入报量管理</td></tr>
+      <tr><td><b>假开关</b></td><td>AI 配置 8 个开关，6 个没有代码在用，关掉或打开行为完全不变</td><td>要么真接上，要么删掉</td></tr>
+      <tr><td><b>菜单规模</b></td><td>10 个一级、44 个二级，其中至少 8 个是别名或旧地址；5 个父菜单点了只展开不跳转</td><td>压到 30 个左右，父项点击直接进默认页</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    另外「审批流程配置」这个页现在<b>根本点不开</b>——它被重定向到一个不存在的页签，最后落回权限页。既然审批已改成"提交时选下一级审批人"，这个页面可以直接删掉。
+  </div>
+</section>
+
+<section>
+  <h2>五、操作体验：卡在哪</h2>
+  <table>
+    <thead><tr><th style="width:34%">卡点</th><th style="width:36%">用户会怎样</th><th>建议</th></tr></thead>
+    <tbody>
+      <tr><td>"我的提交 / 待我审批"藏在 工作台 → 我的提交，手机要三步</td><td>老板根本找不到待审批，只能等人打电话</td><td>手机底部导航给"待我审批"一个带数字角标的位置</td></tr>
+      <tr><td>顶部"待处理 N 项"统计的是"我提交、等别人处理"的，不是等我审批的</td><td>老板看到"0 项"以为没事，其实有一堆等他批</td><td>两个数字分开显示</td></tr>
+      <tr><td>待审批接口失败时被静默吞掉，只显示"暂无待你审批"</td><td>网络一差就永远显示"暂无"，他就不再来看了</td><td>失败时红字提示 + 重试按钮</td></tr>
+      <tr><td>手机上班组结算默认是 17 列的宽表，要左右拖，且没有"可滑动"提示</td><td>只看到项目名和金额，以为没有"已付/未付"</td><td>手机默认进卡片视图，宽表加右侧渐隐提示</td></tr>
+      <tr><td>顶部 8 张统计卡竖排，要滑很久才看到单据；草稿/待审批/已通过/已驳回全是同一个蓝色标签</td><td>打开先滑过 8 张卡；分不清哪张等他批</td><td>手机只留 4 张关键卡；状态用灰/橙/绿/红</td></tr>
+      <tr><td>长表单误触返回就全丢，没有"有未保存内容"提醒</td><td>在工地录半小时，一滑返回全没了</td><td>离开前确认 + 自动存本地草稿</td></tr>
+      <tr><td>月报页数据还没加载完就能编辑，加载完把你打的字覆盖</td><td>白打一段</td><td>加载完才允许编辑</td></tr>
+      <tr><td>编辑结算单时能改项目/班组，但保存不生效</td><td>以为改对了，其实单子还挂在老项目上</td><td>要么锁死这两个字段，要么真正保存</td></tr>
+      <tr><td>台账行内点"通过/删除"，提示在屏幕最上方（看不到），按钮还能连点；确认框是浏览器原生弹窗</td><td>以为成功了再点一次，导致重复审批</td><td>就地弹提示（成功绿/失败红）、按钮转圈禁用</td></tr>
+      <tr><td>金额框把"1,000""1000元"悄悄当 0；扣款超过结算金额，实付直接变 0 没提示；付款比例打不进小数</td><td>算出来是错的还不知道；扣多了只看到 0</td><td>输入即校验 + 红字提示 + 允许小数</td></tr>
+      <tr><td>批量导入"选中文件就写库"，说明让填英文代码但模板是中文</td><td>选错文件只能一条条删；照模板填又被判格式错</td><td>先预览"将导入 N 条、重复 M 条"，确认后再入库</td></tr>
+      <tr><td>空列表只有"暂无数据"，没有下一步按钮</td><td>新人打开一片空白，不知道先建项目还是先导花名册</td><td>每个空状态给一句"下一步做什么" + 主按钮</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>六、界面观感：为什么觉得"不好看"</h2>
+  <p>不是配色丑，是<b>像几个时期拼起来的</b>。具体表现：</p>
+  <table>
+    <thead><tr><th style="width:24%">不统一的地方</th><th>具体表现</th></tr></thead>
+    <tbody>
+      <tr><td>圆角</td><td>同时有 4 / 8 / 10 / 14 四种圆角</td></tr>
+      <tr><td>卡片</td><td>有的带阴影、有的没有</td></tr>
+      <tr><td>操作位置</td><td>"编辑/删除"这里是小图标、那里是文字链接、再一处是"…"菜单</td></tr>
+      <tr><td>确认框</td><td>有时是浏览器自带弹窗、有时是设计好的弹窗</td></tr>
+      <tr><td>灰色</td><td>三套灰色同时在用</td></tr>
+      <tr><td>颜色含义</td><td><b>成本上涨用了绿色</b>（容易被当成好事）；审批按钮另用一套紫色，和品牌蓝不统一</td></tr>
+      <tr><td>重复导航</td><td>班组管理还留着页内导航，别的模块已经去掉了</td></tr>
+      <tr><td>按钮尺寸</td><td>手机端不少按钮只有 32–36 像素高，点起来费劲</td></tr>
+    </tbody>
+  </table>
+  <p><b>建议</b>：统一"页面外壳、状态标签、金额显示、确认弹窗、按钮尺寸"这五样，颜色只走一套变量；成本类上涨统一用橙/红，审批动作回到品牌蓝。</p>
+</section>
+
+<section>
+  <h2>七、做得好的地方（客观说）</h2>
+  <div class="callout good">
+    <ul>
+      <li><b>单条明细可靠</b>：一条工资、一张结算单、一笔付款，字段和计算都是自洽的</li>
+      <li><b>删工人的保护</b>：已经堵住了"删工人连带删一堆数据"的坑</li>
+      <li><b>月报填写页</b>：系统数据只读、只填分析，这个设计方向是对的</li>
+      <li><b>成本口径的细节</b>：扣款、付款比例、尾款都分了，只是各处算法没统一</li>
+      <li><b>权限粒度</b>：项目级预算员/项目经理、审批人指定，方向正确</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>八、建议的修复顺序</h2>
+  <h3>第一档：立刻修（会算错钱 / 会卡流程）　约 1~2 天</h3>
+  <ol>
+    <li>月报提交丢失审批人（<b>我们自己引入的，最先修</b>）</li>
+    <li>反审核删掉已发工资</li>
+    <li>月报"已回款"没筛作废单</li>
+    <li>月报累计人工成本漏算历史月份</li>
+    <li>待我审批详情页没有通过/驳回</li>
+    <li>月报页不认链接里的月份</li>
+  </ol>
+
+  <h3>第二档：这周修（口径统一 + 稳定性）　约 3~5 天</h3>
+  <ol start="7">
+    <li>供应商结算三处合并规则统一</li>
+    <li>班组"成本 / 应发"口径统一</li>
+    <li>同一工人同月重复计成本（改成审批前拦截）</li>
+    <li>产值口径统一（以结算额为准）</li>
+    <li>本月实发匹配规则统一</li>
+    <li>超过一千条少算（首页、项目详情、签证、生活费）</li>
+    <li>删一条发放全表重算（超时 + 重复发放）</li>
+  </ol>
+
+  <h3>第三档：两周内（精简 + 界面）　约 1~2 周</h3>
+  <ol start="14">
+    <li>合同 / 结算 / 用户权限 / 工资发放 入口去重</li>
+    <li>删 4 个幽灵页面、6 个假开关</li>
+    <li>手机端宽表改卡片、状态上色、统计卡减量</li>
+    <li>长表单防丢、金额输入校验、导入预览</li>
+    <li>统一五类组件和配色</li>
+  </ol>
+</section>
+
+<section>
+  <h2>九、修复前，老板先核对这 3 个数字</h2>
+  <table>
+    <thead><tr><th style="width:26%">先核对</th><th style="width:37%">为什么要核</th><th>怎么核</th></tr></thead>
+    <tbody>
+      <tr><td><b>累计利润</b>（连带累计人工成本）</td><td>受第 3、4、5、6 条影响，是目前最容易被高估的数</td><td>把"累计人工成本"拆成"手工工资 + 各月班组结算分项合计"，看历史月份有没有漏计</td></tr>
+      <tr><td><b>本月 / 累计已回款</b></td><td>受第 2 条影响，最容易虚高</td><td>导出本月甲方付款，把作废和待审核的单据挑出来，看月报数字是否含了这些钱</td></tr>
+      <tr><td><b>供应商应付未付</b></td><td>受第 4 条和悬空数据影响，最可能对不上账</td><td>单独查"只在旧表里有结算"的项目，看成本中心是否算成 0</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>十、附：问题总表（46 条）</h2>
+  <p class="small">按严重程度排列，一句话一条。前 11 条正文已展开，这里只做索引。</p>
+  <table>
+    <thead><tr><th style="width:8%">编号</th><th style="width:10%">程度</th><th>一句话</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><span class="tag t-high">最高</span></td><td>反审核班组结算会连带删掉已发放的工资流水</td></tr>
+      <tr><td class="num">2</td><td><span class="tag t-high">最高</span></td><td>月报已回款含作废/未审核的付款，回款率虚高</td></tr>
+      <tr><td class="num">3</td><td><span class="tag t-high">最高</span></td><td>月报累计人工成本只加了本月班组结算</td></tr>
+      <tr><td class="num">4</td><td><span class="tag t-high">最高</span></td><td>供应商结算三处三套去重逻辑，三个页面三个数</td></tr>
+      <tr><td class="num">5</td><td><span class="tag t-high">最高</span></td><td>班组成本不扣四项扣款，与应发两套口径</td></tr>
+      <tr><td class="num">6</td><td><span class="tag t-high">最高</span></td><td>同一工人同月手工工资 + 分账重复计成本</td></tr>
+      <tr><td class="num">7</td><td><span class="tag t-high">高</span></td><td>产值三套算法（结算额 / 开票额），利润率两个数</td></tr>
+      <tr><td class="num">8</td><td><span class="tag t-high">高</span></td><td>本月实发在月报与工资页不一致，跨项目会算两遍</td></tr>
+      <tr><td class="num">9</td><td><span class="tag t-high">高</span></td><td>月报提交丢失审批人，提交必失败</td></tr>
+      <tr><td class="num">10</td><td><span class="tag t-high">高</span></td><td>待我审批详情页没有通过/驳回</td></tr>
+      <tr><td class="num">11</td><td><span class="tag t-high">高</span></td><td>月报页不认链接里的月份/项目</td></tr>
+      <tr><td class="num">12</td><td><span class="tag t-high">高</span></td><td>4 个接口无登录校验，可拉商业机密</td></tr>
+      <tr><td class="num">13</td><td><span class="tag t-high">高</span></td><td>数据超一千条多处统计静默少算</td></tr>
+      <tr><td class="num">14</td><td><span class="tag t-high">高</span></td><td>删一条发放触发全表重算，超时且可能重复发放</td></tr>
+      <tr><td class="num">15</td><td><span class="tag t-mid">中高</span></td><td>手工执行迁移会重放删除脚本，空数据假成功</td></tr>
+      <tr><td class="num">16</td><td><span class="tag t-mid">中高</span></td><td>删项目/供应商留下悬空数据，成本消失或删不掉</td></tr>
+      <tr><td class="num">17</td><td><span class="tag t-mid">中高</span></td><td>综合费用与供应商结算可重复录入同一笔成本</td></tr>
+      <tr><td class="num">18</td><td><span class="tag t-mid">中高</span></td><td>现金净流混入计提、缺班组付款；欠薪按应发算</td></tr>
+      <tr><td class="num">19</td><td><span class="tag t-mid">中高</span></td><td>班组台账汇总与行级已付/未付口径不一致</td></tr>
+      <tr><td class="num">20</td><td><span class="tag t-mid">中高</span></td><td>已审批月报数字仍会变（无快照）</td></tr>
+      <tr><td class="num">21</td><td><span class="tag t-mid">中高</span></td><td>改结算月份不重算期间，月度归属可能错月</td></tr>
+      <tr><td class="num">22</td><td><span class="tag t-mid">中</span></td><td>未配置项目负责人时任何人都能提交</td></tr>
+      <tr><td class="num">23</td><td><span class="tag t-mid">中</span></td><td>删班组时结算单丢班组仍计成本，付款表又删不掉</td></tr>
+      <tr><td class="num">24</td><td><span class="tag t-mid">中</span></td><td>项目详情用旧状态字面量，历史结算漏算</td></tr>
+      <tr><td class="num">25</td><td><span class="tag t-mid">中</span></td><td>金额累加不四舍五入，出现 0.0000001 差异</td></tr>
+      <tr><td class="num">26</td><td><span class="tag t-mid">中</span></td><td>搜索关键词含逗号/括号会让筛选报错</td></tr>
+      <tr><td class="num">27</td><td><span class="tag t-mid">中</span></td><td>早 8 点前看板"今天"变成昨天，当天数据不进 KPI</td></tr>
+      <tr><td class="num">28</td><td><span class="tag t-mid">中</span></td><td>老表读取失败被静默吞掉，成本少算查不出</td></tr>
+      <tr><td class="num">29</td><td><span class="tag t-mid">中</span></td><td>月报首开并发 19 路全量查询，慢且一处失败全白屏</td></tr>
+      <tr><td class="num">30</td><td><span class="tag t-mid">中</span></td><td>多项目保存循环逐条写库，并发会互相覆盖</td></tr>
+      <tr><td class="num">31</td><td><span class="tag t-low">中低</span></td><td>合同管理两套（供应商库内 + 侧边栏）</td></tr>
+      <tr><td class="num">32</td><td><span class="tag t-low">中低</span></td><td>结算管理 5 个网址指向同一页</td></tr>
+      <tr><td class="num">33</td><td><span class="tag t-low">中低</span></td><td>用户权限三套（认证中心/权限中心/后台账号）</td></tr>
+      <tr><td class="num">34</td><td><span class="tag t-low">中低</span></td><td>工资发放 3 个网址、侧边栏高亮不一致</td></tr>
+      <tr><td class="num">35</td><td><span class="tag t-low">中低</span></td><td>AI 助手两套完整实现</td></tr>
+      <tr><td class="num">36</td><td><span class="tag t-low">中低</span></td><td>4 个无菜单入口的幽灵页面</td></tr>
+      <tr><td class="num">37</td><td><span class="tag t-low">中低</span></td><td>AI 配置 6 个开关无代码消费（假开关）</td></tr>
+      <tr><td class="num">38</td><td><span class="tag t-low">中低</span></td><td>审批流程配置页已点不开</td></tr>
+      <tr><td class="num">39</td><td><span class="tag t-low">中低</span></td><td>菜单 44 项含 8 个别名/旧地址，父项点不动</td></tr>
+      <tr><td class="num">40</td><td><span class="tag t-low">中低</span></td><td>施工管理 5 项里 3 项是同一批数据的只读视图</td></tr>
+      <tr><td class="num">41</td><td><span class="tag t-low">中低</span></td><td>待办入口太深，手机要三步</td></tr>
+      <tr><td class="num">42</td><td><span class="tag t-low">中低</span></td><td>"待处理 N 项"统计口径不是等我审批的</td></tr>
+      <tr><td class="num">43</td><td><span class="tag t-low">中低</span></td><td>手机宽表默认不可操作、无滑动提示</td></tr>
+      <tr><td class="num">44</td><td><span class="tag t-low">中低</span></td><td>班组结算 17 列 8 卡、状态同色</td></tr>
+      <tr><td class="num">45</td><td><span class="tag t-low">中低</span></td><td>长表单误触丢失、月报未加载完可编辑、编辑项目不生效</td></tr>
+      <tr><td class="num">46</td><td><span class="tag t-low">中低</span></td><td>行内操作反馈弱可连点、金额输入变 0、导入无预览、空状态无引导、全站风格不统一</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  本报告基于 2026-10-31 的代码只读审查，未改动任何线上数据　·　建议先修第一档 6 条，再统一口径，最后收界面
+</footer>
+
+</div>
+</body>
+</html>
