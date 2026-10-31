@@ -363,9 +363,10 @@ export default function MonthlyReportPage() {
   const handlePrint = () => window.print();
 
   const handleCreateAnalysis = () => {
-    // 融合：写本月分析即进入审批流程（展开审批条分析面板），不再跳知识库
-    setWorkflowExpanded(true);
-    workflowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 跳转到独立填写页面：系统数据自动带出且只读，仅填写分析内容
+    const params = new URLSearchParams({ month });
+    if (projectId && projectId !== 'all') params.set('projectId', projectId);
+    router.push(`/reports/monthly/fill?${params.toString()}`);
   };
   const handleViewAnalysis = () => {
     router.push(`/knowledge/${analysisData?.id}`);
