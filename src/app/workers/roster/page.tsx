@@ -85,6 +85,12 @@ export default function WorkerRosterPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
+  // 列表分块渲染：每个项目默认只渲染前 50 人，点「显示更多」再追加，避免上千行同时渲染卡顿
+  const [visibleRows, setVisibleRows] = useState<Record<string, number>>({});
+  const ROWS_PER_BATCH = 50;
+  const getVisibleCount = (key: string) => visibleRows[key] ?? ROWS_PER_BATCH;
+  const showMoreRows = (key: string) =>
+    setVisibleRows((prev) => ({ ...prev, [key]: (prev[key] ?? ROWS_PER_BATCH) + ROWS_PER_BATCH }));
   
   const [searchName, setSearchName] = useState('');
   const [filterProject, setFilterProject] = useState('all');
@@ -160,6 +166,9 @@ export default function WorkerRosterPage() {
         if (!res.ok) throw new Error(data.error || '获取工人列表失败');
         setAllWorkers(data.workers || []);
         setWorkers(data.workers || []);
+        if ((data.workers || []).length > 120) {
+          setCollapsedProjects(new Set((data.workers || []).map((w: Worker) => (w.project_id ? String(w.project_id) : '__unassigned__'))));
+        }
       } catch (error) {
         console.error('获取工人列表失败:', error);
       }
@@ -172,6 +181,9 @@ export default function WorkerRosterPage() {
         if (!res.ok) throw new Error(data.error || '获取工人列表失败');
         setAllWorkers(data.workers || []);
         setWorkers(data.workers || []);
+        if ((data.workers || []).length > 120) {
+          setCollapsedProjects(new Set((data.workers || []).map((w: Worker) => (w.project_id ? String(w.project_id) : '__unassigned__'))));
+        }
       } catch (error) {
         console.error('获取工人列表失败:', error);
       } finally {
@@ -180,7 +192,7 @@ export default function WorkerRosterPage() {
     }
   };
 
-  useAutoRefresh(() => fetchWorkers(true), { enabled: !importDialogOpen });
+  useAutoRefresh(() => fetchWorkers(true), { enabled: !importDialogOpen, enableOnFocus: false });
 
   useEffect(() => {
     let filtered = [...allWorkers];
@@ -1216,7 +1228,7 @@ export default function WorkerRosterPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {group.workers.map((worker, idx) => (
+                              {group.workers.slice(0, getVisibleCount(group.key)).map((worker, idx) => (
                                 <TableRow key={worker.id} style={{ background: selectedIds.has(worker.id) ? '#E8F3FF' : idx % 2 === 1 ? 'var(--color-muted)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
                                   <TableCell><Checkbox checked={selectedIds.has(worker.id)} onCheckedChange={() => handleSelectOne(worker.id)} /></TableCell>
                                   <TableCell style={{ color: 'var(--color-text-3)' }}>{globalStartIndex + idx + 1}</TableCell>
@@ -1275,8 +1287,20 @@ export default function WorkerRosterPage() {
                             </TableBody>
                           </Table>
                         </div>
+                        {group.workers.length > getVisibleCount(group.key) ? (
+                          <div className="flex justify-center border-t py-2" style={{ borderColor: 'var(--border)' }}>
+                            <button
+                              type="button"
+                              onClick={() => showMoreRows(group.key)}
+                              className="text-xs font-medium hover:underline"
+                              style={{ color: 'var(--color-primary)' }}
+                            >
+                              显示更多（已显示 {Math.min(getVisibleCount(group.key), group.workers.length)} / {group.workers.length} 人）
+                            </button>
+                          </div>
+                        ) : null}
                         <div className="grid gap-3 p-3 md:hidden">
-                          {group.workers.map((worker) => (
+                          {group.workers.slice(0, getVisibleCount(group.key)).map((worker) => (
                             <article
                               key={worker.id}
                               className="rounded-lg border bg-white p-3"
