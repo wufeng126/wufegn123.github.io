@@ -9,26 +9,38 @@ import {
   FileText,
   Loader2,
   Lock,
+  LockOpen,
   Save,
   Send,
+  UserRoundCheck,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type WorkflowStatus =
-  | 'draft'
-  | 'pending_manager'
-  | 'pending_boss'
-  | 'approved'
-  | 'rejected';
+type WorkflowContent = {
+  analysis?: string;
+  risk?: string;
+  nextPlan?: string;
+  remark?: string;
+  managerSupplement?: string;
+  bossSupplement?: string;
+};
+
+type WorkflowRow = {
+  status?: string;
+  content?: WorkflowContent | null;
+  fill_user?: string | null;
+  manager_user?: string | null;
+  approved_by?: string | null;
+  reject_reason?: string | null;
+  submitted_manager_at?: string | null;
+  submitted_boss_at?: string | null;
+  approved_at?: string | null;
+};
 
 type SummaryOverview = {
   monthIncome?: number;
   monthCost?: number;
-  operatingProfit?: number;
-  operatingProfitRate?: number;
-  monthReceived?: number;
-  paymentRate?: number;
-  unreceived?: number;
 };
 
 type ProjectRow = {
@@ -42,11 +54,19 @@ type ProjectRow = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  draft: '填写中',
+  draft: '预算员填写中',
   pending_manager: '待项目经理补充',
   pending_boss: '待老板审批',
-  approved: '已通过（锁定）',
+  approved: '已通过（已归档）',
   rejected: '已驳回',
+};
+
+const STATUS_CLASS: Record<string, string> = {
+  draft: 'bg-slate-100 text-slate-600',
+  pending_manager: 'bg-amber-50 text-amber-700',
+  pending_boss: 'bg-blue-50 text-blue-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-600',
 };
 
 function fmtWan(value?: number): string {
@@ -62,16 +82,28 @@ export default function MonthlyReportFillPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [myId, setMyId] = useState<number>(0);
+  const [myRole, setMyRole] = useState<string>('');
+
   const [overview, setOverview] = useState<SummaryOverview>({});
   const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [status, setStatus] = useState<WorkflowStatus>('draft');
-  const [rejectReason, setRejectReason] = useState<string>('');
+  const [status, setStatus] = useState<string>('draft');
+  const [content, setContent] = useState<WorkflowContent>({});
+  const [fillOwnerId, setFillOwnerId] = useState(0);
+  const [managerOwnerId, setManagerOwnerId] = useState(0);
+  const [fillOwnerName, setFillOwnerName] = useState('');
+  const [managerOwnerName, setManagerOwnerName] = useState('');
+  const [approvedBy, setApprovedBy] = useState('');
+  const [rejectNote, setRejectNote] = useState('');
+
   const [analysis, setAnalysis] = useState('');
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
   const [remark, setRemark] = useState('');
-
-  const editable = status === 'draft' || status === 'rejected';
+  const [managerSupplement, setManagerSupplement] = useState('');
+  const [bossSupplement, setBossSupplement] = useState('');
 
   const load = useCallback(async () => {
     if (!month) return;
@@ -79,32 +111,41 @@ export default function MonthlyReportFillPage() {
     try {
       const params = new URLSearchParams({ month });
       if (projectId && projectId !== 'all') params.set('projectId', projectId);
-      const [summaryRes, workflowRes] = await Promise.all([
+      const [meRes, summaryRes, workflowRes] = await Promise.all([
+        fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }),
         fetch(`/api/reports/monthly/summary?${params.toString()}`, { credentials: 'include', cache: 'no-store' }),
         fetch(`/api/reports/monthly/workflow?${params.toString()}`, { credentials: 'include', cache: 'no-store' }),
       ]);
+      const meJson = await meRes.json().catch(() => ({}));
+      const me = meJson?.user || meJson?.data || {};
+      setMyId(Number(me.id) || 0);
+      setMyRole(String(me.role || ''));
+
       const summaryJson = await summaryRes.json().catch(() => ({}));
-      const workflowJson = await workflowRes.json().catch(() => ({}));
       if (!summaryRes.ok || summaryJson.success === false) {
         throw new Error(summaryJson.error || '月报数据加载失败');
       }
-
       setOverview(summaryJson.data?.overview || {});
-      const projectList = Array.isArray(summaryJson.data?.projects)
-        ? (summaryJson.data.projects as ProjectRow[])
-        : [];
-      setProjects(projectList);
+      setProjects(Array.isArray(summaryJson.data?.projects) ? (summaryJson.data.projects as ProjectRow[]) : []);
 
-      const workflow = workflowJson.data?.workflow || null;
-      if (workflow) {
-        setStatus((workflow.status || 'draft') as WorkflowStatus);
-        setRejectReason(String(workflow.reject_reason || ''));
-        const content = (workflow.content || {}) as Record<string, string>;
-        setAnalysis(String(content.analysis || ''));
-        setRisk(String(content.risk || ''));
-        setNextPlan(String(content.nextPlan || ''));
-        setRemark(String(content.remark || ''));
-      }
+      const workflowJson = await workflowRes.json().catch(() => ({}));
+      const data = workflowJson?.data || {};
+      const row = (data.workflow || null) as WorkflowRow | null;
+      setStatus(String(row?.status || 'draft'));
+      setFillOwnerId(Number(data.fill_owner_id) || 0);
+      setManagerOwnerId(Number(data.manager_owner_id) || 0);
+      setFillOwnerName(String(data.fill_owner_name || ''));
+      setManagerOwnerName(String(data.manager_owner_name || ''));
+      setApprovedBy(String(row?.approved_by || ''));
+      setRejectNote(String(row?.reject_reason || ''));
+      const c = (row?.content || {}) as WorkflowContent;
+      setContent(c);
+      setAnalysis(String(c.analysis || ''));
+      setRisk(String(c.risk || ''));
+      setNextPlan(String(c.nextPlan || ''));
+      setRemark(String(c.remark || ''));
+      setManagerSupplement(String(c.managerSupplement || ''));
+      setBossSupplement(String(c.bossSupplement || ''));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '月报数据加载失败');
     } finally {
@@ -115,6 +156,14 @@ export default function MonthlyReportFillPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const isBossOrSuper = myRole === 'super_admin' || myRole === 'boss';
+  const isBudgetOwner = fillOwnerId > 0 && myId === fillOwnerId;
+  const isManagerOwner = managerOwnerId > 0 && myId === managerOwnerId;
+
+  const canFill = (status === 'draft' || status === 'rejected') && (isBudgetOwner || isBossOrSuper || fillOwnerId === 0);
+  const canSupplement = status === 'pending_manager' && (isManagerOwner || isBossOrSuper);
+  const canApprove = status === 'pending_boss' && isBossOrSuper;
 
   const tradeWagesMerged = useMemo(() => {
     const merged: Record<string, number> = {};
@@ -132,25 +181,14 @@ export default function MonthlyReportFillPage() {
     teamSettlement: projects.reduce((sum, p) => sum + (p.monthTeamSettlementCost || 0), 0),
   }), [projects]);
 
-  async function submit(action: 'save' | 'submit_manager') {
+  async function post(action: string, extra?: { content?: WorkflowContent; reason?: string }) {
     if (!month) return;
-    if (action === 'submit_manager' && !analysis.trim()) {
-      toast.error('请先填写经营分析再提交');
-      return;
-    }
     setSaving(true);
     try {
-      const body: Record<string, unknown> = {
-        month,
-        action,
-        content: {
-          analysis: analysis.trim(),
-          risk: risk.trim(),
-          nextPlan: nextPlan.trim(),
-          remark: remark.trim(),
-        },
-      };
+      const body: Record<string, unknown> = { month, action };
       if (projectId && projectId !== 'all') body.projectId = projectId;
+      if (extra?.content) body.content = extra.content;
+      if (extra?.reason) body.reason = extra.reason;
       const res = await fetch('/api/reports/monthly/workflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,26 +196,32 @@ export default function MonthlyReportFillPage() {
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.success === false) {
-        throw new Error(json.error || '保存失败');
-      }
-      toast.success(action === 'save' ? '草稿已保存' : '已提交项目经理');
-      if (action === 'submit_manager') {
+      if (!res.ok || json.success === false) throw new Error(json.error || '操作失败');
+      toast.success(
+        action === 'save' ? '草稿已保存'
+          : action === 'submit_manager' ? '已提交项目经理'
+            : action === 'supplement' ? '已提交老板审批'
+              : action === 'approve' ? '已通过，分析已归档' : '已驳回',
+      );
+      setRejectMode(false);
+      setRejectReason('');
+      await load();
+      if (action === 'submit_manager' || action === 'supplement' || action === 'approve' || action === 'reject') {
         router.push(`/reports/monthly?month=${encodeURIComponent(month)}${projectId !== 'all' ? `&projectId=${projectId}` : ''}`);
-      } else {
-        setStatus('draft');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '保存失败');
+      toast.error(error instanceof Error ? error.message : '操作失败');
     } finally {
       setSaving(false);
     }
   }
 
+  const budgetContent: WorkflowContent = { analysis, risk, nextPlan, remark };
+
   return (
     <div className="min-h-screen bg-[var(--color-muted)] px-3 py-4 sm:p-4 md:p-6">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Link
               href={`/reports/monthly?month=${encodeURIComponent(month)}${projectId !== 'all' ? `&projectId=${projectId}` : ''}`}
@@ -186,20 +230,20 @@ export default function MonthlyReportFillPage() {
               <ArrowLeft className="h-4 w-4" /> 返回月报
             </Link>
             <h1 className="text-xl font-bold text-[var(--foreground)] sm:text-2xl">
-              {month || '本月'} 月度分析填写
+              {month || '本月'} 月度分析
             </h1>
             <p className="mt-0.5 text-sm text-[var(--color-text-3)]">
-              {projectId === 'all' ? '全公司' : `项目 #${projectId}`} · 系统数据自动带出（不可修改），只需填写分析
+              {projectId === 'all' ? '全公司' : `项目 #${projectId}`} · 系统数据自动带出（不可修改）
             </p>
           </div>
-          <span className="inline-flex h-8 items-center rounded-full bg-white px-3 text-xs font-medium text-[var(--foreground)]">
+          <span className={`inline-flex h-8 items-center rounded-full px-3 text-xs font-medium ${STATUS_CLASS[status] || 'bg-slate-100 text-slate-600'}`}>
             当前状态：{STATUS_LABEL[status] || status}
           </span>
         </div>
 
-        {rejectReason ? (
+        {rejectNote && (status === 'rejected' || status === 'draft') ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            驳回原因：{rejectReason}
+            驳回原因：{rejectNote}
           </div>
         ) : null}
 
@@ -210,7 +254,7 @@ export default function MonthlyReportFillPage() {
             <h2 className="font-semibold text-[var(--foreground)]">本月经营数据</h2>
             <span className="text-xs text-[var(--color-text-3)]">系统自动带出，不可修改</span>
           </div>
-          <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-5">
             {[
               { label: '本月报量', value: fmtWan(overview.monthIncome) },
               { label: '工人工资应发', value: fmtWan(totals.laborSalary) },
@@ -267,12 +311,19 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
-        {/* 分析填写（可编辑） */}
-        <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-          <div className="flex items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+        {/* 预算员分析 */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
             <FileText className="h-4 w-4 text-[var(--color-primary)]" />
-            <h2 className="font-semibold text-[var(--foreground)]">经营分析</h2>
-            <span className="text-xs text-[var(--color-text-3)]">仅分析内容可填写</span>
+            <h2 className="font-semibold text-[var(--foreground)]">预算员分析</h2>
+            <span className="text-xs text-[var(--color-text-3)]">
+              {fillOwnerName ? `填报人：${fillOwnerName}` : ''}
+            </span>
+            {content.analysis && !canFill ? (
+              <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-text-3)]">
+                <Lock className="h-3 w-3" /> 已提交，只读
+              </span>
+            ) : null}
           </div>
           <div className="space-y-4 px-5 py-4">
             <label className="block">
@@ -281,7 +332,7 @@ export default function MonthlyReportFillPage() {
                 value={analysis}
                 onChange={(event) => setAnalysis(event.target.value)}
                 rows={6}
-                disabled={!editable}
+                disabled={!canFill}
                 placeholder="结合上方系统数据，说明本月经营情况（产值/成本/工资/班组）"
                 className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
               />
@@ -293,7 +344,7 @@ export default function MonthlyReportFillPage() {
                   value={risk}
                   onChange={(event) => setRisk(event.target.value)}
                   rows={4}
-                  disabled={!editable}
+                  disabled={!canFill}
                   placeholder="需关注的问题与应对措施"
                   className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
                 />
@@ -304,7 +355,7 @@ export default function MonthlyReportFillPage() {
                   value={nextPlan}
                   onChange={(event) => setNextPlan(event.target.value)}
                   rows={4}
-                  disabled={!editable}
+                  disabled={!canFill}
                   placeholder="下月经营计划与目标"
                   className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
                 />
@@ -316,36 +367,168 @@ export default function MonthlyReportFillPage() {
                 value={remark}
                 onChange={(event) => setRemark(event.target.value)}
                 rows={2}
-                disabled={!editable}
+                disabled={!canFill}
                 placeholder="其他说明"
                 className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
               />
             </label>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
-            {!editable ? (
-              <span className="mr-auto inline-flex items-center gap-1 text-xs text-[var(--color-text-3)]">
-                <CheckCircle2 className="h-3.5 w-3.5" /> 当前状态不可编辑，需流转到对应角色后填写
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => submit('save')}
-              disabled={saving || !editable}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} 保存草稿
-            </button>
-            <button
-              type="button"
-              onClick={() => submit('submit_manager')}
-              disabled={saving || !editable}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交项目经理
-            </button>
-          </div>
+          {canFill ? (
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+              <button
+                type="button"
+                onClick={() => post('save', { content: budgetContent })}
+                disabled={saving}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)] disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} 保存草稿
+              </button>
+              <button
+                type="button"
+                onClick={() => post('submit_manager', { content: budgetContent })}
+                disabled={saving}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交项目经理
+              </button>
+            </div>
+          ) : null}
         </section>
+
+        {/* 项目经理补充 */}
+        {(managerSupplement || canSupplement || ['pending_boss', 'approved', 'pending_manager'].includes(status)) ? (
+          <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+              <UserRoundCheck className="h-4 w-4 text-[var(--color-primary)]" />
+              <h2 className="font-semibold text-[var(--foreground)]">项目经理补充</h2>
+              <span className="text-xs text-[var(--color-text-3)]">
+                {managerOwnerName ? `项目经理：${managerOwnerName}` : ''}
+              </span>
+              {canSupplement ? (
+                <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
+                  <LockOpen className="h-3 w-3" /> 待你补充
+                </span>
+              ) : managerSupplement ? (
+                <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-text-3)]">
+                  <Lock className="h-3 w-3" /> 已补充，只读
+                </span>
+              ) : null}
+            </div>
+            <div className="px-5 py-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--color-text-3)]">补充分析内容 *</span>
+                <textarea
+                  value={managerSupplement}
+                  onChange={(event) => setManagerSupplement(event.target.value)}
+                  rows={5}
+                  disabled={!canSupplement}
+                  placeholder="项目经理补充：现场进度、风险、资源安排等（必填）"
+                  className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
+                />
+              </label>
+            </div>
+            {canSupplement ? (
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => post('supplement', { content: { managerSupplement } })}
+                  disabled={saving}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交老板审批
+                </button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {/* 老板审批 */}
+        {(canApprove || bossSupplement || status === 'approved') ? (
+          <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+              <CheckCircle2 className="h-4 w-4 text-[var(--color-primary)]" />
+              <h2 className="font-semibold text-[var(--foreground)]">老板审批</h2>
+              {status === 'approved' && approvedBy ? (
+                <span className="text-xs text-[var(--color-text-3)]">审批人：{approvedBy}</span>
+              ) : null}
+              {canApprove ? (
+                <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
+                  <LockOpen className="h-3 w-3" /> 待你审批
+                </span>
+              ) : null}
+            </div>
+            <div className="px-5 py-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--color-text-3)]">
+                  老板意见 / 补充（{canApprove ? '可填写' : '只读'}）
+                </span>
+                <textarea
+                  value={bossSupplement}
+                  onChange={(event) => setBossSupplement(event.target.value)}
+                  rows={4}
+                  disabled={!canApprove}
+                  placeholder="老板补充意见：经营判断、下月要求等（可选）"
+                  className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
+                />
+              </label>
+              {canApprove && rejectMode ? (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                  <div className="mb-2 text-xs font-medium text-red-600">驳回原因（必填）</div>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(event) => setRejectReason(event.target.value)}
+                    rows={3}
+                    placeholder="请说明驳回原因，预算员会看到并修改"
+                    className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm outline-none focus:border-red-400"
+                  />
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setRejectMode(false); setRejectReason(''); }}
+                      className="inline-flex h-8 items-center rounded-lg border border-[var(--border)] bg-white px-3 text-xs"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => post('reject', { content: { bossSupplement }, reason: rejectReason })}
+                      disabled={saving}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#F53F3F] px-3 text-xs font-medium text-white disabled:opacity-60"
+                    >
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />} 确认驳回
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            {canApprove ? (
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setRejectMode(true)}
+                  disabled={saving}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 text-sm font-medium text-[#F53F3F] disabled:opacity-60"
+                >
+                  <XCircle className="h-4 w-4" /> 驳回
+                </button>
+                <button
+                  type="button"
+                  onClick={() => post('approve', { content: { bossSupplement } })}
+                  disabled={saving}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#00B42A] px-4 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} 通过并归档
+                </button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {!canFill && !canSupplement && !canApprove && status !== 'approved' ? (
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--color-text-3)]">
+            当前环节由其他角色处理中，你暂无操作权限。
+          </div>
+        ) : null}
       </div>
     </div>
   );

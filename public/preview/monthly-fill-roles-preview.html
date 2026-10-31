@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>月度分析 · 三角色页面预览</title>
+<style>
+  :root{
+    --primary:#165DFF; --accent:#E8F0FF; --muted:#F7F8FA; --border:#E5E6EB;
+    --text:#1D2129; --text-2:#4E5969; --text-3:#86909C;
+    --danger:#F53F3F; --warn:#FF7D00; --success:#00B42A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--muted);color:var(--text);padding:16px;font-size:14px;line-height:1.5}
+  .wrap{max-width:900px;margin:0 auto}
+  .preview-tip{margin-bottom:12px;border:1px dashed var(--primary);background:var(--accent);color:var(--primary);
+    border-radius:10px;padding:8px 12px;font-size:12px}
+  .role-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .role-bar button{height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--border);background:#fff;
+    font-size:13px;font-family:inherit;cursor:pointer;color:var(--text-2)}
+  .role-bar button.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .who{margin-bottom:12px;font-size:12px;color:var(--text-3)}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .back{display:inline-flex;align-items:center;gap:4px;color:var(--text-3);font-size:13px;text-decoration:none;margin-bottom:8px}
+  h1{font-size:22px;font-weight:700;letter-spacing:-.2px}
+  .sub{margin-top:2px;color:var(--text-3);font-size:13px}
+  .status-badge{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+  .st-draft{background:#F2F3F5;color:#4E5969}
+  .st-manager{background:#FFF7E8;color:#B35B00}
+  .st-boss{background:#E8F0FF;color:#0E42D2}
+  .st-approved{background:#E8FFEA;color:#009A29}
+  .st-rejected{background:#FFECE8;color:#CB2634}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px}
+  .card-head{display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .card-head h2{font-size:15px;font-weight:600}
+  .card-head .hint{font-size:12px;color:var(--text-3)}
+  .card-head .mine{margin-left:auto;font-size:12px;color:var(--primary);display:inline-flex;align-items:center;gap:4px}
+  .card-head .ro{margin-left:auto;font-size:12px;color:var(--text-3);display:inline-flex;align-items:center;gap:4px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--border)}
+  .kpi{background:#fff;padding:12px 16px}
+  .kpi .label{font-size:12px;color:var(--text-3)}
+  .kpi .value{margin-top:4px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+  .section{border-top:1px solid var(--border);padding:12px 20px}
+  .section .title{font-size:12px;font-weight:500;color:var(--text-3);margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;font-weight:500;color:var(--text-3);padding:6px 8px 6px 0}
+  th.num,td.num{text-align:right}
+  td{padding:6px 8px 6px 0;border-top:1px solid var(--border);font-variant-numeric:tabular-nums}
+  td:first-child{font-variant-numeric:normal}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--muted);border-radius:999px;padding:4px 10px;font-size:12px}
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field label{display:block;font-size:12px;font-weight:500;color:var(--text-3);margin-bottom:4px}
+  .field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:14px;
+    font-family:inherit;line-height:1.6;resize:vertical;outline:none;color:var(--text);background:#fff}
+  .field textarea:focus{border-color:var(--primary)}
+  .field textarea:disabled{background:var(--muted);color:var(--text-2)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);flex-wrap:wrap}
+  button.act{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 16px;border-radius:8px;
+    font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid var(--border);background:#fff;color:var(--text)}
+  button.act.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.act.ok{background:var(--success);border-color:var(--success);color:#fff}
+  button.act.danger{background:#fff;border-color:#FFC9C9;color:var(--danger)}
+  .reject-box{border:1px solid #FFC9C9;background:#FFF1F0;border-radius:8px;padding:10px 12px;margin-top:12px}
+  .reject-box .t{font-size:12px;font-weight:500;color:var(--danger);margin-bottom:6px}
+  .reject-box textarea{width:100%;border:1px solid #FFC9C9;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
+  .reject-box .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  .reject-box .btns button{height:30px;font-size:12px;padding:0 12px}
+  .warn-box{border:1px solid #FFC9C9;background:#FFF1F0;color:#CB2634;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;display:none}
+  .lock-note{border:1px solid var(--border);background:#fff;border-radius:8px;padding:10px 14px;font-size:13px;color:var(--text-3)}
+  .hidden{display:none !important}
+  @media (max-width:720px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr)}
+    .two{grid-template-columns:1fr}
+    h1{font-size:19px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="preview-tip">👀 静态预览（不连数据）。点上面三个按钮，切换「预算员 / 项目经理 / 老板」看到的页面效果。</div>
+
+  <div class="role-bar">
+    <button class="active" data-role="budget" onclick="setRole('budget',this)">① 预算员填写</button>
+    <button data-role="manager" onclick="setRole('manager',this)">② 项目经理补充</button>
+    <button data-role="boss" onclick="setRole('boss',this)">③ 老板审批</button>
+  </div>
+  <div class="who" id="whoText">当前登录：张三（预算员 · 山海境TOD）</div>
+
+  <div class="top">
+    <div>
+      <a class="back" href="#">← 返回月报</a>
+      <h1>2026-10 月度分析</h1>
+      <div class="sub">山海境TOD · 系统数据自动带出（不可修改）</div>
+    </div>
+    <span class="status-badge st-draft" id="statusBadge">当前状态：预算员填写中</span>
+  </div>
+
+  <div class="warn-box" id="rejectNotice">驳回原因：本月报量数据与实际差异较大，请核对 10 月报量后重新提交。</div>
+
+  <!-- 系统数据 -->
+  <section class="card">
+    <div class="card-head"><span class="hint">🔒</span><h2>本月经营数据</h2><span class="hint">系统自动带出，不可修改</span></div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="label">本月报量</div><div class="value">420.50 万元</div></div>
+      <div class="kpi"><div class="label">工人工资应发</div><div class="value">143.72 万元</div></div>
+      <div class="kpi"><div class="label">工人实发</div><div class="value">125.40 万元</div></div>
+      <div class="kpi"><div class="label">班组结算</div><div class="value">42.60 万元</div></div>
+      <div class="kpi"><div class="label">确认成本</div><div class="value">381.20 万元</div></div>
+    </div>
+    <div class="section">
+      <div class="title">分项目明细</div>
+      <table>
+        <thead><tr><th>项目</th><th class="num">报量</th><th class="num">工人工资</th><th class="num">实发</th><th class="num">班组结算</th></tr></thead>
+        <tbody>
+          <tr><td>山海境TOD</td><td class="num">218.40 万</td><td class="num">76.52 万</td><td class="num">68.10 万</td><td class="num">21.30 万</td></tr>
+          <tr><td>南京中交智慧港</td><td class="num">132.10 万</td><td class="num">43.60 万</td><td class="num">38.20 万</td><td class="num">12.80 万</td></tr>
+          <tr><td>延安能源产业基地</td><td class="num">70.00 万</td><td class="num">23.60 万</td><td class="num">19.10 万</td><td class="num">8.50 万</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section">
+      <div class="title">各工种工资</div>
+      <div class="chips">
+        <span class="chip">木工：38.20 万元</span><span class="chip">钢筋工：31.50 万元</span>
+        <span class="chip">混凝土工：22.40 万元</span><span class="chip">架子工：18.60 万元</span>
+        <span class="chip">水电工：15.80 万元</span><span class="chip">普工：17.22 万元</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 预算员分析 -->
+  <section class="card">
+    <div class="card-head">
+      <span style="color:var(--primary)">📄</span><h2>预算员分析</h2>
+      <span class="hint" id="budgetWho">填报人：张三</span>
+      <span class="ro hidden" id="budgetRo">🔒 已提交，只读</span>
+    </div>
+    <div class="section">
+      <div class="field">
+        <label>经营分析 *</label>
+        <textarea id="analysis" rows="6" disabled>本月完成产值 420.5 万元，环比增长 6.2%。山海境TOD 主体结构推进顺利，报量占比 52%；南京中交智慧港受甲方计量周期影响，报量延后至下月初确认。确认成本 381.2 万元。工人工资应发 143.72 万元，实发 125.40 万元，实发率 87.3%。班组结算 42.6 万元，均在审批流程中。</textarea>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label>风险说明</label>
+          <textarea id="risk" rows="4" disabled>1. 延安能源产业基地甲方付款滞后；
+2. 木工班组人员流动较大，下月需提前储备；
+3. 南京中交智慧港计量周期延长，可能影响下月现金流。</textarea>
+        </div>
+        <div class="field">
+          <label>下月计划</label>
+          <textarea id="nextPlan" rows="4" disabled>1. 山海境TOD 完成 3# 楼主体封顶，预计报量 180 万元；
+2. 跟进延安项目回款，目标回收 50 万元；
+3. 控制零星材料支出，压缩 5% 非必要采购。</textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label>备注</label>
+        <textarea id="remark" rows="2" disabled>南京中交智慧港 10 月计量单已于 10/28 提交甲方，待确认。</textarea>
+      </div>
+    </div>
+    <div class="actions hidden" id="budgetActions">
+      <button class="act">💾 保存草稿</button>
+      <button class="act primary">➤ 提交项目经理</button>
+    </div>
+  </section>
+
+  <!-- 项目经理补充 -->
+  <section class="card hidden" id="managerCard">
+    <div class="card-head">
+      <span style="color:var(--primary)">🧑‍💼</span><h2>项目经理补充</h2>
+      <span class="hint">项目经理：李四</span>
+      <span class="mine hidden" id="managerMine">🔓 待你补充</span>
+      <span class="ro hidden" id="managerRo">🔒 已补充，只读</span>
+    </div>
+    <div class="section">
+      <div class="field">
+        <label>补充分析内容 *</label>
+        <textarea id="managerSupplement" rows="5" disabled>现场进度：3# 楼 12 层结构完成，4# 楼基础完成 80%。
+风险补充：木工班组 11 月预计缺 8 人，已联系两个备选班组；塔吊检修计划 11/5 停机 1 天，需提前调整浇筑。
+资源安排：混凝土供应商 11 月保供 2 家，避免单点依赖。</textarea>
+      </div>
+    </div>
+    <div class="actions hidden" id="managerActions">
+      <button class="act primary">➤ 提交老板审批</button>
+    </div>
+  </section>
+
+  <!-- 老板审批 -->
+  <section class="card hidden" id="bossCard">
+    <div class="card-head">
+      <span style="color:var(--success)">✅</span><h2>老板审批</h2>
+      <span class="hint" id="bossWho">审批人：王总</span>
+      <span class="mine hidden" id="bossMine">🔓 待你审批</span>
+    </div>
+    <div class="section">
+      <div class="field">
+        <label>老板意见 / 补充（可填写）</label>
+        <textarea id="bossSupplement" rows="4" disabled>整体经营符合预期。要求：①11 月延安回款必须跟到 50 万；②木工缺员问题 11/10 前落实；③零星材料压降 5% 要在月底体现。</textarea>
+      </div>
+      <div class="reject-box hidden" id="rejectBox">
+        <div class="t">驳回原因（必填）</div>
+        <textarea rows="3" placeholder="请说明驳回原因，预算员会看到并修改"></textarea>
+        <div class="btns"><button class="act">取消</button><button class="act danger">确认驳回</button></div>
+      </div>
+    </div>
+    <div class="actions hidden" id="bossActions">
+      <button class="act danger">✕ 驳回</button>
+      <button class="act ok">✓ 通过并归档</button>
+    </div>
+  </section>
+
+  <div class="lock-note hidden" id="noPermit">当前环节由其他角色处理中，你暂无操作权限。</div>
+</div>
+
+<script>
+  var roles = {
+    budget: {
+      who: '当前登录：张三（预算员 · 山海境TOD）',
+      status: '当前状态：预算员填写中', statusClass: 'st-draft',
+      analysisEditable: true, managerCard: false, bossCard: false
+    },
+    manager: {
+      who: '当前登录：李四（项目经理 · 山海境TOD）',
+      status: '当前状态：待项目经理补充', statusClass: 'st-manager',
+      analysisEditable: false, managerCard: true, managerEditable: true, bossCard: false
+    },
+    boss: {
+      who: '当前登录：王总（老板）',
+      status: '当前状态：待老板审批', statusClass: 'st-boss',
+      analysisEditable: false, managerCard: true, managerEditable: false, bossCard: true, bossEditable: true
+    }
+  };
+
+  function show(id, visible) {
+    document.getElementById(id).classList.toggle('hidden', !visible);
+  }
+
+  function setRole(role, btn) {
+    document.querySelectorAll('.role-bar button').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    var cfg = roles[role];
+
+    document.getElementById('whoText').textContent = cfg.who;
+    var badge = document.getElementById('statusBadge');
+    badge.textContent = cfg.status;
+    badge.className = 'status-badge ' + cfg.statusClass;
+
+    // 预算员分析
+    ['analysis','risk','nextPlan','remark'].forEach(function(id){
+      document.getElementById(id).disabled = !cfg.analysisEditable;
+    });
+    show('budgetActions', cfg.analysisEditable);
+    show('budgetRo', !cfg.analysisEditable);
+
+    // 项目经理补充
+    show('managerCard', cfg.managerCard);
+    if (cfg.managerCard) {
+      document.getElementById('managerSupplement').disabled = !cfg.managerEditable;
+      show('managerMine', !!cfg.managerEditable);
+      show('managerRo', !cfg.managerEditable);
+      show('managerActions', !!cfg.managerEditable);
+    }
+
+    // 老板审批
+    show('bossCard', !!cfg.bossCard);
+    if (cfg.bossCard) {
+      document.getElementById('bossSupplement').disabled = !cfg.bossEditable;
+      show('bossMine', !!cfg.bossEditable);
+      show('bossActions', !!cfg.bossEditable);
+      show('rejectBox', false);
+    }
+
+    // 驳回提示只在“驳回后回到预算员”时显示；这里默认隐藏
+    show('rejectNotice', false);
+    show('noPermit', false);
+  }
+
+  // 初始：预算员可编辑
+  setRole('budget', document.querySelector('.role-bar button[data-role="budget"]'));
+</script>
+</body>
+</html>

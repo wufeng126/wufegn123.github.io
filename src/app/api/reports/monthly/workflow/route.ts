@@ -181,6 +181,8 @@ export async function POST(request: NextRequest) {
           risk: String(body.content.risk || '').slice(0, 5000),
           nextPlan: String(body.content.nextPlan || '').slice(0, 5000),
           remark: String(body.content.remark || '').slice(0, 2000),
+          managerSupplement: String(body.content.managerSupplement || '').slice(0, 5000),
+          bossSupplement: String(body.content.bossSupplement || '').slice(0, 5000),
         }
       : null;
 
@@ -259,8 +261,26 @@ export async function POST(request: NextRequest) {
     if (action === 'reject' && !reason) {
       return apiBadRequest('请填写驳回原因');
     }
-    if (action === 'supplement' && content && contentIsEmpty(content)) {
-      return apiBadRequest('请填写补充内容后再提交');
+    // 项目经理补充必须填写补充内容（不能直接跳过）
+    if (action === 'supplement') {
+      const managerText = String(content?.managerSupplement || '').trim();
+      if (!managerText) {
+        return apiBadRequest('请填写项目经理补充内容后再提交');
+      }
+    }
+
+    // 内容合并：预算员保存覆盖自己的部分；项目经理/老板只补自己那部分，不覆盖已有内容
+    const existingContent = (workflow?.content || {}) as Record<string, unknown>;
+    let mergedContent: Record<string, unknown> | null = null;
+    if (content) {
+      if (action === 'save' || action === 'submit_manager') {
+        mergedContent = { ...existingContent, ...content };
+      } else {
+        mergedContent = { ...existingContent };
+        for (const [key, value] of Object.entries(content)) {
+          if (String(value || '').trim()) mergedContent[key] = value;
+        }
+      }
     }
 
     // 组装更新数据
@@ -269,7 +289,7 @@ export async function POST(request: NextRequest) {
       project_scope: scope,
       updated_at: now,
     };
-    if (content) patch.content = content;
+    if (mergedContent) patch.content = mergedContent;
 
     if (action === 'save') {
       patch.status = 'draft';
@@ -314,6 +334,8 @@ export async function POST(request: NextRequest) {
           analysisText,
           String(approvedContent.risk || '').trim() ? `\n存在问题与风险：\n${String(approvedContent.risk).trim()}` : '',
           String(approvedContent.nextPlan || '').trim() ? `\n下月计划：\n${String(approvedContent.nextPlan).trim()}` : '',
+          String(approvedContent.managerSupplement || '').trim() ? `\n项目经理补充：\n${String(approvedContent.managerSupplement).trim()}` : '',
+          String(approvedContent.bossSupplement || '').trim() ? `\n老板意见：\n${String(approvedContent.bossSupplement).trim()}` : '',
         ].filter(Boolean).join('\n');
         const sourceRef = `monthly_report:${month}:${scope}`;
         try {
