@@ -239,6 +239,15 @@ export default function MonthlyReportFillPage() {
   const designatedManagerId = Number(content.managerApproverId) || 0;
   const designatedBossId = Number(content.bossApproverId) || 0;
 
+  // 审批人候选按角色拆分：项目经理环节只显示项目经理；老板环节只显示老板/超管
+  const managerOptions = useMemo(
+    () => userOptions.filter((item) => item.role === 'project_manager'),
+    [userOptions],
+  );
+  const bossOptions = useMemo(
+    () => userOptions.filter((item) => item.role === 'boss' || item.role === 'super_admin'),
+    [userOptions],
+  );
   const filteredUserOptions = useMemo(() => {
     const keyword = approverKeyword.trim().toLowerCase();
     return userOptions
@@ -295,7 +304,7 @@ export default function MonthlyReportFillPage() {
         return;
       }
       body.managerApproverId = managerApproverId;
-      body.managerApproverName = userOptions.find((item) => item.id === managerApproverId)?.name || '';
+      body.managerApproverName = managerOptions.find((item) => item.id === managerApproverId)?.name || '';
     }
     if (action === 'supplement') {
       if (!bossApproverId) {
@@ -303,7 +312,7 @@ export default function MonthlyReportFillPage() {
         return;
       }
       body.bossApproverId = bossApproverId;
-      body.bossApproverName = userOptions.find((item) => item.id === bossApproverId)?.name || '';
+      body.bossApproverName = bossOptions.find((item) => item.id === bossApproverId)?.name || '';
     }
     if (projectId && projectId !== 'all') body.projectId = projectId;
     setSaving(true);
@@ -379,7 +388,7 @@ export default function MonthlyReportFillPage() {
             {[
               { label: '本月产值（开票额）', value: fmtWan(overview.monthIncome), current: Number(overview.monthIncome) || 0, prev: prevTotals?.income },
               { label: '工人工资应发', value: fmtWan(totals.laborSalary), current: totals.laborSalary, prev: prevTotals?.labor },
-              { label: '工人实发（本月发出）', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
+              { label: '工人实发（月度工资）', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
               { label: '班组结算', value: fmtWan(totals.teamSettlement), current: totals.teamSettlement, prev: prevTotals?.team },
               { label: '确认成本', value: fmtWan(overview.monthCost), current: Number(overview.monthCost) || 0, prev: prevTotals?.cost },
             ].map((item) => {
@@ -402,11 +411,7 @@ export default function MonthlyReportFillPage() {
               );
             })}
           </div>
-          {totals.laborSalary > 0 && totals.salaryPaid === 0 ? (
-            <div className="border-t border-[var(--border)] px-5 py-2 text-xs text-[var(--color-danger)]">
-              本月工人工资尚未记录发放（实发 0）；如已发放，请在「工资发放」补录后此处自动更新。
-            </div>
-          ) : null}          {projects.length > 0 ? (
+          {projects.length > 0 ? (
             <div className="border-t border-[var(--border)] px-5 py-3">
               <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">分项目明细</div>
               <div className="overflow-x-auto">
@@ -542,12 +547,12 @@ export default function MonthlyReportFillPage() {
                   className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择</option>
-                  {filteredUserOptions.filter((item) => item.id !== myId).map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}{item.role ? `（${item.role}）` : ''}</option>
+                  {managerOptions.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
-                {userOptions.length === 0 ? (
-                  <span className="text-[var(--color-danger)]">未获取到可选审批人，请检查账号是否启用</span>
+                {managerOptions.length === 0 ? (
+                  <span className="text-[var(--color-danger)]">没有可选的项目经理账号，请检查用户角色设置</span>
                 ) : null}
               </label>
               <button
@@ -614,12 +619,12 @@ export default function MonthlyReportFillPage() {
                     className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                   >
                     <option value={0}>请选择</option>
-                    {filteredUserOptions.filter((item) => item.id !== myId).map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}{item.role ? `（${item.role}）` : ''}</option>
+                    {bossOptions.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
                   </select>
-                {userOptions.length === 0 ? (
-                  <span className="text-[var(--color-danger)]">未获取到可选审批人，请检查账号是否启用</span>
+                {bossOptions.length === 0 ? (
+                  <span className="text-[var(--color-danger)]">没有可选的老板账号，请检查用户角色设置</span>
                 ) : null}
                 </label>
                 <button

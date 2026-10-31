@@ -675,11 +675,10 @@ export async function GET(request: NextRequest) {
           .filter((s: Record<string, unknown>) => s.payment_status === 'paid')
           .map((s: Record<string, unknown>) => Number(s.net_pay || 0)),
       );
-      // 优先用「本月实际支付」口径（按发放日期，含"上月工资本月补发"）；没有发放记录时再回退
-      const monthSalaryPaymentCash = monthPaidByProject.get(pid) || 0;
-      const monthSalaryPayment = monthSalaryPaymentCash > 0
-        ? monthSalaryPaymentCash
-        : (monthSalaryPaymentFromPayments > 0 ? monthSalaryPaymentFromPayments : monthSalaryPaymentFromStatus);
+      // 口径以「月度工资」为准：本月工资单实发（net_pay）合计，
+      // 不依赖工资发放记录（实际发钱时间不确定，发放记录常滞后或跨月）
+      const monthSalaryPayment = monthSalaryPaymentFromStatus;
+      void monthPaidByProject;
       const monthActualPayment = monthSalaryPayment + monthSupplierPayments + monthExpenseCost + monthMaterialCost + monthTaxCost;
       const cashNetFlow = monthReceived - monthActualPayment;
       const cashNetFlowRate = monthReceived > 0 ? (cashNetFlow / monthReceived) * 100 : 0;

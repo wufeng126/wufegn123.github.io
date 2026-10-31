@@ -21,9 +21,15 @@ export async function GET(request: NextRequest) {
     if (error) throw new Error(error.message);
 
     const selfId = Number(auth.user.id);
+    // 支持按角色过滤：?roles=project_manager 或 ?roles=boss,super_admin
+    const roleParam = (new URL(request.url).searchParams.get('roles') || new URL(request.url).searchParams.get('role') || '').trim();
+    const allowedRoles = roleParam ? roleParam.split(',').map((item) => item.trim()).filter(Boolean) : [];
     const options = (data || [])
       .filter((row: { is_disabled?: boolean | null; role?: string | null; id?: unknown }) =>
-        row.is_disabled !== true && row.role !== 'pending' && Number(row.id) !== selfId,
+        row.is_disabled !== true
+        && row.role !== 'pending'
+        && Number(row.id) !== selfId
+        && (allowedRoles.length === 0 || allowedRoles.includes(String(row.role || ''))),
       )
       .map((row: Record<string, unknown>) => ({
         id: Number(row.id),

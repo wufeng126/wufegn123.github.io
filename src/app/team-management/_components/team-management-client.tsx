@@ -911,7 +911,7 @@ export function TeamSettlementLedgerPageClient() {
       setSelectedApproverId(0);
       if (approverOptions.length === 0) {
         try {
-          const json = await readJson(await fetch('/api/users/options', { credentials: 'include' }));
+          const json = await readJson(await fetch('/api/users/options?roles=boss,super_admin,admin', { credentials: 'include' }));
           const options = ((json as { data?: { options?: Array<{ id: number; name: string; role: string }> } })?.data?.options || []);
           setApproverOptions(Array.isArray(options) ? options : []);
         } catch {
@@ -1815,7 +1815,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
     setWfDialogOpen(true);
     if (wfOptions.length === 0) {
       try {
-        const json = await readJson(await fetch('/api/users/options', { credentials: 'include' }));
+        const json = await readJson(await fetch('/api/users/options?roles=boss,super_admin,admin', { credentials: 'include' }));
         const options = (json.data?.options || []);
         setWfOptions(Array.isArray(options) ? options : []);
       } catch {
@@ -2250,7 +2250,7 @@ export function TeamSettlementDetailPageClient() {
     setApproverDialogOpen(true);
     if (wfOptions.length === 0) {
       try {
-        const json = await readJson(await fetch('/api/users/options', { credentials: 'include' }));
+        const json = await readJson(await fetch('/api/users/options?roles=boss,super_admin,admin', { credentials: 'include' }));
         const options = json?.data?.options || [];
         setWfOptions(Array.isArray(options) ? options : []);
       } catch {
