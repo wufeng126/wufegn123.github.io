@@ -1523,7 +1523,7 @@ function WorkItemsContent() {
         setBudgetEditDialogOpen(false);
         setBudgetEditItem(null);
         refreshSubitems();
-        toast({ title: '修改成功', description: '对上报量已更新', variant: 'success' });
+        toast({ title: '修改成功', description: '预算工程量已更新', variant: 'success' });
       } else {
         const error = await res.json();
         toast({ title: '修改失败', description: error.error || '操作失败', variant: 'error' });
@@ -3114,6 +3114,17 @@ function WorkItemsContent() {
                                         >
                                           <Plus className="h-3 w-3" />
                                           录入
+                                        </Button>
+                                      )}
+                                      {!row.isAddon && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 gap-1 px-2 text-xs text-slate-600 hover:bg-slate-100"
+                                          onClick={() => openBudgetEditDialog(row as unknown as WorkItemSubitem)}
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                          改预算
                                         </Button>
                                       )}
                                       <button
