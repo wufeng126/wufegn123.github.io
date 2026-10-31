@@ -410,11 +410,13 @@ export async function POST(request: NextRequest) {
     const teamId = parseId(body?.team_id);
     const { month, start, end } = getSettlementPeriod(body?.settlement_month);
     const items = normalizeItems(body?.items);
+    // 暂存（partial=true）：允许没有工程量明细，先存为草稿后续再补
+    const isPartialSave = body?.partial === true;
     const splits = normalizeSplits(body?.splits);
 
     if (!projectId) return apiBadRequest('请选择所属项目');
     if (!teamId) return apiBadRequest('请选择班组');
-    if (items.length === 0) return apiBadRequest('请至少录入一条结算工程量');
+    if (items.length === 0 && !isPartialSave) return apiBadRequest('请至少录入一条结算工程量');
 
     const supabase = getSupabaseClient();
     const hasAccess = await assertProjectAccess(supabase, auth.user, projectId);

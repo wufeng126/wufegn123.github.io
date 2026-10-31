@@ -18,6 +18,7 @@ import {
   Printer,
   RefreshCw,
   Save,
+  Send,
   Search,
   Trash2,
   Upload,
@@ -1460,6 +1461,12 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  // 暂存后 / 提交审批：选择审批人
+  const [wfDialogOpen, setWfDialogOpen] = useState(false);
+  const [wfSettlementId, setWfSettlementId] = useState<number | null>(null);
+  const [wfOptions, setWfOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
+  const [wfApproverId, setWfApproverId] = useState(0);
+  const [wfLoading, setWfLoading] = useState(false);
 
   useEffect(() => {
     setProjectId((current) => current || (projects[0]?.id ? String(projects[0].id) : ''));
@@ -1691,7 +1698,8 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
     }
   }
 
-  async function createSettlement() {
+  /** 暂存（草稿，可留空工程量）或保存并提交审批 */
+  async function saveSettlement(mode: 'draft' | 'submit') {
     if (!selectedProjectId || !selectedTeamId) {
       setMessage('请先选择项目和班组');
       return;
@@ -1703,8 +1711,8 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
       .map((row) => ({ worker_id: Number(row.worker_id), amount: toNumber(row.amount) }))
       .filter((row) => row.worker_id > 0);
 
-    if (items.length === 0) {
-      setMessage('请至少录入一条结算工程量');
+    if (mode === 'submit' && items.length === 0) {
+      setMessage('提交审批前请至少录入一条结算工程量');
       return;
     }
 
@@ -1712,21 +1720,88 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
     setMessage('');
     try {
       const url = isEditMode && editSettlementId ? `/api/team-settlements/${editSettlementId}` : '/api/team-settlements';
+      const payloadBase = {
+        settlement_month: month,
+        remark,
+        items,
+        splits,
+        attachments,
+        partial: mode === 'draft',
+        advance_deduct: toNumber(deductAdvance),
+        labor_insurance_deduct: toNumber(deductLaborInsurance),
+        helper_deduct: toNumber(deductHelper),
+        safety_fund_deduct: toNumber(deductSafetyFund),
+        payment_ratio: normalizedRatio,
+      };
       const json = await readJson(await fetch(url, {
         method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(isEditMode
-          ? { settlement_month: month, remark, items, splits, attachments, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }
-          : { project_id: selectedProjectId, team_id: selectedTeamId, settlement_month: month, remark, items, splits, attachments, advance_deduct: toNumber(deductAdvance), labor_insurance_deduct: toNumber(deductLaborInsurance), helper_deduct: toNumber(deductHelper), safety_fund_deduct: toNumber(deductSafetyFund), payment_ratio: normalizedRatio }),
+          ? payloadBase
+          : { project_id: selectedProjectId, team_id: selectedTeamId, ...payloadBase }),
       }));
       const settlementId = isEditMode ? editSettlementId : json.data?.settlement?.id;
-      if (settlementId) router.push(`/team-management/settlements/${settlementId}`);
-      else router.push('/team-management/settlements');
+      if (!settlementId) {
+        setMessage('保存成功');
+        return;
+      }
+      if (mode === 'draft') {
+        setMessage('已暂存，可继续修改');
+        if (!isEditMode) router.replace(`/team-management/settlements/${settlementId}/edit`);
+        return;
+      }
+      await openWorkflowDialog(Number(settlementId));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '班组结算单保存失败');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function openWorkflowDialog(settlementId: number) {
+    setWfSettlementId(settlementId);
+    setWfApproverId(0);
+    setWfDialogOpen(true);
+    if (wfOptions.length === 0) {
+      try {
+        const json = await readJson(await fetch('/api/users/options', { credentials: 'include' }));
+        const options = (json.data?.options || []);
+        setWfOptions(Array.isArray(options) ? options : []);
+      } catch {
+        setWfOptions([]);
+      }
+    }
+  }
+
+  async function confirmSubmitWorkflow() {
+    if (!wfSettlementId) return;
+    if (!wfApproverId) {
+      setMessage('请选择审批人');
+      return;
+    }
+    setWfLoading(true);
+    setMessage('');
+    try {
+      const approver = wfOptions.find((option) => option.id === wfApproverId);
+      await readJson(await fetch('/api/team-settlements/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          settlement_id: wfSettlementId,
+          action: 'submit',
+          approverUserId: wfApproverId,
+          approverName: approver?.name || '',
+        }),
+      }));
+      setWfDialogOpen(false);
+      setMessage(`已提交审批，审批人：${approver?.name || ''}`);
+      router.push(`/team-management/settlements/${wfSettlementId}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '提交审批失败');
+    } finally {
+      setWfLoading(false);
     }
   }
 
@@ -1742,9 +1817,13 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
               <ArrowLeft className="h-4 w-4" />
               返回台账
             </Link>
-            <button onClick={() => void createSettlement()} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
+            <button onClick={() => void saveSettlement('draft')} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isEditMode ? '保存修改' : '保存为草稿'}
+              暂存草稿
+            </button>
+            <button onClick={() => void saveSettlement('submit')} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              保存并提交审批
             </button>
           </>
         )}
@@ -2027,6 +2106,50 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
           </div>
         </div>
       </section>
+      {wfDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { if (!wfLoading) setWfDialogOpen(false); }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-lg font-semibold">提交审批</h3>
+            <p className="mt-1 text-sm text-[#86909C]">请选择下一级审批人，提交后只有该审批人（或老板/超管）可以审批。</p>
+            <div className="mt-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[#86909C]">审批人（必选）</span>
+                <select
+                  value={wfApproverId}
+                  onChange={(event) => setWfApproverId(Number(event.target.value) || 0)}
+                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                >
+                  <option value={0}>请选择审批人</option>
+                  {wfOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}{option.role ? `（${option.role}）` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setWfDialogOpen(false)}
+                disabled={wfLoading}
+                className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => void confirmSubmitWorkflow()}
+                disabled={wfLoading}
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50"
+              >
+                {wfLoading ? '提交中…' : '确认提交'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }
