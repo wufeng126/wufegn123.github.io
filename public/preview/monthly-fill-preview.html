@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>月度分析填写 · 静态预览</title>
+<style>
+  :root{
+    --primary:#165DFF; --accent:#E8F0FF; --muted:#F7F8FA; --border:#E5E6EB;
+    --text:#1D2129; --text-2:#4E5969; --text-3:#86909C;
+    --danger:#F53F3F; --warn:#FF7D00; --success:#00B42A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--muted); color:var(--text); padding:16px; font-size:14px; line-height:1.5;
+  }
+  .wrap{max-width:900px;margin:0 auto}
+  .preview-tip{
+    margin-bottom:12px;border:1px dashed var(--primary);background:var(--accent);color:var(--primary);
+    border-radius:10px;padding:8px 12px;font-size:12px;
+  }
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .back{display:inline-flex;align-items:center;gap:4px;color:var(--text-3);font-size:13px;text-decoration:none;margin-bottom:8px}
+  h1{font-size:22px;font-weight:700;letter-spacing:-.2px}
+  .sub{margin-top:2px;color:var(--text-3);font-size:13px}
+  .status-badge{
+    display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;
+    background:#fff;font-size:12px;font-weight:500;border:1px solid var(--border);white-space:nowrap;
+  }
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px}
+  .card-head{display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border)}
+  .card-head .lock{font-size:13px;color:var(--text-3)}
+  .card-head h2{font-size:15px;font-weight:600}
+  .card-head .hint{font-size:12px;color:var(--text-3)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)}
+  .kpi{background:#fff;padding:12px 16px}
+  .kpi .label{font-size:12px;color:var(--text-3)}
+  .kpi .value{margin-top:4px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+  .section{border-top:1px solid var(--border);padding:12px 20px}
+  .section .title{font-size:12px;font-weight:500;color:var(--text-3);margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;font-weight:500;color:var(--text-3);padding:6px 8px 6px 0}
+  th.num,td.num{text-align:right}
+  td{padding:6px 8px 6px 0;border-top:1px solid var(--border);font-variant-numeric:tabular-nums}
+  td:first-child{font-variant-numeric:normal}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--muted);border-radius:999px;padding:4px 10px;font-size:12px}
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field label{display:block;font-size:12px;font-weight:500;color:var(--text-3);margin-bottom:4px}
+  .field textarea{
+    width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:14px;
+    font-family:inherit;line-height:1.6;resize:vertical;outline:none;color:var(--text);background:#fff;
+  }
+  .field textarea:focus{border-color:var(--primary)}
+  .field textarea:disabled{background:var(--muted);color:var(--text-3)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);flex-wrap:wrap}
+  .actions .note{margin-right:auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-3)}
+  button{
+    display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 16px;border-radius:8px;
+    font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid var(--border);background:#fff;color:var(--text);
+  }
+  button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  button:hover{opacity:.92}
+  .reject{
+    display:none;margin-bottom:16px;border:1px solid #FFC9C9;background:#FFF1F0;color:var(--danger);
+    border-radius:8px;padding:10px 14px;font-size:13px;
+  }
+  .toggle-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .toggle-bar button{height:30px;font-size:12px;padding:0 12px}
+  .toggle-bar button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  @media (max-width:720px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr)}
+    .two{grid-template-columns:1fr}
+    h1{font-size:19px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="preview-tip">👀 这是一个静态预览（不连数据库），用切换按钮看不同状态的效果。真实页面数据会从系统自动带出。</div>
+
+  <div class="toggle-bar">
+    <button class="active" onclick="setState('draft', this)">预算员填写中</button>
+    <button onclick="setState('manager', this)">待项目经理补充</button>
+    <button onclick="setState('boss', this)">待老板审批</button>
+    <button onclick="setState('approved', this)">已通过（锁定）</button>
+    <button onclick="setState('rejected', this)">已驳回</button>
+  </div>
+
+  <div class="top">
+    <div>
+      <a class="back" href="#">← 返回月报</a>
+      <h1>2026-10 月度分析填写</h1>
+      <div class="sub">山海境TOD · 系统数据自动带出（不可修改），只需填写分析</div>
+    </div>
+    <span class="status-badge" id="statusBadge">当前状态：填写中</span>
+  </div>
+
+  <div class="reject" id="rejectBox">驳回原因：本月报量数据与实际差异较大，请核对 10 月报量后重新提交。</div>
+
+  <!-- 系统数据（只读） -->
+  <section class="card">
+    <div class="card-head">
+      <span class="lock">🔒</span>
+      <h2>本月经营数据</h2>
+      <span class="hint">系统自动带出，不可修改</span>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="label">本月报量</div><div class="value">420.50 万元</div></div>
+      <div class="kpi"><div class="label">工人工资应发</div><div class="value">143.72 万元</div></div>
+      <div class="kpi"><div class="label">工人实发</div><div class="value">125.40 万元</div></div>
+      <div class="kpi"><div class="label">班组结算</div><div class="value">42.60 万元</div></div>
+      <div class="kpi"><div class="label">确认成本</div><div class="value">381.20 万元</div></div>
+      <div class="kpi"><div class="label">经营利润</div><div class="value">38.60 万元</div></div>
+      <div class="kpi"><div class="label">利润率</div><div class="value">8.2%</div></div>
+      <div class="kpi"><div class="label">累计回款率</div><div class="value">83.3%</div></div>
+    </div>
+
+    <div class="section">
+      <div class="title">分项目明细</div>
+      <table>
+        <thead>
+          <tr>
+            <th>项目</th><th class="num">报量</th><th class="num">工人工资</th><th class="num">实发</th><th class="num">班组结算</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>山海境TOD</td><td class="num">218.40 万</td><td class="num">76.52 万</td><td class="num">68.10 万</td><td class="num">21.30 万</td></tr>
+          <tr><td>南京中交智慧港</td><td class="num">132.10 万</td><td class="num">43.60 万</td><td class="num">38.20 万</td><td class="num">12.80 万</td></tr>
+          <tr><td>延安能源产业基地</td><td class="num">70.00 万</td><td class="num">23.60 万</td><td class="num">19.10 万</td><td class="num">8.50 万</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="title">各工种工资</div>
+      <div class="chips">
+        <span class="chip">木工：38.20 万元</span>
+        <span class="chip">钢筋工：31.50 万元</span>
+        <span class="chip">混凝土工：22.40 万元</span>
+        <span class="chip">架子工：18.60 万元</span>
+        <span class="chip">水电工：15.80 万元</span>
+        <span class="chip">普工：17.22 万元</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 分析填写 -->
+  <section class="card">
+    <div class="card-head">
+      <span style="color:var(--primary)">📄</span>
+      <h2>经营分析</h2>
+      <span class="hint">仅分析内容可填写</span>
+    </div>
+    <div class="section">
+      <div class="field">
+        <label>经营分析 *</label>
+        <textarea id="analysis" rows="6">本月完成产值 420.5 万元，环比增长 6.2%。山海境TOD 主体结构推进顺利，报量占比 52%；南京中交智慧港受甲方计量周期影响，报量延后至下月初确认。确认成本 381.2 万元，经营利润 38.6 万元，利润率 8.2%，较上月提升 0.6 个百分点。工人工资应发 143.72 万元，实发 125.40 万元，实发率 87.3%，剩余部分为留存款。班组结算 42.6 万元，均在审批流程中。累计回款率 83.3%，未回款 70 万元，主要为延安能源产业基地的进度款。</textarea>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label>风险说明</label>
+          <textarea id="risk" rows="4">1. 延安能源产业基地甲方付款滞后，未回款 70 万元，需持续跟进；
+2. 木工班组人员流动较大，下月需提前储备；
+3. 南京中交智慧港计量周期延长，可能影响下月现金流。</textarea>
+        </div>
+        <div class="field">
+          <label>下月计划</label>
+          <textarea id="nextPlan" rows="4">1. 山海境TOD 完成 3# 楼主体封顶，预计报量 180 万元；
+2. 跟进延安项目回款，目标回收 50 万元；
+3. 控制零星材料支出，压缩 5% 非必要采购。</textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label>备注</label>
+        <textarea id="remark" rows="2">南京中交智慧港 10 月计量单已于 10/28 提交甲方，待确认。</textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <span class="note" id="lockNote" style="display:none">✅ 当前状态不可编辑，需流转到对应角色后填写</span>
+      <button id="btnSave">💾 保存草稿</button>
+      <button class="primary" id="btnSubmit">➤ 提交项目经理</button>
+    </div>
+  </section>
+</div>
+
+<script>
+  var labelMap = {
+    draft: '当前状态：填写中',
+    manager: '当前状态：待项目经理补充',
+    boss: '当前状态：待老板审批',
+    approved: '当前状态：已通过（锁定）',
+    rejected: '当前状态：已驳回'
+  };
+  function setState(state, btn) {
+    document.querySelectorAll('.toggle-bar button').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('statusBadge').textContent = labelMap[state];
+    var editable = (state === 'draft' || state === 'rejected');
+    ['analysis','risk','nextPlan','remark'].forEach(function(id){
+      document.getElementById(id).disabled = !editable;
+    });
+    document.getElementById('btnSave').disabled = !editable;
+    document.getElementById('btnSubmit').disabled = !editable;
+    document.getElementById('btnSave').style.opacity = editable ? 1 : .5;
+    document.getElementById('btnSubmit').style.opacity = editable ? 1 : .5;
+    document.getElementById('lockNote').style.display = editable ? 'none' : 'inline-flex';
+    document.getElementById('rejectBox').style.display = (state === 'rejected') ? 'block' : 'none';
+  }
+</script>
+</body>
+</html>
