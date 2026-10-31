@@ -459,19 +459,8 @@ export default function AIConfigPage() {
                 </div>
               </div>
               <div className="grid gap-3 pt-4 border-t sm:grid-cols-3">
-                <div className="flex items-center gap-2">
-                  <Switch checked={config.content_filter_enabled} onCheckedChange={v => setConfig({ ...config, content_filter_enabled: v })} />
-                  <Label>内容安全过滤</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={config.mask_sensitive} onCheckedChange={v => setConfig({ ...config, mask_sensitive: v })} />
-                  <Label>敏感信息脱敏</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={config.offline_fallback_enabled} onCheckedChange={v => setConfig({ ...config, offline_fallback_enabled: v })} />
-                  <Label>离线兜底</Label>
-                </div>
               </div>
+              <div className="rounded-lg border border-[#E5E6EB] bg-muted/40 p-3 text-xs text-muted-foreground">内容安全过滤、敏感信息脱敏、离线兜底目前由「角色权限」统一控制，尚未接入开关；为避免“开关无效果”的误解，这里不提供开关。</div>
               <Button onClick={saveConfig} disabled={saving}>
                 {saving ? '保存中...' : '保存配置'}
               </Button>
@@ -499,7 +488,7 @@ export default function AIConfigPage() {
             <CardHeader><CardTitle>功能模块开关</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(moduleLabels).map(([key, label]) => (
+                {Object.entries(moduleLabels).filter(([key]) => key === 'module_doc_generation' || key === 'module_report_analysis').map(([key, label]) => (
                   <div key={key} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <div className="font-medium">{label}</div>

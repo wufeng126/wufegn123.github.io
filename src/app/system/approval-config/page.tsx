@@ -77,7 +77,7 @@ export default function ApprovalConfigPage() {
   const router = useRouter();
   useEffect(() => {
     if (pathname === '/system/approval-config') {
-      router.replace('/system-management?tab=approval');
+      router.replace('/system-management');
     }
   }, [pathname, router]);
 
