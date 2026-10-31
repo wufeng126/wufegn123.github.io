@@ -217,9 +217,6 @@ export default function MonthlyReportFillPage() {
               { label: '工人实发', value: fmtWan(totals.salaryPaid) },
               { label: '班组结算', value: fmtWan(totals.teamSettlement) },
               { label: '确认成本', value: fmtWan(overview.monthCost) },
-              { label: '经营利润', value: fmtWan(overview.operatingProfit) },
-              { label: '利润率', value: `${(Number(overview.operatingProfitRate) || 0).toFixed(1)}%` },
-              { label: '累计回款率', value: `${(Number(overview.paymentRate) || 0).toFixed(1)}%` },
             ].map((item) => (
               <div key={item.label} className="bg-white px-4 py-3">
                 <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
@@ -285,7 +282,7 @@ export default function MonthlyReportFillPage() {
                 onChange={(event) => setAnalysis(event.target.value)}
                 rows={6}
                 disabled={!editable}
-                placeholder="结合上方系统数据，说明本月经营情况（产值/回款/成本/利润）"
+                placeholder="结合上方系统数据，说明本月经营情况（产值/成本/工资/班组）"
                 className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-text-3)]"
               />
             </label>
