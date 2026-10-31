@@ -230,6 +230,10 @@ export default function MonthlyReportFillPage() {
     return Object.entries(merged).sort((a, b) => b[1] - a[1]);
   }, [projects]);
 
+  // 花名册没填工种时会全部落到「未分类」，此时单独提示，不当作真实工种展示
+  const knownTradeWages = tradeWagesMerged.filter(([type]) => type !== '未分类' && type !== '其他');
+  const unclassifiedWage = tradeWagesMerged.find(([type]) => type === '未分类')?.[1] || 0;
+
   const totals = useMemo(() => ({
     laborSalary: projects.reduce((sum, p) => sum + (p.monthLaborSalaryCost || 0), 0),
     salaryPaid: projects.reduce((sum, p) => sum + (p.monthSalaryPaid || 0), 0),
@@ -381,13 +385,22 @@ export default function MonthlyReportFillPage() {
           {tradeWagesMerged.length > 0 ? (
             <div className="border-t border-[var(--border)] px-5 py-3">
               <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">各工种工资</div>
-              <div className="flex flex-wrap gap-2">
-                {tradeWagesMerged.map(([type, amount]) => (
-                  <span key={type} className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs text-[var(--foreground)]">
-                    {type}：{fmtWan(amount)}
-                  </span>
-                ))}
-              </div>
+              {knownTradeWages.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {knownTradeWages.map(([type, amount]) => (
+                    <span key={type} className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs text-[var(--foreground)]">
+                      {type}：{fmtWan(amount)}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--color-text-3)]">本项目的工人花名册未填写工种，暂时无法按工种统计。</p>
+              )}
+              {unclassifiedWage > 0 && knownTradeWages.length > 0 ? (
+                <p className="mt-1.5 text-[11px] text-[var(--color-text-3)]">
+                  另有无工种记录的工资 {fmtWan(unclassifiedWage)}（建议在花名册补填工种）
+                </p>
+              ) : null}
             </div>
           ) : null}
         </section>
