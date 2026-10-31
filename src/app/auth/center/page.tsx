@@ -88,6 +88,11 @@ interface User {
 export default function AuthCenterPage() {
   const router = useRouter();
   const { toast } = useToast();
+
+  // 统一入口：认证中心已并入系统管理 → 权限中心
+  useEffect(() => {
+    router.replace('/system-management?tab=permission');
+  }, [router]);
   
   // 状态
   const [activeTab, setActiveTab] = useState('roles');

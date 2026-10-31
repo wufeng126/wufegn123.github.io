@@ -321,6 +321,16 @@ export async function POST(request: NextRequest) {
         bossApproverName: bossApproverName || '',
       };
     }
+    // 驳回后清空指定审批人：重新提交时由预算员/项目经理重新选择
+    if (action === 'reject') {
+      mergedContent = {
+        ...(mergedContent || existingContent),
+        managerApproverId: 0,
+        managerApproverName: '',
+        bossApproverId: 0,
+        bossApproverName: '',
+      };
+    }
 
     // 组装更新数据
     const patch: Record<string, unknown> = {

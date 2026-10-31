@@ -1079,6 +1079,17 @@ export function TeamSettlementLedgerPageClient() {
         </div>
       )}
 
+      {viewMode === 'detail' && settlements.filter((row) => ['draft', 'rejected'].includes(row.status || 'draft')).length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#FFE4BA] bg-[#FFF7E8] px-3 py-2 text-xs text-[#B35B00]">
+          <span>
+            有 {settlements.filter((row) => ['draft', 'rejected'].includes(row.status || 'draft')).length} 张结算单是草稿/已驳回，尚未提交审批
+          </span>
+          <button type="button" onClick={() => setStatusFilter('draft')} className="font-medium text-[#165DFF]">
+            只看未提交
+          </button>
+        </div>
+      )}
+
       {viewMode === 'summary' ? (
         <section className="mt-3 rounded-lg border border-[#E5E8EF] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#EEF0F5] p-4">

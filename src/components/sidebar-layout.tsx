@@ -157,7 +157,6 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '权限中心', href: '/system-management?tab=permission', icon: ShieldCheck, permissions: ['system:permission_manage'] },
     { name: '后台账号', href: '/system-management?tab=admin', icon: UserCog, permissions: ['system:manage'] },
     { name: '钉钉绑定', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
-    { name: '审批流程', href: '/system-management?tab=approval', icon: Workflow, permissions: ['system:manage'] },
     { name: '通知中心', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
     { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
     { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },

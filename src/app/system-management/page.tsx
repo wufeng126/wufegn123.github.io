@@ -83,21 +83,6 @@ const managementGroups: SystemManagementGroup[] = [
     ],
   },
   {
-    key: 'workflow',
-    title: '业务流程配置',
-    summary: '月度分析、签证办理、风险提醒等流程规则',
-    icon: GitBranch,
-    items: [
-      {
-        key: 'approval',
-        label: '业务流程说明',
-        description: '已改为「提交时选择下一级审批人」，不再需要单独配置流程节点',
-        permission: 'system:manage',
-        content: ApprovalConfigPage,
-      },
-    ],
-  },
-  {
     key: 'notification',
     title: '通知与待办',
     summary: '系统内通知、待办统计与后续钉钉推送开关',
