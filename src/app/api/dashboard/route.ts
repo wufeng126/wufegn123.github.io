@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getReportRevenue } from '@/lib/revenue';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries } from '@/lib/data-aggregation';
@@ -207,22 +208,28 @@ export async function GET(request: Request) {
     // === 累计全量数据（不受时间范围影响，用于待回款计算）===
 
     // 全量甲方报量 - 排除已作废
-    let allReportsQuery = client
-      .from('client_reports')
-      .select('settlement_amount, report_amount, status');
-    if (projectId) allReportsQuery = allReportsQuery.eq('project_id', parseInt(projectId, 10));
-    const { data: allReports } = await allReportsQuery;
+    const allReports = await fetchAllRows<any>((from, to) => {
+      let q = client
+        .from('client_reports')
+        .select('settlement_amount, report_amount, status')
+        .range(from, to);
+      if (projectId) q = q.eq('project_id', parseInt(projectId, 10));
+      return q;
+    });
 
     const totalMeasurementAmount = allReports?.filter(r => r.status !== 'voided').reduce((sum, r) => {
       return sum + getReportRevenue(r);
     }, 0) || 0;
 
     // 全量甲方付款 - 只统计已完成的
-    let allPaymentsQuery = client
-      .from('client_payments')
-      .select('payment_amount, status, payment_date');
-    if (projectId) allPaymentsQuery = allPaymentsQuery.eq('project_id', parseInt(projectId, 10));
-    const { data: allPayments } = await allPaymentsQuery;
+    const allPayments = await fetchAllRows<any>((from, to) => {
+      let q = client
+        .from('client_payments')
+        .select('payment_amount, status, payment_date')
+        .range(from, to);
+      if (projectId) q = q.eq('project_id', parseInt(projectId, 10));
+      return q;
+    });
     const totalPaid = allPayments?.filter(r => isEffectiveClientPaymentStatus(r.status)).reduce((sum, r) => {
       return sum + parseFloat(r.payment_amount || '0');
     }, 0) || 0;
@@ -329,9 +336,9 @@ export async function GET(request: Request) {
 
     // ========== 签证统计数据 ==========
     
-    const { data: visasData } = await client
-      .from('visas')
-      .select('id, visa_amount, status, project_id');
+    const visasData = await fetchAllRows<any>((from, to) =>
+      client.from('visas').select('id, visa_amount, status, project_id').range(from, to),
+    );
 
     const totalVisaCount = visasData?.length || 0;
     const completedVisaCount = visasData?.filter(v => isVisaDoneStatus(v.status)).length || 0;
@@ -367,9 +374,9 @@ export async function GET(request: Request) {
       return 'normal';
     }
     
-    const { data: certificatesData } = await client
-      .from('certificates')
-      .select('id, expiry_date');
+    const certificatesData = await fetchAllRows<any>((from, to) =>
+      client.from('certificates').select('id, expiry_date').range(from, to),
+    );
     
     let certificateTotal = 0;
     let certificateExpiring = 0;
@@ -604,10 +611,13 @@ export async function GET(request: Request) {
     });
 
     // P0-1 修复：排除班组分账生成的工资，下方班组结算成本已包含该部分
-    const { data: allSalaries } = await client
-      .from('worker_salaries')
-      .select('gross_pay, year_month, project_id, source')
-      .or('source.is.null,source.neq.team_settlement');
+    const allSalaries = await fetchAllRows<any>((from, to) =>
+      client
+        .from('worker_salaries')
+        .select('gross_pay, year_month, project_id, source')
+        .or('source.is.null,source.neq.team_settlement')
+        .range(from, to),
+    );
     (allSalaries || []).forEach(r => {
       if (!r.year_month) return;
       if (projectId && r.project_id !== parseInt(projectId)) return;
@@ -782,10 +792,9 @@ export async function GET(request: Request) {
       // 未发放工资统计
       unpaidSalaryStats: await (async () => {
         try {
-          const { data: unpaidData } = await client
-            .from('worker_salaries')
-            .select('net_pay')
-            .eq('payment_status', 'unpaid');
+          const unpaidData = await fetchAllRows<any>((from, to) =>
+            client.from('worker_salaries').select('net_pay').eq('payment_status', 'unpaid').range(from, to),
+          );
           const totalUnpaid = (unpaidData || []).reduce((sum: number, s: any) => sum + (parseFloat(s.net_pay) || 0), 0);
           const unpaidCount = unpaidData?.length || 0;
           return { count: unpaidCount, amount: totalUnpaid.toFixed(2) };

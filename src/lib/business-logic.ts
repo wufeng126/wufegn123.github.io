@@ -282,7 +282,7 @@ export async function syncAllSalaryPaymentStatus(): Promise<void> {
   const salaries = await fetchAllRows<WorkerSalaryLikeRow>(
     client,
     'worker_salaries',
-    'id, worker_id, project_id, year_month, net_pay',
+    'id, worker_id, project_id, year_month, net_pay, payment_status',
   );
 
   if (!salaries || salaries.length === 0) return;
@@ -319,18 +319,25 @@ export async function syncAllSalaryPaymentStatus(): Promise<void> {
   });
 
   // 逐条更新
+  const statusToIds = new Map<string, number[]>();
   for (const salary of salaries) {
     const netPay = parseNumeric(salary.net_pay);
     const key = salaryPaymentMatchKey(salary);
     const keyCount = keyCountMap.get(key) || 1;
     const totalPaid = (paidMap.get(Number(salary.id)) || 0) + ((unlinkedPaidMap.get(key) || 0) / keyCount);
-
     const newStatus = calculateSalaryPaymentStatus(netPay, totalPaid);
-
-    await client
-      .from('worker_salaries')
-      .update({ payment_status: newStatus })
-      .eq('id', salary.id);
+    const prevStatus = String((salary as unknown as { payment_status?: string | null }).payment_status || '');
+    if (newStatus === prevStatus) continue;
+    const list = statusToIds.get(newStatus) || [];
+    list.push(Number(salary.id));
+    statusToIds.set(newStatus, list);
+  }
+  for (const [status, ids] of statusToIds.entries()) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const { error } = await client.from('worker_salaries').update({ payment_status: status }).in('id', chunk);
+      if (error) throw new Error(error.message);
+    }
   }
 }
 

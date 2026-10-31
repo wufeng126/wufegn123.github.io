@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getReportRevenue } from '@/lib/revenue';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import type { RequestAuthUser } from '@/lib/auth';
 import { auditLog } from '@/lib/audit-log';
@@ -70,10 +71,13 @@ export async function GET(
 
     const financialSummary = await getProjectFinancialSummary(projectId);
 
-    const { data: salaryData } = await client
-      .from('worker_salaries')
-      .select('gross_pay, net_pay, payment_status')
-      .eq('project_id', projectId);
+    const salaryData = await fetchAllRows<any>((from, to) =>
+      client
+        .from('worker_salaries')
+        .select('gross_pay, net_pay, payment_status')
+        .eq('project_id', projectId)
+        .range(from, to),
+    );
 
     const totalGrossPay = salaryData?.reduce((sum, r) => sum + parseFloat(r.gross_pay || '0'), 0) || 0;
     const totalNetPay = salaryData?.reduce((sum, r) => sum + parseFloat(r.net_pay || '0'), 0) || 0;
@@ -81,21 +85,27 @@ export async function GET(
     const partialSalary = salaryData?.filter(r => r.payment_status === 'partial').reduce((sum, r) => sum + parseFloat(r.net_pay || '0'), 0) || 0;
     const paidSalary = salaryData?.filter(r => r.payment_status === 'paid').reduce((sum, r) => sum + parseFloat(r.net_pay || '0'), 0) || 0;
 
-    const { data: reportData } = await client
-      .from('client_reports')
-      .select('report_amount, settlement_amount, status')
-      .eq('project_id', projectId)
-      .neq('status', 'voided');
+    const reportData = await fetchAllRows<any>((from, to) =>
+      client
+        .from('client_reports')
+        .select('report_amount, settlement_amount, status')
+        .eq('project_id', projectId)
+        .neq('status', 'voided')
+        .range(from, to),
+    );
 
     const totalReport = reportData?.reduce((sum, r) => {
       const amount = getReportRevenue(r);
       return sum + amount;
     }, 0) || 0;
 
-    const { data: paymentData } = await client
-      .from('client_payments')
-      .select('payment_amount, status')
-      .eq('project_id', projectId);
+    const paymentData = await fetchAllRows<any>((from, to) =>
+      client
+        .from('client_payments')
+        .select('payment_amount, status')
+        .eq('project_id', projectId)
+        .range(from, to),
+    );
 
     const totalPayment = paymentData
       ?.filter((r) => isEffectiveClientPaymentStatus(r.status))

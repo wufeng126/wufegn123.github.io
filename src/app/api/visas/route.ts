@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllFromBuilder } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -166,10 +167,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取筛选后的签证用于统计
-    const { data: filteredVisas, error: statsError } = await statsQuery;
-    if (statsError) {
-      throw new Error(`统计签证失败: ${statsError.message}`);
-    }
+    const filteredVisas = await fetchAllFromBuilder<any>(statsQuery);
 
     // 获取所有签证用于趋势图（应用项目过滤）
     let allVisasQuery = client
@@ -181,10 +179,7 @@ export async function GET(request: NextRequest) {
       allVisasQuery = allVisasQuery.in('project_id', accessibleProjects);
     }
     
-    const { data: allVisas, error: allVisasError } = await allVisasQuery;
-    if (allVisasError) {
-      throw new Error(`统计签证趋势失败: ${allVisasError.message}`);
-    }
+    const allVisas = await fetchAllFromBuilder<any>(allVisasQuery);
 
     // 获取所有进行中的项目（应用项目过滤）
     let activeProjectsQuery = client
