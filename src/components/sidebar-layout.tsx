@@ -712,7 +712,7 @@ export default function SidebarLayout({
                               />
                               <span>{item.name}</span>
                               {item.href.startsWith('/my-submissions') && pendingApprovalCount > 0 ? (
-                                <span className="ml-auto rounded-full bg-[#F53F3F] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                                <span className="ml-auto rounded-full bg-[var(--color-danger)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                                   {pendingApprovalCount}
                                 </span>
                               ) : null}

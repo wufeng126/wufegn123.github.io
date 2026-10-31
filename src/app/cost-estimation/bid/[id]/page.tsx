@@ -235,7 +235,7 @@ export default function BidDetailPage() {
 
         <section className="overflow-hidden rounded-xl border border-[#E5E6EB] bg-white">
           <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
-            <Calculator className="h-4 w-4 text-[#165DFF]" />
+            <Calculator className="h-4 w-4 text-[var(--color-primary)]" />
             <span className="font-medium text-[#1D2129]">测算清单</span>
             <span className="text-xs text-[#86909C]">{items.length} 项</span>
           </div>
@@ -273,7 +273,7 @@ export default function BidDetailPage() {
                         <div className="mt-1 text-xs text-[#86909C]">{source.cost ? `${source.cost.project_name || '-'} · ${source.cost.cost_year || '-'}` : '-'}</div>
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <span className={`inline-flex rounded-full px-2 py-1 text-xs ${item.match_status === 'matched' ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs ${item.match_status === 'matched' ? 'bg-[#E8F3FF] text-[var(--color-primary)]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
                           {item.match_status || '-'} · {item.match_score || 0}
                         </span>
                       </td>
@@ -303,7 +303,7 @@ export default function BidDetailPage() {
                         <h3 className="line-clamp-2 text-sm font-semibold text-[#1D2129]">{item.boq_item_name || '-'}</h3>
                         <p className="mt-1 text-xs text-[#86909C]">{item.standard_code || '-'} / {item.work_type || '-'}</p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.match_status === 'matched' ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.match_status === 'matched' ? 'bg-[#E8F3FF] text-[var(--color-primary)]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
                         {item.match_status || '-'} / {item.match_score || 0}
                       </span>
                     </div>
@@ -315,7 +315,7 @@ export default function BidDetailPage() {
                       </div>
                       <div className="rounded-md bg-[#F7F8FA] p-2">
                         <div className="text-[#86909C]">建议报价</div>
-                        <div className="mt-1 font-medium text-[#165DFF]">{money(item.suggested_price)}</div>
+                        <div className="mt-1 font-medium text-[var(--color-primary)]">{money(item.suggested_price)}</div>
                       </div>
                       <div className="rounded-md bg-[#F7F8FA] p-2">
                         <div className="text-[#86909C]">历史中标价</div>
@@ -331,11 +331,11 @@ export default function BidDetailPage() {
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                       <div className="rounded-md bg-[#E8F3FF] p-2">
-                        <div className="text-[#165DFF]">最终报价</div>
+                        <div className="text-[var(--color-primary)]">最终报价</div>
                         <div className="mt-1 font-semibold text-[#1D2129]">{money(item.final_price || item.bid_price)}</div>
                       </div>
                       <div className="rounded-md bg-[#E8F3FF] p-2">
-                        <div className="text-[#165DFF]">最终合价</div>
+                        <div className="text-[var(--color-primary)]">最终合价</div>
                         <div className="mt-1 font-semibold text-[#1D2129]">{money(item.final_amount || item.bid_amount)}</div>
                       </div>
                     </div>
@@ -355,7 +355,7 @@ export default function BidDetailPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="rounded-xl border border-[#E5E6EB] bg-white">
             <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
-              <Users className="h-4 w-4 text-[#165DFF]" />
+              <Users className="h-4 w-4 text-[var(--color-primary)]" />
               <span className="font-medium text-[#1D2129]">管理费明细</span>
             </div>
             <div className="divide-y divide-[#E5E6EB]">
@@ -374,7 +374,7 @@ export default function BidDetailPage() {
 
           <section className="rounded-xl border border-[#E5E6EB] bg-white">
             <div className="flex items-center gap-2 border-b border-[#E5E6EB] px-4 py-3">
-              <History className="h-4 w-4 text-[#165DFF]" />
+              <History className="h-4 w-4 text-[var(--color-primary)]" />
               <span className="font-medium text-[#1D2129]">测算版本</span>
             </div>
             <div className="divide-y divide-[#E5E6EB]">

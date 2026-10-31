@@ -143,11 +143,11 @@ export default function ImportPricesPage() {
         {/* Step 1: Upload */}
         {step === 'upload' && (
           <div className="bg-white rounded-xl border border-dashed border-[#E5E6EB] p-10 text-center">
-            <FileSpreadsheet className="h-16 w-16 text-[#165DFF] mx-auto mb-4" />
+            <FileSpreadsheet className="h-16 w-16 text-[var(--color-primary)] mx-auto mb-4" />
             <p className="text-lg font-medium text-[#1D2129] mb-2">上传报价文件</p>
             <p className="text-sm text-[#86909C] mb-6">支持 .xlsx / .xls / .csv 格式，系统自动识别工序名称和单价列</p>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { if (e.target.files?.[0]) parseFile(e.target.files[0]); }} />
-            <button onClick={() => fileRef.current?.click()} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#165DFF] px-6 text-sm text-white shadow-md hover:bg-[#0E49D8]">
+            <button onClick={() => fileRef.current?.click()} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-6 text-sm text-white shadow-md hover:bg-[var(--color-primary-dark)]">
               <Upload className="h-4 w-4" /> 选择文件
             </button>
             <p className="text-xs text-[#A9AEB8] mt-4">
@@ -166,14 +166,14 @@ export default function ImportPricesPage() {
                 <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
                   <input value={searchFilter} onChange={e => setSearchFilter(e.target.value)} placeholder="筛选行..."
-                    className="h-9 w-full rounded-lg border border-[#E5E6EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
+                    className="h-9 w-full rounded-lg border border-[#E5E6EB] pl-9 pr-3 text-sm outline-none focus:border-[var(--color-primary)]" />
                 </div>
                 <span className="text-sm text-[#86909C]">{rows.length} 行 · {rows.filter(r => r.status === 'confirmed').length} 已匹配</span>
-                <button onClick={autoMatchAll} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#165DFF] px-3 text-xs text-[#165DFF] hover:bg-[#F0F5FF]">
+                <button onClick={autoMatchAll} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-primary)] px-3 text-xs text-[var(--color-primary)] hover:bg-[#F0F5FF]">
                   <Sparkles className="h-3.5 w-3.5" /> 自动匹配
                 </button>
                 <button onClick={doImport} disabled={importing || rows.filter(r => r.status === 'confirmed').length === 0}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#165DFF] px-4 text-xs text-white disabled:opacity-50">
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-xs text-white disabled:opacity-50">
                   {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                   {importing ? '导入中...' : `导入 ${rows.filter(r => r.status === 'confirmed').length} 条`}
                 </button>
@@ -183,7 +183,7 @@ export default function ImportPricesPage() {
             {/* 匹配列表 */}
             <div className="space-y-2">
               {filteredRows.map((r, i) => (
-                <div key={i} className={`bg-white rounded-xl border p-4 transition ${r.status === 'confirmed' ? 'border-[#165DFF]/40 bg-[#F8FAFF]' : r.status === 'rejected' ? 'border-[#F53F3F]/30 bg-[#FFF8F8]' : 'border-[#E5E6EB]'}`}>
+                <div key={i} className={`bg-white rounded-xl border p-4 transition ${r.status === 'confirmed' ? 'border-[var(--color-primary)]/40 bg-[#F8FAFF]' : r.status === 'rejected' ? 'border-[#F53F3F]/30 bg-[#FFF8F8]' : 'border-[#E5E6EB]'}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-[#1D2129]">{r.sourceName}</p>
@@ -192,21 +192,21 @@ export default function ImportPricesPage() {
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {r.candidates.slice(0, 4).map((c, ci) => (
                             <button key={ci} onClick={() => acceptMatch(i, c.name)}
-                              className={`text-xs px-2 py-0.5 rounded-full border transition ${r.matchedName === c.name ? 'bg-[#165DFF] text-white border-[#165DFF]' : 'hover:border-[#165DFF]/40 border-[#E5E6EB] text-[#4E5969]'}`}>
+                              className={`text-xs px-2 py-0.5 rounded-full border transition ${r.matchedName === c.name ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]' : 'hover:border-[var(--color-primary)]/40 border-[#E5E6EB] text-[#4E5969]'}`}>
                               {c.name} <span className="opacity-60">{c.score}%</span>
                             </button>
                           ))}
                         </div>
                       )}
                       {r.candidates.length === 0 && (
-                        <p className="text-xs text-[#F53F3F] mt-1">未匹配到工序，请输入名称</p>
+                        <p className="text-xs text-[var(--color-danger)] mt-1">未匹配到工序，请输入名称</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {r.status === 'confirmed' ? (
                         <span className="text-xs text-[#00A870] flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />已匹配</span>
                       ) : r.status === 'rejected' ? (
-                        <span className="text-xs text-[#F53F3F] flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />跳过</span>
+                        <span className="text-xs text-[var(--color-danger)] flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />跳过</span>
                       ) : (
                         <div className="flex gap-1">
                           <button onClick={() => rejectMatch(i)} className="h-7 px-2 rounded text-xs border border-[#E5E6EB] text-[#86909C] hover:border-[#F53F3F]">跳过</button>
@@ -216,7 +216,7 @@ export default function ImportPricesPage() {
                   </div>
                   {r.status === 'pending' && !r.matchedName && (
                     <input placeholder="输入工序名称手动匹配" value={r.matchedName} onChange={e => acceptMatch(i, e.target.value)}
-                      className="mt-2 w-full h-8 rounded-lg border border-[#E5E6EB] px-3 text-xs outline-none focus:border-[#165DFF]" />
+                      className="mt-2 w-full h-8 rounded-lg border border-[#E5E6EB] px-3 text-xs outline-none focus:border-[var(--color-primary)]" />
                   )}
                 </div>
               ))}
@@ -235,9 +235,9 @@ export default function ImportPricesPage() {
             <p className="text-lg font-medium text-[#1D2129] mb-2">导入完成</p>
             <p className="text-sm text-[#86909C] mb-6">
               成功导入 <strong className="text-[#00A870]">{result.success}</strong> 条
-              {result.failed > 0 && <>, <strong className="text-[#F53F3F]">{result.failed}</strong> 条失败</>}
+              {result.failed > 0 && <>, <strong className="text-[var(--color-danger)]">{result.failed}</strong> 条失败</>}
             </p>
-            <button onClick={() => router.push('/cost-estimation')} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm text-white">
+            <button onClick={() => router.push('/cost-estimation')} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white">
               返回成本测算
             </button>
           </div>

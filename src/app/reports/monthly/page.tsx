@@ -577,7 +577,7 @@ export default function MonthlyReportPage() {
             </div>
             <Button
               size="sm"
-              className="bg-[#165DFF] text-white shadow-sm hover:bg-[#0E42D2]"
+              className="bg-[var(--color-primary)] text-white shadow-sm hover:bg-[var(--color-primary-dark)]"
               onClick={handleCreateAnalysis}
             >
               <FileText className="w-3.5 h-3.5 mr-1" />{analysisData ? '查看本月分析' : '写本月分析'}
@@ -670,7 +670,7 @@ export default function MonthlyReportPage() {
                               <button
                                 type="button"
                                 onClick={() => setShowZeroProjects((value) => !value)}
-                                className="text-xs text-[#165DFF] hover:underline"
+                                className="text-xs text-[var(--color-primary)] hover:underline"
                               >
                                 {showZeroProjects
                                   ? `收起 ${zeroProjects.length} 个无数据项目`
@@ -681,7 +681,7 @@ export default function MonthlyReportPage() {
                         ) : null}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t-2 border-[#165DFF]/25 bg-muted/40 font-semibold">
+                        <tr className="border-t-2 border-[var(--color-primary)]/25 bg-muted/40 font-semibold">
                           <td className="py-2 px-2">合计</td>
                           <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthIncome || 0), 0))}</td>
                           <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(projectList.reduce((sum, project) => sum + (project.monthLaborSalaryCost || 0), 0))}</td>

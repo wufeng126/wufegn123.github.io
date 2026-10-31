@@ -82,7 +82,7 @@ export default function ProjectKnowledgePage() {
     return (
       <div className="min-h-full bg-[#F5F6FA] p-4 md:p-6 flex items-center justify-center">
         <div className="text-center text-sm text-[#86909C]">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-[#165DFF]" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-[var(--color-primary)]" />
           加载项目知识...
         </div>
       </div>
@@ -108,7 +108,7 @@ export default function ProjectKnowledgePage() {
           <div>
             <h1 className="text-2xl font-bold text-[#1D2129] flex items-center gap-2">
               {project.name}
-              {(project.status === '进行中' || project.status === '在建') && <span className="text-xs bg-[#E8F3FF] text-[#165DFF] px-2 py-0.5 rounded-full">在建</span>}
+              {(project.status === '进行中' || project.status === '在建') && <span className="text-xs bg-[#E8F3FF] text-[var(--color-primary)] px-2 py-0.5 rounded-full">在建</span>}
             </h1>
             <p className="text-sm text-[#86909C] mt-0.5">
               {project.partner || ''} · 合同额 {formatAmount(project.contract_amount)}
@@ -138,10 +138,10 @@ export default function ProjectKnowledgePage() {
               className="group bg-white rounded-xl border border-[#E5E6EB] p-4 transition-all hover:border-transparent hover:shadow-[0_4px_16px_rgba(22,93,255,0.08)] relative overflow-hidden"
             >
               <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${s.color}`} />
-              <s.icon className="h-5 w-5 text-[#165DFF] mb-2 mt-1" />
-              <p className="text-sm font-semibold text-[#1D2129] group-hover:text-[#165DFF]">{s.label}</p>
+              <s.icon className="h-5 w-5 text-[var(--color-primary)] mb-2 mt-1" />
+              <p className="text-sm font-semibold text-[#1D2129] group-hover:text-[var(--color-primary)]">{s.label}</p>
               <p className="text-xs text-[#86909C] mt-0.5">{s.desc}</p>
-              <p className="text-xs text-[#165DFF] mt-2">
+              <p className="text-xs text-[var(--color-primary)] mt-2">
                 {s.count > 0 ? `${s.count} 条相关` : '点击创建'}
               </p>
             </Link>
@@ -159,18 +159,18 @@ export default function ProjectKnowledgePage() {
               {monthlyDocs.slice(0, 6).map(doc => {
                 const tags = normalizeTags(doc.tags);
                 const state = tags.find(t => t.startsWith('状态:'))?.replace('状态:', '') || '草稿';
-                const stateColors: Record<string, string> = { '草稿': 'bg-[#F2F3F5] text-[#4E5969]', '待项目经理补充': 'bg-[#E8F3FF] text-[#165DFF]', '待预算确认': 'bg-[#F5EEFF] text-[#165DFF]', '待老板批复': 'bg-[#FFF7E8] text-[#D46B08]', '已完成': 'bg-[#E8FFEA] text-[#00A870]' };
+                const stateColors: Record<string, string> = { '草稿': 'bg-[#F2F3F5] text-[#4E5969]', '待项目经理补充': 'bg-[#E8F3FF] text-[var(--color-primary)]', '待预算确认': 'bg-[#F5EEFF] text-[var(--color-primary)]', '待老板批复': 'bg-[#FFF7E8] text-[#D46B08]', '已完成': 'bg-[#E8FFEA] text-[#00A870]' };
                 return (
-                  <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between p-3 rounded-lg border border-[#E5E6EB] hover:border-[#165DFF]/30 transition group">
+                  <Link key={doc.id} href={`/knowledge/${doc.id}`} className="flex items-center justify-between p-3 rounded-lg border border-[#E5E6EB] hover:border-[var(--color-primary)]/30 transition group">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-[#1D2129] group-hover:text-[#165DFF] truncate">{doc.title}</p>
+                      <p className="text-sm font-medium text-[#1D2129] group-hover:text-[var(--color-primary)] truncate">{doc.title}</p>
                       <p className="text-xs text-[#86909C] mt-0.5">{doc.created_by || '系统'} · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : ''}</p>
                     </div>
                     <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ml-3 ${stateColors[state] || 'bg-[#F2F3F5] text-[#4E5969]'}`}>{state}</span>
                   </Link>
                 );
               })}
-              <Link href={`/knowledge?query=${project.name}`} className="block text-center text-xs text-[#165DFF] pt-2 hover:underline">
+              <Link href={`/knowledge?query=${project.name}`} className="block text-center text-xs text-[var(--color-primary)] pt-2 hover:underline">
                 查看全部知识 →
               </Link>
             </div>
@@ -182,7 +182,7 @@ export default function ProjectKnowledgePage() {
           <div className="bg-white rounded-xl border border-dashed border-[#E5E6EB] p-10 text-center">
             <BookOpen className="h-10 w-10 text-[#C9CDD4] mx-auto mb-3" />
             <p className="text-sm text-[#86909C] mb-4">该项目暂无知识记录</p>
-            <Link href="/knowledge/new" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white">
+            <Link href="/knowledge/new" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm text-white">
               创建第一条知识
             </Link>
           </div>

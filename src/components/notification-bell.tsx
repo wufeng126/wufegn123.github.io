@@ -80,7 +80,7 @@ export default function NotificationBell() {
       <button onClick={() => { setOpen(!open); if (!open) fetchUnread(); }} aria-label="消息通知" aria-expanded={open} aria-haspopup="true" className="relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:bg-[#F2F3F5]" title="消息通知">
         <Bell className="w-[18px] h-[18px]" style={{ color: count > 0 ? '#165DFF' : '#4E5969' }} />
         {count > 0 && (
-          <span aria-live="polite" className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F53F3F] text-[10px] font-bold text-white flex items-center justify-center leading-none shadow">
+          <span aria-live="polite" className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--color-danger)] text-[10px] font-bold text-white flex items-center justify-center leading-none shadow">
             {count > 99 ? '99+' : count}
           </span>
         )}
@@ -102,9 +102,9 @@ export default function NotificationBell() {
                   emitNotificationsUpdated();
                   fetchUnread();
                 }}
-                  className="text-xs text-[#165DFF] hover:underline">全部已读</button>
+                  className="text-xs text-[var(--color-primary)] hover:underline">全部已读</button>
               )}
-              <Link href="/notifications" onClick={() => setOpen(false)} className="text-xs text-[#8A8F98] hover:text-[#165DFF]">查看全部</Link>
+              <Link href="/notifications" onClick={() => setOpen(false)} className="text-xs text-[#8A8F98] hover:text-[var(--color-primary)]">查看全部</Link>
             </div>
           </div>
 

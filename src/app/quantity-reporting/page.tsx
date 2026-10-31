@@ -2318,11 +2318,11 @@ function WorkItemsContent() {
 
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case '在建': return 'bg-[#165DFF] text-white';
+      case '在建': return 'bg-[var(--color-primary)] text-white';
       case '竣工结算': return 'bg-emerald-500 text-white';
       case '质保期': return 'bg-purple-500 text-white';
       case '质保期满': return 'bg-amber-500 text-white';
-      case '进行中': return 'bg-[#165DFF] text-white';
+      case '进行中': return 'bg-[var(--color-primary)] text-white';
       case '已完成': return 'bg-emerald-500 text-white';
       case '暂停': return 'bg-amber-500 text-white';
       default: return 'bg-gray-100 text-gray-700';
@@ -2559,15 +2559,15 @@ function WorkItemsContent() {
       {quantityView === 'summary' && (
         <>
       <div className={`grid grid-cols-2 gap-3 transition-all duration-500 delay-100 lg:grid-cols-4 lg:gap-4 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-        <Card className="group border-[#165DFF]/20 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#165DFF]/10">
+        <Card className="group border-[var(--color-primary)]/20 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#165DFF]/10">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#165DFF] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+              <div className="w-10 h-10 rounded-lg bg-[var(--color-primary)] flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <Layers className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500">预算工程量金额</p>
-                <AnimatedNumber value={dashboardTotals.budgetAmount} format={formatCurrency} className="text-lg font-bold text-[#165DFF]" />
+                <AnimatedNumber value={dashboardTotals.budgetAmount} format={formatCurrency} className="text-lg font-bold text-[var(--color-primary)]" />
                 <p className="mt-0.5 text-xs text-gray-400">{overallStats.totalSubitems} 个清单项</p>
               </div>
             </div>
@@ -2678,7 +2678,7 @@ function WorkItemsContent() {
                   <TableCell className="px-3 py-4">
                     <div className="flex min-w-[130px] items-center gap-2">
                       <div className="h-2 flex-1 rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-[#165DFF]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
+                        <div className="h-2 rounded-full bg-[var(--color-primary)]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
                       </div>
                       <span className="w-12 text-right text-xs text-slate-500">{formatPercent(row.reportProgress)}</span>
                     </div>
@@ -2745,7 +2745,7 @@ function WorkItemsContent() {
                     <span>{formatPercent(row.reportProgress)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-[#165DFF]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
+                    <div className="h-2 rounded-full bg-[var(--color-primary)]" style={{ width: `${clampProgress(row.reportProgress)}%` }} />
                   </div>
                 </div>
                 <div>
@@ -2802,7 +2802,7 @@ function WorkItemsContent() {
         <>
           {/* 工具栏：项目/月份上下文 + 录入入口 */}
           <div className={`transition-all duration-500 delay-150 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-            <Card className="border-[#165DFF]/20 shadow-card">
+            <Card className="border-[var(--color-primary)]/20 shadow-card">
               <CardContent className="space-y-4 py-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -2866,7 +2866,7 @@ function WorkItemsContent() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       onClick={openMonthlyReportDialog}
-                      className="gap-1.5 bg-[#165DFF] text-white hover:bg-[#0E42A8]"
+                      className="gap-1.5 bg-[var(--color-primary)] text-white hover:bg-[#0E42A8]"
                     >
                       <Plus className="h-4 w-4" />
                       录入对上报量
@@ -2914,16 +2914,16 @@ function WorkItemsContent() {
                 <Card className="shadow-card">
                   <CardContent className="p-5">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
-                      <Scale className="h-4 w-4 text-[#165DFF]" />
+                      <Scale className="h-4 w-4 text-[var(--color-primary)]" />
                       对上 vs 对下（累计金额）
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-4">
                       <div>
                         <div className="flex items-center gap-1 text-xs text-gray-400">
-                          <ArrowUpRight className="h-3.5 w-3.5 text-[#165DFF]" />
+                          <ArrowUpRight className="h-3.5 w-3.5 text-[var(--color-primary)]" />
                           累计对上报量
                         </div>
-                        <div className="mt-1 text-2xl font-bold text-[#165DFF]">
+                        <div className="mt-1 text-2xl font-bold text-[var(--color-primary)]">
                           {formatCurrency(compareOverview.reportAmount)}
                         </div>
                       </div>
@@ -2942,7 +2942,7 @@ function WorkItemsContent() {
                         const total = Math.max(compareOverview.reportAmount, compareOverview.settlementAmount, 1);
                         return (
                           <>
-                            <div className="bg-[#165DFF]" style={{ width: `${(compareOverview.reportAmount / total) * 100}%` }} />
+                            <div className="bg-[var(--color-primary)]" style={{ width: `${(compareOverview.reportAmount / total) * 100}%` }} />
                             <div className="ml-0.5 bg-amber-500" style={{ width: `${(compareOverview.settlementAmount / total) * 100}%` }} />
                           </>
                         );
@@ -2959,7 +2959,7 @@ function WorkItemsContent() {
                 <Card className="shadow-card">
                   <CardContent className="p-5">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
-                      <Target className="h-4 w-4 text-[#165DFF]" />
+                      <Target className="h-4 w-4 text-[var(--color-primary)]" />
                       预算 vs 实际（按对上口径）
                     </div>
                     <div className="mt-4 flex items-end justify-between">
@@ -2971,14 +2971,14 @@ function WorkItemsContent() {
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-gray-400">预算完成率</div>
-                        <div className={`mt-1 text-2xl font-bold ${compareOverview.rate >= 1 ? 'text-red-600' : 'text-[#165DFF]'}`}>
+                        <div className={`mt-1 text-2xl font-bold ${compareOverview.rate >= 1 ? 'text-red-600' : 'text-[var(--color-primary)]'}`}>
                           {(compareOverview.rate * 100).toFixed(1)}%
                         </div>
                       </div>
                     </div>
                     <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className={`h-full rounded-full ${compareOverview.rate >= 1 ? 'bg-red-500' : compareOverview.rate >= 0.9 ? 'bg-amber-500' : 'bg-[#165DFF]'}`}
+                        className={`h-full rounded-full ${compareOverview.rate >= 1 ? 'bg-red-500' : compareOverview.rate >= 0.9 ? 'bg-amber-500' : 'bg-[var(--color-primary)]'}`}
                         style={{ width: `${Math.min(100, compareOverview.rate * 100)}%` }}
                       />
                     </div>
@@ -3067,7 +3067,7 @@ function WorkItemsContent() {
                                   <TableCell className="text-right whitespace-nowrap">
                                     {row.isAddon ? <span className="text-slate-300">—</span> : formatQuantity(row.budgetQty)}
                                   </TableCell>
-                                  <TableCell className="text-right font-medium whitespace-nowrap text-[#165DFF]">
+                                  <TableCell className="text-right font-medium whitespace-nowrap text-[var(--color-primary)]">
                                     {formatQuantity(row.totalReportedQty)}
                                   </TableCell>
                                   <TableCell className="text-right font-medium whitespace-nowrap text-amber-700">
@@ -3092,7 +3092,7 @@ function WorkItemsContent() {
                                       <div className="flex items-center gap-2">
                                         <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
                                           <div
-                                            className={`h-full rounded-full ${rate > 1 ? 'bg-red-500' : rate >= 0.9 ? 'bg-amber-500' : 'bg-[#165DFF]'}`}
+                                            className={`h-full rounded-full ${rate > 1 ? 'bg-red-500' : rate >= 0.9 ? 'bg-amber-500' : 'bg-[var(--color-primary)]'}`}
                                             style={{ width: `${Math.min(100, rate * 100)}%` }}
                                           />
                                         </div>
@@ -3109,7 +3109,7 @@ function WorkItemsContent() {
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-7 gap-1 px-2 text-xs text-[#165DFF] hover:bg-blue-50 hover:text-[#0E42A8]"
+                                          className="h-7 gap-1 px-2 text-xs text-[var(--color-primary)] hover:bg-blue-50 hover:text-[#0E42A8]"
                                           onClick={openMonthlyReportDialog}
                                         >
                                           <Plus className="h-3 w-3" />
@@ -3130,7 +3130,7 @@ function WorkItemsContent() {
                                 {isExpanded && (
                                   <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
                                     <TableCell colSpan={9} className="p-0">
-                                      <div className="m-3 rounded-lg border-l-2 border-[#165DFF]/40 bg-white p-4 shadow-sm">
+                                      <div className="m-3 rounded-lg border-l-2 border-[var(--color-primary)]/40 bg-white p-4 shadow-sm">
                                         {row.isAddon ? (
                                           <p className="text-sm text-slate-500">
                                             内部附加清单不参与对上/对下量差对比，累计完成 {formatQuantity(row.totalSettledQty)} {row.unit || ''}，金额走对下成本口径。
@@ -3140,7 +3140,7 @@ function WorkItemsContent() {
                                         ) : !rowDetail ? null : (
                                           <div className="grid gap-4 lg:grid-cols-2">
                                             <div>
-                                              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#165DFF]">
+                                              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--color-primary)]">
                                                 <ArrowUpRight className="h-3.5 w-3.5" />
                                                 对上报量记录（{rowDetail.reports.length}）
                                               </div>
@@ -3160,7 +3160,7 @@ function WorkItemsContent() {
                                                       {rowDetail.reports.slice(0, 6).map((r: any) => (
                                                         <tr key={r.id} className="border-t border-slate-100">
                                                           <td className="px-3 py-2 text-slate-600">{r.year_month}</td>
-                                                          <td className="px-3 py-2 text-right font-medium text-[#165DFF]">
+                                                          <td className="px-3 py-2 text-right font-medium text-[var(--color-primary)]">
                                                             {formatQuantity(r.report_quantity)} {row.unit || ''}
                                                           </td>
                                                           <td className="max-w-40 truncate px-3 py-2 text-slate-500" title={r.remark || ''}>{r.remark || '—'}</td>
@@ -3266,7 +3266,7 @@ function WorkItemsContent() {
                                   <TableRow key={r.id}>
                                     <TableCell className="text-slate-600">{r.year_month}</TableCell>
                                     <TableCell className="font-medium text-gray-800">{subitemNameOf(Number(r.subitem_id))}</TableCell>
-                                    <TableCell className="text-right font-medium whitespace-nowrap text-[#165DFF]">
+                                    <TableCell className="text-right font-medium whitespace-nowrap text-[var(--color-primary)]">
                                       {formatQuantity(r.report_quantity)} {subitemUnitOf(Number(r.subitem_id))}
                                     </TableCell>
                                     <TableCell className="max-w-56 truncate text-slate-500" title={r.remark || ''}>{r.remark || '—'}</TableCell>
@@ -3354,7 +3354,7 @@ function WorkItemsContent() {
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-7 px-2 text-xs text-[#165DFF] hover:bg-blue-50"
+                                          className="h-7 px-2 text-xs text-[var(--color-primary)] hover:bg-blue-50"
                                           onClick={() => openProjectAddonDialog(addon)}
                                         >
                                           <Pencil className="h-3 w-3" />

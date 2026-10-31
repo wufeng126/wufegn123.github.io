@@ -496,7 +496,7 @@ export default function NewMonthlyKnowledgePage() {
           </div>
           <Link
             href="/knowledge"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E5E6EB] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-primary)]"
           >
             <ArrowLeft className="h-4 w-4" />
             返回
@@ -548,7 +548,7 @@ export default function NewMonthlyKnowledgePage() {
                 type="button"
                 onClick={handleLoadData}
                 disabled={loadingData || loadingProjects}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[var(--color-primary-dark)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loadingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 加载数据
@@ -557,7 +557,7 @@ export default function NewMonthlyKnowledgePage() {
           </section>
 
           <section className="monthly-readonly p-5">
-            <div className="mb-4 flex items-center gap-2 text-[#165DFF]">
+            <div className="mb-4 flex items-center gap-2 text-[var(--color-primary)]">
               <FileText className="h-5 w-5" />
               <h2 className="text-lg font-semibold text-[#1D2129]">📊 本月数据简报</h2>
             </div>
@@ -586,12 +586,12 @@ export default function NewMonthlyKnowledgePage() {
               </div>
               <div className="rounded-lg bg-white px-4 py-3">
                 <span className="text-[#86909C]">本月利润：</span>
-                <strong className={brief && brief.monthlyProfit < 0 ? 'text-[#F53F3F]' : 'text-[#1D2129]'}>
+                <strong className={brief && brief.monthlyProfit < 0 ? 'text-[var(--color-danger)]' : 'text-[#1D2129]'}>
                   {brief ? formatAmount(brief.monthlyProfit) : '待加载'}
                 </strong>
                 <span className="mx-3 text-[#C9CDD4]">|</span>
                 <span className="text-[#86909C]">利润率：</span>
-                <strong className={brief && brief.profitRate < 0 ? 'text-[#F53F3F]' : 'text-[#1D2129]'}>
+                <strong className={brief && brief.profitRate < 0 ? 'text-[var(--color-danger)]' : 'text-[#1D2129]'}>
                   {brief ? formatPercent(brief.profitRate) : '待加载'}
                 </strong>
               </div>
@@ -603,7 +603,7 @@ export default function NewMonthlyKnowledgePage() {
           </section>
           {Object.keys(tradeWages).length > 0 && (
             <section className="monthly-readonly p-5">
-              <div className="mb-3 flex items-center gap-2 text-[#165DFF]">
+              <div className="mb-3 flex items-center gap-2 text-[var(--color-primary)]">
                 <FileText className="h-5 w-5" />
                 <h2 className="text-lg font-semibold text-[#1D2129]">👷 工种工资拆分</h2>
               </div>
@@ -638,7 +638,7 @@ export default function NewMonthlyKnowledgePage() {
           )}
           {reportItems.length > 0 && (
             <section className="monthly-readonly p-5">
-              <div className="mb-3 flex items-center gap-2 text-[#165DFF]">
+              <div className="mb-3 flex items-center gap-2 text-[var(--color-primary)]">
                 <FileText className="h-5 w-5" />
                 <h2 className="text-lg font-semibold text-[#1D2129]">📋 对上报量明细</h2>
               </div>
@@ -666,7 +666,7 @@ export default function NewMonthlyKnowledgePage() {
           {/* 风险池进入月报的提醒 */}
           {monthlyRiskReminders.length > 0 && (
             <section className="monthly-card p-5">
-              <div className="flex items-center gap-2 text-[#F53F3F] mb-3">
+              <div className="flex items-center gap-2 text-[var(--color-danger)] mb-3">
                 <ClipboardList className="h-5 w-5" />
                 <h2 className="text-lg font-semibold text-[#1D2129]">本月待入月报风险提醒</h2>
                 <span className="text-xs text-[#86909C]">({monthlyRiskReminders.length}条)</span>
@@ -693,7 +693,7 @@ export default function NewMonthlyKnowledgePage() {
                           {risk.log_date || '未填日期'}{risk.location ? ` · ${risk.location}` : ''} · {level}{types ? ` · ${types}` : ''}
                         </p>
                         <p className="text-sm text-[#4E5969] mt-0.5">{risk.risk_summary || risk.content || '未填写风险摘要'}</p>
-                        {risk.issues && <p className="text-xs text-[#F53F3F] mt-0.5">异常：{risk.issues}</p>}
+                        {risk.issues && <p className="text-xs text-[var(--color-danger)] mt-0.5">异常：{risk.issues}</p>}
                         {risk.risk_recommendation && <p className="text-xs text-[#86909C] mt-1">建议：{risk.risk_recommendation}</p>}
                       </div>
                     </label>
@@ -714,14 +714,14 @@ export default function NewMonthlyKnowledgePage() {
               <p className="text-xs text-[#86909C] mb-3">勾选后可追加到经验随笔中</p>
               <div className="space-y-2">
                 {constructionLogs.map((log, i) => (
-                  <label key={i} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${selectedLogIndices.includes(i) ? 'border-[#165DFF] bg-[#F0F5FF]' : 'border-[#E5E6EB] hover:border-[#165DFF]/30'}`}>
+                  <label key={i} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${selectedLogIndices.includes(i) ? 'border-[var(--color-primary)] bg-[#F0F5FF]' : 'border-[#E5E6EB] hover:border-[var(--color-primary)]/30'}`}>
                     <input type="checkbox" checked={selectedLogIndices.includes(i)} onChange={() => {
                       setSelectedLogIndices(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
                     }} className="mt-1 h-4 w-4 accent-[#165DFF]" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-[#86909C]">{log.log_date} · {log.user_name}{log.location ? ` · ${log.location}` : ''}</p>
                       <p className="text-sm text-[#4E5969] mt-0.5">{log.content}</p>
-                      {log.issues && <p className="text-xs text-[#F53F3F] mt-0.5">⚠️ {log.issues}</p>}
+                      {log.issues && <p className="text-xs text-[var(--color-danger)] mt-0.5">⚠️ {log.issues}</p>}
                     </div>
                   </label>
                 ))}
@@ -734,7 +734,7 @@ export default function NewMonthlyKnowledgePage() {
                   }).join('\n');
                   setExperienceNote(prev => (prev ? prev + '\n\n' : '') + '## 引用施工日志\n' + selectedTexts);
                   setSelectedLogIndices([]);
-                }} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#165DFF] px-3 text-xs text-white hover:bg-[#0E49D8]">
+                }} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs text-white hover:bg-[var(--color-primary-dark)]">
                   <Plus className="h-3.5 w-3.5" /> 引用选中到经验随笔
                 </button>
               )}
@@ -793,7 +793,7 @@ export default function NewMonthlyKnowledgePage() {
               {planOptions.map(plan => (
                 <label
                   key={plan}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm text-[#1D2129] transition hover:border-[#165DFF]/40"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E6EB] bg-[#FBFCFF] px-3 text-sm text-[#1D2129] transition hover:border-[var(--color-primary)]/40"
                 >
                   <input
                     type="checkbox"
@@ -821,7 +821,7 @@ export default function NewMonthlyKnowledgePage() {
                   <p className="text-sm font-semibold text-[#1D2129]">提交审批</p>
                   <p className="mt-1 text-xs text-[#86909C]">请选择本项目经理，提交后会生成对方的站内提醒和待办。</p>
                 </div>
-                <span className="rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[#165DFF]">
+                <span className="rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[var(--color-primary)]">
                   已保存为知识 #{savedDocId}
                 </span>
               </div>
@@ -854,14 +854,14 @@ export default function NewMonthlyKnowledgePage() {
                   type="button"
                   onClick={handleSubmitWorkflow}
                   disabled={submitting || !selectedApprover}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[var(--color-primary-dark)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   提交给项目经理
                 </button>
               </div>
               {projectManagerUsers.length === 0 ? (
-                <p className="mt-3 text-xs text-[#F53F3F]">当前没有可选项目经理，请先在权限中心给人员分配项目经理角色。</p>
+                <p className="mt-3 text-xs text-[var(--color-danger)]">当前没有可选项目经理，请先在权限中心给人员分配项目经理角色。</p>
               ) : null}
             </section>
           ) : null}
@@ -875,14 +875,14 @@ export default function NewMonthlyKnowledgePage() {
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Link
               href="/knowledge"
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E5E6EB] bg-white px-4 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E5E6EB] bg-white px-4 text-sm font-medium text-[#4E5969] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-primary)]"
             >
               取消
             </Link>
             <button
               type="submit"
               disabled={saving || !monthlyData}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[var(--color-primary-dark)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               保存为知识

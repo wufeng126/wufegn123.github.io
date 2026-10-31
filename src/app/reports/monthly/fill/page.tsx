@@ -359,8 +359,8 @@ export default function MonthlyReportFillPage() {
                   {delta !== null ? (
                     <div className={`mt-0.5 text-[11px] tabular-nums ${
                   item.label === '确认成本'
-                    ? (delta >= 0 ? 'text-[#FF7D00]' : 'text-[#00B42A]')
-                    : (delta >= 0 ? 'text-[#00B42A]' : 'text-[#F53F3F]')
+                    ? (delta >= 0 ? 'text-[#FF7D00]' : 'text-[var(--color-success)]')
+                    : (delta >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]')
                 }`}>
                       环比 {delta >= 0 ? '+' : ''}{delta.toFixed(1)}%
                     </div>
@@ -645,7 +645,7 @@ export default function MonthlyReportFillPage() {
                       type="button"
                       onClick={() => post('reject', { content: { bossSupplement }, reason: rejectReason })}
                       disabled={saving}
-                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#F53F3F] px-3 text-xs font-medium text-white disabled:opacity-60"
+                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-danger)] px-3 text-xs font-medium text-white disabled:opacity-60"
                     >
                       {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />} 确认驳回
                     </button>
@@ -659,7 +659,7 @@ export default function MonthlyReportFillPage() {
                   type="button"
                   onClick={() => setRejectMode(true)}
                   disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 text-sm font-medium text-[#F53F3F] disabled:opacity-60"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 text-sm font-medium text-[var(--color-danger)] disabled:opacity-60"
                 >
                   <XCircle className="h-4 w-4" /> 驳回
                 </button>
@@ -667,7 +667,7 @@ export default function MonthlyReportFillPage() {
                   type="button"
                   onClick={() => post('approve', { content: { bossSupplement } })}
                   disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#00B42A] px-4 text-sm font-medium text-white disabled:opacity-60"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-success)] px-4 text-sm font-medium text-white disabled:opacity-60"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} 通过并归档
                 </button>

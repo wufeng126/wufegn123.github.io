@@ -683,7 +683,7 @@ export default function PaymentsPage() {
           </div>
           <div className="rounded-xl border border-border bg-white p-3">
             <div className="text-xs text-muted-foreground">本月付款</div>
-            <div className="mt-1 text-xl font-bold text-[#165DFF]">{formatWan(stats.monthAmount)}</div>
+            <div className="mt-1 text-xl font-bold text-[var(--color-primary)]">{formatWan(stats.monthAmount)}</div>
           </div>
           <div className="rounded-xl border border-border bg-white p-3">
             <div className="text-xs text-muted-foreground">有效笔数</div>
@@ -695,7 +695,7 @@ export default function PaymentsPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
-          <span>关联结算付款 <b className="text-[#165DFF]">{formatWan(stats.linkedAmount)}</b></span>
+          <span>关联结算付款 <b className="text-[var(--color-primary)]">{formatWan(stats.linkedAmount)}</b></span>
           <span>未关联结算付款 <b className="text-amber-600">{formatWan(stats.unlinkedAmount)}</b></span>
         </div>
       </div>
@@ -762,7 +762,7 @@ export default function PaymentsPage() {
                 key={value}
                 type="button"
                 onClick={() => setFilterPeriod(value)}
-                className={`rounded-full border px-3 py-1 text-xs transition ${filterPeriod === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+                className={`rounded-full border px-3 py-1 text-xs transition ${filterPeriod === value ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white' : 'border-border bg-white text-muted-foreground hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'}`}
               >
                 {label}
               </button>

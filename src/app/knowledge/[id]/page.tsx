@@ -107,15 +107,15 @@ const stateTagMap: Record<string, WorkflowState> = {
 
 const stateBadgeClasses: Record<WorkflowState, string> = {
   draft: 'bg-[#F2F3F5] text-[#4E5969]',
-  manager_review: 'bg-[#E8F3FF] text-[#165DFF]',
-  budget_confirm: 'bg-[#F5EEFF] text-[#165DFF]',
+  manager_review: 'bg-[#E8F3FF] text-[var(--color-primary)]',
+  budget_confirm: 'bg-[#F5EEFF] text-[var(--color-primary)]',
   boss_review: 'bg-[#FFF7E8] text-[#D46B08]',
   completed: 'bg-[#E8FFEA] text-[#00A870]',
 };
 
 const qualityBadgeClasses: Record<string, string> = {
   原始记录: 'bg-[#F2F3F5] text-[#4E5969]',
-  已整理: 'bg-[#E8F3FF] text-[#165DFF]',
+  已整理: 'bg-[#E8F3FF] text-[var(--color-primary)]',
   推荐复用: 'bg-[#FFF7E8] text-[#D46B08]',
   标准经验: 'bg-[#E8FFEA] text-[#00A870]',
 };
@@ -527,14 +527,14 @@ export default function KnowledgeDetailPage() {
         <div className="mb-5 flex items-center justify-between gap-3">
           <Link
             href="/knowledge"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-primary)]"
           >
             <ArrowLeft className="h-4 w-4" />
             返回知识库
           </Link>
           <Link
             href="/knowledge/new"
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[var(--color-primary-dark)]"
           >
             写知识
           </Link>
@@ -563,7 +563,7 @@ export default function KnowledgeDetailPage() {
             <article className="knowledge-card overflow-hidden">
               <header className="border-b border-[rgba(0,0,0,0.06)] px-5 py-6 md:px-7">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[#165DFF]">
+                  <span className="inline-flex rounded-full bg-[#F0F5FF] px-3 py-1 text-xs font-medium text-[var(--color-primary)]">
                     {categoryLabel}
                   </span>
                   <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${qualityBadgeClasses[quality]}`}>
@@ -610,12 +610,12 @@ export default function KnowledgeDetailPage() {
                       const done = i <= stepIdx;
                       return (
                         <div key={step.state} className={`flex items-center ${i < workflowSteps.length - 1 ? 'flex-1' : ''}`}>
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${done ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#F2F3F5] text-[#8A8F98]'}`}>
+                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${done ? 'bg-[#E8F3FF] text-[var(--color-primary)]' : 'bg-[#F2F3F5] text-[#8A8F98]'}`}>
                             {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
                             <span>{step.label}</span>
                           </div>
                           {i < workflowSteps.length - 1 && (
-                            <div className={`h-px flex-1 mx-1 ${i < stepIdx ? 'bg-[#165DFF]' : 'bg-[rgba(0,0,0,0.06)]'}`} />
+                            <div className={`h-px flex-1 mx-1 ${i < stepIdx ? 'bg-[var(--color-primary)]' : 'bg-[rgba(0,0,0,0.06)]'}`} />
                           )}
                         </div>
                       );
@@ -628,7 +628,7 @@ export default function KnowledgeDetailPage() {
                 <div className="grid gap-4 md:grid-cols-[1.1fr_1fr]">
                   <div className="rounded-xl border border-[#E5E6EB] bg-white p-4">
                     <div className="flex items-center gap-2 text-sm font-semibold text-[#171717]">
-                      <FileText className="h-4 w-4 text-[#165DFF]" />
+                      <FileText className="h-4 w-4 text-[var(--color-primary)]" />
                       知识业务卡片
                     </div>
                     <div className="mt-3 grid gap-3 text-sm text-[#4E5969] sm:grid-cols-2">
@@ -653,7 +653,7 @@ export default function KnowledgeDetailPage() {
                       <p className="text-xs text-[#8A8F98]">适用场景</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {scenarioTags.map(item => (
-                          <span key={item} className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[#165DFF]">{item}</span>
+                          <span key={item} className="rounded-full bg-[#F0F5FF] px-2.5 py-1 text-xs text-[var(--color-primary)]">{item}</span>
                         ))}
                       </div>
                     </div>
@@ -684,13 +684,13 @@ export default function KnowledgeDetailPage() {
               <div className="knowledge-card p-5">
                 <h3 className="text-sm font-semibold text-[#171717] mb-3">📎 附件</h3>
                 <a href={`/api/project-contracts/download?id=${doc.id}`}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-[rgba(0,0,0,0.06)] hover:border-[#165DFF]/30 transition group">
-                  <FileText className="h-8 w-8 text-[#165DFF] shrink-0" />
+                  className="flex items-center gap-3 p-3 rounded-xl border border-[rgba(0,0,0,0.06)] hover:border-[var(--color-primary)]/30 transition group">
+                  <FileText className="h-8 w-8 text-[var(--color-primary)] shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[#171717] truncate">{doc.file_name || '附件'}</p>
                     <p className="text-xs text-[#8A8F98]">{doc.file_size ? `${(doc.file_size / 1024).toFixed(1)}KB` : ''}</p>
                   </div>
-                  <Download className="h-4 w-4 text-[#8A8F98] group-hover:text-[#165DFF] transition" />
+                  <Download className="h-4 w-4 text-[#8A8F98] group-hover:text-[var(--color-primary)] transition" />
                 </a>
               </div>
             )}
@@ -708,7 +708,7 @@ export default function KnowledgeDetailPage() {
                     <select
                       value={selectedApprover}
                       onChange={e => setSelectedApprover(e.target.value)}
-                      className="h-10 w-full rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="h-10 w-full rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
                     >
                       <option value="">请选择项目经理</option>
                       {projectManagerUsers.map(user => (
@@ -718,7 +718,7 @@ export default function KnowledgeDetailPage() {
                   </label>
                 ) : null}
                 {workflowState === 'manager_review' ? (
-                  <p className="mt-3 rounded-lg bg-[#F0F5FF] px-3 py-2 text-xs leading-5 text-[#165DFF]">
+                  <p className="mt-3 rounded-lg bg-[#F0F5FF] px-3 py-2 text-xs leading-5 text-[var(--color-primary)]">
                     提交后会自动返回最初提交的预算员确认，无需手动选择下一步负责人。
                   </p>
                 ) : null}
@@ -728,7 +728,7 @@ export default function KnowledgeDetailPage() {
                     <select
                       value={selectedApprover}
                       onChange={e => setSelectedApprover(e.target.value)}
-                      className="h-10 w-full rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="h-10 w-full rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
                     >
                       <option value="">请选择老板</option>
                       {bossUsers.map(user => (
@@ -745,21 +745,21 @@ export default function KnowledgeDetailPage() {
                 <textarea
                   value={comment}
                   onChange={e => setComment(e.target.value)}
-                  className="mt-2 w-full min-h-[80px] rounded-lg border border-[rgba(0,0,0,0.06)] bg-white p-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="mt-2 w-full min-h-[80px] rounded-lg border border-[rgba(0,0,0,0.06)] bg-white p-3 text-sm outline-none focus:border-[var(--color-primary)]"
                   placeholder={actionByState[workflowState]?.placeholder}
                 />
                 <button
                   onClick={() => submitWorkflowAction(actionByState[workflowState]?.action)}
                   disabled={acting || ((workflowState === 'draft' || workflowState === 'budget_confirm') && !selectedApprover)}
-                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60"
+                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-60"
                 >
                   {acting ? '处理中...' : <><Send className="h-3.5 w-3.5" />{actionByState[workflowState]?.label}</>}
                 </button>
                 {workflowState === 'draft' && projectManagerUsers.length === 0 ? (
-                  <p className="mt-2 text-xs text-[#F53F3F]">当前没有可选项目经理，请先在权限中心分配项目经理角色。</p>
+                  <p className="mt-2 text-xs text-[var(--color-danger)]">当前没有可选项目经理，请先在权限中心分配项目经理角色。</p>
                 ) : null}
                 {workflowState === 'budget_confirm' && bossUsers.length === 0 ? (
-                  <p className="mt-2 text-xs text-[#F53F3F]">当前没有可选老板，请先在权限中心分配老板角色。</p>
+                  <p className="mt-2 text-xs text-[var(--color-danger)]">当前没有可选老板，请先在权限中心分配老板角色。</p>
                 ) : null}
               </div>
             )}
@@ -771,7 +771,7 @@ export default function KnowledgeDetailPage() {
                 <textarea
                   value={comment}
                   onChange={e => setComment(e.target.value)}
-                  className="mt-2 w-full min-h-[70px] rounded-lg border border-[rgba(0,0,0,0.06)] bg-white p-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="mt-2 w-full min-h-[70px] rounded-lg border border-[rgba(0,0,0,0.06)] bg-white p-3 text-sm outline-none focus:border-[var(--color-primary)]"
                   placeholder="可填写撤回原因，例如发现数据需要调整"
                 />
                 <button
@@ -788,7 +788,7 @@ export default function KnowledgeDetailPage() {
             {isMonthly && workflowComments.length > 0 && (
               <div className="knowledge-card p-5">
                 <h3 className="text-sm font-semibold text-[#171717] flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-[#165DFF]" /> 审批流程意见
+                  <MessageSquare className="h-4 w-4 text-[var(--color-primary)]" /> 审批流程意见
                 </h3>
                 <div className="mt-3 space-y-3">
                   {workflowComments.map((item, i) => (
@@ -802,7 +802,7 @@ export default function KnowledgeDetailPage() {
             )}
 
             <section className="knowledge-card p-5 md:p-6">
-              <div className="flex items-center gap-2 text-[#165DFF]">
+              <div className="flex items-center gap-2 text-[var(--color-primary)]">
                 <Link2 className="h-5 w-5" />
                 <h2 className="text-lg font-semibold text-[#171717]">关联经验与复用建议</h2>
               </div>
@@ -820,7 +820,7 @@ export default function KnowledgeDetailPage() {
                       <Link
                         key={title}
                         href={href}
-                        className="inline-flex items-center gap-2 rounded-full border border-[#DCE6FF] bg-[#F0F5FF] px-3 py-2 text-sm font-medium text-[#165DFF] transition hover:border-[#165DFF] hover:bg-white"
+                        className="inline-flex items-center gap-2 rounded-full border border-[#DCE6FF] bg-[#F0F5FF] px-3 py-2 text-sm font-medium text-[var(--color-primary)] transition hover:border-[var(--color-primary)] hover:bg-white"
                       >
                         <Link2 className="h-3.5 w-3.5" />
                         {title}
@@ -844,14 +844,14 @@ export default function KnowledgeDetailPage() {
                       <Link
                         key={item.doc.id}
                         href={`/knowledge/${item.doc.id}`}
-                        className="group rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-4 transition hover:border-[#165DFF]/40 hover:bg-white hover:shadow-sm"
+                        className="group rounded-xl border border-[#E5E6EB] bg-[#FBFCFF] p-4 transition hover:border-[var(--color-primary)]/40 hover:bg-white hover:shadow-sm"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[11px] font-medium text-[#165DFF]">{item.category}</span>
+                          <span className="rounded-full bg-[#F0F5FF] px-2 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">{item.category}</span>
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${qualityBadgeClasses[item.quality] || 'bg-[#F2F3F5] text-[#4E5969]'}`}>{item.quality}</span>
                           <span className="text-[11px] text-[#8A8F98]">{item.sourceLabel}</span>
                         </div>
-                        <h3 className="mt-2 line-clamp-1 text-sm font-semibold text-[#171717] group-hover:text-[#165DFF]">{item.doc.title}</h3>
+                        <h3 className="mt-2 line-clamp-1 text-sm font-semibold text-[#171717] group-hover:text-[var(--color-primary)]">{item.doc.title}</h3>
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#4E5969]">{item.summary}</p>
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {item.reasons.map(reason => (

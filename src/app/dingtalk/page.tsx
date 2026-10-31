@@ -285,7 +285,7 @@ export default function DingTalkPage() {
         {/* 卡片容器 */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           {/* 顶部蓝色条 */}
-          <div className="h-2 bg-[#165DFF]" />
+          <div className="h-2 bg-[var(--color-primary)]" />
 
           <div className="px-8 py-10">
             {/* Logo + 标题 */}
@@ -302,7 +302,7 @@ export default function DingTalkPage() {
             {/* 检测中 */}
             {loginState === 'detecting' && (
               <div className="text-center py-8">
-                <Loader2 className="w-8 h-8 text-[#165DFF] animate-spin mx-auto mb-4" />
+                <Loader2 className="w-8 h-8 text-[var(--color-primary)] animate-spin mx-auto mb-4" />
                 <p className="text-sm text-gray-600">正在检测运行环境...</p>
               </div>
             )}
@@ -311,10 +311,10 @@ export default function DingTalkPage() {
             {loginState === 'logging_in' && (
               <div className="text-center py-8">
                 <div className="relative mx-auto mb-6 w-16 h-16">
-                  <div className="absolute inset-0 rounded-full border-4 border-[#165DFF]/20" />
+                  <div className="absolute inset-0 rounded-full border-4 border-[var(--color-primary)]/20" />
                   <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#165DFF] animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Smartphone className="w-6 h-6 text-[#165DFF]" />
+                    <Smartphone className="w-6 h-6 text-[var(--color-primary)]" />
                   </div>
                 </div>
                 <p className="text-base font-medium text-gray-900 mb-2">正在通过钉钉登录</p>
@@ -354,8 +354,8 @@ export default function DingTalkPage() {
                 <div className="space-y-3">
                   <button
                     onClick={doDingTalkLogin}
-                    className="w-full h-10 rounded-lg bg-[#165DFF] text-white text-sm font-medium
-                      hover:bg-[#0E42D2] transition-colors"
+                    className="w-full h-10 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium
+                      hover:bg-[var(--color-primary-dark)] transition-colors"
                   >
                     重试免登
                   </button>
@@ -387,15 +387,15 @@ export default function DingTalkPage() {
                   <p className="text-xs text-gray-500 mb-2">使用方式：</p>
                   <ol className="text-xs text-gray-600 space-y-1.5">
                     <li className="flex items-start gap-2">
-                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#165DFF] text-white text-[10px] flex-shrink-0 mt-0.5">1</span>
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--color-primary)] text-white text-[10px] flex-shrink-0 mt-0.5">1</span>
                       在钉钉工作台找到本应用
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#165DFF] text-white text-[10px] flex-shrink-0 mt-0.5">2</span>
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--color-primary)] text-white text-[10px] flex-shrink-0 mt-0.5">2</span>
                       点击进入即可自动登录
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#165DFF] text-white text-[10px] flex-shrink-0 mt-0.5">3</span>
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--color-primary)] text-white text-[10px] flex-shrink-0 mt-0.5">3</span>
                       无需输入账号密码
                     </li>
                   </ol>
@@ -403,8 +403,8 @@ export default function DingTalkPage() {
 
                 <button
                   onClick={() => router.push('/login')}
-                  className="w-full h-10 rounded-lg bg-[#165DFF] text-white text-sm font-medium
-                    hover:bg-[#0E42D2] transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-10 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium
+                    hover:bg-[var(--color-primary-dark)] transition-colors flex items-center justify-center gap-2"
                 >
                   前往账号密码登录
                   <ArrowRight className="w-4 h-4" />

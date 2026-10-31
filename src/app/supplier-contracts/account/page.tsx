@@ -477,7 +477,7 @@ export default function SupplierRosterPage() {
                   key={value}
                   type="button"
                   onClick={() => setFilterContract(value)}
-                  className={`rounded-full border px-3 py-1 text-xs transition ${filterContract === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+                  className={`rounded-full border px-3 py-1 text-xs transition ${filterContract === value ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white' : 'border-border bg-white text-muted-foreground hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'}`}
                 >
                   {label}
                 </button>

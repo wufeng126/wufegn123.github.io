@@ -23,7 +23,7 @@ export default function WorkspacePage() {
         </Link>
         <Link
           href="/ai-assistant"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#165DFF] px-3 text-sm font-medium text-white transition hover:bg-[#0E42D2]"
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-medium text-white transition hover:bg-[var(--color-primary-dark)]"
         >
           <Bot className="h-4 w-4" />
           AI 劳务助手

@@ -295,7 +295,7 @@ function StatCard({ title, value, unit, tone }: { title: string; value: string; 
     <div className="rounded-xl border border-[var(--border)] bg-card p-4">
       <p className="text-xs text-[var(--color-text-3)]">{title}</p>
       <div className="mt-2 flex items-end gap-1">
-        <span className={cn('text-2xl font-bold text-[var(--foreground)]', tone === 'up' && 'text-[#F53F3F]', tone === 'down' && 'text-[#00B42A]')}>{value}</span>
+        <span className={cn('text-2xl font-bold text-[var(--foreground)]', tone === 'up' && 'text-[var(--color-danger)]', tone === 'down' && 'text-[var(--color-success)]')}>{value}</span>
         <span className="pb-1 text-xs text-[var(--color-text-3)]">{unit}</span>
       </div>
     </div>
@@ -345,8 +345,8 @@ function TrendBadge({ tone, change, changeRate }: { tone: 'up' | 'down' | 'flat'
   return (
     <div className={cn(
       'flex h-9 items-center gap-1 rounded-full px-2.5 text-xs font-medium',
-      tone === 'up' && 'bg-[#FFF1F0] text-[#F53F3F]',
-      tone === 'down' && 'bg-[#ECFDF3] text-[#00B42A]',
+      tone === 'up' && 'bg-[#FFF1F0] text-[var(--color-danger)]',
+      tone === 'down' && 'bg-[#ECFDF3] text-[var(--color-success)]',
       tone === 'flat' && 'bg-[var(--color-muted)] text-[var(--color-text-3)]',
     )}>
       <Icon className="h-3.5 w-3.5" />

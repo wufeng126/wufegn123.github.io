@@ -185,7 +185,7 @@ export default function NewKnowledgePage() {
           </div>
           <Link
             href="/knowledge"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 text-sm font-medium text-[#4E5969] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-primary)]"
           >
             <ArrowLeft className="h-4 w-4" />
             返回
@@ -218,7 +218,7 @@ export default function NewKnowledgePage() {
                 ))}
               </select>
               <div className="rounded-lg bg-[#F8FAFF] p-3 text-xs leading-6 text-[#4E5969]">
-                <div className="mb-1 flex items-center gap-1 font-medium text-[#165DFF]">
+                <div className="mb-1 flex items-center gap-1 font-medium text-[var(--color-primary)]">
                   <Lightbulb className="h-3.5 w-3.5" />
                   建议内容
                 </div>
@@ -286,10 +286,10 @@ export default function NewKnowledgePage() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-dashed border-[#C9CDD4] bg-[#FBFCFF] px-3 py-2 text-left text-sm text-[#4E5969] transition hover:border-[#165DFF] hover:bg-white"
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-dashed border-[#C9CDD4] bg-[#FBFCFF] px-3 py-2 text-left text-sm text-[#4E5969] transition hover:border-[var(--color-primary)] hover:bg-white"
               >
                 <span className="inline-flex items-center gap-2">
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin text-[#165DFF]" /> : <Upload className="h-4 w-4 text-[#165DFF]" />}
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin text-[var(--color-primary)]" /> : <Upload className="h-4 w-4 text-[var(--color-primary)]" />}
                   {file ? file.name : '可选：上传与本条知识相关的合同、清单或现场资料'}
                 </span>
                 {file ? <span className="text-xs text-[#8A8F98]">{(file.size / 1024).toFixed(1)}KB</span> : null}
@@ -316,14 +316,14 @@ export default function NewKnowledgePage() {
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Link
               href="/knowledge"
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-4 text-sm font-medium text-[#4E5969] transition hover:border-[#165DFF]/40 hover:text-[#165DFF]"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-4 text-sm font-medium text-[#4E5969] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-primary)]"
             >
               取消
             </Link>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[#0E49D8] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,93,255,0.22)] transition hover:bg-[var(--color-primary-dark)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FileText className="h-4 w-4" />
               {submitting ? '提交中...' : '提交'}

@@ -132,7 +132,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
           <input ref={fileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png" className="hidden"
             onChange={e => { upload(e.target.files); e.target.value = ''; }} />
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#165DFF] px-4 text-sm text-white hover:bg-[#0E49D8] disabled:opacity-50">
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {uploading ? '上传中...' : '上传合同'}
           </button>
@@ -140,18 +140,18 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
       </div>
 
       {aiMsg && (
-        <div className={`rounded-lg px-3 py-2 text-xs ${aiMsg.startsWith('✅') ? 'bg-[#E8FFEA] text-[#009A29]' : 'bg-[#FFF1F0] text-[#F53F3F]'}`}>
+        <div className={`rounded-lg px-3 py-2 text-xs ${aiMsg.startsWith('✅') ? 'bg-[#E8FFEA] text-[#009A29]' : 'bg-[#FFF1F0] text-[var(--color-danger)]'}`}>
           {aiMsg}
         </div>
       )}
 
       {uploadMsg && (
-        <div className="rounded-lg px-3 py-2 text-xs bg-[#FFF1F0] text-[#F53F3F]">
+        <div className="rounded-lg px-3 py-2 text-xs bg-[#FFF1F0] text-[var(--color-danger)]">
           ⚠️ {uploadMsg}
         </div>
       )}
 
-      <p className="text-xs text-[#86909C] -mt-1">💡 提示：点「上传到 AI 助手」把合同清单和单价同步进知识库后，可在「AI 劳务助手」中直接询问（如“XX项目合同的清单内容有哪些”“某清单项单价是多少”）。<span className="text-[#165DFF]">扫描件：图片（jpg/png）会自动 OCR 识别；扫描版 PDF 请先转成图片或文字版再传。</span></p>
+      <p className="text-xs text-[#86909C] -mt-1">💡 提示：点「上传到 AI 助手」把合同清单和单价同步进知识库后，可在「AI 劳务助手」中直接询问（如“XX项目合同的清单内容有哪些”“某清单项单价是多少”）。<span className="text-[var(--color-primary)]">扫描件：图片（jpg/png）会自动 OCR 识别；扫描版 PDF 请先转成图片或文字版再传。</span></p>
 
       {loading ? (
         <div className="text-center py-8 text-sm text-[#86909C]">加载中...</div>
@@ -164,8 +164,8 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
       ) : (
         <div className="space-y-2">
           {contracts.map(c => (
-            <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#E5E6EB] hover:border-[#165DFF]/20 transition group">
-              <FileText className="h-8 w-8 text-[#165DFF] shrink-0" />
+            <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#E5E6EB] hover:border-[var(--color-primary)]/20 transition group">
+              <FileText className="h-8 w-8 text-[var(--color-primary)] shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-[#1D2129] truncate">{c.file_name}</p>
                 <p className="text-xs text-[#86909C]">{formatSize(c.file_size)} · {c.created_at?.slice(0, 10)}{c.remark ? ` · ${c.remark}` : ''}</p>
@@ -176,7 +176,7 @@ export default function ProjectContracts({ projectId }: { projectId: string }) {
                   <Download className="h-4 w-4" />
                 </a>
                 <button onClick={() => remove(c.id)}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-[#FFF1F0] text-[#F53F3F]">
+                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-[#FFF1F0] text-[var(--color-danger)]">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>

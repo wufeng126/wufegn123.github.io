@@ -832,7 +832,7 @@ export default function SettlementPage() {
             </button>
             <div className="rounded-xl border border-border bg-white p-3">
               <div className="text-xs text-muted-foreground">合同累计结算</div>
-              <div className="mt-1 text-xl font-bold text-[#165DFF]">{formatCurrency(filteredStats.totalAmount)}</div>
+              <div className="mt-1 text-xl font-bold text-[var(--color-primary)]">{formatCurrency(filteredStats.totalAmount)}</div>
             </div>
             <div className="rounded-xl border border-border bg-white p-3">
               <div className="text-xs text-muted-foreground">合同进度未付</div>
@@ -840,7 +840,7 @@ export default function SettlementPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
-            <span>合同进度应付 <b className="text-[#165DFF]">{formatCurrency(filteredStats.totalPayable)}</b></span>
+            <span>合同进度应付 <b className="text-[var(--color-primary)]">{formatCurrency(filteredStats.totalPayable)}</b></span>
             <span>合同100%应付 <b className="text-purple-600">{formatCurrency(filteredStats.totalFinalPayable)}</b></span>
             <span>合同累计已付 <b className="text-emerald-600">{formatCurrency(filteredStats.totalPaid)}</b></span>
             <span>合同100%未付 <b className="text-red-500">{formatCurrency(filteredStats.totalFinalPending)}</b></span>
@@ -920,7 +920,7 @@ export default function SettlementPage() {
                 key={value}
                 type="button"
                 onClick={() => setFilterStatus(value)}
-                className={`rounded-full border px-3 py-1 text-xs transition ${filterStatus === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+                className={`rounded-full border px-3 py-1 text-xs transition ${filterStatus === value ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white' : 'border-border bg-white text-muted-foreground hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'}`}
               >
                 {label}
               </button>

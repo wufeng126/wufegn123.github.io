@@ -77,7 +77,7 @@ const qualityColors: Record<string, string> = {
   原始记录: 'bg-[var(--color-muted)] text-[var(--color-text-2)]',
   已整理: 'bg-[var(--color-accent)] text-[var(--color-primary)]',
   推荐复用: 'bg-[#FFF7E8] text-[#FF7D00]',
-  标准经验: 'bg-[#E8FFEA] text-[#00B42A]',
+  标准经验: 'bg-[#E8FFEA] text-[var(--color-success)]',
 };
 
 type MonthlyWorkflowState = 'draft' | 'manager_review' | 'budget_confirm' | 'boss_review' | 'completed';
@@ -112,9 +112,9 @@ const monthlyStateTagMap: Record<string, MonthlyWorkflowState> = {
 const monthlyStateBadgeClasses: Record<MonthlyWorkflowState, string> = {
   draft: 'bg-[var(--color-muted)] text-[var(--color-text-2)]',
   manager_review: 'bg-[var(--color-accent)] text-[var(--color-primary)]',
-  budget_confirm: 'bg-[#F5EEFF] text-[#165DFF]',
+  budget_confirm: 'bg-[#F5EEFF] text-[var(--color-primary)]',
   boss_review: 'bg-[#FFF7E8] text-[#FF7D00]',
-  completed: 'bg-[#E8FFEA] text-[#00B42A]',
+  completed: 'bg-[#E8FFEA] text-[var(--color-success)]',
 };
 
 function getCategoryLabel(doc: Pick<KnowledgeDoc, 'category' | 'tags'>) {
@@ -607,7 +607,7 @@ function KnowledgeReusePanel({ docs }: { docs: KnowledgeDoc[] }) {
               ))}
             </div>
           ) : (
-            <p className="rounded-lg bg-[#F6FFED] p-3 text-xs text-[#00B42A]">当前知识关联情况较好。</p>
+            <p className="rounded-lg bg-[#F6FFED] p-3 text-xs text-[var(--color-success)]">当前知识关联情况较好。</p>
           )}
         </div>
       </div>

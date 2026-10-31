@@ -536,7 +536,7 @@ export default function NewBidPage() {
             <button onClick={exportExcel} disabled={!items.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#D9DCE3] bg-white px-4 text-sm text-[#1D2129] disabled:opacity-50">
               <Download className="h-4 w-4" />导出 Excel
             </button>
-            <button onClick={() => saveBid({ saveVersion: true })} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#165DFF] px-4 text-sm text-white disabled:opacity-60">
+            <button onClick={() => saveBid({ saveVersion: true })} disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm text-white disabled:opacity-60">
               <Save className="h-4 w-4" />保存版本
             </button>
           </div>
@@ -555,7 +555,7 @@ export default function NewBidPage() {
               <input type="checkbox" checked={materialIncluded} onChange={e => setMaterialIncluded(e.target.checked)} />
               本次报价含材料
             </label>
-            <input value={materialScopeNote} onChange={e => setMaterialScopeNote(e.target.value)} placeholder="材料范围备注，例如含钢化租赁、不含主材" className="h-9 min-w-[260px] flex-1 rounded-lg border border-[#D9DCE3] px-3 text-sm outline-none focus:border-[#165DFF]" />
+            <input value={materialScopeNote} onChange={e => setMaterialScopeNote(e.target.value)} placeholder="材料范围备注，例如含钢化租赁、不含主材" className="h-9 min-w-[260px] flex-1 rounded-lg border border-[#D9DCE3] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
             <button onClick={applyGlobalProfit} className="h-9 rounded-lg border border-[#D9DCE3] bg-white px-3 text-sm text-[#1D2129]">利润率应用到全部清单</button>
           </div>
         </section>
@@ -577,7 +577,7 @@ export default function NewBidPage() {
             <div className="flex-1" />
             <div className="relative w-full sm:min-w-[240px] sm:flex-1 lg:flex-none">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
-              <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="搜索清单 / 标准编码" className="h-10 w-full rounded-lg border border-[#D9DCE3] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
+              <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="搜索清单 / 标准编码" className="h-10 w-full rounded-lg border border-[#D9DCE3] pl-9 pr-3 text-sm outline-none focus:border-[var(--color-primary)]" />
             </div>
             <div className="grid w-full grid-cols-3 rounded-lg border border-[#D9DCE3] bg-white p-1 sm:flex sm:w-auto">
               {[
@@ -585,7 +585,7 @@ export default function NewBidPage() {
                 ['risk', `风险 ${riskCount}`],
                 ['unmatched', `未匹配 ${items.length - matchedCount}`],
               ].map(([key, label]) => (
-                <button key={key} onClick={() => setItemFilter(key as 'all' | 'risk' | 'unmatched')} className={`h-8 rounded-md px-3 text-xs ${itemFilter === key ? 'bg-[#165DFF] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}>
+                <button key={key} onClick={() => setItemFilter(key as 'all' | 'risk' | 'unmatched')} className={`h-8 rounded-md px-3 text-xs ${itemFilter === key ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}>
                   {label}
                 </button>
               ))}
@@ -620,7 +620,7 @@ export default function NewBidPage() {
                       <div className="mt-1 text-xs text-[#86909C]">{item.unit || '-'} · 匹配度 {item.match_score}</div>
                     </td>
                     <td className="px-3 py-3">
-                      <select value={item.standard_item_id || ''} onChange={e => applyStandard(item.rowId, Number(e.target.value))} className="h-9 w-[220px] rounded-lg border border-[#D9DCE3] px-2 text-sm outline-none focus:border-[#165DFF]">
+                      <select value={item.standard_item_id || ''} onChange={e => applyStandard(item.rowId, Number(e.target.value))} className="h-9 w-[220px] rounded-lg border border-[#D9DCE3] px-2 text-sm outline-none focus:border-[var(--color-primary)]">
                         <option value="">未匹配</option>
                         {standards.map(standard => <option key={standard.id} value={standard.id}>{standard.code} · {standard.name}</option>)}
                       </select>
@@ -628,7 +628,7 @@ export default function NewBidPage() {
                         <div className="mt-1 text-xs text-[#86909C]">建议：{item.candidates[0].code} · {item.candidates[0].name}</div>
                       )}
                       {!item.standard_item_id && (
-                        <button onClick={() => createStandardFromItem(item.rowId)} className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF] hover:bg-[#F2F7FF]">
+                        <button onClick={() => createStandardFromItem(item.rowId)} className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-[#D9DCE3] px-2 text-xs text-[var(--color-primary)] hover:bg-[#F2F7FF]">
                           <Plus className="h-3.5 w-3.5" />新增为标准清单
                         </button>
                       )}
@@ -637,11 +637,11 @@ export default function NewBidPage() {
                     <td className="px-3 py-3 text-right tabular-nums">{item.historical_bid_price ? money(item.historical_bid_price) : '-'}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{item.cost_price ? money(item.cost_price) : '-'}</td>
                     <td className="px-3 py-3 text-right">
-                      <input type="number" value={item.profit_rate} onChange={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[#165DFF]" />
+                      <input type="number" value={item.profit_rate} onChange={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-[#165DFF]">{item.suggested_price ? money(item.suggested_price) : '-'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-[var(--color-primary)]">{item.suggested_price ? money(item.suggested_price) : '-'}</td>
                     <td className="px-3 py-3 text-right">
-                      <input type="number" value={Number(item.final_price.toFixed(2)) || ''} onChange={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[#165DFF]" />
+                      <input type="number" value={Number(item.final_price.toFixed(2)) || ''} onChange={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
                     </td>
                     <td className="px-3 py-3 text-right font-medium tabular-nums">{money(item.final_amount)}</td>
                     <td className="px-3 py-3 text-xs text-[#F59E0B]">{item.pricing_warning || '-'}</td>
@@ -672,7 +672,7 @@ export default function NewBidPage() {
                       <p className="line-clamp-2 text-sm font-semibold text-[#1D2129]">{item.boq_item_name}</p>
                       <p className="mt-1 text-xs text-[#86909C]">{item.unit || '-'} / 工程量 {money(item.quantity)} / 匹配度 {item.match_score}</p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.standard_item_id ? 'bg-[#E8F3FF] text-[#165DFF]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${item.standard_item_id ? 'bg-[#E8F3FF] text-[var(--color-primary)]' : 'bg-[#FFF7E8] text-[#F59E0B]'}`}>
                       {item.standard_item_id ? '已匹配' : '待匹配'}
                     </span>
                   </div>
@@ -680,7 +680,7 @@ export default function NewBidPage() {
                   <div className="mt-3 space-y-2">
                     <label className="block text-xs text-[#4E5969]">
                       标准清单
-                      <select value={item.standard_item_id || ''} onChange={e => applyStandard(item.rowId, Number(e.target.value))} className="mt-1 h-10 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm outline-none focus:border-[#165DFF]">
+                      <select value={item.standard_item_id || ''} onChange={e => applyStandard(item.rowId, Number(e.target.value))} className="mt-1 h-10 w-full rounded-lg border border-[#D9DCE3] px-2 text-sm outline-none focus:border-[var(--color-primary)]">
                         <option value="">未匹配</option>
                         {standards.map(standard => <option key={standard.id} value={standard.id}>{standard.code} / {standard.name}</option>)}
                       </select>
@@ -689,7 +689,7 @@ export default function NewBidPage() {
                       <p className="text-xs text-[#86909C]">建议：{item.candidates[0].code} / {item.candidates[0].name}</p>
                     )}
                     {!item.standard_item_id && (
-                      <button onClick={() => createStandardFromItem(item.rowId)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#D9DCE3] px-2 text-xs text-[#165DFF] hover:bg-[#F2F7FF]">
+                      <button onClick={() => createStandardFromItem(item.rowId)} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#D9DCE3] px-2 text-xs text-[var(--color-primary)] hover:bg-[#F2F7FF]">
                         <Plus className="h-3.5 w-3.5" />新增为标准清单
                       </button>
                     )}
@@ -706,11 +706,11 @@ export default function NewBidPage() {
                     </div>
                     <label className="rounded-md bg-[#F7F8FA] p-2">
                       <span className="block text-[#86909C]">利润率</span>
-                      <input type="number" value={item.profit_rate} onChange={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="mt-1 h-9 w-full rounded-md border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[#165DFF]" />
+                      <input type="number" value={item.profit_rate} onChange={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="mt-1 h-9 w-full rounded-md border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
                     </label>
                     <label className="rounded-md bg-[#E8F3FF] p-2">
-                      <span className="block text-[#165DFF]">最终单价</span>
-                      <input type="number" value={Number(item.final_price.toFixed(2)) || ''} onChange={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="mt-1 h-9 w-full rounded-md border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[#165DFF]" />
+                      <span className="block text-[var(--color-primary)]">最终单价</span>
+                      <input type="number" value={Number(item.final_price.toFixed(2)) || ''} onChange={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="mt-1 h-9 w-full rounded-md border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
                     </label>
                   </div>
                   <div className="mt-3 flex items-center justify-between rounded-md bg-[#F7F8FA] px-3 py-2 text-sm">
@@ -773,7 +773,7 @@ function Field({ label, value, onChange, type = 'text', className = '' }: { labe
   return (
     <label className={`block text-sm ${className}`}>
       <span className="mb-1 block text-[#4E5969]">{label}</span>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="h-10 w-full rounded-lg border border-[#D9DCE3] px-3 text-sm outline-none focus:border-[#165DFF]" />
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="h-10 w-full rounded-lg border border-[#D9DCE3] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
     </label>
   );
 }

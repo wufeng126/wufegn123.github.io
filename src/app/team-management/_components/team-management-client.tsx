@@ -196,7 +196,7 @@ function DeductField({ label, value, onChange, placeholder }: { label: string; v
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         inputMode="decimal"
-        className="h-10 w-full rounded-md border border-[#DDE2EB] px-3 text-right text-sm outline-none focus:border-[#165DFF]"
+        className="h-10 w-full rounded-md border border-[#DDE2EB] px-3 text-right text-sm outline-none focus:border-[var(--color-primary)]"
       />
     </label>
   );
@@ -239,7 +239,7 @@ function statusBadgeClass(status?: string) {
   if (status === 'reviewed' || status === 'confirmed') return 'bg-[#E8FFEA] text-[#00A870]';
   if (status === 'rejected') return 'bg-[#FFECE8] text-[#CB2634]';
   if (status === 'draft') return 'bg-[#F2F3F5] text-[#4E5969]';
-  return 'bg-[#E8F3FF] text-[#165DFF]';
+  return 'bg-[#E8F3FF] text-[var(--color-primary)]';
 }
 
 function statusText(status?: string) {
@@ -332,8 +332,8 @@ function SubNav() {
             href={item.href}
             className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium ${
               active
-                ? 'border-[#165DFF] bg-[#F2F7FF] text-[#165DFF]'
-                : 'border-[#DDE2EB] bg-white text-[#4E5969] hover:border-[#165DFF]/40 hover:text-[#165DFF]'
+                ? 'border-[var(--color-primary)] bg-[#F2F7FF] text-[var(--color-primary)]'
+                : 'border-[#DDE2EB] bg-white text-[#4E5969] hover:border-[var(--color-primary)]/40 hover:text-[var(--color-primary)]'
             }`}
           >
             <Icon className="h-4 w-4" />
@@ -360,7 +360,7 @@ function Header({
     <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <div className="flex items-center gap-2 text-sm text-[#4E5969]">
-          <FileSpreadsheet className="h-4 w-4 text-[#165DFF]" />
+          <FileSpreadsheet className="h-4 w-4 text-[var(--color-primary)]" />
           {eyebrow}
         </div>
         <h1 className="mt-1 text-xl font-semibold sm:text-2xl">{title}</h1>
@@ -549,11 +549,11 @@ export function TeamGroupsPageClient() {
         description="班组先归属到具体项目，后续结算单按项目和班组独立建账。"
         action={(
           <>
-            <button onClick={() => void reload()} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
+            <button onClick={() => void reload()} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)]">
               <RefreshCw className="h-4 w-4" />
               刷新
             </button>
-            <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8]">
+            <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-3 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">
               <Plus className="h-4 w-4" />
               新增班组
             </button>
@@ -572,7 +572,7 @@ export function TeamGroupsPageClient() {
                 aria-label="按项目筛选"
                 value={projectId}
                 onChange={(event) => { setProjectId(event.target.value); }}
-                className="h-9 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                className="h-9 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
               >
                 <option value="">全部项目</option>
                 {projects.map((project) => (
@@ -582,7 +582,7 @@ export function TeamGroupsPageClient() {
             </div>
             <div className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86909C]" />
-              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索班组、负责人、工种" className="h-9 w-full rounded-md border border-[#DDE2EB] pl-9 pr-3 text-sm outline-none focus:border-[#165DFF]" />
+              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索班组、负责人、工种" className="h-9 w-full rounded-md border border-[#DDE2EB] pl-9 pr-3 text-sm outline-none focus:border-[var(--color-primary)]" />
             </div>
           </div>
           <p className="text-xs text-[#86909C]">共 {filteredGroups.length} 个班组 · 涉及 {projectCount} 个项目</p>
@@ -618,7 +618,7 @@ export function TeamGroupsPageClient() {
                     <div className="flex items-center justify-end gap-1">
                       {confirmDeleteId === group.id ? (
                         <>
-                          <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-white bg-[#F53F3F] hover:bg-[#D92D20] disabled:opacity-60">
+                          <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-white bg-[var(--color-danger)] hover:bg-[#D92D20] disabled:opacity-60">
                             {deleting ? '删除中' : '确认删除'}
                           </button>
                           <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-7 items-center rounded px-2 text-xs text-[#4E5969] hover:bg-[#F2F3F5]">
@@ -628,7 +628,7 @@ export function TeamGroupsPageClient() {
                       ) : (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button aria-label="更多操作" className="inline-flex h-7 w-7 items-center justify-center rounded px-1 text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#165DFF]">
+                            <button aria-label="更多操作" className="inline-flex h-7 w-7 items-center justify-center rounded px-1 text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[var(--color-primary)]">
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                           </DropdownMenuTrigger>
@@ -636,7 +636,7 @@ export function TeamGroupsPageClient() {
                             <DropdownMenuItem onSelect={() => startEdit(group)}>
                               <Pencil className="mr-2 h-4 w-4" />编辑
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-[#F53F3F]" onSelect={() => setConfirmDeleteId(group.id)}>
+                            <DropdownMenuItem className="text-[var(--color-danger)]" onSelect={() => setConfirmDeleteId(group.id)}>
                               <Trash2 className="mr-2 h-4 w-4" />删除
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -668,7 +668,7 @@ export function TeamGroupsPageClient() {
                   <span className="rounded-md bg-[#E8FFEA] px-2 py-1 text-xs text-[#00A870]">{statusText(group.status)}</span>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button aria-label="更多操作" className="inline-flex h-7 w-7 items-center justify-center rounded px-1 text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#165DFF]">
+                      <button aria-label="更多操作" className="inline-flex h-7 w-7 items-center justify-center rounded px-1 text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[var(--color-primary)]">
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                     </DropdownMenuTrigger>
@@ -676,7 +676,7 @@ export function TeamGroupsPageClient() {
                       <DropdownMenuItem onSelect={() => startEdit(group)}>
                         <Pencil className="mr-2 h-4 w-4" />编辑
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-[#F53F3F]" onSelect={() => setConfirmDeleteId(group.id)}>
+                      <DropdownMenuItem className="text-[var(--color-danger)]" onSelect={() => setConfirmDeleteId(group.id)}>
                         <Trash2 className="mr-2 h-4 w-4" />删除
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -686,7 +686,7 @@ export function TeamGroupsPageClient() {
               <div className="mt-2 text-sm text-[#4E5969]">{group.leader_name || '未填负责人'} {group.phone ? ` · ${group.phone}` : ''}</div>
               {confirmDeleteId === group.id ? (
                 <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-8 items-center rounded-md bg-[#F53F3F] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
+                  <button onClick={() => void confirmDelete(group)} disabled={deleting} className="inline-flex h-8 items-center rounded-md bg-[var(--color-danger)] px-3 text-xs text-white hover:bg-[#D92D20] disabled:opacity-60">
                     {deleting ? '删除中' : '确认删除'}
                   </button>
                   <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] px-3 text-xs text-[#4E5969]">
@@ -708,22 +708,22 @@ export function TeamGroupsPageClient() {
           <div className="grid gap-3">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[#86909C]">所属项目 *</span>
-              <select value={formProjectId} onChange={(event) => setFormProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+              <select value={formProjectId} onChange={(event) => setFormProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
                 <option value="">请选择项目</option>
                 {projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
               </select>
             </label>
-            <input value={teamForm.name} onChange={(event) => setTeamForm((form) => ({ ...form, name: event.target.value }))} placeholder="班组名称 *" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
-            <input value={teamForm.leader_name} onChange={(event) => setTeamForm((form) => ({ ...form, leader_name: event.target.value }))} placeholder="负责人" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
-            <input value={teamForm.phone} onChange={(event) => setTeamForm((form) => ({ ...form, phone: event.target.value }))} placeholder="联系电话" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
-            <input value={teamForm.work_type} onChange={(event) => setTeamForm((form) => ({ ...form, work_type: event.target.value }))} placeholder="工种（如：泥工、钢筋工）" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[#165DFF]" />
-            <textarea value={teamForm.remark} onChange={(event) => setTeamForm((form) => ({ ...form, remark: event.target.value }))} placeholder="备注" className="min-h-20 rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[#165DFF]" />
+            <input value={teamForm.name} onChange={(event) => setTeamForm((form) => ({ ...form, name: event.target.value }))} placeholder="班组名称 *" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
+            <input value={teamForm.leader_name} onChange={(event) => setTeamForm((form) => ({ ...form, leader_name: event.target.value }))} placeholder="负责人" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
+            <input value={teamForm.phone} onChange={(event) => setTeamForm((form) => ({ ...form, phone: event.target.value }))} placeholder="联系电话" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
+            <input value={teamForm.work_type} onChange={(event) => setTeamForm((form) => ({ ...form, work_type: event.target.value }))} placeholder="工种（如：泥工、钢筋工）" className="h-10 rounded-md border border-[#DDE2EB] px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
+            <textarea value={teamForm.remark} onChange={(event) => setTeamForm((form) => ({ ...form, remark: event.target.value }))} placeholder="备注" className="min-h-20 rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]" />
           </div>
           <div className="mt-2 flex items-center justify-end gap-2">
-            <button onClick={cancelEdit} disabled={saving} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-60">
+            <button onClick={cancelEdit} disabled={saving} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-60">
               取消
             </button>
-            <button onClick={() => void saveTeam()} disabled={saving} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
+            <button onClick={() => void saveTeam()} disabled={saving} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {editingGroupId ? '保存修改' : '新增班组'}
             </button>
@@ -757,21 +757,21 @@ function SettlementFilters({
     <section className="grid gap-3 rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm md:grid-cols-3">
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-[#86909C]">项目</span>
-        <select value={projectId} onChange={(event) => onProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+        <select value={projectId} onChange={(event) => onProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
           <option value="">全部项目</option>
           {projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
         </select>
       </label>
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-[#86909C]">班组</span>
-        <select value={teamId} onChange={(event) => onTeamId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+        <select value={teamId} onChange={(event) => onTeamId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
           <option value="">全部班组</option>
           {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
         </select>
       </label>
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-[#86909C]">结算月份 <span className="text-[#C0C6CF]">（留空=全部）</span></span>
-        <input type="month" value={month} onChange={(event) => onMonth(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+        <input type="month" value={month} onChange={(event) => onMonth(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
       </label>
     </section>
   );
@@ -1058,11 +1058,11 @@ export function TeamSettlementLedgerPageClient() {
         description="台账只保留历史结算记录；新增结算单和详情查看进入独立页面。"
         action={(
           <>
-            <button onClick={() => void reload()} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
+            <button onClick={() => void reload()} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)]">
               <RefreshCw className="h-4 w-4" />
               刷新
             </button>
-            <Link href="/team-management/settlements/new" className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8]">
+            <Link href="/team-management/settlements/new" className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-3 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">
               <Plus className="h-4 w-4" />
               新增结算单
             </Link>
@@ -1074,13 +1074,13 @@ export function TeamSettlementLedgerPageClient() {
       <div className="inline-flex rounded-lg border border-[#E5E8EF] bg-white p-1 shadow-sm">
         <button
           onClick={() => { setViewMode('summary'); setProjectId(''); }}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'summary' ? 'bg-[#165DFF] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'summary' ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
         >
           <BarChart3 className="h-3.5 w-3.5" />按项目汇总
         </button>
         <button
           onClick={() => setViewMode('detail')}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'detail' ? 'bg-[#165DFF] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${viewMode === 'detail' ? 'bg-[var(--color-primary)] text-white' : 'text-[#4E5969] hover:bg-[#F7F8FA]'}`}
         >
           <List className="h-3.5 w-3.5" />结算明细
         </button>
@@ -1089,7 +1089,7 @@ export function TeamSettlementLedgerPageClient() {
       {viewMode === 'detail' && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-[#86909C]">状态筛选：</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
             <option value="">全部</option>
             <option value="draft">草稿</option>
             <option value="pending">待审批</option>
@@ -1105,7 +1105,7 @@ export function TeamSettlementLedgerPageClient() {
           <span>
             有 {settlements.filter((row) => ['draft', 'rejected'].includes(row.status || 'draft')).length} 张结算单是草稿/已驳回，尚未提交审批
           </span>
-          <button type="button" onClick={() => setStatusFilter('draft')} className="font-medium text-[#165DFF]">
+          <button type="button" onClick={() => setStatusFilter('draft')} className="font-medium text-[var(--color-primary)]">
             只看未提交
           </button>
         </div>
@@ -1118,7 +1118,7 @@ export function TeamSettlementLedgerPageClient() {
               <h2 className="font-semibold">按项目汇总（全项目累计）</h2>
               <p className="mt-1 text-xs text-[#86909C]">每个项目各班组按结算累计值汇总；点击项目可下钻查看该项目结算明细。</p>
             </div>
-            <ClipboardList className="h-5 w-5 text-[#165DFF]" />
+            <ClipboardList className="h-5 w-5 text-[var(--color-primary)]" />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
@@ -1142,10 +1142,10 @@ export function TeamSettlementLedgerPageClient() {
                     <td className="px-4 py-3 font-medium">{row.project_name}</td>
                     <td className="px-4 py-3 text-right">{row.count}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
-                    <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.paid_amount)}</td>
-                    <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.unpaid_amount)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-success)]">{formatMoney(row.paid_amount)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-danger)]">{formatMoney(row.unpaid_amount)}</td>
                     <td className="px-4 py-3 text-center">
-                      <button onClick={() => drillToProject(row.project_name)} className="text-sm font-medium text-[#165DFF] hover:underline">查看明细</button>
+                      <button onClick={() => drillToProject(row.project_name)} className="text-sm font-medium text-[var(--color-primary)] hover:underline">查看明细</button>
                     </td>
                   </tr>
                 ))}
@@ -1174,7 +1174,7 @@ export function TeamSettlementLedgerPageClient() {
         </div>
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
           <div className="text-xs text-[#86909C]">扣款合计</div>
-          <div className="mt-2 text-2xl font-semibold text-[#F53F3F]">{formatMoney(summary.deduction_total)}</div>
+          <div className="mt-2 text-2xl font-semibold text-[var(--color-danger)]">{formatMoney(summary.deduction_total)}</div>
         </div>
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
           <div className="text-xs text-[#86909C]">实付金额</div>
@@ -1182,7 +1182,7 @@ export function TeamSettlementLedgerPageClient() {
         </div>
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
           <div className="text-xs text-[#86909C]">本期计划付款</div>
-          <div className="mt-2 text-2xl font-semibold text-[#00B42A]">{formatMoney(summary.planned_payment)}</div>
+          <div className="mt-2 text-2xl font-semibold text-[var(--color-success)]">{formatMoney(summary.planned_payment)}</div>
         </div>
         <div className="rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm">
           <div className="text-xs text-[#86909C]">尾款/预留款</div>
@@ -1208,7 +1208,7 @@ export function TeamSettlementLedgerPageClient() {
             <h2 className="font-semibold">结算台账</h2>
             <p className="mt-1 text-xs text-[#86909C]">点击查看可进入结算单详情、下载和打印。</p>
           </div>
-          <ClipboardList className="h-5 w-5 text-[#165DFF]" />
+          <ClipboardList className="h-5 w-5 text-[var(--color-primary)]" />
         </div>
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[1040px] text-sm">
@@ -1246,42 +1246,42 @@ export function TeamSettlementLedgerPageClient() {
                   <td className="px-4 py-3 text-[#4E5969]">{row.settlement_month}</td>
                   <td className="px-4 py-3 text-[#4E5969]">{row.period_start} 至 {row.period_end}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.quantity_amount)}</td>
-                  <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.deduction_total)}</td>
+                  <td className="px-4 py-3 text-right text-[var(--color-danger)]">{formatMoney(row.deduction_total)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatMoney(row.payable_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.payment_ratio ?? 100)}%</td>
-                  <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.planned_payment ?? row.payable_amount)}</td>
+                  <td className="px-4 py-3 text-right text-[var(--color-success)]">{formatMoney(row.planned_payment ?? row.payable_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#FF7D00]">{formatMoney(row.retained_amount ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-[#00B42A]">{formatMoney(row.team_paid_total ?? row.paid_amount ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-[#F53F3F]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</td>
+                  <td className="px-4 py-3 text-right text-[var(--color-success)]">{formatMoney(row.team_paid_total ?? row.paid_amount ?? 0)}</td>
+                  <td className="px-4 py-3 text-right text-[var(--color-danger)]">{formatMoney(row.team_unpaid_total ?? row.unpaid_amount ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatMoney(row.split_amount)}</td>
                   <td className="px-4 py-3 text-right text-[#4E5969]">{formatNumber(row.total_hours)}</td>
                   <td className="px-4 py-3 text-center"><span className={`rounded-md px-2 py-1 text-xs ${statusBadgeClass(row.status)}`}>{statusText(row.status)}</span></td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex flex-wrap items-center justify-center gap-2">
-                      <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[#165DFF] hover:underline">查看详情</Link>
+                      <Link href={`/team-management/settlements/${row.id}`} className="text-sm font-medium text-[var(--color-primary)] hover:underline">查看详情</Link>
                       {(['draft', 'rejected'].includes(row.status || 'draft')) && canEditSettlement && (
-                        <Link href={`/team-management/settlements/${row.id}/edit`} className="text-sm font-medium text-[#165DFF] hover:underline">编辑</Link>
+                        <Link href={`/team-management/settlements/${row.id}/edit`} className="text-sm font-medium text-[var(--color-primary)] hover:underline">编辑</Link>
                       )}
                       {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
-                        <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="text-sm font-medium text-[#165DFF] hover:underline">提交审批</button>
+                        <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="text-sm font-medium text-[var(--color-primary)] hover:underline">提交审批</button>
                       )}
                       {row.status === 'pending' && canSubmitSettlement && (
                         <button onClick={() => handleSettlementWorkflow(row, 'withdraw')} className="text-sm font-medium text-[#86909C] hover:underline">撤回</button>
                       )}
                       {row.status === 'pending' && canApproveSettlement && (
                         <>
-                          <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="text-sm font-medium text-[#00B42A] hover:underline">通过</button>
-                          <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="text-sm font-medium text-[#F53F3F] hover:underline">驳回</button>
+                          <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="text-sm font-medium text-[var(--color-success)] hover:underline">通过</button>
+                          <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="text-sm font-medium text-[var(--color-danger)] hover:underline">驳回</button>
                         </>
                       )}
                       {row.status === 'reviewed' && canApproveSettlement && (
                         <button onClick={() => handleSettlementWorkflow(row, 'unapprove')} className="text-sm font-medium text-[#86909C] hover:underline">反审核</button>
                       )}
                       {row.status === 'reviewed' && (
-                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="text-sm font-medium text-[#00B42A] hover:underline">记付款</button>
+                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="text-sm font-medium text-[var(--color-success)] hover:underline">记付款</button>
                       )}
                       {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
-                        <button onClick={() => handleDeleteSettlement(row)} className="text-sm font-medium text-[#F53F3F] hover:underline">删除</button>
+                        <button onClick={() => handleDeleteSettlement(row)} className="text-sm font-medium text-[var(--color-danger)] hover:underline">删除</button>
                       )}
                     </div>
                   </td>
@@ -1306,39 +1306,39 @@ export function TeamSettlementLedgerPageClient() {
               </div>
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <div><dt className="text-xs text-[#86909C]">结算金额（计入成本）</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.quantity_amount)}</dd></div>
-                <div><dt className="text-xs text-[#86909C]">扣款合计</dt><dd className="mt-0.5 text-[#F53F3F]">{formatMoney(row.deduction_total)}</dd></div>
+                <div><dt className="text-xs text-[#86909C]">扣款合计</dt><dd className="mt-0.5 text-[var(--color-danger)]">{formatMoney(row.deduction_total)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">实付金额</dt><dd className="mt-0.5 font-semibold">{formatMoney(row.payable_amount)}</dd></div>
-                <div><dt className="text-xs text-[#86909C]">付款比例/计划付</dt><dd className="mt-0.5 text-[#00B42A]">{formatNumber(row.payment_ratio ?? 100)}% / {formatMoney(row.planned_payment ?? row.payable_amount)}</dd></div>
+                <div><dt className="text-xs text-[#86909C]">付款比例/计划付</dt><dd className="mt-0.5 text-[var(--color-success)]">{formatNumber(row.payment_ratio ?? 100)}% / {formatMoney(row.planned_payment ?? row.payable_amount)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">尾款/预留</dt><dd className="mt-0.5 text-[#FF7D00]">{formatMoney(row.retained_amount ?? 0)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">分账金额</dt><dd className="mt-0.5 text-[#4E5969]">{formatMoney(row.split_amount)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">总工时</dt><dd className="mt-0.5 text-[#4E5969]">{formatNumber(row.total_hours)}</dd></div>
                 <div><dt className="text-xs text-[#86909C]">周期</dt><dd className="mt-0.5 text-[#4E5969]">{row.period_start} 至 {row.period_end}</dd></div>
               </dl>
               <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/team-management/settlements/${row.id}`} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-sm font-medium text-[#165DFF]">查看详情</Link>
+                <Link href={`/team-management/settlements/${row.id}`} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] px-3 text-sm font-medium text-[var(--color-primary)]">查看详情</Link>
                 {(row.status || 'draft') !== 'pending' && (row.status || 'draft') !== 'reviewed' && canSubmitSettlement && (
-                  <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="inline-flex h-9 items-center rounded-md border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF]">提交审批</button>
+                  <button onClick={() => handleSettlementWorkflow(row, 'submit')} className="inline-flex h-9 items-center rounded-md border border-[var(--color-primary)] bg-white px-3 text-sm font-medium text-[var(--color-primary)]">提交审批</button>
                 )}
                 {(['draft', 'rejected'].includes(row.status || 'draft')) && canEditSettlement && (
-                  <Link href={`/team-management/settlements/${row.id}/edit`} className="inline-flex h-9 items-center rounded-md border border-[#165DFF] bg-white px-3 text-sm font-medium text-[#165DFF]">编辑</Link>
+                  <Link href={`/team-management/settlements/${row.id}/edit`} className="inline-flex h-9 items-center rounded-md border border-[var(--color-primary)] bg-white px-3 text-sm font-medium text-[var(--color-primary)]">编辑</Link>
                 )}
                 {row.status === 'pending' && canSubmitSettlement && (
                   <button onClick={() => handleSettlementWorkflow(row, 'withdraw')} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#86909C]">撤回</button>
                 )}
                 {row.status === 'pending' && canApproveSettlement && (
                   <>
-                    <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A]">通过</button>
-                    <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">驳回</button>
+                    <button onClick={() => handleSettlementWorkflow(row, 'approve')} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[var(--color-success)]">通过</button>
+                    <button onClick={() => { setRejectSettlement(row); setRejectReason(''); }} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[var(--color-danger)]">驳回</button>
                   </>
                 )}
                 {row.status === 'reviewed' && canApproveSettlement && (
                   <button onClick={() => handleSettlementWorkflow(row, 'unapprove')} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#86909C]">反审核</button>
                 )}
                 {row.status === 'reviewed' && (
-                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[#00B42A] hover:bg-[#E8FFEA]">记付款</button>
+                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[var(--color-success)] hover:bg-[#E8FFEA]">记付款</button>
                 )}
                 {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
-                  <button onClick={() => handleDeleteSettlement(row)} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[#F53F3F]">删除</button>
+                  <button onClick={() => handleDeleteSettlement(row)} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[var(--color-danger)]">删除</button>
                 )}
               </div>
             </article>
@@ -1352,20 +1352,20 @@ export function TeamSettlementLedgerPageClient() {
             <h3 className="text-lg font-semibold">记班组付款</h3>
             <p className="mt-1 text-sm text-[#86909C]">
               {paySettlement.team_name || `#${paySettlement.id}`} · {paySettlement.settlement_month} ·
-              待付 <b className={Number(paySettlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(paySettlement.unpaid_amount || 0)}</b>
+              待付 <b className={Number(paySettlement.unpaid_amount) > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}>{formatMoney(paySettlement.unpaid_amount || 0)}</b>
               {Number(paySettlement.payment_ratio ?? 100) < 100 && (
-                <> · 约定 {formatNumber(paySettlement.payment_ratio ?? 100)}%，本期计划付 <b className="text-[#00B42A]">{formatMoney(paySettlement.planned_payment)}</b>，尾款 <b className="text-[#FF7D00]">{formatMoney(paySettlement.retained_amount)}</b></>
+                <> · 约定 {formatNumber(paySettlement.payment_ratio ?? 100)}%，本期计划付 <b className="text-[var(--color-success)]">{formatMoney(paySettlement.planned_payment)}</b>，尾款 <b className="text-[#FF7D00]">{formatMoney(paySettlement.retained_amount)}</b></>
               )}
             </p>
             {payMessage && <div className="mt-3 rounded-md bg-[#FFF7E8] px-3 py-2 text-xs text-[#E88012]">{payMessage}</div>}
             <div className="mt-4 space-y-3">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#86909C]">付款金额</span>
-                <input type="number" min="0" step="0.01" value={payAmount} onChange={(event) => setPayAmount(event.target.value)} placeholder="请输入付款金额" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                <input type="number" min="0" step="0.01" value={payAmount} onChange={(event) => setPayAmount(event.target.value)} placeholder="请输入付款金额" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#86909C]">付款方式</span>
-                <select value={payMethod} onChange={(event) => setPayMethod(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                <select value={payMethod} onChange={(event) => setPayMethod(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
                   <option value="bank">银行转账</option>
                   <option value="cash">现金</option>
                   <option value="check">支票</option>
@@ -1374,16 +1374,16 @@ export function TeamSettlementLedgerPageClient() {
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#86909C]">付款日期</span>
-                <input type="date" value={payDate} onChange={(event) => setPayDate(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                <input type="date" value={payDate} onChange={(event) => setPayDate(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#86909C]">备注</span>
-                <input value={payRemark} onChange={(event) => setPayRemark(event.target.value)} placeholder="选填" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                <input value={payRemark} onChange={(event) => setPayRemark(event.target.value)} placeholder="选填" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
               </label>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setPaySettlement(null)} disabled={payLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50">取消</button>
-              <button onClick={() => void submitLedgerPayment()} disabled={payLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50">
+              <button onClick={() => setPaySettlement(null)} disabled={payLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-50">取消</button>
+              <button onClick={() => void submitLedgerPayment()} disabled={payLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
                 <Save className="h-4 w-4" />{payLoading ? '保存中…' : '保存付款'}
               </button>
             </div>
@@ -1401,12 +1401,12 @@ export function TeamSettlementLedgerPageClient() {
             <div className="mt-4">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[#86909C]">驳回原因（必填）</span>
-                <textarea value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} rows={3} placeholder="请说明需要修改的内容，预算员据此修改后重新提交" className="w-full rounded-md border border-[#DDE2EB] bg-white px-3 py-2 text-sm outline-none focus:border-[#165DFF]" />
+                <textarea value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} rows={3} placeholder="请说明需要修改的内容，预算员据此修改后重新提交" className="w-full rounded-md border border-[#DDE2EB] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]" />
               </label>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setRejectSettlement(null)} disabled={rejectLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50">取消</button>
-              <button onClick={() => void submitReject()} disabled={rejectLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#F53F3F] px-4 text-sm font-medium text-white hover:bg-[#D9363E] disabled:opacity-50">
+              <button onClick={() => setRejectSettlement(null)} disabled={rejectLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-50">取消</button>
+              <button onClick={() => void submitReject()} disabled={rejectLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-danger)] px-4 text-sm font-medium text-white hover:bg-[#D9363E] disabled:opacity-50">
                 {rejectLoading ? '提交中…' : '确认驳回'}
               </button>
             </div>
@@ -1430,7 +1430,7 @@ export function TeamSettlementLedgerPageClient() {
                 <select
                   value={selectedApproverId}
                   onChange={(event) => setSelectedApproverId(Number(event.target.value) || 0)}
-                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择审批人</option>
                   {approverOptions.map((option) => (
@@ -1446,14 +1446,14 @@ export function TeamSettlementLedgerPageClient() {
               <button
                 onClick={() => setApproverTarget(null)}
                 disabled={approverLoading}
-                className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50"
+                className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-50"
               >
                 取消
               </button>
               <button
                 onClick={() => void submitWithApprover()}
                 disabled={approverLoading}
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E42D2] disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50"
               >
                 {approverLoading ? '提交中…' : '确认提交'}
               </button>
@@ -1865,15 +1865,15 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
         description={isEditMode ? '修改结算内容、扣款与分账后保存；分账自动带出施工日志考勤工时。' : '上部录结算内容、工程量和单价；下部分账自动带出施工日志考勤工时。'}
         action={(
           <>
-            <Link href="/team-management/settlements" className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
+            <Link href="/team-management/settlements" className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)]">
               <ArrowLeft className="h-4 w-4" />
               返回台账
             </Link>
-            <button onClick={() => void saveSettlement('draft')} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-60">
+            <button onClick={() => void saveSettlement('draft')} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               暂存草稿
             </button>
-            <button onClick={() => void saveSettlement('submit')} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-60">
+            <button onClick={() => void saveSettlement('submit')} disabled={saving} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-3 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               保存并提交审批
             </button>
@@ -1885,25 +1885,25 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
       <section className="grid gap-3 rounded-lg border border-[#E5E8EF] bg-white p-4 shadow-sm md:grid-cols-4">
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-[#86909C]">项目</span>
-          <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+          <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
             <option value="">请选择项目</option>
             {projects.map((project) => <option key={project.id} value={String(project.id)}>{project.name}</option>)}
           </select>
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-[#86909C]">班组</span>
-          <select value={teamId} onChange={(event) => { setTeamId(event.target.value); setSplitKeyword(''); }} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+          <select value={teamId} onChange={(event) => { setTeamId(event.target.value); setSplitKeyword(''); }} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
             <option value="">请选择班组</option>
             {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
           </select>
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-[#86909C]">结算月份</span>
-          <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+          <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-[#86909C]">工种筛选</span>
-          <select value={workType} onChange={(event) => setWorkType(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+          <select value={workType} onChange={(event) => setWorkType(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
             <option value="">全部工种</option>
             {workTypes.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
@@ -1918,12 +1918,12 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
           </div>
           <div className="rounded-md bg-[#F2F7FF] px-3 py-2 text-right">
             <div className="text-xs text-[#86909C]">本次合计金额</div>
-            <div className="mt-1 font-semibold text-[#165DFF]">{formatMoney(quantityTotal)}</div>
+            <div className="mt-1 font-semibold text-[var(--color-primary)]">{formatMoney(quantityTotal)}</div>
           </div>
         </div>
         <div className="p-4">
           <div className="mb-3 flex justify-end">
-            <button onClick={() => setQuantityRows((rows) => [...rows, newQuantityRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[#165DFF]">
+            <button onClick={() => setQuantityRows((rows) => [...rows, newQuantityRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[var(--color-primary)]">
               <Plus className="h-3.5 w-3.5" />
               新增一行
             </button>
@@ -1945,15 +1945,15 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
               <tbody className="divide-y divide-[#EEF0F5]">
                 {quantityPreview.map((row) => (
                   <tr key={row.rowId}>
-                    <td className="px-3 py-2"><input value={row.content} onChange={(event) => updateQuantity(row.rowId, 'content', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 outline-none focus:border-[#165DFF]" placeholder="如模板安装" /></td>
-                    <td className="px-3 py-2"><input value={row.unit} onChange={(event) => updateQuantity(row.rowId, 'unit', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 outline-none focus:border-[#165DFF]" placeholder="m2" /></td>
-                    <td className="px-3 py-2"><input value={row.quantity} onChange={(event) => updateQuantity(row.rowId, 'quantity', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[#165DFF]" inputMode="decimal" /></td>
-                    <td className="px-3 py-2"><input value={row.unit_price} onChange={(event) => updateQuantity(row.rowId, 'unit_price', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[#165DFF]" inputMode="decimal" /></td>
-                    <td className="px-3 py-2 text-right font-semibold text-[#165DFF]">{formatMoney(row.amount)}</td>
+                    <td className="px-3 py-2"><input value={row.content} onChange={(event) => updateQuantity(row.rowId, 'content', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 outline-none focus:border-[var(--color-primary)]" placeholder="如模板安装" /></td>
+                    <td className="px-3 py-2"><input value={row.unit} onChange={(event) => updateQuantity(row.rowId, 'unit', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 outline-none focus:border-[var(--color-primary)]" placeholder="m2" /></td>
+                    <td className="px-3 py-2"><input value={row.quantity} onChange={(event) => updateQuantity(row.rowId, 'quantity', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[var(--color-primary)]" inputMode="decimal" /></td>
+                    <td className="px-3 py-2"><input value={row.unit_price} onChange={(event) => updateQuantity(row.rowId, 'unit_price', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[var(--color-primary)]" inputMode="decimal" /></td>
+                    <td className="px-3 py-2 text-right font-semibold text-[var(--color-primary)]">{formatMoney(row.amount)}</td>
                     <td className="px-3 py-2 text-right text-[#4E5969]">{formatNumber(row.settledBefore)}</td>
                     <td className="px-3 py-2 text-right font-medium">{formatNumber(row.cumulativeQuantity)}</td>
                     <td className="px-3 py-2 text-center">
-                      <button onClick={() => setQuantityRows((rows) => rows.length > 1 ? rows.filter((item) => item.rowId !== row.rowId) : rows)} aria-label="删除结算工程量" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#86909C] hover:bg-[#FFF1F0] hover:text-[#F53F3F]">
+                      <button onClick={() => setQuantityRows((rows) => rows.length > 1 ? rows.filter((item) => item.rowId !== row.rowId) : rows)} aria-label="删除结算工程量" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#86909C] hover:bg-[#FFF1F0] hover:text-[var(--color-danger)]">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </td>
@@ -1963,7 +1963,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
               <tfoot className="bg-[#FAFBFF] font-semibold">
                 <tr>
                   <td className="px-3 py-3" colSpan={4}>本次合计金额</td>
-                  <td className="px-3 py-3 text-right text-[#165DFF]">{formatMoney(quantityTotal)}</td>
+                  <td className="px-3 py-3 text-right text-[var(--color-primary)]">{formatMoney(quantityTotal)}</td>
                   <td className="px-3 py-3" colSpan={3}></td>
                 </tr>
               </tfoot>
@@ -1981,9 +1981,9 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
           <div className="flex flex-wrap gap-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#86909C]" />
-              <input value={splitKeyword} onChange={(event) => setSplitKeyword(event.target.value)} placeholder={splitTeamWorkType ? `搜索${splitTeamWorkType}工人` : '搜索工人姓名/身份证'} className="h-8 w-44 rounded-md border border-[#DDE2EB] pl-8 pr-2 text-xs outline-none focus:border-[#165DFF]" />
+              <input value={splitKeyword} onChange={(event) => setSplitKeyword(event.target.value)} placeholder={splitTeamWorkType ? `搜索${splitTeamWorkType}工人` : '搜索工人姓名/身份证'} className="h-8 w-44 rounded-md border border-[#DDE2EB] pl-8 pr-2 text-xs outline-none focus:border-[var(--color-primary)]" />
             </div>
-            <button onClick={() => setSplitRows((rows) => [...rows, newSplitRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[#165DFF]">
+            <button onClick={() => setSplitRows((rows) => [...rows, newSplitRow()])} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] px-3 text-xs font-medium text-[var(--color-primary)]">
               <Plus className="h-3.5 w-3.5" />
               新增分账
             </button>
@@ -2014,7 +2014,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                             type="button"
                             role="combobox"
                             aria-expanded={splitPickerOpenId === row.rowId}
-                            className="flex h-9 w-full items-center justify-between rounded-md border border-[#DDE2EB] bg-white px-2 text-left text-sm outline-none focus:border-[#165DFF]"
+                            className="flex h-9 w-full items-center justify-between rounded-md border border-[#DDE2EB] bg-white px-2 text-left text-sm outline-none focus:border-[var(--color-primary)]"
                           >
                             <span className="truncate">
                               {row.worker_id
@@ -2047,10 +2047,10 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                                     }}
                                     className="flex items-center gap-2"
                                   >
-                                    <Check className={`h-4 w-4 shrink-0 ${row.worker_id === String(worker.id) ? 'opacity-100 text-[#165DFF]' : 'opacity-0'}`} />
+                                    <Check className={`h-4 w-4 shrink-0 ${row.worker_id === String(worker.id) ? 'opacity-100 text-[var(--color-primary)]' : 'opacity-0'}`} />
                                     <div className="flex flex-col">
                                       <span>{worker.name} <span className="text-xs text-[#86909C]">/ {worker.work_type || '未填工种'}</span>
-                                        {isInactiveWorker(worker.status) ? <span className="ml-1 rounded bg-[#FFF1F0] px-1 text-[11px] text-[#F53F3F]">已退场</span> : null}
+                                        {isInactiveWorker(worker.status) ? <span className="ml-1 rounded bg-[#FFF1F0] px-1 text-[11px] text-[var(--color-danger)]">已退场</span> : null}
                                       </span>
                                       <span className="text-xs text-[#86909C]">工时 {formatNumber(worker.attendance_hours)} 小时{worker.team_name ? ` · ${worker.team_name}` : ''}</span>
                                     </div>
@@ -2064,10 +2064,10 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                     </td>
                     <td className="px-3 py-2 text-[#4E5969]">{[row.worker?.work_type, row.worker?.team_name].filter(Boolean).join(' / ') || '-'}</td>
                     <td className="px-3 py-2 text-[#4E5969]">{maskIdCard(row.worker?.id_card)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-[#165DFF]">{formatNumber(row.hours)}</td>
-                    <td className="px-3 py-2"><input value={row.amount} placeholder="0.00" onChange={(event) => updateSplit(row.rowId, 'amount', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[#165DFF]" inputMode="decimal" /></td>
+                    <td className="px-3 py-2 text-right font-semibold text-[var(--color-primary)]">{formatNumber(row.hours)}</td>
+                    <td className="px-3 py-2"><input value={row.amount} placeholder="0.00" onChange={(event) => updateSplit(row.rowId, 'amount', event.target.value)} className="h-9 w-full rounded-md border border-[#DDE2EB] px-2 text-right outline-none focus:border-[var(--color-primary)]" inputMode="decimal" /></td>
                     <td className="px-3 py-2 text-center">
-                      <button onClick={() => setSplitRows((rows) => rows.length > 1 ? rows.filter((item) => item.rowId !== row.rowId) : rows)} aria-label="删除分账人员" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#86909C] hover:bg-[#FFF1F0] hover:text-[#F53F3F]">
+                      <button onClick={() => setSplitRows((rows) => rows.length > 1 ? rows.filter((item) => item.rowId !== row.rowId) : rows)} aria-label="删除分账人员" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#86909C] hover:bg-[#FFF1F0] hover:text-[var(--color-danger)]">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </td>
@@ -2077,14 +2077,14 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
               <tfoot className="bg-[#FAFBFF] font-semibold">
                 <tr>
                   <td className="px-3 py-3" colSpan={3}>分账明细合计</td>
-                  <td className="px-3 py-3 text-right text-[#165DFF]">{formatNumber(totalHours)}</td>
+                  <td className="px-3 py-3 text-right text-[var(--color-primary)]">{formatNumber(totalHours)}</td>
                   <td className="px-3 py-3 text-right">{formatMoney(splitTotal)}</td>
                   <td className="px-3 py-3"></td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          <textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="结算备注，可填写扣款、争议事项或现场说明" className="mt-3 min-h-20 w-full rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[#165DFF]" />
+          <textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="结算备注，可填写扣款、争议事项或现场说明" className="mt-3 min-h-20 w-full rounded-md border border-[#DDE2EB] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]" />
 
           <div className="mt-3 border-t border-[#EEF0F5] pt-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2092,7 +2092,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                 <h3 className="text-sm font-medium text-[#4E5969]">结算附件</h3>
                 <p className="mt-0.5 text-xs text-[#86909C]">可上传结算单扫描件、验收单、发票等，支持图片/PDF/Word/Excel/PPT/TXT</p>
               </div>
-              <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:text-[#165DFF]">
+              <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:text-[var(--color-primary)]">
                 <Upload className="h-3.5 w-3.5" />
                 {attachmentsUploading ? '上传中…' : '添加附件'}
                 <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" disabled={attachmentsUploading} onChange={async (e) => { const file = e.target.files?.[0]; if (file) await handleUploadAttachment(file); e.target.value = ''; }} />
@@ -2107,11 +2107,11 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                     ) : (
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#EEF0F5]"><FileText className="h-4 w-4 text-[#86909C]" /></div>
                     )}
-                    <button type="button" onClick={() => void handlePreviewAttachment(att.key)} className="min-w-0 flex-1 text-left text-xs text-[#4E5969] hover:text-[#165DFF]">
+                    <button type="button" onClick={() => void handlePreviewAttachment(att.key)} className="min-w-0 flex-1 text-left text-xs text-[#4E5969] hover:text-[var(--color-primary)]">
                       <span className="block truncate">{att.name}</span>
                       {att.size ? <span className="block text-[11px] text-[#C9CDD4]">{formatFileSize(att.size)}</span> : null}
                     </button>
-                    <button type="button" onClick={() => void handleRemoveAttachment(att.key)} className="shrink-0 text-[#C9CDD4] hover:text-[#F53F3F]" title="移除附件"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => void handleRemoveAttachment(att.key)} className="shrink-0 text-[#C9CDD4] hover:text-[var(--color-danger)]" title="移除附件"><Trash2 className="h-4 w-4" /></button>
                   </li>
                 ))}
               </ul>
@@ -2143,16 +2143,16 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                   if (v === '') { setPaymentRatio(''); return; }
                   const num = Number(v);
                   if (Number.isFinite(num)) setPaymentRatio(String(Math.min(100, Math.max(0, num))));
-                }} placeholder="100" inputMode="decimal" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 pr-9 text-sm outline-none focus:border-[#165DFF]" />
+                }} placeholder="100" inputMode="decimal" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 pr-9 text-sm outline-none focus:border-[var(--color-primary)]" />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#86909C]">%</span>
               </div>
               <span className="mt-1 block text-[11px] text-[#86909C]">按合同约定填写，如本期付 80%；尾款下期或完工后支付</span>
             </label>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-              <span className="text-[#4E5969]">结算金额：<b className="text-[#165DFF]">{formatMoney(quantityTotal)}</b></span>
-              <span className="text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(deductionTotal)}</b></span>
-              <span className="text-[#4E5969]">实付金额（应发）：<b className="text-[#165DFF]">{formatMoney(payableAmount)}</b></span>
-              <span className="text-[#4E5969]">本期计划付款（{formatNumber(normalizedRatio)}%）：<b className="text-[#00B42A]">{formatMoney(plannedPayment)}</b></span>
+              <span className="text-[#4E5969]">结算金额：<b className="text-[var(--color-primary)]">{formatMoney(quantityTotal)}</b></span>
+              <span className="text-[#4E5969]">扣款合计：<b className="text-[var(--color-danger)]">- {formatMoney(deductionTotal)}</b></span>
+              <span className="text-[#4E5969]">实付金额（应发）：<b className="text-[var(--color-primary)]">{formatMoney(payableAmount)}</b></span>
+              <span className="text-[#4E5969]">本期计划付款（{formatNumber(normalizedRatio)}%）：<b className="text-[var(--color-success)]">{formatMoney(plannedPayment)}</b></span>
               <span className="text-[#4E5969]">尾款/预留款：<b className="text-[#FF7D00]">{formatMoney(retainedAmount)}</b></span>
             </div>
           </div>
@@ -2172,7 +2172,7 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
                 <select
                   value={wfApproverId}
                   onChange={(event) => setWfApproverId(Number(event.target.value) || 0)}
-                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择审批人</option>
                   {wfOptions.map((option) => (
@@ -2187,14 +2187,14 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
               <button
                 onClick={() => setWfDialogOpen(false)}
                 disabled={wfLoading}
-                className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50"
+                className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-50"
               >
                 取消
               </button>
               <button
                 onClick={() => void confirmSubmitWorkflow()}
                 disabled={wfLoading}
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50"
               >
                 {wfLoading ? '提交中…' : '确认提交'}
               </button>
@@ -2454,15 +2454,15 @@ export function TeamSettlementDetailPageClient() {
         description="查看本次结算工程量、人员分账明细，并支持下载打印留档。"
         action={(
           <>
-            <Link href="/team-management/settlements" className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">
+            <Link href="/team-management/settlements" className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)]">
               <ArrowLeft className="h-4 w-4" />
               返回台账
             </Link>
-            <button onClick={downloadHtml} disabled={!settlement} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[#165DFF] disabled:opacity-50">
+            <button onClick={downloadHtml} disabled={!settlement} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)] disabled:opacity-50">
               <Download className="h-4 w-4" />
               下载
             </button>
-            <button onClick={printPage} disabled={!settlement} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-3 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50">
+            <button onClick={printPage} disabled={!settlement} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-3 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
               <Printer className="h-4 w-4" />
               打印
             </button>
@@ -2482,7 +2482,7 @@ export function TeamSettlementDetailPageClient() {
                 <select
                   value={wfApproverId}
                   onChange={(event) => setWfApproverId(Number(event.target.value) || 0)}
-                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                  className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择审批人</option>
                   {wfOptions.map((option) => (
@@ -2493,7 +2493,7 @@ export function TeamSettlementDetailPageClient() {
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setApproverDialogOpen(false)} disabled={workflowLoading} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] disabled:opacity-50">取消</button>
-              <button onClick={() => void confirmSubmitApproval()} disabled={workflowLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white disabled:opacity-50">
+              <button onClick={() => void confirmSubmitApproval()} disabled={workflowLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-50">
                 {workflowLoading ? '提交中…' : '确认提交'}
               </button>
             </div>
@@ -2514,17 +2514,17 @@ export function TeamSettlementDetailPageClient() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`w-fit rounded-md px-3 py-1 text-sm ${statusBadgeClass(settlement.status)}`}>{statusText(settlement.status)}</span>
                 {((settlement.status || 'draft') === 'draft' || settlement.status === 'rejected') && canSubmitSettlement && (
-                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#165DFF] px-3 text-xs font-medium text-white hover:bg-[#0E42D2] disabled:opacity-50">
+                  <button onClick={() => void submitSettlementApproval()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[var(--color-primary)] px-3 text-xs font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
                     {workflowLoading ? '提交中…' : '提交审批'}
                   </button>
                 )}
                 {settlement.status === 'pending' && (
                   canApproveSettlement ? (
                     <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={() => void handleApproveSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#00B42A] px-3 text-xs font-medium text-white hover:bg-[#009A29] disabled:opacity-50">
+                      <button onClick={() => void handleApproveSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[var(--color-success)] px-3 text-xs font-medium text-white hover:bg-[#009A29] disabled:opacity-50">
                         {workflowLoading ? '处理中…' : '通过'}
                       </button>
-                      <button onClick={() => setRejectOpen(true)} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md border border-[#FFC9C9] bg-white px-3 text-xs font-medium text-[#F53F3F] disabled:opacity-50">
+                      <button onClick={() => setRejectOpen(true)} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md border border-[#FFC9C9] bg-white px-3 text-xs font-medium text-[var(--color-danger)] disabled:opacity-50">
                         驳回
                       </button>
                       {(settlement as unknown as { approver_name?: string }).approver_name ? (
@@ -2539,7 +2539,7 @@ export function TeamSettlementDetailPageClient() {
                 )}
                 {rejectOpen && (
                   <div className="mt-2 w-full rounded-md border border-[#FFC9C9] bg-[#FFF1F0] p-3">
-                    <div className="mb-1 text-xs font-medium text-[#F53F3F]">驳回原因（必填）</div>
+                    <div className="mb-1 text-xs font-medium text-[var(--color-danger)]">驳回原因（必填）</div>
                     <textarea
                       value={rejectReason}
                       onChange={(event) => setRejectReason(event.target.value)}
@@ -2549,14 +2549,14 @@ export function TeamSettlementDetailPageClient() {
                     />
                     <div className="mt-2 flex justify-end gap-2">
                       <button onClick={() => { setRejectOpen(false); setRejectReason(''); }} className="inline-flex h-8 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-xs">取消</button>
-                      <button onClick={() => void handleRejectSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[#F53F3F] px-3 text-xs font-medium text-white disabled:opacity-50">
+                      <button onClick={() => void handleRejectSettlement()} disabled={workflowLoading} className="inline-flex h-8 items-center rounded-md bg-[var(--color-danger)] px-3 text-xs font-medium text-white disabled:opacity-50">
                         {workflowLoading ? '处理中…' : '确认驳回'}
                       </button>
                     </div>
                   </div>
                 )}
                 {settlement.status === 'rejected' && settlement.reject_reason && (
-                  <span className="text-xs text-[#F53F3F]">驳回原因：{settlement.reject_reason}</span>
+                  <span className="text-xs text-[var(--color-danger)]">驳回原因：{settlement.reject_reason}</span>
                 )}
               </div>
             </div>
@@ -2565,7 +2565,7 @@ export function TeamSettlementDetailPageClient() {
               <div><dt className="text-xs text-[#86909C]">班组</dt><dd className="mt-1 font-medium">{settlement.team_name || '-'}</dd></div>
               <div><dt className="text-xs text-[#86909C]">结算月份</dt><dd className="mt-1 font-medium">{settlement.settlement_month}</dd></div>
               <div><dt className="text-xs text-[#86909C]">结算周期</dt><dd className="mt-1 font-medium">{settlement.period_start} 至 {settlement.period_end}</dd></div>
-              <div><dt className="text-xs text-[#86909C]">结算金额（计入成本）</dt><dd className="mt-1 font-semibold text-[#165DFF]">{formatMoney(settlement.quantity_amount)}</dd></div>
+              <div><dt className="text-xs text-[#86909C]">结算金额（计入成本）</dt><dd className="mt-1 font-semibold text-[var(--color-primary)]">{formatMoney(settlement.quantity_amount)}</dd></div>
               <div><dt className="text-xs text-[#86909C]">分账金额</dt><dd className="mt-1 font-medium">{formatMoney(settlement.split_amount)}</dd></div>
               <div><dt className="text-xs text-[#86909C]">总工时</dt><dd className="mt-1 font-medium">{formatNumber(settlement.total_hours)}</dd></div>
               <div><dt className="text-xs text-[#86909C]">制单人</dt><dd className="mt-1 font-medium">{settlement.created_by_name || '-'}</dd></div>
@@ -2579,13 +2579,13 @@ export function TeamSettlementDetailPageClient() {
                 <div><dt className="text-xs text-[#86909C]">安全基金</dt><dd className="mt-0.5 font-medium">- {formatMoney(settlement.safety_fund_deduct)}</dd></div>
               </dl>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#E5E8EF] pt-3">
-                <span className="text-sm text-[#4E5969]">扣款合计：<b className="text-[#F53F3F]">- {formatMoney(settlement.deduction_total)}</b></span>
-                <span className="text-sm text-[#4E5969]">实付金额（应发）：<b className="text-[#165DFF]">{formatMoney(settlement.payable_amount)}</b></span>
+                <span className="text-sm text-[#4E5969]">扣款合计：<b className="text-[var(--color-danger)]">- {formatMoney(settlement.deduction_total)}</b></span>
+                <span className="text-sm text-[#4E5969]">实付金额（应发）：<b className="text-[var(--color-primary)]">{formatMoney(settlement.payable_amount)}</b></span>
                 <span className="text-sm text-[#4E5969]">付款比例：<b className="text-[#4E5969]">{formatNumber(settlement.payment_ratio ?? 100)}%</b></span>
-                <span className="text-sm text-[#4E5969]">本期计划付：<b className="text-[#00B42A]">{formatMoney(settlement.planned_payment ?? settlement.payable_amount)}</b></span>
+                <span className="text-sm text-[#4E5969]">本期计划付：<b className="text-[var(--color-success)]">{formatMoney(settlement.planned_payment ?? settlement.payable_amount)}</b></span>
                 <span className="text-sm text-[#4E5969]">尾款/预留：<b className="text-[#FF7D00]">{formatMoney(settlement.retained_amount ?? 0)}</b></span>
-                <span className="text-sm text-[#4E5969]">已付：<b className="text-[#00B42A]">{formatMoney(settlement.paid_amount || 0)}</b></span>
-                <span className="text-sm text-[#4E5969]">未付：<b className={Number(settlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(settlement.unpaid_amount || 0)}</b></span>
+                <span className="text-sm text-[#4E5969]">已付：<b className="text-[var(--color-success)]">{formatMoney(settlement.paid_amount || 0)}</b></span>
+                <span className="text-sm text-[#4E5969]">未付：<b className={Number(settlement.unpaid_amount) > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}>{formatMoney(settlement.unpaid_amount || 0)}</b></span>
               </div>
             </div>
           </div>
@@ -2652,13 +2652,13 @@ export function TeamSettlementDetailPageClient() {
                 <div>
                   <h3 className="font-semibold">付款记录</h3>
                   <p className="mt-1 text-xs text-[#86909C]">
-                    已付 <b className="text-[#165DFF]">{formatMoney(settlement.paid_amount || 0)}</b>，未付{' '}
-                    <b className={Number(settlement.unpaid_amount) > 0 ? 'text-[#F53F3F]' : 'text-[#00B42A]'}>{formatMoney(settlement.unpaid_amount || 0)}</b>
+                    已付 <b className="text-[var(--color-primary)]">{formatMoney(settlement.paid_amount || 0)}</b>，未付{' '}
+                    <b className={Number(settlement.unpaid_amount) > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'}>{formatMoney(settlement.unpaid_amount || 0)}</b>
                   </p>
                 </div>
                 <button
                   onClick={() => setShowPaymentForm((current) => !current)}
-                  className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[#165DFF] hover:text-[#165DFF]"
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-[#DDE2EB] bg-white px-3 text-xs font-medium text-[#4E5969] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
                 >
                   <Plus className="h-3.5 w-3.5" />记一笔付款
                 </button>
@@ -2675,12 +2675,12 @@ export function TeamSettlementDetailPageClient() {
                       value={paymentAmount}
                       onChange={(event) => setPaymentAmount(event.target.value)}
                       placeholder="请输入付款金额"
-                      className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]"
+                      className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]"
                     />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-[#86909C]">付款方式</span>
-                    <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]">
+                    <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]">
                       <option value="bank">银行转账</option>
                       <option value="cash">现金</option>
                       <option value="check">支票</option>
@@ -2689,17 +2689,17 @@ export function TeamSettlementDetailPageClient() {
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-[#86909C]">付款日期</span>
-                    <input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                    <input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-[#86909C]">备注</span>
-                    <input value={paymentRemark} onChange={(event) => setPaymentRemark(event.target.value)} placeholder="选填" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[#165DFF]" />
+                    <input value={paymentRemark} onChange={(event) => setPaymentRemark(event.target.value)} placeholder="选填" className="h-10 w-full rounded-md border border-[#DDE2EB] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)]" />
                   </label>
                   <div className="flex items-end gap-2 md:col-span-2">
-                    <button onClick={() => void addPayment()} disabled={paymentLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[#165DFF] px-4 text-sm font-medium text-white hover:bg-[#0E49D8] disabled:opacity-50">
+                    <button onClick={() => void addPayment()} disabled={paymentLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
                       <Save className="h-4 w-4" />保存付款
                     </button>
-                    <button onClick={() => setShowPaymentForm(false)} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[#165DFF]">取消</button>
+                    <button onClick={() => setShowPaymentForm(false)} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-4 text-sm font-medium text-[#4E5969] hover:text-[var(--color-primary)]">取消</button>
                   </div>
                 </div>
               )}
@@ -2721,13 +2721,13 @@ export function TeamSettlementDetailPageClient() {
                       <tr><td colSpan={6} className="py-8 text-center text-[#86909C]">{paymentLoading ? '加载中…' : '暂无付款记录'}</td></tr>
                     ) : payments.map((payment) => (
                       <tr key={payment.id}>
-                        <td className="px-3 py-3 text-right font-semibold text-[#00B42A]">+{formatMoney(payment.payment_amount)}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-[var(--color-success)]">+{formatMoney(payment.payment_amount)}</td>
                         <td className="px-3 py-3">{payment.method_desc || formatMethod(payment.method)}</td>
                         <td className="px-3 py-3">{(payment.payment_date || '').slice(0, 10)}</td>
                         <td className="px-3 py-3 text-[#4E5969]">{payment.remark || '-'}</td>
                         <td className="px-3 py-3 text-[#4E5969]">{payment.created_by_name || '-'}</td>
                         <td className="px-3 py-3 text-center">
-                          <button onClick={() => void deletePayment(payment.id)} className="text-xs text-[#F53F3F] hover:underline">删除</button>
+                          <button onClick={() => void deletePayment(payment.id)} className="text-xs text-[var(--color-danger)] hover:underline">删除</button>
                         </td>
                       </tr>
                     ))}

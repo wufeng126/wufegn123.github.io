@@ -1,3 +1,4 @@
+import { useConfirm } from '@/hooks/use-confirm';
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -82,6 +83,7 @@ function formatMethod(method?: string): string {
 }
 
 export function TeamPaymentsPageClient() {
+  const confirmDialog = useConfirm();
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<TeamGroup[]>([]);
   const [summaries, setSummaries] = useState<TeamSummaryRow[]>([]);
@@ -282,7 +284,7 @@ export function TeamPaymentsPageClient() {
   };
 
   const deletePayment = async (row: PaymentRow) => {
-    if (!window.confirm(`确认删除该笔付款（${formatMoney(row.payment_amount)} 元）？`)) return;
+    if (!(await confirmDialog({ title: '确认删除', description: `确认删除该笔付款（${formatMoney(row.payment_amount)} 元）？`, variant: 'destructive' }))) return;
     setError('');
     try {
       const json = await readJson<ApiResp<unknown>>(

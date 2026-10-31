@@ -326,7 +326,7 @@ export default function SupplierContractsPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-white px-4 py-2 text-xs text-muted-foreground">
-              <span>累计结算 <b className="text-[#165DFF]">{formatCurrency(stats.totalSettlement)}</b></span>
+              <span>累计结算 <b className="text-[var(--color-primary)]">{formatCurrency(stats.totalSettlement)}</b></span>
               <span>应付 <b className="text-amber-600">{formatCurrency(stats.totalPayable)}</b></span>
               <span>已付 <b className="text-emerald-600">{formatCurrency(stats.totalPaid)}</b></span>
               <span>未付 <b className="text-red-500">{formatCurrency(stats.totalPending)}</b></span>
@@ -359,7 +359,7 @@ export default function SupplierContractsPage() {
                 key={value}
                 type="button"
                 onClick={() => { setFilterStatus(value); setPage(1); }}
-                className={`rounded-full border px-3 py-1 text-xs transition ${filterStatus === value ? 'border-[#165DFF] bg-[#165DFF] text-white' : 'border-border bg-white text-muted-foreground hover:border-[#165DFF] hover:text-[#165DFF]'}`}
+                className={`rounded-full border px-3 py-1 text-xs transition ${filterStatus === value ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white' : 'border-border bg-white text-muted-foreground hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'}`}
               >
                 {label}
               </button>

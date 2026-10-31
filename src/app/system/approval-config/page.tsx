@@ -321,9 +321,9 @@ export default function ApprovalConfigPage() {
                   </div>
                 ))}
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="w-6 h-px bg-[#00B42A]" />
+                  <div className="w-6 h-px bg-[var(--color-success)]" />
                   <div className="px-3 py-2 rounded-lg border border-[#00B42A]/30 bg-[#E8FFEA] min-w-[100px]">
-                    <p className="text-sm font-medium text-[#00B42A]">完成<Check className="h-3 w-3 inline ml-1" /></p>
+                    <p className="text-sm font-medium text-[var(--color-success)]">完成<Check className="h-3 w-3 inline ml-1" /></p>
                   </div>
                 </div>
               </div>
@@ -399,7 +399,7 @@ export default function ApprovalConfigPage() {
                             </select>
                           </div>
                         </div>
-                        <button onClick={() => removeStep(i)} className="shrink-0 text-[#F53F3F] hover:text-red-600">
+                        <button onClick={() => removeStep(i)} className="shrink-0 text-[var(--color-danger)] hover:text-red-600">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
