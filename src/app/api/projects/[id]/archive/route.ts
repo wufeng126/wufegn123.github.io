@@ -6,6 +6,7 @@ import { requireAuth, requireSuperAdmin } from '@/lib/api-auth';
 import { assertProjectAccess } from '@/lib/api-project-scope';
 import { apiBadRequest, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { auditLog } from '@/lib/audit-log';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import {
   isEffectiveClientPaymentStatus,
   isEffectiveSupplierPaymentStatus,
@@ -143,16 +144,17 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
       salaryPaymentsResult,
       miscMaterialsResult,
     ] = await Promise.all([
-      supabase.from('construction_logs').select('id,attachments,attachments_original_count').eq('project_id', projectId),
-      supabase.from('construction_log_attendance').select('worker_id,work_hours').eq('project_id', projectId),
-      supabase.from('client_reports').select('report_amount,settlement_amount,invoice_amount,status').eq('project_id', projectId),
-      supabase.from('client_payments').select('payment_amount,status').eq('project_id', projectId),
-      supabase.from('visas').select('visa_amount,status').eq('project_id', projectId),
-      supabase.from('supplier_contracts').select('id').eq('project_id', projectId),
-      supabase.from('supplier_payments').select('payment_amount,status').eq('project_id', projectId),
-      supabase.from('worker_salaries').select('gross_pay,net_pay,payment_status').eq('project_id', projectId),
-      supabase.from('salary_payments').select('payment_amount').eq('project_id', projectId),
-      supabase.from('miscellaneous_materials').select('quantity,unit_price,status').eq('project_id', projectId),
+      // 归档快照会被永久保存，所有聚合必须分页取全量，否则会把错数固化进历史
+      fetchAllRows<any>((from, to) => supabase.from('construction_logs').select('id,attachments,attachments_original_count').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('construction_log_attendance').select('worker_id,work_hours').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('client_reports').select('report_amount,settlement_amount,invoice_amount,status').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('client_payments').select('payment_amount,status').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('visas').select('visa_amount,status').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('supplier_contracts').select('id').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('supplier_payments').select('payment_amount,status').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('gross_pay,net_pay,payment_status').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('salary_payments').select('payment_amount').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
+      fetchAllRows<any>((from, to) => supabase.from('miscellaneous_materials').select('quantity,unit_price,status').eq('project_id', projectId).range(from, to)).then((data) => ({ data, error: null })),
     ]);
 
     const queryErrors = [
@@ -166,26 +168,27 @@ export async function POST(request: NextRequest, { params }: ArchiveParams) {
       workerSalariesResult.error,
       salaryPaymentsResult.error,
       miscMaterialsResult.error,
-    ].filter(Boolean);
-    if (queryErrors.length > 0) throw new Error(queryErrors[0]?.message || '项目归档快照生成失败');
+    ] as Array<{ message?: string } | null>;
+    const firstQueryError = queryErrors.find(Boolean);
+    if (firstQueryError) throw new Error(firstQueryError.message || '项目归档快照生成失败');
 
     const contractIds = (supplierContractsResult.data || []).map((row: { id: number }) => row.id);
     let supplierSettlements: Record<string, unknown>[] = [];
     let supplierPayments: Record<string, unknown>[] = (supplierPaymentsResult.data || []) as Record<string, unknown>[];
     if (contractIds.length > 0) {
-      const { data, error } = await supabase
-        .from('supplier_settlements')
-        .select('settlement_amount,payable_amount,status')
-        .in('contract_id', contractIds);
-      if (error) throw new Error(error.message);
-      supplierSettlements = data || [];
+      supplierSettlements = await fetchAllRows<any>((from, to) =>
+        supabase
+          .from('supplier_settlements')
+          .select('settlement_amount,payable_amount,status')
+          .in('contract_id', contractIds)
+          .range(from, to));
 
-      const { data: paymentsByContract, error: supplierPaymentsError } = await supabase
-        .from('supplier_payments')
-        .select('payment_amount,status')
-        .or(`project_id.eq.${projectId},contract_id.in.(${contractIds.join(',')})`);
-      if (supplierPaymentsError) throw new Error(supplierPaymentsError.message);
-      supplierPayments = paymentsByContract || [];
+      supplierPayments = await fetchAllRows<any>((from, to) =>
+        supabase
+          .from('supplier_payments')
+          .select('payment_amount,status')
+          .or(`project_id.eq.${projectId},contract_id.in.(${contractIds.join(',')})`)
+          .range(from, to));
     }
 
     const logs = (logsResult.data || []) as ConstructionLogRow[];

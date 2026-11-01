@@ -6,6 +6,7 @@ import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessag
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getProjectActiveWorkers } from '@/lib/project-workers';
 import { getSettlementPeriod } from '@/lib/settlement-period';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 type TeamSettlementItemInput = {
   content?: string;
@@ -132,10 +133,10 @@ async function loadAttendanceTotals(
     .gte('log_date', start)
     .lte('log_date', end);
 
-  const { data: logs, error: logError } = await logQuery;
-  if (logError) throw new Error(logError.message);
+  // 分页取全量：某月日志超过 1000 条时会被截断，导致考勤工时与结算量少算
+  const logs = await fetchAllRows<LogRow>((from, to) => logQuery.range(from, to));
 
-  const logIds = ((logs || []) as LogRow[]).map((log) => Number(log.id)).filter(Boolean);
+  const logIds = logs.map((log) => Number(log.id)).filter(Boolean);
   if (logIds.length === 0) return new Map<number, number>();
 
   let attendanceQuery = supabase
@@ -144,11 +145,21 @@ async function loadAttendanceTotals(
     .in('log_id', logIds);
   if (workerIds && workerIds.length > 0) attendanceQuery = attendanceQuery.in('worker_id', workerIds);
 
-  const { data, error } = await attendanceQuery;
-  if (error) throw new Error(error.message);
+  // 分段 + 分页，避免 IN 列表过大与单次 1000 行截断
+  const attendanceRows: AttendanceRow[] = [];
+  for (let i = 0; i < logIds.length; i += 200) {
+    const chunk = logIds.slice(i, i + 200);
+    let chunkQuery = supabase
+      .from('construction_log_attendance')
+      .select('log_id,worker_id,work_hours')
+      .in('log_id', chunk);
+    if (workerIds && workerIds.length > 0) chunkQuery = chunkQuery.in('worker_id', workerIds);
+    const rows = await fetchAllRows<AttendanceRow>((from, to) => chunkQuery.range(from, to));
+    attendanceRows.push(...rows);
+  }
 
   const totals = new Map<number, number>();
-  ((data || []) as AttendanceRow[]).forEach((row) => {
+  attendanceRows.forEach((row) => {
     const workerId = Number(row.worker_id);
     if (!workerId) return;
     totals.set(workerId, round2((totals.get(workerId) || 0) + toNumber(row.work_hours)));
@@ -181,13 +192,16 @@ async function loadItemTotals(supabase: ReturnType<typeof getSupabaseClient>, pr
   if (projectId) query = query.eq('project_id', projectId);
   if (teamId) query = query.eq('team_id', teamId);
 
-  const { data, error } = await query;
-  if (error) {
-    if (isMissingTableError(error)) return [];
-    throw new Error(error.message);
+  let itemRows: Record<string, unknown>[] = [];
+  try {
+    itemRows = await fetchAllRows<Record<string, unknown>>((from, to) => query.range(from, to));
+  } catch (error) {
+    if (isMissingTableError(error as { message?: string; code?: string })) return [];
+    throw error;
   }
 
   const map = new Map<string, { project_id: number; team_id: number | null; content: string; unit: string; quantity: number; amount: number }>();
+  const data = itemRows as any[];
   (data || []).forEach((row) => {
     const key = `${row.project_id}:${row.team_id || ''}:${row.content || ''}:${row.unit || ''}`;
     const current = map.get(key) || {
@@ -279,9 +293,12 @@ export async function GET(request: NextRequest) {
     if (teamId) query = query.eq('team_id', teamId);
     if (month) query = query.eq('settlement_month', month);
 
-    const { data: settlements, error } = await query;
-    if (error) {
-      if (isMissingTableError(error)) {
+    let settlements: Array<Record<string, unknown>> = [];
+    try {
+      // 分页取全量：结算单/明细/付款超过 1000 行会被截断，页面汇总会少算
+      settlements = await fetchAllRows<Record<string, unknown>>((from, to) => query.range(from, to));
+    } catch (error) {
+      if (isMissingTableError(error as { message?: string; code?: string })) {
         return apiSuccess({
           settlements: [],
           summary: { count: 0, quantity_amount: 0, split_amount: 0, total_hours: 0, deduction_total: 0, payable_amount: 0, planned_payment: 0, retained_amount: 0, paid_amount: 0, unpaid_amount: 0 },
@@ -289,21 +306,32 @@ export async function GET(request: NextRequest) {
           needs_migration: true,
         });
       }
-      throw new Error(error.message);
+      throw error;
     }
 
-    const settlementIds = (settlements || []).map((row) => Number(row.id)).filter(Boolean);
-    const teamIdsInScope = Array.from(new Set((settlements || []).map((row) => Number(row.team_id)).filter(Boolean)));
-    const [{ data: items }, { data: splits }, { data: payments }, { data: teamPaymentsAll }] = settlementIds.length > 0
-      ? await Promise.all([
-          supabase.from('team_settlement_items').select('*').in('settlement_id', settlementIds),
-          supabase.from('team_settlement_splits').select('*').in('settlement_id', settlementIds),
-          supabase.from('team_settlement_payments').select('*').in('settlement_id', settlementIds),
-          teamIdsInScope.length > 0
-            ? supabase.from('team_settlement_payments').select('team_id,payment_amount').in('team_id', teamIdsInScope)
-            : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-        ])
-      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] as Array<Record<string, unknown>> }];
+    const settlementIds = settlements.map((row) => Number(row.id)).filter(Boolean);
+    const teamIdsInScope = Array.from(new Set(settlements.map((row) => Number(row.team_id)).filter(Boolean)));
+    const items: Array<Record<string, unknown>> = [];
+    const splits: Array<Record<string, unknown>> = [];
+    const payments: Array<Record<string, unknown>> = [];
+    const teamPaymentsAll: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < settlementIds.length; i += 200) {
+      const chunk = settlementIds.slice(i, i + 200);
+      const [chunkItems, chunkSplits, chunkPayments] = await Promise.all([
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('team_settlement_items').select('*').in('settlement_id', chunk).range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('team_settlement_splits').select('*').in('settlement_id', chunk).range(from, to)),
+        fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('team_settlement_payments').select('*').in('settlement_id', chunk).range(from, to)),
+      ]);
+      items.push(...chunkItems);
+      splits.push(...chunkSplits);
+      payments.push(...chunkPayments);
+    }
+    for (let i = 0; i < teamIdsInScope.length; i += 200) {
+      const chunk = teamIdsInScope.slice(i, i + 200);
+      const rows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+        supabase.from('team_settlement_payments').select('team_id,payment_amount').in('team_id', chunk).range(from, to));
+      teamPaymentsAll.push(...rows);
+    }
 
     const itemMap = new Map<number, Array<Record<string, unknown>>>();
     const splitMap = new Map<number, Array<Record<string, unknown>>>();
@@ -357,6 +385,7 @@ export async function GET(request: NextRequest) {
       const paidForSettlement = round2(paidMap.get(Number(settlement.id)) || 0);
       return {
         ...settlement,
+        status: String(settlement.status || ''),
         project_name: projectNameMap.get(Number(settlement.project_id)) || '',
         team_name: settlement.team_id ? teamNameMap.get(Number(settlement.team_id)) || '' : '',
         items: settlementItems,
@@ -378,7 +407,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 审批流口径：汇总仅统计「已审批」（reviewed）的结算单；草稿/待审批/驳回只出现在列表
-    const approvedRows = rows.filter((row) => isTeamSettlementApprovedStatus(row.status));
+    const approvedRows = rows.filter((row) => isTeamSettlementApprovedStatus(String(row.status || '')));
     return apiSuccess({
       settlements: rows,
       summary: {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveSupplierPaymentStatus, isReviewedStatus, isVoidedStatus, parseNumeric } from '@/lib/business-logic';
 import { requireAuth } from '@/lib/api-auth';
@@ -183,23 +184,23 @@ export async function GET(request: NextRequest) {
     }[] = [];
 
     if (contractIds.length > 0) {
-      const { data: settlements, error: settlementsError } = await supabase
-        .from('supplier_settlements')
-        .select('contract_id, settlement_amount, payable_amount, settlement_date, settlement_type, status')
-        .in('contract_id', contractIds);
-
-      if (settlementsError) throw settlementsError;
-      settlementRecords = (settlements || []) as SettlementRecord[];
+      // 分页取全量：结算单超过 1000 行会被静默截断，对账累计结算会少算
+      settlementRecords = await fetchAllRows<SettlementRecord>((from, to) =>
+        supabase
+          .from('supplier_settlements')
+          .select('contract_id, settlement_amount, payable_amount, settlement_date, settlement_type, status')
+          .in('contract_id', contractIds)
+          .range(from, to));
     }
 
     if (supplierIds.length > 0) {
-      const { data: payments, error: paymentsError } = await supabase
-        .from('supplier_payments')
-        .select('supplier_id, contract_id, project_id, payment_amount, payment_date, status')
-        .in('supplier_id', supplierIds);
-
-      if (paymentsError) throw paymentsError;
-      paymentRecords = (payments || []) as PaymentRecord[];
+      // 分页取全量：付款记录超过 1000 行会被截断，对账已付/未付会算错
+      paymentRecords = await fetchAllRows<PaymentRecord>((from, to) =>
+        supabase
+          .from('supplier_payments')
+          .select('supplier_id, contract_id, project_id, payment_amount, payment_date, status')
+          .in('supplier_id', supplierIds)
+          .range(from, to));
 
       // 老表结算/付款：挂 supplier_id 直连，不受合同关联缺失影响，补全台账
       // 老表（settlements/payments）为历史遗留表，生产库可能未建 → 表不存在时静默跳过，不能抛错导致整个接口 500
@@ -216,8 +217,8 @@ export async function GET(request: NextRequest) {
         legacyPaymentsQuery = legacyPaymentsQuery.in('project_id', projectScope);
       }
       const [legacySettlementsRes, legacyPaymentsRes] = await Promise.all([
-        legacySettlementsQuery,
-        legacyPaymentsQuery,
+        legacySettlementsQuery.range(0, 999),
+        legacyPaymentsQuery.range(0, 999),
       ]);
       if (legacySettlementsRes.error && !isMissingTableError(legacySettlementsRes.error)) {
         console.warn('[SupplierAccount] legacy settlements query failed:', legacySettlementsRes.error.message);
