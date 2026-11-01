@@ -289,6 +289,10 @@ export async function POST(request: NextRequest) {
         console.error('[TeamSettlementWorkflow] 关闭钉钉待办失败:', todoError);
       }
     }
+    if (action === 'submit' && approverUserId === 0) {
+      console.warn('[TeamSettlementWorkflow] 提交时未指定审批人：不会创建钉钉待办/定向通知（旧客户端或未选审批人）');
+    }
+
     // 撤回时清空指定审批人
     if (action === 'withdraw') {
       const { error: clearError } = await supabase

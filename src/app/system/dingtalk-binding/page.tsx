@@ -132,6 +132,9 @@ export default function DingtalkBindingPage() {
   }, [pathname, router]);
 
   const { toast } = useToast();
+  // 钉钉通道自检
+  const [selfTestLoading, setSelfTestLoading] = useState<'check' | 'send' | 'union' | null>(null);
+  const [selfTestResult, setSelfTestResult] = useState<{ success?: boolean; message?: string; checks?: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [keyword, setKeyword] = useState('');
@@ -267,6 +270,40 @@ export default function DingtalkBindingPage() {
     },
   ];
 
+  const runSelfTest = async (action: 'check' | 'send' | 'union') => {
+    setSelfTestLoading(action);
+    setSelfTestResult(null);
+    try {
+      if (action === 'check') {
+        const res = await fetch('/api/dingtalk/self-test', { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok || json.success === false) throw new Error(json.error || '自检失败');
+        const d = json.data || {};
+        const lines = [
+          `应用配置：${d.config?.configured ? '✅ 完整' : '❌ 不完整'}（AppKey ${d.config?.has_app_key ? '有' : '无'} / Secret ${d.config?.has_app_secret ? '有' : '无'} / AgentId ${d.config?.has_agent_id ? '有' : '无'}）`,
+          `当前账号：${d.me?.name || ''}（${d.me?.role || ''}），钉钉绑定：${d.me?.dingtalk_bound ? '✅ 已绑定' : '❌ 未绑定'}`,
+          `通知路由：${d.routing?.team_settlement_approval ? '✅ 已登记' : '❌ 未登记'}`,
+          ...(d.hints || []),
+        ];
+        setSelfTestResult({ success: Boolean(d.config?.configured && d.me?.dingtalk_bound), message: '自检完成', checks: lines });
+      } else {
+        const res = await fetch('/api/dingtalk/self-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ action: action === 'send' ? 'send-test' : 'check-union-id' }),
+        });
+        const json = await res.json();
+        if (!res.ok || json.success === false) throw new Error(json.error || '执行失败');
+        setSelfTestResult({ success: Boolean(json.data?.success), message: json.data?.message || '', checks: [] });
+      }
+    } catch (error) {
+      setSelfTestResult({ success: false, message: error instanceof Error ? error.message : '执行失败', checks: [] });
+    } finally {
+      setSelfTestLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -307,6 +344,38 @@ export default function DingtalkBindingPage() {
           );
         })}
       </div>
+
+      <Card className="border-dashed">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">钉钉通道自检</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">没收到通知时先点这里，能直接定位是配置、绑定还是权限问题。</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => void runSelfTest('check')} disabled={selfTestLoading !== null}>
+                {selfTestLoading === 'check' ? '检查中…' : '检查配置与绑定'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void runSelfTest('union')} disabled={selfTestLoading !== null}>
+                {selfTestLoading === 'union' ? '检查中…' : '检查待办权限'}
+              </Button>
+              <Button size="sm" onClick={() => void runSelfTest('send')} disabled={selfTestLoading !== null}>
+                {selfTestLoading === 'send' ? '发送中…' : '发送测试通知'}
+              </Button>
+            </div>
+          </div>
+          {selfTestResult ? (
+            <div className={`rounded-lg px-3 py-2 text-xs ${selfTestResult.success ? 'bg-[#F6FFED] text-[#237804]' : 'bg-[#FFF2F0] text-[#CB2634]'}`}>
+              <p className="font-medium">{selfTestResult.message}</p>
+              {selfTestResult.checks && selfTestResult.checks.length > 0 ? (
+                <ul className="mt-1 list-disc pl-4">
+                  {selfTestResult.checks.map((line, index) => <li key={index}>{line}</li>)}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card className="border-blue-100 bg-blue-50/60">
         <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">

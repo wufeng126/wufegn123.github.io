@@ -396,6 +396,9 @@ export async function POST(request: NextRequest) {
     const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
     const stageLabel = action === 'submit_manager' ? '项目经理补充' : '老板审批';
     const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
+    if (notifyApproverId === 0 && (action === 'submit_manager' || action === 'supplement')) {
+      console.warn('[MonthlyWorkflow] 未指定下一级审批人：不会创建钉钉待办/定向通知');
+    }
     if (notifyApproverId > 0) {
       try {
         const { pushBusinessNotification } = await import('@/lib/business-notification');
