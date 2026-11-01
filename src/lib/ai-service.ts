@@ -962,7 +962,7 @@ export async function fetchBusinessDataForContext(
             .select('settlement_amount,settlement_date,settlement_month,status,project_id')
             .eq('supplier_id', sp.id);
           if (projectId) legacySettlementQuery = legacySettlementQuery.eq('project_id', projectId);
-          const { data: oldSettlements } = await legacySettlementQuery.neq('status', 'voided');
+          const { data: oldSettlements } = await legacySettlementQuery.or('status.is.null,status.neq.voided');
           if (oldSettlements && oldSettlements.length > 0) {
             const totalSettlement = oldSettlements.reduce((sum: number, s: any) => sum + parseNumeric(s.settlement_amount), 0);
             line += `\n  历史旧结算表:${formatMoney(totalSettlement)}(${oldSettlements.length}笔，迁移核对用，不计入正式供应商台账口径)`;
@@ -1002,7 +1002,7 @@ export async function fetchBusinessDataForContext(
       if (canSensitive) {
         let reportQuery = supabase.from('client_reports').select('project_id,work_content,quantity,unit_price,settlement_amount,report_date,status');
         if (projectId) reportQuery = reportQuery.eq('project_id', projectId);
-        const { data: clientReports } = await reportQuery.neq('status', 'voided').order('report_date', { ascending: false }).limit(30);
+        const { data: clientReports } = await reportQuery.or('status.is.null,status.neq.voided').order('report_date', { ascending: false }).limit(30);
         if (clientReports && clientReports.length > 0) {
           parts.push(`【甲方报量】共${clientReports.length}条\n${clientReports.map((r: any) => `- ${r.work_content} | 数量:${r.quantity} | 单价:${formatMoney(r.unit_price)} | 金额:${formatMoney(r.settlement_amount || parseNumeric(r.quantity) * parseNumeric(r.unit_price))} | 日期:${r.report_date} | 状态:${r.status || 'draft'}`).join('\n')}`);
         }

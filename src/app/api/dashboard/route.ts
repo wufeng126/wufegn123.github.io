@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { isActiveProjectStatus } from '@/lib/metrics';
+import { isActiveWorkerStatus, isLeftWorkerStatus } from '@/lib/metrics';
 import { getReportRevenue } from '@/lib/revenue';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { isReviewedStatus } from '@/lib/review-status';
@@ -84,7 +86,7 @@ export async function GET(request: Request) {
     }
 
     const projectCount = allProjects?.length || 0;
-    const activeProjects = allProjects?.filter(p => p.status === '进行中' || p.status === '在建') || [];
+    const activeProjects = allProjects?.filter(p => isActiveProjectStatus(p.status)) || [];
 
     // 获取工人数量（区分在场/退场）- 支持项目筛选
     let workersQuery = client
@@ -110,8 +112,8 @@ export async function GET(request: Request) {
     }
 
     const workerCount = workersData?.length || 0;
-    const inServiceCount = workersData?.filter(w => w.status !== 'left').length || 0;
-    const leftCount = workersData?.filter(w => w.status === 'left').length || 0;
+    const inServiceCount = workersData?.filter(w => isActiveWorkerStatus(String(w.status || ''))).length || 0;
+    const leftCount = workersData?.filter(w => isLeftWorkerStatus(String(w.status || ''))).length || 0;
 
     // ========== 工程量统计数据 ==========
     

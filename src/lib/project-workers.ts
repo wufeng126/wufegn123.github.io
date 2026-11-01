@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isActiveWorkerStatus } from '@/lib/metrics';
 
 export type ProjectWorkerRow = {
   id: number;
@@ -36,12 +37,6 @@ function mergeActiveWorkers(target: Map<number, ProjectWorkerRow>, rows: Project
   rows
     .filter((worker) => includeInactive || isActiveWorkerStatus(worker.status))
     .forEach((worker) => target.set(Number(worker.id), worker));
-}
-
-function isActiveWorkerStatus(status?: string | null) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (!normalized) return true;
-  return ['in_service', 'active', '在场', '在岗'].includes(normalized);
 }
 
 export async function getProjectActiveWorkers(

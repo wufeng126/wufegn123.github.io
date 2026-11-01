@@ -1,5 +1,6 @@
 'use client';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeProjectStatus } from '@/lib/metrics';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -93,12 +94,7 @@ const createEmptyProjectForm = () => ({
   manager_user_id: '',
 });
 
-const normalizeProjectStatus = (status?: string | null) => {
-  if (status === '进行中') return '在建';
-  if (status === '已完成') return '竣工结算';
-  if (status === '暂停') return '在建';
-  return status || '在建';
-};
+
 
 // 根据 icon 值获取图标配置
 const getIconByValue = (iconValue: string | null) => {

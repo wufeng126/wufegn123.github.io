@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeProjectStatus } from '@/lib/metrics';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getProjectFinancialSummary } from '@/lib/data-aggregation';
 import { formatAmountSmart, formatPercent, toWanYuan } from '@/lib/format';
@@ -82,12 +83,6 @@ function toOptionalNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function normalizeProjectStatus(status?: string | null) {
-  if (status === '进行中') return '在建';
-  if (status === '已完成') return '竣工结算';
-  if (status === '暂停') return '在建';
-  return status || '待完善';
-}
 
 function addDays(dateText: string, days: number) {
   const date = new Date(`${dateText}T00:00:00+08:00`);

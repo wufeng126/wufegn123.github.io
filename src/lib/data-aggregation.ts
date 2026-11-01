@@ -1,4 +1,5 @@
 import { getReportRevenue } from '@/lib/revenue';
+import { isActiveWorkerStatus } from '@/lib/metrics';
 /**
  * 数据汇总中间层 — 全局唯一数据源
  *
@@ -941,7 +942,7 @@ async function getMultiProjectFinancialSummariesImpl(
         .from('client_reports')
         .select('project_id, invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
         .in('project_id', validProjectIds)
-        .neq('status', 'voided')
+        .or('status.is.null,status.neq.voided')
         .range(from, to),
       'report_date',
       dateRange
@@ -1323,7 +1324,7 @@ async function getGlobalSummaryImpl(
 
   const totalWorkers = workersData?.length || 0;
   // L4 修复：在场口径与工人成本看板统一（status 为 in_service 或空才计入；archived 等其他状态不计入在场）
-  const inServiceWorkers = workersData?.filter(w => !w.status || w.status === 'in_service').length || 0;
+  const inServiceWorkers = workersData?.filter(w => isActiveWorkerStatus(w.status)).length || 0;
   const leftWorkers = workersData?.filter(w => w.status === 'left').length || 0;
 
   // 批量汇总所有项目（单次常量查询，消除逐项目 N+1）

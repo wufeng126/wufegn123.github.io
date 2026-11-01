@@ -107,7 +107,7 @@ export async function getPendingLivingAllowanceRecords(
     .select('id, amount')
     .eq('worker_id', params.workerId)
     .eq('year_month', params.yearMonth)
-    .neq('status', 'deducted')
+    .or('status.is.null,status.neq.deducted')
     .is('deducted_salary_id', null);
 
   if (params.projectId != null) {

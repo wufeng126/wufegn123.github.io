@@ -85,8 +85,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('construction_logs')
       .select('*')
-      .neq('status', 'pending')
-      .neq('status', 'cancelled')
+      .or('status.is.null,status.neq.pending')
+      .or('status.is.null,status.neq.cancelled')
       .order('log_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(pageSize);

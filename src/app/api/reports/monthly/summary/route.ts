@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isActiveWorkerStatus } from '@/lib/metrics';
 import { getReportRevenue } from '@/lib/revenue';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import {
@@ -696,7 +697,7 @@ export async function GET(request: NextRequest) {
       const cumulativeProfit = totalIncome - totalCost;
       const cumulativeProfitRate = totalIncome > 0 ? (cumulativeProfit / totalIncome) * 100 : 0;
 
-      const inServiceCount = projWorkers.filter((w: Record<string, unknown>) => w.status === '在场' || !w.status).length;
+      const inServiceCount = projWorkers.filter((w: Record<string, unknown>) => isActiveWorkerStatus(String(w.status || ''))).length;
       // 未发工资：跨月累计，按实发(net_pay) − 已发；不再只看当月、不再用应发
       let unpaidSalary = 0;
       const unpaidWorkerSet = new Set<number>();

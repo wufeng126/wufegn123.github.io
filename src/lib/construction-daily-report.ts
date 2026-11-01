@@ -498,15 +498,15 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
       .from('construction_logs')
       .select('*')
       .eq('log_date', reportDate)
-      .neq('status', 'pending')
-      .neq('status', 'cancelled'),
+      .or('status.is.null,status.neq.pending')
+      .or('status.is.null,status.neq.cancelled'),
     supabase
       .from('construction_logs')
       .select('id,project_id,log_date,content,issues')
       .gte('log_date', trendStart)
       .lte('log_date', reportDate)
-      .neq('status', 'pending')
-      .neq('status', 'cancelled'),
+      .or('status.is.null,status.neq.pending')
+      .or('status.is.null,status.neq.cancelled'),
   ]);
 
   if (projectsRes.error) throw new Error(projectsRes.error.message);

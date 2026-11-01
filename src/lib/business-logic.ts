@@ -777,7 +777,7 @@ export async function getProjectPaidAmount(
     .from('client_payments')
     .select('id, payment_amount, status')
     .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .or('status.is.null,status.neq.voided');
 
   if (excludePaymentId) {
     query = query.neq('id', excludePaymentId);
@@ -941,7 +941,7 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
     .from('client_reports')
     .select('invoice_amount, tax_rate')
     .eq('project_id', projectId)
-    .neq('status', 'voided');
+    .or('status.is.null,status.neq.voided');
 
   let invoiceAmount = 0;
   let taxFromInvoice = 0;
