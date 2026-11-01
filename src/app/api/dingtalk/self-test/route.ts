@@ -4,7 +4,8 @@ import { requirePermission } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getDingTalkConfig } from '@/lib/dingtalk-config';
 import { isDingTalkWorkNotificationConfigured, sendDingTalkWorkNotification } from '@/lib/dingtalk-work-notification';
-import { getNotificationRouteRule } from '@/lib/notification-routing';
+import { getNotificationRouteRule, isNotificationTypeEnabled } from '@/lib/notification-routing';
+import { getNotificationSettingsMap } from '@/lib/notification-settings';
 import { getUnionIdByDingUserId } from '@/lib/dingtalk-todo';
 
 /**
@@ -29,6 +30,21 @@ export async function GET(request: NextRequest) {
     const dingUserId = String(userRow?.dingtalk_user_id || '').trim();
     const rule = getNotificationRouteRule('team_settlement_approval');
 
+    // 通知开关：审批类通知会被「新记录提醒 / 钉钉总开关」挡住，这里直接暴露真实值
+    let settingsMap: Record<string, { enabled?: boolean }> = {};
+    try {
+      settingsMap = (await getNotificationSettingsMap(supabase)) || {};
+    } catch {
+      settingsMap = {};
+    }
+    const typeEnabled = (() => {
+      try {
+        return isNotificationTypeEnabled('team_settlement_approval', settingsMap as never);
+      } catch {
+        return null;
+      }
+    })();
+
     return apiSuccess({
       config: {
         configured: isDingTalkWorkNotificationConfigured(),
@@ -51,10 +67,18 @@ export async function GET(request: NextRequest) {
           ? { channel: rule.channel, label: rule.label, href: rule.href }
           : null,
       },
+      settings: {
+        dingtalk_enabled: settingsMap.dingtalk_enabled?.enabled !== false,
+        new_record_reminder_enabled: settingsMap.new_record_reminder_enabled?.enabled !== false,
+        type_enabled: typeEnabled,
+      },
       hints: [
         !isDingTalkWorkNotificationConfigured() ? '钉钉应用未配置完整（AppKey/AppSecret/AgentId）→ 收不到任何通知' : '',
         !dingUserId ? '当前账号未绑定钉钉 userid → 无法定向推送' : '',
         !rule ? '通知类型未在路由表中登记 → 不会推送' : '',
+        settingsMap.dingtalk_enabled?.enabled === false ? '通知设置里「钉钉通知」总开关是关闭的 → 所有钉钉消息都不会发' : '',
+        settingsMap.new_record_reminder_enabled?.enabled === false ? '通知设置里「新记录提醒」是关闭的 → 审批类通知会被这个开关挡住' : '',
+        typeEnabled === false ? '该通知类型在通知中心被单独关闭了' : '',
       ].filter(Boolean),
     });
   } catch (error: unknown) {

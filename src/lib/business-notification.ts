@@ -378,6 +378,9 @@ export async function pushBusinessNotification(params: {
 
     const routedEnabled = isNotificationTypeEnabled(type, notificationSettings);
     let shouldSend = routedEnabled ?? false;
+    // 审批类通知：不受通用提醒开关影响（避免"关掉新记录提醒"后审批也收不到）
+    const routeRule = getNotificationRouteRule(type);
+    if (routeRule?.alwaysSend) shouldSend = true;
     if (routedEnabled === null) {
       if (['new_report', 'new_worker'].includes(type) && isTypeEnabled('new_record_reminder_enabled')) shouldSend = true;
       if (['new_worker_salary', 'new_salary'].includes(type) && (isTypeEnabled('salary_reminder_enabled') || isTypeEnabled('new_record_reminder_enabled'))) shouldSend = true;

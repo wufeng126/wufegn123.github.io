@@ -28,6 +28,8 @@ export type NotificationRouteRule = {
   cron?: string;
   bindingConfigurable?: boolean;
   includeInTodoDigest?: boolean;
+  /** 审批类通知：不受「新记录提醒」等通用开关影响，只要钉钉总开关打开就发 */
+  alwaysSend?: boolean;
 };
 
 export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
@@ -110,6 +112,7 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     workbenchTodoLabel: '月报待审批',
     bindingConfigurable: true,
     includeInTodoDigest: true,
+    alwaysSend: true,
   },
   {
     type: 'team_settlement_approval',
@@ -130,6 +133,7 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     workbenchTodoLabel: '班组结算待审批',
     bindingConfigurable: true,
     includeInTodoDigest: true,
+    alwaysSend: true,
   },
   {
     type: 'visa_workflow',
@@ -150,6 +154,7 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     workbenchTodoLabel: '签证待办理',
     bindingConfigurable: true,
     includeInTodoDigest: true,
+    alwaysSend: true,
   },
   {
     type: 'visa_workflow_overdue',
