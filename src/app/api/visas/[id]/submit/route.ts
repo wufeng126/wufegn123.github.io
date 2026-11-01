@@ -93,6 +93,21 @@ export async function POST(
       },
     });
 
+    // 钉钉待办：项目经理「待办」里直接出现这条签证
+    try {
+      const { createApprovalTodo } = await import('@/lib/dingtalk-todo');
+      await createApprovalTodo({
+        userId: managerUserId,
+        sourceType: 'visa',
+        sourceId: Number(id),
+        subject: `签证待办理：${visa.visa_number || `#${id}`}`,
+        description: `${budgetName || '预算员'}提交了签证 ${visa.visa_number || ''}，请推进甲方工程部签字。`,
+        detailUrl: `/visas?visa_id=${id}&todo=1`,
+      });
+    } catch (todoError) {
+      console.error('[VisaSubmit] 创建钉钉待办失败:', todoError);
+    }
+
     return NextResponse.json({ success: true, visa: data });
   } catch (error) {
     console.error('API Error:', error);

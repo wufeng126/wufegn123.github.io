@@ -393,12 +393,12 @@ export async function POST(request: NextRequest) {
       action === 'submit_manager' ? managerApproverId : action === 'supplement' ? bossApproverId : 0;
     const notifyApproverName =
       action === 'submit_manager' ? managerApproverName : action === 'supplement' ? bossApproverName : '';
+    const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
+    const stageLabel = action === 'submit_manager' ? '项目经理补充' : '老板审批';
+    const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
     if (notifyApproverId > 0) {
       try {
         const { pushBusinessNotification } = await import('@/lib/business-notification');
-        const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
-        const stageLabel = action === 'submit_manager' ? '项目经理补充' : '老板审批';
-        const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
         await pushBusinessNotification({
           type: 'monthly_report_approval',
           title: `${month} 月报待你${stageLabel}`,
@@ -416,6 +416,31 @@ export async function POST(request: NextRequest) {
         });
       } catch (notifyError) {
         console.error('[MonthlyWorkflow] 通知审批人失败:', notifyError);
+      }
+
+      // 钉钉待办：让审批人「待办」里一直有这条，处理完自动关闭
+      try {
+        const { createApprovalTodo } = await import('@/lib/dingtalk-todo');
+        await createApprovalTodo({
+          userId: notifyApproverId,
+          sourceType: 'monthly_report',
+          sourceId: Number(saved?.id) || 0,
+          subject: `${month} 月报待${stageLabel}`,
+          description: `${operatorName} 提交了 ${month} 月报（${scopeLabel}），请补充/审批。`,
+          detailUrl: href,
+        });
+      } catch (todoError) {
+        console.error('[MonthlyWorkflow] 创建钉钉待办失败:', todoError);
+      }
+    }
+
+    // 处理完成（通过/驳回/补充提交）→ 关闭相关钉钉待办
+    if (['approve', 'reject', 'supplement'].includes(action)) {
+      try {
+        const { completeApprovalTodo } = await import('@/lib/dingtalk-todo');
+        await completeApprovalTodo({ sourceType: 'monthly_report', sourceId: Number(saved?.id) || 0 });
+      } catch (todoError) {
+        console.error('[MonthlyWorkflow] 关闭钉钉待办失败:', todoError);
       }
     }
 

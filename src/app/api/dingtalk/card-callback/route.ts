@@ -198,6 +198,13 @@ export async function POST(request: NextRequest) {
         console.error('[dingtalk-card-callback] 通知提交人失败:', notifyError);
       }
 
+      try {
+        const { completeApprovalTodo } = await import('@/lib/dingtalk-todo');
+        await completeApprovalTodo({ sourceType: 'team_settlement', sourceId: settlementId });
+      } catch (todoError) {
+        console.error('[dingtalk-card-callback] 关闭钉钉待办失败:', todoError);
+      }
+
       return NextResponse.json(buildDingTalkCardUpdate(outTrackId, `已通过（${operatorName}）`));
     }
 
@@ -262,6 +269,13 @@ export async function POST(request: NextRequest) {
         }
       } catch (notifyError) {
         console.error('[dingtalk-card-callback] 通知提交人失败:', notifyError);
+      }
+
+      try {
+        const { completeApprovalTodo } = await import('@/lib/dingtalk-todo');
+        await completeApprovalTodo({ sourceType: 'team_settlement', sourceId: settlementId });
+      } catch (todoError) {
+        console.error('[dingtalk-card-callback] 关闭钉钉待办失败:', todoError);
       }
 
       return NextResponse.json(buildDingTalkCardUpdate(outTrackId, `已驳回（${operatorName}）`));

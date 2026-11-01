@@ -258,6 +258,31 @@ export async function POST(request: NextRequest) {
       } catch (notifyError) {
         console.error('[TeamSettlementWorkflow] 通知审批人失败:', notifyError);
       }
+
+      // 钉钉待办：比消息更不容易漏（失败不影响提交）
+      try {
+        const { createApprovalTodo } = await import('@/lib/dingtalk-todo');
+        await createApprovalTodo({
+          userId: approverUserId,
+          sourceType: 'team_settlement',
+          sourceId: settlementId,
+          subject: `班组结算待审批：${settlement.settlement_no || `#${settlementId}`}`,
+          description: `${operatorName} 提交了 ${settlement.settlement_month || ''} 班组结算单，请核对后审批。`,
+          detailUrl: `/team-management/settlements/${settlementId}`,
+        });
+      } catch (todoError) {
+        console.error('[TeamSettlementWorkflow] 创建钉钉待办失败:', todoError);
+      }
+    }
+
+    // 处理完成（通过/驳回/反审核/撤回）→ 关闭相关钉钉待办
+    if (['approve', 'reject', 'unapprove', 'withdraw'].includes(action)) {
+      try {
+        const { completeApprovalTodo } = await import('@/lib/dingtalk-todo');
+        await completeApprovalTodo({ sourceType: 'team_settlement', sourceId: settlementId });
+      } catch (todoError) {
+        console.error('[TeamSettlementWorkflow] 关闭钉钉待办失败:', todoError);
+      }
     }
     // 撤回时清空指定审批人
     if (action === 'withdraw') {

@@ -72,6 +72,13 @@ export async function POST(
       throw new Error(`结算签证失败: ${error.message}`);
     }
 
+    try {
+      const { completeApprovalTodo } = await import('@/lib/dingtalk-todo');
+      await completeApprovalTodo({ sourceType: 'visa', sourceId: parseInt(id) });
+    } catch (todoError) {
+      console.error('[VisaSettle] 关闭钉钉待办失败:', todoError);
+    }
+
     if (visa.project_manager_user_id) {
       await notifyVisaWorkflow({
         type: 'visa_workflow',
