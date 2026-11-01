@@ -197,9 +197,8 @@ export async function GET(request: NextRequest) {
     const buildLogsPage = (from: number, to: number) => {
       let pageQuery = supabase
         .from('construction_logs')
-        .select('project_id, user_id, user_name, log_date, content, issues')
-        .neq('status', 'pending')
-        .neq('status', 'cancelled')
+        // 不在 SQL 层用 neq 过滤状态：status 为 NULL 的历史行会被 NULL 比较排除，导致"列表有数据但统计全 0"
+        .select('project_id, user_id, user_name, log_date, content, issues, status')
         .order('id', { ascending: true })
         .range(from, to);
       if (parsedProjectId) pageQuery = pageQuery.eq('project_id', parsedProjectId);
@@ -218,7 +217,10 @@ export async function GET(request: NextRequest) {
       const { data: page, error: pageError } = await buildLogsPage(offset, offset + PAGE_SIZE - 1);
       if (pageError) throw new Error(pageError.message);
       if (!page || page.length === 0) break;
-      rows.push(...(page as LogStatRow[]));
+      const usable = (page as Array<LogStatRow & { status?: string | null }>).filter(
+        (row) => !['pending', 'cancelled'].includes(String(row.status || '')),
+      );
+      rows.push(...(usable as LogStatRow[]));
       if (page.length < PAGE_SIZE) break;
     }
     const userIds = Array.from(new Set(rows.map(row => Number(row.user_id)).filter(Boolean)));
