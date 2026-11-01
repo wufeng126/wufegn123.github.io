@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { createApprovalActionUrl } from '@/lib/approval-action-token';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { hasPermission, requireAuth, requirePermission } from '@/lib/api-auth';
@@ -415,6 +416,13 @@ export async function POST(request: NextRequest) {
             责任人: notifyApproverName || '',
             建议动作: '去处理',
             处理入口: href,
+            // 老板审批环节：卡片直接通过/驳回
+            ...(action === 'supplement'
+              ? {
+                快捷通过: createApprovalActionUrl({ type: 'monthly_report', id: Number(saved?.id) || 0, action: 'approve', month, scope }),
+                快捷驳回: createApprovalActionUrl({ type: 'monthly_report', id: Number(saved?.id) || 0, action: 'reject', month, scope }),
+              }
+              : {}),
           },
         });
       } catch (notifyError) {

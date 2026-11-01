@@ -38,12 +38,18 @@ export function createApprovalActionUrl(params: {
   id: number;
   action: ApprovalAction;
   hours?: number;
+  /** 月报用：归属月份 YYYY-MM */
+  month?: string;
+  /** 月报用：项目范围 all | 项目ID */
+  scope?: string;
 }): string {
   const payload = {
     t: params.type,
     i: Number(params.id),
     a: params.action,
     e: Date.now() + (params.hours ?? 72) * 60 * 60 * 1000,
+    ...(params.month ? { m: params.month } : {}),
+    ...(params.scope ? { s: params.scope } : {}),
   };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const token = `${body}.${sign(body)}`;
@@ -55,6 +61,8 @@ export function verifyApprovalActionToken(token: string): {
   type?: ApprovalActionType;
   id?: number;
   action?: ApprovalAction;
+  month?: string;
+  scope?: string;
   reason?: string;
 } {
   const raw = String(token || '');
@@ -67,11 +75,18 @@ export function verifyApprovalActionToken(token: string): {
   }
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as {
-      t?: ApprovalActionType; i?: number; a?: ApprovalAction; e?: number;
+      t?: ApprovalActionType; i?: number; a?: ApprovalAction; e?: number; m?: string; s?: string;
     };
     if (!payload.e || payload.e < Date.now()) return { ok: false, reason: '链接已过期，请到系统中处理' };
     if (!payload.t || !payload.i || !payload.a) return { ok: false, reason: '链接参数不完整' };
-    return { ok: true, type: payload.t, id: Number(payload.i), action: payload.a };
+    return {
+      ok: true,
+      type: payload.t,
+      id: Number(payload.i),
+      action: payload.a,
+      month: payload.m,
+      scope: payload.s,
+    };
   } catch {
     return { ok: false, reason: '链接内容无法解析' };
   }

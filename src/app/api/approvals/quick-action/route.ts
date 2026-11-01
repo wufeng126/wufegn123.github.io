@@ -97,5 +97,59 @@ export async function GET(request: NextRequest) {
 <script>setTimeout(function(){location.href='/team-management/settlements/${settlementId}'},2000)</script>`);
   }
 
+  if (type === 'monthly_report') {
+    const month = String(verified.month || '');
+    const scope = String(verified.scope || 'all');
+    if (!/^\d{4}-\d{2}$/.test(month)) return html('<h1 class="err">链接参数不完整</h1>', 400);
+
+    const { data: workflow } = await supabase
+      .from('monthly_report_workflows')
+      .select('id, status, content, created_by')
+      .eq('year_month', month)
+      .eq('project_scope', scope)
+      .maybeSingle();
+    if (!workflow) return html('<h1 class="err">月报不存在</h1>', 404);
+
+    const content = (workflow.content || {}) as Record<string, unknown>;
+    const bossApproverId = Number(content.bossApproverId) || 0;
+    const allowed = isBossOrSuper || (bossApproverId > 0 && Number(user.id) === bossApproverId);
+    if (!allowed) {
+      return html(`<h1 class="err">你不是该月报的审批人</h1><p>当前登录账号：${user.name || user.username || user.id}</p>`, 403);
+    }
+    if (String(workflow.status) !== 'pending_boss') {
+      return html(`<h1>该月报已处理</h1><p>当前状态：${workflow.status}，无需重复操作。</p>
+<a class="btn" href="/reports/monthly/fill?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}">查看月报</a>`);
+    }
+
+    const origin = request.nextUrl.origin;
+    const res = await fetch(`${origin}/api/reports/monthly/workflow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: request.headers.get('cookie') || '',
+      },
+      body: JSON.stringify({
+        month,
+        projectId: scope,
+        action,
+        ...(action === 'reject' ? { reason: '钉钉卡片快捷驳回' } : {}),
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    const reportUrl = `/reports/monthly/fill?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`;
+    if (!res.ok || json?.success === false) {
+      return html(`<h1 class="err">处理失败</h1><p>${json?.error || '请到系统中重试'}</p>
+<a class="btn" href="${reportUrl}">打开月报</a>`);
+    }
+
+    const label = action === 'approve' ? '已通过' : '已驳回';
+    return html(`<h1 class="ok">月报审批成功：${label}</h1>
+<p>月份：${month}　范围：${scope === 'all' ? '全公司' : `项目 #${scope}`}</p>
+<p>操作人：${user.name || user.username || user.id}</p>
+<p><small>页面 2 秒后自动打开月报</small></p>
+<a class="btn" href="${reportUrl}">立即查看</a>
+<script>setTimeout(function(){location.href='${reportUrl}'},2000)</script>`);
+  }
+
   return html('<h1 class="err">暂不支持的审批类型</h1>', 400);
 }
