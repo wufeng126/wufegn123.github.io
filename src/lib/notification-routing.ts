@@ -128,7 +128,8 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     categoryLabel: '待办',
     actionLabel: '去审批',
     detail: '按提交时选择的审批人定向推送，只有该审批人（或老板/超管）能处理。',
-    href: '/team-management/settlements',
+    // 兜底落点：待我审批列表（正常情况通知里会带具体结算单详情链接）
+    href: '/my-submissions?tab=pending',
     workbenchTodoKey: 'businessNotificationsPending',
     workbenchTodoLabel: '班组结算待审批',
     bindingConfigurable: true,
