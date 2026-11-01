@@ -97,7 +97,12 @@ export async function POST(request: NextRequest) {
       return apiBadRequest('请填写驳回原因');
     }
     // 不允许指定自己为审批人（否则等于自己批自己）
-    if (action === 'submit' && approverUserId > 0 && approverUserId === Number(auth.user.id)) {
+    // 老板/超管允许指定自己（用于测试钉钉通知/待办），其他角色仍禁止自批
+    const selfIsBossOrSuper = Boolean(auth.user.is_super_admin)
+      || ['super_admin', 'boss'].includes(String(auth.user.role || ''));
+    if (action === 'submit' && approverUserId > 0
+      && approverUserId === Number(auth.user.id)
+      && !selfIsBossOrSuper) {
       return apiBadRequest('审批人不能选自己，请选择老板或其他负责人');
     }
 

@@ -811,6 +811,8 @@ export function TeamSettlementLedgerPageClient() {
   // 提交审批：选择下一级审批人
   const [approverTarget, setApproverTarget] = useState<TeamSettlement | null>(null);
   const [approverOptions, setApproverOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
+  // 「我自己」选项：仅用于测试钉钉通知/待办是否正常
+  const [selfOption, setSelfOption] = useState<{ id: number; name: string; role: string } | null>(null);
   const [selectedApproverId, setSelectedApproverId] = useState(0);
   const [approverLoading, setApproverLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
@@ -913,7 +915,10 @@ export function TeamSettlementLedgerPageClient() {
         try {
           const json = await readJson(await fetch('/api/users/options?roles=boss,super_admin,admin', { credentials: 'include' }));
           const options = ((json as { data?: { options?: Array<{ id: number; name: string; role: string }> } })?.data?.options || []);
-          setApproverOptions(Array.isArray(options) ? options : []);
+          const withSelf = selfOption && !options.some((option) => option.id === selfOption.id)
+            ? [selfOption, ...options]
+            : options;
+          setApproverOptions(Array.isArray(withSelf) ? withSelf : []);
         } catch {
           setApproverOptions([]);
         }
@@ -1503,10 +1508,30 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
   const [wfOptions, setWfOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
   const [wfApproverId, setWfApproverId] = useState(0);
   const [wfLoading, setWfLoading] = useState(false);
+  // 「我自己」选项（测试钉钉通知/待办用）
+  const [selfOption, setSelfOption] = useState<{ id: number; name: string; role: string } | null>(null);
 
   useEffect(() => {
     setProjectId((current) => current || (projects[0]?.id ? String(projects[0].id) : ''));
   }, [projects]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        const me = json?.user || json?.data || {};
+        const id = Number(me.id) || 0;
+        if (!cancelled && id > 0) {
+          setSelfOption({ id, name: `${me.name || me.username || '我'}（我自己·测试）`, role: 'self' });
+        }
+      } catch {
+        // 忽略：拿不到就用普通审批人列表
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // 有未保存内容时，离开页面提醒（防止在工地录一半误触返回全丢）
   useEffect(() => {
@@ -1823,7 +1848,10 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
       try {
         const json = await readJson(await fetch('/api/users/options?roles=boss,super_admin,admin', { credentials: 'include' }));
         const options = (json.data?.options || []);
-        setWfOptions(Array.isArray(options) ? options : []);
+        const withSelf = selfOption && !options.some((option: { id: number }) => option.id === selfOption.id)
+          ? [selfOption, ...options]
+          : options;
+        setWfOptions(Array.isArray(withSelf) ? withSelf : []);
       } catch {
         setWfOptions([]);
       }
@@ -2245,7 +2273,27 @@ export function TeamSettlementDetailPageClient() {
   const canApproveSettlement = isSuperAdmin || permissions.includes('team_settlements:approve');
   const [wfOptions, setWfOptions] = useState<Array<{ id: number; name: string; role: string }>>([]);
   const [wfApproverId, setWfApproverId] = useState(0);
+  // 「我自己」选项（测试钉钉通知/待办用）
+  const [selfOption, setSelfOption] = useState<{ id: number; name: string; role: string } | null>(null);
   const confirmDialog = useConfirm();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        const me = json?.user || json?.data || {};
+        const meId = Number(me.id) || 0;
+        if (!cancelled && meId > 0) {
+          setSelfOption({ id: meId, name: `${me.name || me.username || '我'}（我自己·测试）`, role: 'self' });
+        }
+      } catch {
+        // 忽略
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [approverDialogOpen, setApproverDialogOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -2258,7 +2306,10 @@ export function TeamSettlementDetailPageClient() {
       try {
         const json = await readJson(await fetch('/api/users/options?roles=boss,super_admin,admin', { credentials: 'include' }));
         const options = json?.data?.options || [];
-        setWfOptions(Array.isArray(options) ? options : []);
+        const withSelf = selfOption && !options.some((option: { id: number }) => option.id === selfOption.id)
+          ? [selfOption, ...options]
+          : options;
+        setWfOptions(Array.isArray(withSelf) ? withSelf : []);
       } catch {
         setWfOptions([]);
       }
