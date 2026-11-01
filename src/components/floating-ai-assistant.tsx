@@ -524,12 +524,15 @@ export function FloatingAIAssistant() {
 
       const decoder = new TextDecoder();
       let fullContent = '';
+      // 缓冲区：SSE 的一行可能被切在两个 chunk 中间，必须拼完整行再解析，否则回答会缺字
+      let sseBuffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || '';
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const dataStr = line.slice(6);
@@ -601,12 +604,17 @@ export function FloatingAIAssistant() {
   const panelWidth = isMobile ? '100vw' : '420px';
   const panelHeight = isMobile ? '100vh' : '580px';
 
+  // 拖拽定位：position 已经是目标 top/left，直接使用并限制在可视区域内（原来用 innerHeight 反算会导致方向相反）
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440;
+  const clampPosition = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
   const panelStyle = (!isOpen || isMinimized) ? { display: 'none' } as React.CSSProperties : {
     position: 'fixed' as const,
     bottom: isMobile ? 0 : (position.y === 0 && position.x === 0 ? '24px' : undefined),
     right: isMobile ? 0 : (position.y === 0 && position.x === 0 ? '24px' : undefined),
-    left: isMobile ? 0 : (position.x !== 0 ? `${position.x}px` : undefined),
-    top: isMobile ? 0 : (position.y !== 0 ? `${window.innerHeight - position.y - 580}px` : undefined),
+    left: isMobile ? 0 : (position.x !== 0 ? `${clampPosition(position.x, 8, Math.max(8, viewportWidth - 432))}px` : undefined),
+    top: isMobile ? 0 : (position.y !== 0 ? `${clampPosition(position.y, 8, Math.max(8, viewportHeight - 592))}px` : undefined),
     zIndex: 9999,
     width: panelWidth,
     height: panelHeight,

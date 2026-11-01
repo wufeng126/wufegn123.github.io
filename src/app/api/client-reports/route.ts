@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isReviewedStatus, isVoidedStatus, REVIEW_STATUS, validateStatusTransition } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -98,7 +99,9 @@ export async function GET(request: NextRequest) {
       query = query.in('project_id', accessibleProjects);
     }
 
-    const { data, error } = await query;
+    // 分页取全量：单次查询会被 PostgREST 截断到 1000 行，列表/统计会静默少算
+    const data = await fetchAllRows<any>((from, to) => query.range(from, to));
+    const error = null as { message?: string } | null;
     const activeData = (data || []).filter((record: any) => !isVoidedStatus(record.status));
 
     if (error) {

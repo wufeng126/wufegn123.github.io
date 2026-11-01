@@ -241,16 +241,22 @@ export default function MonthlyReportPage() {
     }).catch(() => {});
   }, []);
 
-  // Load data
+  // Load data：切月/切项目时先清空旧数据，并用请求序号丢弃过期响应
+  const loadSeqRef = useRef(0);
   const loadData = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
+    setData(null);
     try {
       const res = await fetch(`/api/reports/monthly/summary?month=${month}${projectId !== 'all' ? `&projectId=${projectId}` : ''}`);
       const json = await res.json();
+      if (seq !== loadSeqRef.current) return;
       if (json.success) setData(json.data as MonthlyReportData);
       else toast.error(json.error || '加载失败');
-    } catch { toast.error('网络错误'); }
-    finally { setLoading(false); }
+    } catch {
+      if (seq === loadSeqRef.current) toast.error('网络错误');
+    }
+    finally { if (seq === loadSeqRef.current) setLoading(false); }
   }, [month, projectId]);
 
   useEffect(() => { loadData(); }, [loadData]);

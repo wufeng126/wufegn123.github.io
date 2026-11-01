@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
 import { logSecurityEvent } from '@/lib/security-log';
@@ -56,7 +57,9 @@ export async function GET(request: NextRequest) {
       query = query.in('project_id', accessibleProjects);
     }
 
-    const { data, error } = await query;
+    // 分页取全量：单次查询会被 PostgREST 截断到 1000 行，列表/统计会静默少算
+    const data = await fetchAllRows<any>((from, to) => query.range(from, to));
+    const error = null as { message?: string } | null;
 
     if (error) {
       throw new Error(`查询付款记录失败: ${error.message}`);

@@ -637,11 +637,11 @@ export default function NewBidPage() {
                     <td className="px-3 py-3 text-right tabular-nums">{item.historical_bid_price ? money(item.historical_bid_price) : '-'}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{item.cost_price ? money(item.cost_price) : '-'}</td>
                     <td className="px-3 py-3 text-right">
-                      <input type="number" value={item.profit_rate} onChange={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
+                      <input type="number" step="0.1" key={`rate-${item.rowId}`} defaultValue={item.profit_rate || ''} onBlur={e => updateItem(item.rowId, { profit_rate: Number(e.target.value) || 0, is_manual_price: false })} className="h-9 w-20 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-[var(--color-primary)]">{item.suggested_price ? money(item.suggested_price) : '-'}</td>
                     <td className="px-3 py-3 text-right">
-                      <input type="number" value={Number(item.final_price.toFixed(2)) || ''} onChange={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
+                      <input type="number" step="0.01" key={`price-${item.rowId}`} defaultValue={item.final_price ? Number(item.final_price.toFixed(2)) : ''} onBlur={e => updateItem(item.rowId, { final_price: Number(e.target.value) || 0, is_manual_price: true })} className="h-9 w-24 rounded-lg border border-[#D9DCE3] px-2 text-right text-sm outline-none focus:border-[var(--color-primary)]" />
                     </td>
                     <td className="px-3 py-3 text-right font-medium tabular-nums">{money(item.final_amount)}</td>
                     <td className="px-3 py-3 text-xs text-[#F59E0B]">{item.pricing_warning || '-'}</td>

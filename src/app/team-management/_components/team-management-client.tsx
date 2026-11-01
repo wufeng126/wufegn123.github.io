@@ -1021,6 +1021,12 @@ export function TeamSettlementLedgerPageClient() {
       setPayMessage('请输入有效付款金额');
       return;
     }
+    // 不能超过该结算单的未付金额（超付会让台账未付变负数）
+    const unpaid = toNumber(paySettlement.team_unpaid_total ?? paySettlement.unpaid_amount);
+    if (unpaid > 0 && amount > unpaid + 0.005) {
+      setPayMessage(`付款金额不能超过未付金额（未付 ${unpaid.toFixed(2)} 元）`);
+      return;
+    }
     setPayLoading(true);
     setPayMessage('');
     try {
@@ -1276,7 +1282,7 @@ export function TeamSettlementLedgerPageClient() {
                         <button onClick={() => handleSettlementWorkflow(row, 'unapprove')} className="text-sm font-medium text-[#86909C] hover:underline">反审核</button>
                       )}
                       {row.status === 'reviewed' && (
-                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="text-sm font-medium text-[var(--color-success)] hover:underline">记付款</button>
+                        <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.team_unpaid_total ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="text-sm font-medium text-[var(--color-success)] hover:underline">记付款</button>
                       )}
                       {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
                         <button onClick={() => handleDeleteSettlement(row)} className="text-sm font-medium text-[var(--color-danger)] hover:underline">删除</button>
@@ -1333,7 +1339,7 @@ export function TeamSettlementLedgerPageClient() {
                   <button onClick={() => handleSettlementWorkflow(row, 'unapprove')} className="inline-flex h-9 items-center rounded-md border border-[#DDE2EB] bg-white px-3 text-sm font-medium text-[#86909C]">反审核</button>
                 )}
                 {row.status === 'reviewed' && (
-                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.planned_payment ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[var(--color-success)] hover:bg-[#E8FFEA]">记付款</button>
+                  <button onClick={() => { setPaySettlement(row); setPayAmount(String(row.team_unpaid_total ?? row.unpaid_amount ?? '')); setPayRemark(''); setPayMethod('bank'); setPayDate(todayISO()); setPayMessage(''); }} className="inline-flex h-9 items-center rounded-md border border-[#00B42A] bg-white px-3 text-sm font-medium text-[var(--color-success)] hover:bg-[#E8FFEA]">记付款</button>
                 )}
                 {(['draft', 'rejected', 'pending'].includes(row.status || 'draft')) && canDeleteSettlement && (
                   <button onClick={() => handleDeleteSettlement(row)} className="inline-flex h-9 items-center rounded-md border border-[#F53F3F] bg-white px-3 text-sm font-medium text-[var(--color-danger)]">删除</button>
