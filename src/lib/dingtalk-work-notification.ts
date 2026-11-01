@@ -58,7 +58,7 @@ export function formatDingTalkWorkText(params: NotificationParams) {
   const actionLabel = params.extra?.建议动作 || routeRule?.actionLabel || '';
   const actionHref = toAbsoluteNotificationHref(params.extra?.处理入口 || routeRule?.href || '');
   const amount = params.extra?.金额 || '';
-  const shownKeys = new Set(['消息分类', '业务摘要', '责任人', '提醒对象', '金额', '建议动作', '处理入口']);
+  const shownKeys = new Set(['消息分类', '业务摘要', '责任人', '提醒对象', '金额', '建议动作', '处理入口', '快捷通过', '快捷驳回']);
 
   const lines = [
     normalizeTitle(categoryLabel, params.title),
@@ -146,7 +146,13 @@ export function formatDingTalkWorkCard(params: NotificationParams): DingTalkActi
     `⏰ ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`,
   ].filter((line) => line !== '');
 
-  const btnJSONList = actionHref ? [{ title: actionLabel, actionURL: toCardActionUrl(actionHref) }] : [];
+  // 审批类通知：额外挂「通过 / 驳回」快捷按钮（签名链接，点开即可处理）
+  const quickApprove = String(params.extra?.快捷通过 || '');
+  const quickReject = String(params.extra?.快捷驳回 || '');
+  const btnJSONList: Array<{ title: string; actionURL: string }> = [];
+  if (quickApprove) btnJSONList.push({ title: params.extra?.快捷通过标题 || '✅ 通过', actionURL: toCardActionUrl(quickApprove) });
+  if (quickReject) btnJSONList.push({ title: params.extra?.快捷驳回标题 || '❌ 驳回', actionURL: toCardActionUrl(quickReject) });
+  if (actionHref) btnJSONList.push({ title: actionLabel, actionURL: toCardActionUrl(actionHref) });
 
   return {
     msgtype: 'actionCard',

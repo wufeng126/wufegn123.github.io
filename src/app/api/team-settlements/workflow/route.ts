@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { createApprovalActionUrl } from '@/lib/approval-action-token';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
@@ -258,6 +259,8 @@ export async function POST(request: NextRequest) {
             责任人: approverName || '',
             建议动作: '去审批',
             处理入口: `/team-management/settlements/${settlementId}`,
+            快捷通过: createApprovalActionUrl({ type: 'team_settlement', id: settlementId, action: 'approve' }),
+            快捷驳回: createApprovalActionUrl({ type: 'team_settlement', id: settlementId, action: 'reject' }),
           },
         });
       } catch (notifyError) {
@@ -374,6 +377,8 @@ export async function POST(request: NextRequest) {
             责任人: '老板',
             建议动作: '打开结算单核对后通过或驳回',
             处理入口: `/team-management/settlements/${settlementId}`,
+            快捷通过: createApprovalActionUrl({ type: 'team_settlement', id: settlementId, action: 'approve' }),
+            快捷驳回: createApprovalActionUrl({ type: 'team_settlement', id: settlementId, action: 'reject' }),
           },
         });
 

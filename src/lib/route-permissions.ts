@@ -66,6 +66,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 
   // === API 路由（生产环境必需注册，否则 403） ===
   '/api/workspace/todos': {},
+  // 钉钉卡片快捷审批：页面级放行，接口内部校验登录 + 审批身份
+  '/api/approvals/quick-action': {},
   '/api/auth/logout': {},
   // 我的提交 / 待我审批 / 审批人候选：只读本人相关数据，登录即可访问
   '/api/my-submissions': {},
