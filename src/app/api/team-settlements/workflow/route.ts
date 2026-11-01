@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
             业务摘要: `班组结算 ${settlement.settlement_no || `#${settlementId}`} 待审批`,
             责任人: approverName || '',
             建议动作: '去审批',
-            处理入口: '/team-management/settlements',
+            处理入口: `/team-management/settlements/${settlementId}`,
           },
         });
       } catch (notifyError) {
