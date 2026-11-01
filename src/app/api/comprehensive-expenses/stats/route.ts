@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { requireAuth } from '@/lib/api-auth';
 import {
   badProjectIdResponse,
@@ -60,10 +61,12 @@ export async function GET(request: NextRequest) {
       query = query.like('expense_date', `${month}%`);
     }
 
-    const { data: expenses, error } = await query;
-
-    if (error) {
-      throw new Error(`查询综合费用失败: ${error.message}`);
+    // 分页取全量：单次查询会被 PostgREST 截断到 1000 行，费用统计会静默少算
+    let expenses: any[];
+    try {
+      expenses = await fetchAllRows<any>((from, to) => query.range(from, to));
+    } catch (error) {
+      throw new Error(`查询综合费用失败: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     const activeExpenses = (expenses || []).filter((expense: any) => isReviewedStatus(expense.status));

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { apiBadRequest, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
@@ -56,8 +57,13 @@ export async function GET(request: NextRequest) {
     if (projectId !== null) salaryQuery = salaryQuery.eq('project_id', projectId);
     if (!isSuperAdmin) salaryQuery = salaryQuery.in('project_id', accessibleProjectIds);
 
-    const { data: salaries, error: salaryError } = await salaryQuery;
-    if (salaryError) throw new Error(`查询班组应发工资失败: ${salaryError.message}`);
+    // 分页取全量：工资行数超过 1000 会被 PostgREST 截断，台账金额会少算
+    let salaries: any[];
+    try {
+      salaries = await fetchAllRows<any>((from, to) => salaryQuery.range(from, to));
+    } catch (salaryError) {
+      throw new Error(`查询班组应发工资失败: ${salaryError instanceof Error ? salaryError.message : String(salaryError)}`);
+    }
 
     // 班组名称映射（worker_salaries 无 team_groups 外键，单独查询 name）
     const teamIds = [...new Set((salaries || []).map((s: any) => Number(s.team_id)).filter(Boolean))];
@@ -71,14 +77,18 @@ export async function GET(request: NextRequest) {
     const salaryIds = (salaries || []).map((s: any) => Number(s.id)).filter(Boolean);
 
     // 2) 对应发放记录（按 salary_id 核销；也兼容该工人同一项目月份的无关联发放，避免漏算）
-    const { data: linkedPayments, error: linkedError } =
-      salaryIds.length > 0
-        ? await client
-            .from('salary_payments')
-            .select('salary_id, worker_id, project_id, team_id, year_month, payment_amount, payer_type, payment_date')
-            .in('salary_id', salaryIds)
-        : { data: [], error: null };
-    if (linkedError) throw new Error(`查询班组已发工资失败: ${linkedError.message}`);
+    //    分页 + 分段 IN，避免单次查询被截断
+    const linkedPayments: any[] = [];
+    for (let i = 0; i < salaryIds.length; i += 200) {
+      const chunk = salaryIds.slice(i, i + 200);
+      const rows = await fetchAllRows<any>((from, to) =>
+        client
+          .from('salary_payments')
+          .select('salary_id, worker_id, project_id, team_id, year_month, payment_amount, payer_type, payment_date')
+          .in('salary_id', chunk)
+          .range(from, to));
+      linkedPayments.push(...rows);
+    }
 
     // 汇总: 按 工人 维度（同一工人可能多条分账应发，合并计算）
     const workerRows = new Map<number, {
