@@ -321,6 +321,42 @@ export async function DELETE(
       .eq('id', projectId)
       .single();
 
+    // 删除前预检：有业务数据的项目不允许直接删（避免留下无项目工人 / 悬挂 project_id 的费用与合同）
+    const relatedTables: Array<{ table: string; label: string }> = [
+      { table: 'client_reports', label: '甲方报量' },
+      { table: 'client_payments', label: '甲方回款' },
+      { table: 'worker_salaries', label: '工人工资' },
+      { table: 'workers', label: '花名册工人' },
+      { table: 'work_items', label: '清单分项' },
+      { table: 'team_settlements', label: '班组结算' },
+      { table: 'supplier_contracts', label: '供应商合同' },
+      { table: 'comprehensive_expenses', label: '综合费用' },
+      { table: 'miscellaneous_materials', label: '零星材料' },
+      { table: 'construction_logs', label: '施工日志' },
+      { table: 'visas', label: '签证' },
+      { table: 'settlements', label: '旧结算' },
+      { table: 'payments', label: '旧付款' },
+    ];
+    const counts = await Promise.all(
+      relatedTables.map(async ({ table, label }) => {
+        const { count } = await client
+          .from(table)
+          .select('id', { count: 'exact', head: true })
+          .eq('project_id', projectId);
+        return { label, count: count || 0 };
+      }),
+    );
+    const blocking = counts.filter((row) => row.count > 0);
+    if (blocking.length > 0) {
+      return NextResponse.json(
+        {
+          error: `该项目还有业务数据，不能直接删除：${blocking.map((row) => `${row.label} ${row.count} 条`).join('、')}。请先清理或迁移数据。`,
+          related: blocking,
+        },
+        { status: 400 },
+      );
+    }
+
     const { error } = await client
       .from('projects')
       .delete()

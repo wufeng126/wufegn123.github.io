@@ -181,6 +181,34 @@ export async function POST(request: NextRequest) {
       patch.reviewed_by = operatorName;
     }
 
+    // 审批通过前先生成分账应发工资：生成失败直接中止，避免"成本已计、工资台账漏人"
+    let salaryResult: { created: number; skipped: number; conflicts: number[] } | null = null;
+    if (action === 'approve') {
+      const { data: splits } = await supabase
+        .from('team_settlement_splits')
+        .select('worker_id, work_hours, hourly_rate, amount')
+        .eq('settlement_id', settlementId);
+      if (splits && splits.length > 0) {
+        try {
+          salaryResult = await generateWorkerSalariesFromSplits({
+            settlementId,
+            settlementMonth: String(settlement.settlement_month),
+            projectId,
+            teamId: Number(settlement.team_id) || 0,
+            splits,
+          });
+        } catch (genError) {
+          const detail = genError instanceof Error ? genError.message : String(genError);
+          console.error(`[team-settlement-workflow] 审批中止：生成分账工资失败 settlementId=${settlementId}:`, genError);
+          return apiBadRequest(`生成分账应发工资失败，本次审批未生效：${detail}`);
+        }
+        if (salaryResult.conflicts.length > 0) {
+          return apiBadRequest(
+            `以下工人在本月已有工资记录，不能重复生成（工人ID：${salaryResult.conflicts.join('、')}），请先核对后再审批`,
+          );
+        }
+      }
+    }
     // 乐观锁：仅当状态仍为读取时的状态才更新，防止并发审批/撤回互相覆盖
     const { data: updatedRows, error: updateError } = await supabase
       .from('team_settlements')
@@ -236,32 +264,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 审批通过：生成分账应发工资（失败不阻断审批结果，但记录错误）
-    let salaryResult: { created: number; skipped: number; conflicts: number[] } | null = null;
-    if (action === 'approve') {
-      const { data: splits } = await supabase
-        .from('team_settlement_splits')
-        .select('worker_id, work_hours, hourly_rate, amount')
-        .eq('settlement_id', settlementId);
-      if (splits && splits.length > 0) {
-        try {
-          salaryResult = await generateWorkerSalariesFromSplits({
-            settlementId,
-            settlementMonth: String(settlement.settlement_month),
-            projectId,
-            teamId: Number(settlement.team_id) || 0,
-            splits,
-          });
-          if (salaryResult.conflicts.length > 0) {
-            console.warn(
-              `[team-settlement-workflow] 结算单 #${settlementId} 有 ${salaryResult.conflicts.length} 名工人本月已有工资记录，未生成分账应发: workerIds=${salaryResult.conflicts.join(',')}`,
-            );
-          }
-        } catch (genError) {
-          console.error(`[team-settlement-workflow] 审批通过但生成分账工资失败 settlementId=${settlementId}:`, genError);
-        }
-      }
-    }
 
     // 反审核：撤销该结算单生成的分账应发工资（被生活费核对引用时保留并告警，避免破坏下游）
     let revokedSalaryCount = 0;
@@ -285,10 +287,15 @@ export async function POST(request: NextRequest) {
             .delete()
             .in('id', salaryIds);
           if (deleteSalaryError) {
+            // 撤销工资失败 → 回滚结算单状态，避免"已反审核但工资还在"的双向不一致
             console.error(`[team-settlement-workflow] 反审核撤销分账工资失败 settlementId=${settlementId}:`, deleteSalaryError);
-          } else {
-            revokedSalaryCount = salaryIds.length;
+            await supabase
+              .from('team_settlements')
+              .update({ status: 'reviewed' })
+              .eq('id', settlementId);
+            return apiBadRequest(`撤销分账工资失败，反审核未生效：${deleteSalaryError.message}`);
           }
+          revokedSalaryCount = salaryIds.length;
         }
       }
     }

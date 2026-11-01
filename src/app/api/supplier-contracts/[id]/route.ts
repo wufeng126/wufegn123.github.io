@@ -262,7 +262,9 @@ export async function DELETE(
       .eq('contract_id', id);
 
     if (paymentError) {
+      // 子表删除失败必须中止，否则会留下孤儿付款记录
       console.error('删除付款记录失败:', paymentError);
+      return NextResponse.json({ error: `删除合同付款记录失败，合同未删除：${paymentError.message}` }, { status: 400 });
     }
 
     // 级联删除：再删除关联的结算单
@@ -273,6 +275,7 @@ export async function DELETE(
 
     if (settlementError) {
       console.error('删除结算单失败:', settlementError);
+      return NextResponse.json({ error: `删除合同结算单失败，合同未删除：${settlementError.message}` }, { status: 400 });
     }
 
     // 级联删除：删除关联的操作日志

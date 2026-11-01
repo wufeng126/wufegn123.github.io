@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
+import { parseNumeric } from '@/lib/format';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { isVoidedStatus, REVIEW_STATUS } from '@/lib/business-logic';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
@@ -144,11 +145,28 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 解析金额
-        const settlementAmount = Number(row.settlement_amount);
-        if (isNaN(settlementAmount) || settlementAmount <= 0) {
-          results.failed.push({ row: rowNum, error: '结算金额必须大于0' });
+        // 解析金额（兼容千分位/带单位；解析失败明确报错，不静默置 0）
+        const settlementAmount = parseNumeric(row.settlement_amount);
+        if (!(settlementAmount > 0)) {
+          results.failed.push({ row: rowNum, error: `结算金额「${row.settlement_amount ?? ''}」无效，必须大于 0` });
           continue;
+        }
+
+        // 查重：同合同 + 同类型 + 同结算日期 + 同金额（且未作废）视为已导入
+        {
+          const deductDate = optionalText(row.settlement_date);
+          let sameQuery = supabase
+            .from('supplier_settlements')
+            .select('id, status')
+            .eq('contract_id', contractId)
+            .eq('settlement_type', settlementType)
+            .eq('settlement_amount', String(settlementAmount));
+          if (deductDate) sameQuery = sameQuery.eq('settlement_date', deductDate);
+          const { data: sameRows } = await sameQuery;
+          if ((sameRows || []).some((s: { status?: string | null }) => !isVoidedStatus(s.status))) {
+            results.failed.push({ row: rowNum, error: '与已有结算单重复（同合同/同类型/同日期/同金额），已跳过' });
+            continue;
+          }
         }
 
         // 计算应付金额和付款比例

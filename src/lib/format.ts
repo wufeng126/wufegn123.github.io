@@ -14,7 +14,17 @@
 export function parseNumeric(value: unknown): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === 'number') return value;
-  if (typeof value === 'string') return parseFloat(value) || 0;
+  if (typeof value === 'string') {
+    // 去除千分位、单位与括号备注（Excel 常见："1,234.00 元"、"（暂估）12.5"）
+    const cleaned = value
+      .replace(/[，,]/g, '')
+      .replace(/[¥￥\s]/g, '')
+      .replace(/元$/, '')
+      .replace(/[（(][^）)]*[）)]/g, '')
+      .trim();
+    const num = parseFloat(cleaned);
+    return Number.isFinite(num) ? num : 0;
+  }
   if (typeof value === 'object' && value !== null && '$numberDecimal' in value) {
     return parseFloat((value as any).$numberDecimal) || 0;
   }

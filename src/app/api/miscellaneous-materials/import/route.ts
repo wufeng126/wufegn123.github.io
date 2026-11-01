@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
@@ -295,27 +296,29 @@ export async function POST(request: NextRequest) {
       price: number | string
     ): string => `${pId}__${name.trim()}__${date}__${Number(qty)}__${Number(price)}`;
 
-    // 预加载库中可访问范围内的非作废记录，构建查重集，防止同一文件重复导入 / 分批导入造成重复落库。
+    // 预加载库中可访问范围内的非作废记录，构建查重集。
+    // 必须分页取全量：单次 select 会被 PostgREST 截断到 1000 行，超过部分查重失效（曾导致 1191 条冗余）
     const seenDupKeys = new Set<string>();
     {
-      let existingQuery = client
-        .from('miscellaneous_materials')
-        .select('project_id, material_name, purchase_date, quantity, unit_price, status');
-      if (accessibleProjects !== null) {
-        existingQuery = existingQuery.in('project_id', accessibleProjects);
-      }
-      const { data: existingRows, error: existingError } = await existingQuery;
-      if (existingError) {
-        throw new Error(`查询已有零星材料失败: ${existingError.message}`);
-      }
-      (existingRows || []).forEach((row: {
+      const existingRows = await fetchAllRows<{
         project_id: number;
         material_name: string;
         purchase_date: string;
         quantity: number;
         unit_price: number;
         status?: string | null;
-      }) => {
+      }>((from, to) => {
+        let existingQuery = client
+          .from('miscellaneous_materials')
+          .select('project_id, material_name, purchase_date, quantity, unit_price, status')
+          .order('id', { ascending: true })
+          .range(from, to);
+        if (accessibleProjects !== null) {
+          existingQuery = existingQuery.in('project_id', accessibleProjects);
+        }
+        return existingQuery;
+      });
+      existingRows.forEach((row) => {
         if (isVoidedStatus(row.status || undefined)) return;
         const datePart = String(row.purchase_date || '').slice(0, 10);
         seenDupKeys.add(buildDupKey(row.project_id, row.material_name || '', datePart, row.quantity, row.unit_price));

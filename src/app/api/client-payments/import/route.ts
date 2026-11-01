@@ -5,6 +5,8 @@ import { insertWithSequenceFix } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { parseNumeric } from '@/lib/format';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 // Excel 列名到数据库字段的映射
 const IMPORT_HEADER_MAP: Record<string, string> = {
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 准备导入数据
-    const records: ClientPaymentImportRecord[] = [];
+    let records: ClientPaymentImportRecord[] = [];
     const errors: string[] = [];
 
     rows.forEach((row, index) => {
@@ -198,7 +200,14 @@ export async function POST(request: NextRequest) {
 
       // 转换付款方式和状态
       const paymentMethod = PAYMENT_METHOD_MAP[row.payment_method_text || ''] || 'bank_transfer';
-      const status = STATUS_MAP[row.status_text || ''] || 'completed';
+      // 状态映射：空值按已完成；填了但识别不了 → 报错，禁止静默默认成已回款
+      const rawStatus = String(row.status_text || '').trim();
+      const mappedStatus = STATUS_MAP[rawStatus];
+      if (rawStatus && !mappedStatus) {
+        errors.push(`第 ${index + 2} 行：付款状态「${rawStatus}」无法识别（可填：已完成/待确认/作废）`);
+        return;
+      }
+      const status = mappedStatus || 'completed';
 
       records.push({
         project_id: projectId,
@@ -217,8 +226,32 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // 库内查重：同项目 + 同付款日期 + 同金额（容差 0.01）视为已导入，避免重复导入把回款翻倍
+    let duplicateCount = 0;
+    if (records.length > 0) {
+      const projectIds = Array.from(new Set(records.map((r) => r.project_id)));
+      const existing = await fetchAllRows<{ project_id?: unknown; payment_date?: unknown; payment_amount?: unknown }>((from, to) =>
+        client
+          .from('client_payments')
+          .select('project_id, payment_date, payment_amount')
+          .in('project_id', projectIds)
+          .range(from, to));
+      const keyOf = (pid: number, date: string, amount: number) =>
+        `${pid}|${String(date).slice(0, 10)}|${Number(amount).toFixed(2)}`;
+      const seen = new Set(existing.map((row) => keyOf(Number(row.project_id), String(row.payment_date || ''), Number(row.payment_amount || 0))));
+      records = records.filter((record) => {
+        const key = keyOf(record.project_id, record.payment_date, Number(record.payment_amount));
+        if (seen.has(key)) {
+          duplicateCount += 1;
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    }
+
     if (records.length === 0) {
-      return NextResponse.json({ error: '没有有效的数据可导入' }, { status: 400 });
+      return NextResponse.json({ error: '所有记录都已存在（重复导入）', duplicates: duplicateCount }, { status: 400 });
     }
 
     // 批量插入
@@ -231,6 +264,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       count: data?.length || records.length,
+      duplicates: duplicateCount,
       payments: data 
     });
   } catch (error: unknown) {
