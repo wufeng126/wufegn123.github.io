@@ -585,19 +585,20 @@ export async function getProjectFinancialSummary(
 
   const projectTaxRate = parseNumeric(project.tax_rate || '9');
 
-  // 1. 甲方报量 → 开票金额 & 税费（仅已审核，排除作废）
-  const clientReports = await fetchAllRows<ClientReportRow>((from, to) => {
+  // 1. 甲方报量 → 开票金额 & 税费（业务确认：只有已审核报量才算产值，草稿不计）
+  const clientReportsRaw = await fetchAllRows<ClientReportRow & { status?: string | null }>((from, to) => {
     let q = client
       .from('client_reports')
-      .select('invoice_amount, settlement_amount, report_amount, tax_rate, report_date')
+      .select('invoice_amount, settlement_amount, report_amount, tax_rate, report_date, status')
       .eq('project_id', projectId)
-      .neq('status', 'voided')
       .range(from, to);
     if (dateRange) {
       q = buildDateFilter(q, 'report_date', dateRange);
     }
     return q;
   });
+  // status 为空的历史数据按已审核兼容
+  const clientReports = clientReportsRaw.filter((row) => !row.status || isReviewedStatus(row.status));
 
   let invoiceAmount = 0;
   let taxFromInvoice = 0;
@@ -754,6 +755,32 @@ export async function getProjectFinancialSummary(
     return q;
   });
   addSupplierPaymentRows(projectSupplierPayments);
+
+  // 老表 payments（直接挂供应商+项目，无合同）同样计入已付，避免成本中心漏计历史付款
+  const legacyPayments = await fetchAllRows<{ id?: unknown; project_id?: unknown; payment_amount?: unknown; payment_date?: unknown; status?: unknown }>((from, to) => {
+    let q = client
+      .from('payments')
+      .select('id, project_id, payment_amount, payment_date, status')
+      .eq('project_id', projectId)
+      .range(from, to);
+    if (dateRange) {
+      q = buildDateFilter(q, 'payment_date', dateRange);
+    }
+    return q;
+  });
+  legacyPayments.forEach((row) => {
+    if (!isEffectiveSupplierPaymentStatus(String(row.status ?? ''))) return;
+    const id = Number(row.id) || 0;
+    // 与 supplier_payments 的 id 空间错开，避免覆盖
+    supplierPaymentMapById.set(1_000_000_000 + id, {
+      id: 1_000_000_000 + id,
+      project_id: Number(row.project_id) || projectId,
+      contract_id: null,
+      payment_amount: Number(row.payment_amount || 0),
+      payment_date: (row.payment_date as string) || null,
+      status: (row.status as string) || null,
+    } as SupplierPaymentRow);
+  });
 
   const supplierPaidAmount = Array.from(supplierPaymentMapById.values())
     .filter((p: SupplierPaymentRow) => isEffectiveSupplierPaymentStatus(p.status))

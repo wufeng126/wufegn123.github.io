@@ -431,10 +431,10 @@ function generateReportHTML(
       const riskColorStr = (riskLevel === 'critical' || riskLevel === 'high') ? '#F53F3F' : riskLevel === 'medium' ? '#FF7D00' : '#00B42A';
       return [
         (item.projectName as string) || '-',
-        fmtW(item.cumulativeOutput as number || 0),
+        fmtW(item.cumulativeConfirmedValue as number || 0),
         fmtW(item.cumulativeReceivable as number || 0),
         fmtW(item.cumulativeReceived as number || 0),
-        `<span style="color:${riskColorStr}">${fmtW(item.unreceived as number || item.unpaidAmount as number || 0)}</span>`,
+        `<span style="color:${riskColorStr}">${fmtW(item.unreceived as number || 0)}</span>`,
         (item.aging as string) || '-',
         `<span style="color:${riskColorStr}">${riskLabel}</span>`,
       ];

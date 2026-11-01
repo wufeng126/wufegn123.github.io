@@ -215,7 +215,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     const projects = projectsResult.data || [];
-    const clientReports = reportsResult.data || [];
+    // 草稿报量不计入产值（业务确认：只有已审核报量才算产值）
+    const clientReports = (reportsResult.data || []).filter((row: Record<string, unknown>) => !row.status || isReviewedStatus(String(row.status)));
     const clientPayments = paymentsResult.data || [];
     const newSettlements = settlementsResult.data || [];
     const oldSettlements = oldSettlementsResult.data || [];
@@ -226,29 +227,29 @@ export async function GET(request: NextRequest) {
     const salariesLastYear = salariesLastYearResult.data || [];
     const salariesTrend = salariesTrendResult.data || [];
     const salaryPayments = salaryPaymentsResult.data || [];
-    // 本月实发（老板视角）= 本月实际支付出去的工资，按发放日期归属到「工资单所属项目」
-    const paymentSalaryIds = Array.from(new Set(
-      salaryPayments.map((p: Record<string, unknown>) => Number(p.salary_id)).filter((id) => Number.isInteger(id) && id > 0),
-    ));
-    const salaryProjectById = new Map<number, number>();
-    for (let i = 0; i < paymentSalaryIds.length; i += 300) {
-      const chunk = paymentSalaryIds.slice(i, i + 300);
-      const { data: salaryProjectRows } = await supabase
+    // 未发工资：截至报告月的全部工资单（跨月欠薪必须能算出来），按实发 net_pay 计
+    const unpaidSalaryRows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+      supabase
         .from('worker_salaries')
-        .select('id, project_id')
-        .in('id', chunk);
-      (salaryProjectRows || []).forEach((row: { id?: unknown; project_id?: unknown }) => {
-        salaryProjectById.set(Number(row.id), Number(row.project_id) || 0);
-      });
-    }
-    const monthPaidByProject = new Map<number, number>();
+        .select('id, worker_id, project_id, year_month, net_pay, payment_status')
+        .in('project_id', targetProjectIds)
+        .lte('year_month', reportMonth)
+        .or('source.is.null,source.neq.team_settlement')
+        .range(from, to));
+    // 工资单已发金额：优先按 salary_id，老数据按 工人+项目+月份 兜底
+    const paidBySalaryId = new Map<number, number>();
+    const paidByWorkerKey = new Map<string, number>();
     salaryPayments.forEach((p: Record<string, unknown>) => {
-      const payMonth = String(p.payment_date || '').slice(0, 7) || String(p.year_month || '').slice(0, 7);
-      if (payMonth !== reportMonth) return;
       const salaryId = Number(p.salary_id) || 0;
-      const pid = (salaryId > 0 ? salaryProjectById.get(salaryId) : 0) || Number(p.project_id) || 0;
-      if (!pid) return;
-      monthPaidByProject.set(pid, (monthPaidByProject.get(pid) || 0) + Number(p.payment_amount || 0));
+      const amount = Number(p.payment_amount || 0);
+      if (salaryId > 0) paidBySalaryId.set(salaryId, (paidBySalaryId.get(salaryId) || 0) + amount);
+      const workerId = Number(p.worker_id) || 0;
+      const pid = Number(p.project_id) || 0;
+      const month = String(p.year_month || '').slice(0, 7);
+      if (workerId > 0 && pid > 0 && month) {
+        const key = `${workerId}|${pid}|${month}`;
+        paidByWorkerKey.set(key, (paidByWorkerKey.get(key) || 0) + amount);
+      }
     });
     // 工种映射：工资记录引用的工人可能挂在其他项目行下（跨项目），按 worker_id 全量补齐工种
     const referencedWorkerIds = Array.from(new Set(
@@ -369,7 +370,13 @@ export async function GET(request: NextRequest) {
         projectId: info.projectId,
         contractId: contractId || null,
         settlementAmount: Number(s.settlement_amount || s.amount || 0),
-        payableAmount: Number(s.payable_amount || s.settlement_amount || s.amount || 0),
+        // 0 是合法应付（如决算比例 0%），只有 null/undefined/空串才回退
+        payableAmount: (() => {
+          const raw = s.payable_amount;
+          if (raw === null || raw === undefined || raw === '') return Number(s.settlement_amount || s.amount || 0);
+          const value = Number(raw);
+          return Number.isFinite(value) ? value : Number(s.settlement_amount || s.amount || 0);
+        })(),
         settlementDate: (s.settlement_date as string) || (s.created_at as string) || null,
         settlementMonth: null, // new table doesn't have settlement_month
         settlementType: (s.settlement_type as string) || null,
@@ -675,11 +682,11 @@ export async function GET(request: NextRequest) {
           .filter((s: Record<string, unknown>) => s.payment_status === 'paid')
           .map((s: Record<string, unknown>) => Number(s.net_pay || 0)),
       );
-      // 口径以「月度工资」为准：本月工资单实发（net_pay）合计，
-      // 不依赖工资发放记录（实际发钱时间不确定，发放记录常滞后或跨月）
-      const monthSalaryPayment = monthSalaryPaymentFromStatus;
-      void monthPaidByProject;
-      const monthActualPayment = monthSalaryPayment + monthSupplierPayments + monthExpenseCost + monthMaterialCost + monthTaxCost;
+      // 口径以「月度工资」为准：本月工资单实发（net_pay）合计（业务确认：实发以月度工资为准）
+      const monthSalaryPayment = safeSum(projSalaries.map((s: Record<string, unknown>) => Number(s.net_pay || 0)));
+      void monthSalaryPaymentFromStatus;
+      // 现金流出不含税费（税费是计提，不产生当月现金支出）
+      const monthActualPayment = monthSalaryPayment + monthSupplierPayments + monthExpenseCost + monthMaterialCost;
       const cashNetFlow = monthReceived - monthActualPayment;
       const cashNetFlowRate = monthReceived > 0 ? (cashNetFlow / monthReceived) * 100 : 0;
 
@@ -690,16 +697,28 @@ export async function GET(request: NextRequest) {
       const cumulativeProfitRate = totalIncome > 0 ? (cumulativeProfit / totalIncome) * 100 : 0;
 
       const inServiceCount = projWorkers.filter((w: Record<string, unknown>) => w.status === '在场' || !w.status).length;
-      const unpaidSalary = safeSum(projSalaries.filter((s: Record<string, unknown>) => s.payment_status === 'unpaid' || s.payment_status === 'partial').map((s: Record<string, unknown>) => Number(s.gross_pay || 0)));
-      const unpaidSalaryWorkers = projSalaries.filter((s: Record<string, unknown>) => s.payment_status === 'unpaid' || s.payment_status === 'partial').length;
-
-      // Earliest unpaid month
-      const unpaidSalaryMonths = projSalaries
-        .filter((s: Record<string, unknown>) => s.payment_status === 'unpaid' || s.payment_status === 'partial')
-        .map((s: Record<string, unknown>) => s.year_month as string)
-        .filter(Boolean)
-        .sort();
-      const earliestUnpaidMonth = unpaidSalaryMonths.length > 0 ? unpaidSalaryMonths[0] : null;
+      // 未发工资：跨月累计，按实发(net_pay) − 已发；不再只看当月、不再用应发
+      let unpaidSalary = 0;
+      const unpaidWorkerSet = new Set<number>();
+      let earliestUnpaidMonth: string | null = null;
+      for (const row of unpaidSalaryRows) {
+        if (Number(row.project_id) !== pid) continue;
+        const netPay = Number(row.net_pay || 0);
+        if (netPay <= 0) continue;
+        const salaryId = Number(row.id) || 0;
+        const workerId = Number(row.worker_id) || 0;
+        const month = String(row.year_month || '').slice(0, 7);
+        const paid = (salaryId > 0 ? paidBySalaryId.get(salaryId) : undefined)
+          ?? paidByWorkerKey.get(`${workerId}|${pid}|${month}`)
+          ?? 0;
+        const remaining = Math.max(netPay - paid, 0);
+        if (remaining > 0.005) {
+          unpaidSalary += remaining;
+          if (workerId > 0) unpaidWorkerSet.add(workerId);
+          if (!earliestUnpaidMonth || month < earliestUnpaidMonth) earliestUnpaidMonth = month;
+        }
+      }
+      const unpaidSalaryWorkers = unpaidWorkerSet.size;
 
       // Supplier payable calculation
       const supplierPayable = safeSum(projSettlements.map(s => s.payableAmount));
@@ -836,7 +855,32 @@ export async function GET(request: NextRequest) {
       totalSettlement: number; monthSettlement: number; payable: number; paid: number;
       unpaid: number; paymentRate: number; aging: string; riskLevel: string;
     }> = [];
-    for (const settlement of allSettlements) {
+    // 付款按合同归集，只落到该合同最新一张结算单上，避免"每张结算单都背全部已付"
+    const paidByContract = new Map<number, number>();
+    const paidBySupplierProject = new Map<string, number>();
+    allPayments.forEach((p) => {
+      if (p.contractId) {
+        paidByContract.set(p.contractId, (paidByContract.get(p.contractId) || 0) + p.paymentAmount);
+      } else {
+        const key = `${p.supplierId}|${p.projectId}`;
+        paidBySupplierProject.set(key, (paidBySupplierProject.get(key) || 0) + p.paymentAmount);
+      }
+    });
+    const latestSettlementIndex = new Map<string, number>();
+    allSettlements.forEach((s, index) => {
+      const key = s.contractId ? `c${s.contractId}` : `sp${s.supplierId}|${s.projectId}`;
+      const prev = latestSettlementIndex.get(key);
+      if (prev === undefined) {
+        latestSettlementIndex.set(key, index);
+        return;
+      }
+      const prevDate = String(allSettlements[prev].settlementDate || '');
+      const currentDate = String(s.settlementDate || '');
+      if (currentDate >= prevDate) latestSettlementIndex.set(key, index);
+    });
+
+    for (let settlementIndex = 0; settlementIndex < allSettlements.length; settlementIndex += 1) {
+      const settlement = allSettlements[settlementIndex];
       const pid = settlement.projectId;
       if (!pid || !targetProjectIds.includes(pid)) continue;
       const proj = projectDataList.find(p => p.id === pid);
@@ -844,15 +888,12 @@ export async function GET(request: NextRequest) {
       const supplier = suppliers.find((s: Record<string, unknown>) => toNumber(s.id) === settlement.supplierId);
       const contract = settlement.contractId ? supplierContracts.find((c: Record<string, unknown>) => toNumber(c.id) === settlement.contractId) as Record<string, unknown> | undefined : undefined;
 
-      // Find payments matching this supplier+project (or contract if available)
-      const projSupPaid = safeSum(
-        allPayments
-          .filter(p => {
-            if (settlement.contractId && p.contractId === settlement.contractId) return true;
-            return p.supplierId === settlement.supplierId && p.projectId === pid;
-          })
-          .map(p => p.paymentAmount)
-      );
+      // 已付：只在该合同（或该供应商+项目）的最新一张结算单上体现，避免重复累计
+      const settlementKey = settlement.contractId ? `c${settlement.contractId}` : `sp${settlement.supplierId}|${pid}`;
+      const isLatestForKey = latestSettlementIndex.get(settlementKey) === settlementIndex;
+      const projSupPaid = isLatestForKey
+        ? (settlement.contractId ? (paidByContract.get(settlement.contractId) || 0) : (paidBySupplierProject.get(`${settlement.supplierId}|${pid}`) || 0))
+        : 0;
       const settleAmount = settlement.settlementAmount;
       const payable = settlement.payableAmount;
       const unpaid = Math.max(payable - projSupPaid, 0);

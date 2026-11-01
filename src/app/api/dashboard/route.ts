@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getReportRevenue } from '@/lib/revenue';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { isReviewedStatus } from '@/lib/review-status';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveClientPaymentStatus, isVisaActiveStatus, isVisaDoneStatus } from '@/lib/business-logic';
 import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialSummaries } from '@/lib/data-aggregation';
@@ -217,7 +218,8 @@ export async function GET(request: Request) {
       return q;
     });
 
-    const totalMeasurementAmount = allReports?.filter(r => r.status !== 'voided').reduce((sum, r) => {
+    // 业务确认：草稿报量不计产值，只有已审核（历史空状态按已审核兼容）才计入
+    const totalMeasurementAmount = allReports?.filter(r => !r.status || isReviewedStatus(String(r.status))).reduce((sum, r) => {
       return sum + getReportRevenue(r);
     }, 0) || 0;
 
@@ -297,11 +299,12 @@ export async function GET(request: Request) {
     // 本月甲方报量
     const currentMonthClientReports = clientReports?.filter(r => {
       if (!r.report_date) return false;
+      if (r.status && !isReviewedStatus(String(r.status))) return false;
       const reportDate = new Date(r.report_date);
       const yearMonth = `${reportDate.getFullYear()}-${String(reportDate.getMonth() + 1).padStart(2, '0')}`;
       return yearMonth === currentMonth;
     }) || [];
-    const currentMonthClientReportAmount = currentMonthClientReports.filter(r => r.status !== 'voided').reduce((sum, r) => {
+    const currentMonthClientReportAmount = currentMonthClientReports.reduce((sum, r) => {
       return sum + getReportRevenue(r);
     }, 0);
 

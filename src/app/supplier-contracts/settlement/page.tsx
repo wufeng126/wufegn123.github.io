@@ -584,74 +584,7 @@ export default function SettlementPage() {
     }
   };
 
-  // 提交审核 / 反审核 / 作废（统一走 /api/review，resource_type=supplier_settlement）
-  const handleReviewSettlement = async (id: number, action: 'review' | 'unreview' | 'void') => {
-    const actionLabel = action === 'review' ? '提交审核' : action === 'unreview' ? '反审核' : '作废';
-    const confirmTitle =
-      action === 'review'
-        ? '确定提交该结算单审核吗？审核后将计入合同结算统计。'
-        : action === 'unreview'
-          ? '确定反审核该结算单吗？反审核后草稿状态将不计入统计。'
-          : '确定作废该结算单吗？作废后不再参与累计统计。';
-    if (!(await confirm({ title: confirmTitle, variant: action === 'void' ? 'destructive' : 'default' }))) return;
-
-    try {
-      const res = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resource_type: 'supplier_settlement', resource_id: id, action }),
-      });
-      const result = await res.json();
-      if (res.ok && result.success) {
-        toast.success(result.message || `${actionLabel}成功`);
-        fetchSettlements();
-      } else {
-        toast.error(result.error || `${actionLabel}失败`);
-      }
-    } catch {
-      toast.error(`${actionLabel}失败，请重试`);
-    }
-  };
-
-  // 根据状态展示操作按钮：草稿→提交审核；已审核→反审核/作废；已作废→无操作（仅删除）
-  const renderReviewActions = (settlement: Settlement) => {
-    const isReviewed = isReviewedSettlement(settlement.status);
-    const isVoided = isVoidedSettlement(settlement.status);
-    if (isVoided) return null;
-    if (isReviewed) {
-      return (
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-amber-600"
-            onClick={(event) => { event.stopPropagation(); handleReviewSettlement(settlement.id, 'unreview'); }}
-          >
-            <Undo2 className="mr-1 h-3.5 w-3.5" />反审核
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-red-600"
-            onClick={(event) => { event.stopPropagation(); handleReviewSettlement(settlement.id, 'void'); }}
-          >
-            <Ban className="mr-1 h-3.5 w-3.5" />作废
-          </Button>
-        </>
-      );
-    }
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-green-600"
-        onClick={(event) => { event.stopPropagation(); handleReviewSettlement(settlement.id, 'review'); }}
-      >
-        <CheckCircle className="mr-1 h-3.5 w-3.5" />提交审核
-      </Button>
-    );
-  };
-
+  // 业务确认：供应商结算「录入即生效」，不再走提交审核/反审核/作废（避免无权限账号点按钮必然 403）
   const projectNameById = useMemo(() => {
     return new Map(projects.map((project) => [Number(project.id), project.name]));
   }, [projects]);
@@ -1022,7 +955,7 @@ export default function SettlementPage() {
                           <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); openSettlementDetail(s); }}>
                             <FileText className="w-4 h-4 text-blue-600" />
                           </Button>
-                          {renderReviewActions(s)}
+                          
                           <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDeleteSettlement(s.id); }} aria-label="删除">
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
@@ -1104,7 +1037,7 @@ export default function SettlementPage() {
                       {isVoidedSettlement(s.status) ? '已作废' : isReviewedSettlement(s.status) ? '已审核' : '待审核'}
                     </span>
                     <div className="flex items-center gap-1">
-                      {renderReviewActions(s)}
+                      
                       <Button
                         type="button"
                         variant="outline"

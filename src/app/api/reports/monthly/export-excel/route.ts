@@ -191,22 +191,26 @@ export async function POST(request: NextRequest) {
     if ((sectionFilter === 'all' || sectionFilter === 'supplier') && supplierPaymentsBySupplier.length > 0) {
       const supplierData = supplierPaymentsBySupplier.map((s: Record<string, unknown>) => ({
         '供应商': String(s.supplierName || ''),
-        '结算金额(元)': Number(s.settlementAmount || 0),
-        '已付金额(元)': Number(s.paidAmount || 0),
-        '未付金额(元)': Number(s.unpaidAmount || 0),
+        '项目': String(s.projectName || ''),
+        '累计结算(元)': Number(s.totalSettlement || 0),
+        '应付(元)': Number(s.totalPayable || 0),
+        '已付金额(元)': Number(s.totalPaid || 0),
+        '未付金额(元)': Number(s.totalUnpaid || 0),
         '付款率(%)': Number(s.paymentRate || 0).toFixed(1),
         '合同数': Number(s.contractCount || 0),
-        '结算单数': Number(s.settlementCount || 0),
-        '付款单数': Number(s.paymentCount || 0),
+        '本月结算(元)': Number(s.monthSettlement || 0),
+        '本月付款(元)': Number(s.monthPaid || 0),
       }));
 
       if (supplierData.length > 0) {
         // Add totals
         supplierData.push({
           '供应商': '合计',
-          '结算金额(元)': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['结算金额(元)'] || 0), 0),
+          '累计结算(元)': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['累计结算(元)'] || 0), 0),
+          '应付(元)': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['应付(元)'] || 0), 0),
           '已付金额(元)': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['已付金额(元)'] || 0), 0),
           '未付金额(元)': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['未付金额(元)'] || 0), 0),
+          '项目': '-',
           '付款率(%)': '',
           '合同数': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['合同数'] || 0), 0),
           '结算单数': supplierData.reduce((sum: number, s: Record<string, unknown>) => sum + Number(s['结算单数'] || 0), 0),
@@ -223,15 +227,14 @@ export async function POST(request: NextRequest) {
     if ((sectionFilter === 'all' || sectionFilter === 'cashflow') && collectionLagAnalysis.length > 0) {
       const lagData = collectionLagAnalysis.map((item: Record<string, unknown>) => ({
         '项目名称': String(item.projectName || ''),
-        '累计确认产值(元)': Number(item.cumulativeOutput || 0),
+        '累计确认产值(元)': Number(item.cumulativeConfirmedValue || 0),
         '累计应回款(元)': Number(item.cumulativeReceivable || 0),
         '累计已回款(元)': Number(item.cumulativeReceived || 0),
         '应收未回(元)': Number(item.unreceived || 0),
-        '是否超收': item.isOverCollected ? '是' : '否',
-        '超收金额(元)': Number(item.overCollectedAmount || 0),
-        '账龄天数': Number(item.agingDays || 0),
-        '账龄分类': String(item.agingCategory || ''),
-        '预计回款日期': item.estimatedPaymentDate || '-',
+        '是否超收': item.isOverReceived ? '是' : '否',
+        '超收金额(元)': Number(item.overReceivedAmount || 0),
+        '账龄': String(item.aging || '-'),
+        '预计回款日期': item.estimatedCollectionDate || '-',
         '责任人': item.responsiblePerson || '-',
         '风险等级': String(item.riskLevel || ''),
       }));
