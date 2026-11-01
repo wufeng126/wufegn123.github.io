@@ -757,17 +757,24 @@ export async function getProjectFinancialSummary(
   addSupplierPaymentRows(projectSupplierPayments);
 
   // 老表 payments（直接挂供应商+项目，无合同）同样计入已付，避免成本中心漏计历史付款
-  const legacyPayments = await fetchAllRows<{ id?: unknown; project_id?: unknown; payment_amount?: unknown; payment_date?: unknown; status?: unknown }>((from, to) => {
-    let q = client
-      .from('payments')
-      .select('id, project_id, payment_amount, payment_date, status')
-      .eq('project_id', projectId)
-      .range(from, to);
-    if (dateRange) {
-      q = buildDateFilter(q, 'payment_date', dateRange);
-    }
-    return q;
-  });
+  // 注意：老表结构在不同环境可能不一致（缺 status 等列），查询失败只能降级为空，不能让整页统计失败
+  let legacyPayments: Array<{ id?: unknown; project_id?: unknown; payment_amount?: unknown; payment_date?: unknown; status?: unknown }> = [];
+  try {
+    legacyPayments = await fetchAllRows((from, to) => {
+      let q = client
+        .from('payments')
+        .select('*')
+        .eq('project_id', projectId)
+        .range(from, to);
+      if (dateRange) {
+        q = buildDateFilter(q, 'payment_date', dateRange);
+      }
+      return q;
+    });
+  } catch (legacyError) {
+    console.warn('[data-aggregation] 老表 payments 查询失败，已跳过（不影响其余统计）:', legacyError);
+    legacyPayments = [];
+  }
   legacyPayments.forEach((row) => {
     if (!isEffectiveSupplierPaymentStatus(String(row.status ?? ''))) return;
     const id = Number(row.id) || 0;
