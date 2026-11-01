@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const { data: settlement, error: settlementError } = await supabase
       .from('team_settlements')
-      .select('id, project_id, team_id, settlement_month, status, settlement_no')
+      .select('id, project_id, team_id, settlement_month, status, settlement_no, approver_user_id, created_by')
       .eq('id', settlementId)
       .maybeSingle();
     if (settlementError) throw new Error(settlementError.message);
@@ -104,14 +104,40 @@ export async function POST(request: NextRequest) {
 
     // 操作人必须是老板/超管（审批权限），防止任意钉钉用户伪造审批
     const operatorRole = String(operatorUser?.role || '');
-    const isApprover = operatorRole === 'super_admin' || operatorRole === 'boss';
+    const designatedApproverId = Number((settlement as Record<string, unknown>).approver_user_id) || 0;
+    const operatorUserId = Number(operatorUser?.id || 0);
+    // 老板/超管可审批；提交时指定的审批人也可以直接点卡片
+    const isApprover = operatorRole === 'super_admin'
+      || operatorRole === 'boss'
+      || (designatedApproverId > 0 && operatorUserId === designatedApproverId);
     if (!isApprover) {
-      return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '仅老板可审批'));
+      return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '你不是该结算单的审批人'));
     }
 
     const now = new Date().toISOString();
 
     if (action === 'approve') {
+      // 先生成分账应发工资：失败则不审批，避免"成本已计、工资台账漏人"
+      const { data: splitsForApprove } = await supabase
+        .from('team_settlement_splits')
+        .select('worker_id, work_hours, hourly_rate, amount')
+        .eq('settlement_id', settlementId);
+      if (splitsForApprove && splitsForApprove.length > 0) {
+        try {
+          await generateWorkerSalariesFromSplits({
+            settlementId,
+            settlementMonth: String(settlement.settlement_month),
+            projectId: Number(settlement.project_id),
+            teamId: Number(settlement.team_id) || 0,
+            splits: splitsForApprove,
+          });
+        } catch (genError) {
+          const detail = genError instanceof Error ? genError.message : String(genError);
+          console.error('[dingtalk-card-callback] 生成分账工资失败，审批中止:', genError);
+          return NextResponse.json(buildDingTalkCardUpdate(outTrackId, `生成分账工资失败，请到系统处理：${detail}`));
+        }
+      }
+
       // 乐观锁：仅 pending 可更新，防止并发重复审批
       const { data: updatedRows, error: updateError } = await supabase
         .from('team_settlements')
@@ -127,25 +153,6 @@ export async function POST(request: NextRequest) {
       if (updateError) throw new Error(updateError.message);
       if (!updatedRows || updatedRows.length === 0) {
         return NextResponse.json(buildDingTalkCardUpdate(outTrackId, '该结算单已处理'));
-      }
-
-      // 审批通过 → 生成分账应发工资（失败记录日志，不阻断审批结果）
-      const { data: splits } = await supabase
-        .from('team_settlement_splits')
-        .select('worker_id, work_hours, hourly_rate, amount')
-        .eq('settlement_id', settlementId);
-      if (splits && splits.length > 0) {
-        try {
-          await generateWorkerSalariesFromSplits({
-            settlementId,
-            settlementMonth: String(settlement.settlement_month),
-            projectId: Number(settlement.project_id),
-            teamId: Number(settlement.team_id) || 0,
-            splits,
-          });
-        } catch (genError) {
-          console.error('[dingtalk-card-callback] 生成分账应发工资失败:', genError);
-        }
       }
 
       try {
@@ -169,6 +176,27 @@ export async function POST(request: NextRequest) {
         },
         request,
       });
+
+      // 审批结果通知提交人（站内 + 钉钉）
+      try {
+        const creatorId = Number((settlement as Record<string, unknown>).created_by) || 0;
+        if (creatorId > 0) {
+          const { pushBusinessNotification } = await import('@/lib/business-notification');
+          await pushBusinessNotification({
+            type: 'team_settlement_approved',
+            title: `班组结算已通过：${settlement.settlement_no || `#${settlementId}`}`,
+            content: `${operatorName} 在钉钉卡片中通过了 ${settlement.settlement_month || ''} 班组结算，已计入成本并生成分账应发工资。`,
+            severity: 'info',
+            projectId: Number(settlement.project_id) || undefined,
+            relatedId: settlementId,
+            relatedType: 'team_settlement',
+            recipientUserIds: [creatorId],
+            metadata: { 建议动作: '查看结算单', 处理入口: `/team-management/settlements/${settlementId}` },
+          });
+        }
+      } catch (notifyError) {
+        console.error('[dingtalk-card-callback] 通知提交人失败:', notifyError);
+      }
 
       return NextResponse.json(buildDingTalkCardUpdate(outTrackId, `已通过（${operatorName}）`));
     }
@@ -215,6 +243,26 @@ export async function POST(request: NextRequest) {
         },
         request,
       });
+
+      try {
+        const creatorId = Number((settlement as Record<string, unknown>).created_by) || 0;
+        if (creatorId > 0) {
+          const { pushBusinessNotification } = await import('@/lib/business-notification');
+          await pushBusinessNotification({
+            type: 'team_settlement_rejected',
+            title: `班组结算被驳回：${settlement.settlement_no || `#${settlementId}`}`,
+            content: `${operatorName} 在钉钉卡片中驳回了 ${settlement.settlement_month || ''} 班组结算：${reason}`,
+            severity: 'warning',
+            projectId: Number(settlement.project_id) || undefined,
+            relatedId: settlementId,
+            relatedType: 'team_settlement',
+            recipientUserIds: [creatorId],
+            metadata: { 建议动作: '修改后重新提交', 处理入口: `/team-management/settlements/${settlementId}` },
+          });
+        }
+      } catch (notifyError) {
+        console.error('[dingtalk-card-callback] 通知提交人失败:', notifyError);
+      }
 
       return NextResponse.json(buildDingTalkCardUpdate(outTrackId, `已驳回（${operatorName}）`));
     }

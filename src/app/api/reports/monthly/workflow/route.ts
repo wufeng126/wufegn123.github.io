@@ -524,7 +524,7 @@ export async function POST(request: NextRequest) {
             消息分类: '月报协作',
             业务摘要: `${month} 月报待项目经理补充`,
             建议动作: '打开月报补充经营分析/风险说明/下月计划',
-            处理入口: `/reports/monthly?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`,
+            处理入口: `/reports/monthly/fill?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`,
           },
         });
       } else if (action === 'supplement') {
@@ -547,7 +547,7 @@ export async function POST(request: NextRequest) {
             消息分类: '月报协作',
             业务摘要: `${month} 月报待老板审批`,
             建议动作: '打开月报完善后审批',
-            处理入口: `/reports/monthly?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`,
+            处理入口: `/reports/monthly/fill?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`,
           },
         });
       } else if (action === 'approve' || action === 'reject') {
@@ -567,7 +567,7 @@ export async function POST(request: NextRequest) {
             消息分类: '月报协作',
             业务摘要: action === 'approve' ? '审批通过' : `驳回：${reason}`,
             建议动作: action === 'approve' ? '查看月报' : '修改后重新提交',
-            处理入口: `/reports/monthly?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`,
+            处理入口: `/reports/monthly/fill?month=${month}${scope !== 'all' ? `&projectId=${scope}` : ''}`,
           },
         });
       }

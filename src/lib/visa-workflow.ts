@@ -86,6 +86,12 @@ export async function notifyVisaWorkflow(params: {
     relatedId: params.visaId || undefined,
     relatedType: 'visa',
     recipientUserIds: params.recipientUserId ? [params.recipientUserId] : undefined,
-    metadata: params.metadata,
+    metadata: {
+      ...(params.metadata || {}),
+      // 默认给一条直达链接，钉钉卡片按钮可直接打开该签证
+      ...(params.visaId && !(params.metadata && ((params.metadata as Record<string, unknown>).处理入口 || (params.metadata as Record<string, unknown>).actionHref))
+        ? { 处理入口: `/visas?visa_id=${params.visaId}&todo=1` }
+        : {}),
+    },
   });
 }
