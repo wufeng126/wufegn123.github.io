@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { getCurrentUser, type RequestAuthUser } from '@/lib/auth';
 import { requireApiWritePermission } from '@/lib/api-auth';
@@ -119,11 +120,9 @@ export async function GET(request: NextRequest) {
       query = query.eq('project_id', parseInt(projectId));
     }
     
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      throw new Error(`查询工人失败: ${error.message}`);
-    }
+    // 分页取全量：花名册已超 1000 人，单次查询会少人
+    const data = await fetchAllRows<any>((from, to) =>
+      query.order('created_at', { ascending: false }).range(from, to));
 
     // 数据权限过滤：project_id为NULL的工人允许所有有权限的用户查看
     let workers = ((data || []) as WorkerRow[]);

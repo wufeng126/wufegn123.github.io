@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
@@ -144,7 +145,14 @@ export async function POST(request: NextRequest) {
     if (!isSuperAdmin) {
       workersQuery = workersQuery.in('project_id', accessibleProjectIds);
     }
-    const { data: workersData, error: workersError } = await workersQuery;
+    // 分页取全量：花名册已超 1000 人，截断会导致工人匹配失败、重复建人/重复工资
+    let workersData: any[] = [];
+    let workersError: { message?: string } | null = null;
+    try {
+      workersData = await fetchAllRows<any>((from, to) => workersQuery.range(from, to));
+    } catch (error) {
+      workersError = { message: error instanceof Error ? error.message : String(error) };
+    }
     if (workersError) {
       throw new Error(`查询工人档案失败: ${workersError.message}`);
     }
@@ -636,7 +644,14 @@ export async function POST(request: NextRequest) {
         existingQuery = existingQuery.in('project_id', projectIdsToCheck);
       }
 
-      const { data: existingSalaries, error: existingSalaryError } = await existingQuery;
+      // 分页取全量：工资单已超 1000 行，截断会让查重失效、重复导入
+    let existingSalaries: any[] = [];
+    let existingSalaryError: { message?: string } | null = null;
+    try {
+      existingSalaries = await fetchAllRows<any>((from, to) => existingQuery.range(from, to));
+    } catch (error) {
+      existingSalaryError = { message: error instanceof Error ? error.message : String(error) };
+    }
 
       if (existingSalaryError) {
         return NextResponse.json({ error: `检查重复工资记录失败: ${existingSalaryError.message}` }, { status: 500 });

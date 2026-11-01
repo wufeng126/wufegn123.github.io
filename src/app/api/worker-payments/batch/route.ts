@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
@@ -404,15 +405,16 @@ async function analyzeRows(
   const projectIds = [...new Set(parsedRows.map(row => row.project_id))];
   const yearMonths = [...new Set(parsedRows.map(row => row.year_month))];
   if (projectIds.length > 0 && yearMonths.length > 0) {
-    const { data: existingPayments, error } = await client
-      .from('salary_payments')
-      .select('payment_amount, year_month, project_id, workers(name), projects(name)')
-      .in('project_id', projectIds)
-      .in('year_month', yearMonths);
+    // 分页取全量：发放记录已超 1000 行，截断会漏判重复导致重复发放
+    const existingPayments = await fetchAllRows<any>((from, to) =>
+      client
+        .from('salary_payments')
+        .select('payment_amount, year_month, project_id, workers(name), projects(name)')
+        .in('project_id', projectIds)
+        .in('year_month', yearMonths)
+        .range(from, to));
 
-    if (error) throw new Error(`检查重复工资发放失败：${error.message}`);
-
-    (existingPayments || []).forEach((payment: any) => {
+    existingPayments.forEach((payment: any) => {
       existingDuplicateKeys.add(duplicatePaymentKey({
         workerName: payment.workers?.name,
         projectName: payment.projects?.name,
@@ -434,15 +436,16 @@ async function analyzeRows(
   const paidMap = new Map<number, number>();
 
   if (salaryProjectIds.length > 0 && salaryYearMonths.length > 0) {
-    const { data: salaries, error } = await client
-      .from('worker_salaries')
-      .select('id, worker_id, project_id, year_month, net_pay')
-      .in('project_id', salaryProjectIds)
-      .in('year_month', salaryYearMonths);
+    // 分页取全量：工资单已超 1000 行
+    const salaries = await fetchAllRows<any>((from, to) =>
+      client
+        .from('worker_salaries')
+        .select('id, worker_id, project_id, year_month, net_pay')
+        .in('project_id', salaryProjectIds)
+        .in('year_month', salaryYearMonths)
+        .range(from, to));
 
-    if (error) throw new Error(`匹配工资核算单失败：${error.message}`);
-
-    (salaries || []).forEach((salary: any) => {
+    salaries.forEach((salary: any) => {
       const idKey = `${salary.worker_id}:${salary.project_id}:${salary.year_month}`;
       if (salaryMap.has(idKey)) duplicateSalaryKeys.add(idKey);
       salaryMap.set(idKey, salary);
@@ -455,17 +458,22 @@ async function analyzeRows(
       }
     });
 
-    const salaryIds = (salaries || []).map((salary: any) => salary.id);
+    const salaryIds = salaries.map((salary: any) => salary.id);
     if (salaryIds.length > 0) {
-      const { data: existingSalaryPayments } = await client
-        .from('salary_payments')
-        .select('salary_id, payment_amount')
-        .in('salary_id', salaryIds);
-
-      (existingSalaryPayments || []).forEach((payment: any) => {
-        if (!payment.salary_id) return;
-        paidMap.set(payment.salary_id, (paidMap.get(payment.salary_id) || 0) + parseAmount(payment.payment_amount));
-      });
+      // 分段 IN + 分页，避免已发金额少算
+      for (let i = 0; i < salaryIds.length; i += 200) {
+        const chunk = salaryIds.slice(i, i + 200);
+        const existingSalaryPayments = await fetchAllRows<any>((from, to) =>
+          client
+            .from('salary_payments')
+            .select('salary_id, payment_amount')
+            .in('salary_id', chunk)
+            .range(from, to));
+        existingSalaryPayments.forEach((payment: any) => {
+          if (!payment.salary_id) return;
+          paidMap.set(payment.salary_id, (paidMap.get(payment.salary_id) || 0) + parseAmount(payment.payment_amount));
+        });
+      }
     }
   }
 

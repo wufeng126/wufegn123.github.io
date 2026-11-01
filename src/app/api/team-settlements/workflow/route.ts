@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requirePermission } from '@/lib/api-auth';
@@ -102,12 +103,14 @@ export async function POST(request: NextRequest) {
 
     // 反审核前校验：分账工资一旦已有发放记录（钱已付出），禁止反审核，避免连发放流水一起删掉
     if (action === 'unapprove') {
-      const { data: salaryRowsForCheck } = await supabase
-        .from('worker_salaries')
-        .select('id')
-        .eq('settlement_id', settlementId);
-      const salaryIdsForCheck = (salaryRowsForCheck || [])
-        .map((row: { id?: unknown }) => Number(row.id))
+      const salaryRowsForCheck = await fetchAllRows<{ id?: unknown }>((from, to) =>
+        supabase
+          .from('worker_salaries')
+          .select('id')
+          .eq('settlement_id', settlementId)
+          .range(from, to));
+      const salaryIdsForCheck = salaryRowsForCheck
+        .map((row) => Number(row.id))
         .filter(Boolean);
       if (salaryIdsForCheck.length > 0) {
         const { data: paidRows } = await supabase
@@ -133,12 +136,15 @@ export async function POST(request: NextRequest) {
           .filter((id) => Number.isInteger(id) && id > 0),
       ));
       if (splitWorkerIds.length > 0) {
-        const { data: conflictRows } = await supabase
-          .from('worker_salaries')
-          .select('worker_id, workers(name)')
-          .in('worker_id', splitWorkerIds)
-          .eq('year_month', String(settlement.settlement_month || ''))
-          .neq('settlement_id', settlementId);
+        // 分页取全量：工资表已超 1000 行，截断会漏判冲突导致重复生成工资
+        const conflictRows = await fetchAllRows<any>((from, to) =>
+          supabase
+            .from('worker_salaries')
+            .select('worker_id, workers(name)')
+            .in('worker_id', splitWorkerIds)
+            .eq('year_month', String(settlement.settlement_month || ''))
+            .neq('settlement_id', settlementId)
+            .range(from, to));
         if (conflictRows && conflictRows.length > 0) {
           const names = conflictRows
             .slice(0, 5)
@@ -268,11 +274,13 @@ export async function POST(request: NextRequest) {
     // 反审核：撤销该结算单生成的分账应发工资（被生活费核对引用时保留并告警，避免破坏下游）
     let revokedSalaryCount = 0;
     if (action === 'unapprove') {
-      const { data: salaryRows } = await supabase
-        .from('worker_salaries')
-        .select('id')
-        .eq('settlement_id', settlementId);
-      const salaryIds = (salaryRows || []).map((row: { id?: unknown }) => Number(row.id)).filter(Boolean);
+      const salaryRows = await fetchAllRows<{ id?: unknown }>((from, to) =>
+        supabase
+          .from('worker_salaries')
+          .select('id')
+          .eq('settlement_id', settlementId)
+          .range(from, to));
+      const salaryIds = salaryRows.map((row) => Number(row.id)).filter(Boolean);
       if (salaryIds.length > 0) {
         const { data: referenced } = await supabase
           .from('living_allowance_receipt_items')

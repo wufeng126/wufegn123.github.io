@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
@@ -198,39 +199,35 @@ export async function GET(request: NextRequest) {
       query = query.in('project_id', accessibleProjectIds);
     }
 
-    const { data, error } = await query;
-    if (error) throw new Error(`查询生活费台账失败: ${error.message}`);
-
-    const rows = data || [];
+    // 分页取全量：生活费记录/工资记录都可能超过 1000 行
+    const rows = await fetchAllRows<Record<string, unknown>>((from, to) => query.range(from, to));
     const workerIds = pickNumberSet(rows, 'worker_id');
     const projectIds = pickNumberSet(rows, 'project_id');
     const receiptItemIds = pickNumberSet(rows, 'receipt_item_id');
     const salaryIds = pickNumberSet(rows, 'deducted_salary_id');
 
-    const [workersRes, projectsRes, itemsRes, salariesRes] = await Promise.all([
-      workerIds.length > 0
-        ? client.from('workers').select('id, name, work_type, bank_card').in('id', workerIds)
-        : Promise.resolve({ data: [], error: null }),
-      projectIds.length > 0
-        ? client.from('projects').select('id, name').in('id', projectIds)
-        : Promise.resolve({ data: [], error: null }),
-      receiptItemIds.length > 0
-        ? client.from('living_allowance_receipt_items').select('id, receipt_id, recipient_name, transaction_no, match_score').in('id', receiptItemIds)
-        : Promise.resolve({ data: [], error: null }),
-      salaryIds.length > 0
-        ? client.from('worker_salaries').select('id, year_month, net_pay, advance_pay').in('id', salaryIds)
-        : Promise.resolve({ data: [], error: null }),
+    // 分段 IN + 分页，避免列表过大时被截断
+    const loadByIds = async (table: string, columns: string, ids: number[]) => {
+      const out: any[] = [];
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const rows = await fetchAllRows<any>((from, to) =>
+          client.from(table).select(columns).in('id', chunk).range(from, to));
+        out.push(...rows);
+      }
+      return out;
+    };
+    const [workersData, projectsData, itemsData, salariesData] = await Promise.all([
+      loadByIds('workers', 'id, name, work_type, bank_card', workerIds),
+      loadByIds('projects', 'id, name', projectIds),
+      loadByIds('living_allowance_receipt_items', 'id, receipt_id, recipient_name, transaction_no, match_score', receiptItemIds),
+      loadByIds('worker_salaries', 'id, year_month, net_pay, advance_pay', salaryIds),
     ]);
 
-    if (workersRes.error) throw new Error(`查询工人信息失败: ${workersRes.error.message}`);
-    if (projectsRes.error) throw new Error(`查询项目信息失败: ${projectsRes.error.message}`);
-    if (itemsRes.error) throw new Error(`查询回单明细失败: ${itemsRes.error.message}`);
-    if (salariesRes.error) throw new Error(`查询工资扣减信息失败: ${salariesRes.error.message}`);
-
-    const workerMap = new Map((workersRes.data || []).map((row: any) => [row.id, row]));
-    const projectMap = new Map((projectsRes.data || []).map((row: any) => [row.id, row]));
-    const itemMap = new Map((itemsRes.data || []).map((row: any) => [row.id, row]));
-    const salaryMap = new Map((salariesRes.data || []).map((row: any) => [row.id, row]));
+    const workerMap = new Map(workersData.map((row: any) => [row.id, row]));
+    const projectMap = new Map(projectsData.map((row: any) => [row.id, row]));
+    const itemMap = new Map(itemsData.map((row: any) => [row.id, row]));
+    const salaryMap = new Map(salariesData.map((row: any) => [row.id, row]));
 
     const records = rows.map((record: any) => {
       const worker = workerMap.get(record.worker_id);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiServerError, getErrorMessage } from '@/lib/api-utils';
@@ -49,16 +50,16 @@ export async function GET(request: NextRequest) {
     const lastDay = new Date(year, monthNum, 0).getDate();
     const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
-    // 查询该月的所有施工日志
-    const { data: logs, error } = await supabase
-      .from('construction_logs')
-      .select('id, log_date, status, headcount, weather_condition, weather_temperature, user_name, content, issues, location, submission_status')
-      .eq('project_id', projectId)
-      .gte('log_date', startDate)
-      .lte('log_date', endDate)
-      .order('log_date', { ascending: true });
-
-    if (error) throw new Error(error.message);
+    // 查询该月的所有施工日志（分页取全量：日志总量已超 1000 行）
+    const logs = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from('construction_logs')
+        .select('id, log_date, status, headcount, weather_condition, weather_temperature, user_name, content, issues, location, submission_status')
+        .eq('project_id', projectId)
+        .gte('log_date', startDate)
+        .lte('log_date', endDate)
+        .order('log_date', { ascending: true })
+        .range(from, to));
 
     // 按日期分组（归一化为 YYYY-MM-DD，避免 date 列返回值带时间分量/历史 varchar 脏数据
     // 导致与日历格子的 dateStr 匹配失败，整天误显示"未提交"）
