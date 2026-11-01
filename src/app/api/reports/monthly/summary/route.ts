@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
       suppliersResult,
     ] = await Promise.all([
       fetchAllRows<any>((from, to) => supabase.from('projects').select('*').in('id', targetProjectIds).range(from, to)).then(data => ({ data })),
-      fetchAllRows<any>((from, to) => supabase.from('client_reports').select('*').in('project_id', targetProjectIds).neq('status', 'voided').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('client_reports').select('*').in('project_id', targetProjectIds).or('status.is.null,status.neq.voided').range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('client_payments').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('supplier_settlements').select('*').in('status', ['reviewed', '已提交', '已审核', '已结算', 'approved', 'complete', 'completed', 'paid']).range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('settlements').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),

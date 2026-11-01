@@ -90,7 +90,7 @@ export async function GET(
         .from('client_reports')
         .select('report_amount, settlement_amount, status')
         .eq('project_id', projectId)
-        .neq('status', 'voided')
+        .or('status.is.null,status.neq.voided')
         .range(from, to),
     );
 

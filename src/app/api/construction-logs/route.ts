@@ -877,7 +877,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('user_id', user.id)
       .eq('log_date', log_date)
-      .neq('status', 'cancelled')
+      .or('status.is.null,status.neq.cancelled')
       .limit(1);
 
     if (existingError) throw new Error(existingError.message);

@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     if (projectId) query = query.eq('project_id', projectId);
     else if (Array.isArray(accessibleProjectIds)) query = query.in('project_id', accessibleProjectIds);
-    if (!includeInactive) query = query.neq('status', 'inactive');
+    if (!includeInactive) query = query.or('status.is.null,status.neq.inactive');
 
     const { data, error } = await query;
     if (error) {
