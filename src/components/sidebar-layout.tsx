@@ -61,6 +61,7 @@ import {
   Bot,
   History,
   type LucideIcon,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hasCompatiblePermission } from '@/lib/route-permissions';
@@ -162,6 +163,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '通知中心', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
     { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
     { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },
+    { name: '数据健康', href: '/system/data-health', icon: Activity, permissions: ['system:manage'] },
     { name: '数据备份', href: '/settings/backup', icon: Database, permissions: ['system:manage'] },
     { name: '日志管理', href: '/system-management?tab=audit-logs', icon: History, permissions: ['audit:view'] },
   ],

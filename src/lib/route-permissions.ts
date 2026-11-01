@@ -170,6 +170,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/reports/monthly': { permission: 'reports:monthly_view' },
 
   // === 审计日志 ===
+  '/system/data-health': { permission: 'system:manage' },
   '/system/audit-logs': { permission: 'audit:view' },
   '/system/approval-config': { permission: 'system:manage' },
 
