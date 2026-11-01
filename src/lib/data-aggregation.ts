@@ -674,7 +674,7 @@ export async function getProjectFinancialSummary(
       .from('comprehensive_expenses')
       .select('amount, expense_date')
       .eq('project_id', projectId)
-      .eq('status', 'reviewed')
+      .or('status.is.null,status.eq.reviewed')
       .range(from, to);
     if (dateRange) {
       q = buildDateFilter(q, 'expense_date', dateRange);
@@ -689,7 +689,7 @@ export async function getProjectFinancialSummary(
       .from('miscellaneous_materials')
       .select('quantity, unit_price, purchase_date')
       .eq('project_id', projectId)
-      .eq('status', 'reviewed')
+      .or('status.is.null,status.eq.reviewed')
       .range(from, to);
     if (dateRange) {
       q = buildDateFilter(q, 'purchase_date', dateRange);
@@ -976,7 +976,7 @@ async function getMultiProjectFinancialSummariesImpl(
         .from('comprehensive_expenses')
         .select('project_id, amount, expense_date')
         .in('project_id', validProjectIds)
-        .eq('status', 'reviewed')
+        .or('status.is.null,status.eq.reviewed')
         .range(from, to),
       'expense_date',
       dateRange
@@ -986,7 +986,7 @@ async function getMultiProjectFinancialSummariesImpl(
         .from('miscellaneous_materials')
         .select('project_id, quantity, unit_price, purchase_date')
         .in('project_id', validProjectIds)
-        .eq('status', 'reviewed')
+        .or('status.is.null,status.eq.reviewed')
         .range(from, to),
       'purchase_date',
       dateRange
