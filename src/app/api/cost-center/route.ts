@@ -413,7 +413,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('成本利润中心API错误:', error);
-    const message = error instanceof Error ? error.message : '查询失败';
+    // PostgREST 常抛普通对象（{ message, details, code }），统一提取，避免页面只显示"查询失败"
+    const message = error instanceof Error
+      ? error.message
+      : (error && typeof error === 'object')
+        ? String(
+          (error as { message?: unknown }).message
+          || (error as { details?: unknown }).details
+          || JSON.stringify(error),
+        ).slice(0, 300)
+        : String(error || '查询失败');
     return NextResponse.json(
       { error: message },
       { status: 500 }
