@@ -362,9 +362,17 @@ export async function POST(request: NextRequest) {
       // 处理日期格式 - Excel 可能返回数字序列号，模板也可能出现被破坏的畸形日期串。
       // 禁止用裸 new Date(str)：像 "202504-05-01" 会被当成 ISO 时区偏移 "+202504"，
       // 随后 toISOString() 抛 RangeError（time zone displacement out of range）导致整批导入失败。
-      let purchaseDate = normalizeImportDate(values[dateIdx]);
+      const rawDate = values[dateIdx];
+      const purchaseDate = normalizeImportDate(rawDate);
       if (!purchaseDate) {
-        purchaseDate = new Date().toISOString().split('T')[0];
+        // 日期解析失败不再静默改成"今天"（会把成本记错月份），直接报错行让用户修正
+        const rawDateText = String(rawDate ?? '').trim();
+        if (rawDateText) {
+          errors.push(`第${i + 1}行：采购日期「${rawDateText}」无法识别，请改为 YYYY-MM-DD`);
+          continue;
+        }
+        errors.push(`第${i + 1}行：缺少采购日期`);
+        continue;
       }
       
       const duplicateKey = buildDupKey(projectId, materialName, purchaseDate, quantity, unitPrice);

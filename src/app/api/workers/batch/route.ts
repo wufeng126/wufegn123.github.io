@@ -298,6 +298,27 @@ export async function POST(request: NextRequest) {
     // 批次内身份证号去重
     const batchIdCards = new Set<string>();
 
+    // 无身份证的工人：按「项目 + 姓名」查重，避免每次导入都新增重复人员
+    const noIdCardKeys = new Set<string>();
+    const existingNameKeySet = new Set<string>();
+    {
+      const noIdItems = validData.filter((item) => !item.id_card_upper);
+      if (noIdItems.length > 0) {
+        const projectIds = Array.from(new Set(noIdItems.map((item) => Number(item.data.project_id)).filter(Boolean)));
+        const names = Array.from(new Set(noIdItems.map((item) => String(item.data.name || '').trim()).filter(Boolean)));
+        if (projectIds.length > 0 && names.length > 0) {
+          const { data: existingRows } = await client
+            .from('workers')
+            .select('id, name, project_id, id_card')
+            .in('project_id', projectIds)
+            .in('name', names);
+          (existingRows || []).forEach((row: { project_id?: unknown; name?: unknown }) => {
+            existingNameKeySet.add(`${Number(row.project_id)}|${String(row.name || '').trim()}`);
+          });
+        }
+      }
+    }
+
     for (const item of validData) {
       const { row, data, id_card_upper } = item;
 
@@ -309,6 +330,21 @@ export async function POST(request: NextRequest) {
           continue;
         }
         batchIdCards.add(id_card_upper);
+      }
+
+      // 无身份证：按 项目+姓名 判重（同项目同名视为同一人）
+      if (!id_card_upper) {
+        const nameKey = `${Number(data.project_id)}|${String(data.name || '').trim()}`;
+        if (noIdCardKeys.has(nameKey)) {
+          batchErrors.push({ row, name: data.name, reason: '同一文件中「同项目同名且无身份证」重复' });
+          stats.errors++;
+          continue;
+        }
+        noIdCardKeys.add(nameKey);
+        if (existingNameKeySet.has(nameKey)) {
+          stats.skipped = (stats.skipped || 0) + 1;
+          continue;
+        }
       }
 
       const existing = id_card_upper ? existingWorkersMap.get(id_card_upper) : null;
