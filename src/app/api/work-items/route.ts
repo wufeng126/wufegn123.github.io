@@ -178,7 +178,15 @@ export async function POST(request: NextRequest) {
     const items = Array.isArray(body) ? body : [body];
     
     const client = getSupabaseClient();
-    
+
+    // 项目级数据权限：不能往自己无权访问的项目里写分项工程
+    const { getAccessibleProjectIds } = await import('@/lib/api-project-access');
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const targetProjectIds = Array.from(new Set(items.map((item) => parseInt(item.project_id)).filter(Boolean)));
+    if (accessibleProjects && targetProjectIds.some((pid) => !accessibleProjects.includes(pid))) {
+      return NextResponse.json({ error: '无权往该项目写入分项工程' }, { status: 403 });
+    }
+
     const insertData = items.map(item => ({
       project_id: parseInt(item.project_id),
       item_name: item.item_name,

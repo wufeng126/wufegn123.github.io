@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getUserDisplayName, notifyVisaWorkflow } from '@/lib/visa-workflow';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 // 结算签证
 export async function POST(
@@ -24,6 +25,22 @@ export async function POST(
 
     if (visaError || !visa) {
       return NextResponse.json({ error: '签证不存在' }, { status: 404 });
+    }
+
+    // 项目级数据权限：不能跨项目结算签证
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects && visa.project_id && !accessibleProjects.includes(Number(visa.project_id))) {
+      return NextResponse.json({ error: '无权操作该项目签证' }, { status: 403 });
+    }
+
+    // 身份校验：完成确认只能由该签证的预算员（或老板/超管/管理员）执行
+    const isAdminActor = Boolean(auth.user.is_super_admin)
+      || ['super_admin', 'admin', 'boss'].includes(String(auth.user.role || ''));
+    if (!isAdminActor) {
+      const allowedId = Number(visa.budget_user_id) || 0;
+      if (!allowedId || Number(auth.user.id) !== allowedId) {
+        return NextResponse.json({ error: '只有该签证指定的预算员可以确认完成' }, { status: 403 });
+      }
     }
 
     // 新流程：待预算员确认后完成；兼容旧流程的审核通过/已结算前置状态

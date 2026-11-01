@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getUserDisplayName, notifyVisaWorkflow } from '@/lib/visa-workflow';
 
 function parsePositiveId(value: unknown): number | null {
@@ -37,6 +38,22 @@ export async function POST(
 
     if (visaError || !visa) {
       return NextResponse.json({ error: '签证不存在' }, { status: 404 });
+    }
+
+    // 项目级数据权限：不能跨项目审批签证
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects && visa.project_id && !accessibleProjects.includes(Number(visa.project_id))) {
+      return NextResponse.json({ error: '无权操作该项目签证' }, { status: 403 });
+    }
+
+    // 身份校验：签字/商务确认只能由该签证的项目经理（或老板/超管/管理员）完成
+    const isAdminActor = Boolean(auth.user.is_super_admin)
+      || ['super_admin', 'admin', 'boss'].includes(String(auth.user.role || ''));
+    if ((action === 'signed' || action === 'approve' || action === 'business_confirmed') && !isAdminActor) {
+      const allowedId = Number(visa.project_manager_user_id) || 0;
+      if (!allowedId || Number(auth.user.id) !== allowedId) {
+        return NextResponse.json({ error: '只有该签证指定的项目经理可以签字/确认' }, { status: 403 });
+      }
     }
 
     const now = new Date().toISOString();

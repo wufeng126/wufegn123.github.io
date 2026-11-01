@@ -26,6 +26,7 @@ export function hasAnyPermission(user: RequestAuthUser, permissions: string[]): 
 type LiveUserState = {
   disabled: boolean;
   role: string;
+  isSuperAdmin: boolean;
   permissions: string[];
   loadedAt: number;
 };
@@ -75,9 +76,12 @@ async function getLiveUserState(userId: number): Promise<LiveUserState | null> {
       ));
     }
 
+    const liveRole = String(userRow.role || '');
     const state: LiveUserState = {
       disabled: userRow.is_disabled === true,
-      role: String(userRow.role || ''),
+      role: liveRole,
+      // 超管资格以实时角色为准（token 里的 is_super_admin 是登录时快照，撤销后不能继续生效）
+      isSuperAdmin: liveRole === 'super_admin' || permissions.includes('*'),
       permissions,
       loadedAt: Date.now(),
     };
@@ -106,6 +110,7 @@ export async function requireAuth(request: NextRequest): Promise<ApiAuthResult> 
       user: {
         ...user,
         role: live.role || user.role,
+        is_super_admin: live.isSuperAdmin,
         permissions: live.permissions,
       },
     };

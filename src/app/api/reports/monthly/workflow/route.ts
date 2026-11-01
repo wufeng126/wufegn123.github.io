@@ -185,6 +185,10 @@ export async function POST(request: NextRequest) {
           bossSupplement: String(body.content.bossSupplement || '').slice(0, 5000),
         }
       : null;
+    // 记录本次真正提交的字段：未提交的字段不能被空串覆盖（否则会清掉项目经理/老板的补充意见）
+    const providedContentKeys = new Set(
+      body?.content && typeof body.content === 'object' ? Object.keys(body.content) : [],
+    );
     const managerApproverId = Number(body?.managerApproverId) || 0;
     const managerApproverName = String(body?.managerApproverName || '').trim().slice(0, 100);
     const bossApproverId = Number(body?.bossApproverId) || 0;
@@ -304,12 +308,13 @@ export async function POST(request: NextRequest) {
     // 内容合并：预算员保存覆盖自己的部分；项目经理/老板只补自己那部分，不覆盖已有内容
     let mergedContent: Record<string, unknown> | null = null;
     if (content) {
-      if (action === 'save' || action === 'submit_manager') {
-        mergedContent = { ...existingContent, ...content };
-      } else {
-        mergedContent = { ...existingContent };
-        for (const [key, value] of Object.entries(content)) {
-          if (String(value || '').trim()) mergedContent[key] = value;
+      mergedContent = { ...existingContent };
+      for (const [key, value] of Object.entries(content)) {
+        if (action === 'save' || action === 'submit_manager') {
+          // 只覆盖本次提交的字段（空串也不覆盖未提交的审批补充内容）
+          if (providedContentKeys.has(key)) mergedContent[key] = value;
+        } else if (String(value || '').trim()) {
+          mergedContent[key] = value;
         }
       }
     }

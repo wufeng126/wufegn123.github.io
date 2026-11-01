@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getUserById, getUserDisplayName, notifyVisaWorkflow } from '@/lib/visa-workflow';
 
 // 提交签证
@@ -25,6 +26,12 @@ export async function POST(
 
     if (visaError || !visa) {
       return NextResponse.json({ error: '签证不存在' }, { status: 404 });
+    }
+
+    // 项目级数据权限：不能跨项目提交签证
+    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    if (accessibleProjects && visa.project_id && !accessibleProjects.includes(Number(visa.project_id))) {
+      return NextResponse.json({ error: '无权操作该项目签证' }, { status: 403 });
     }
 
     // 只有草稿、已驳回或旧待办理状态的签证可以提交
