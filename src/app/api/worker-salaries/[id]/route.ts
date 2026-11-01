@@ -45,7 +45,18 @@ export async function DELETE(
     }
 
     if (isSalaryPaymentLocked(salaryData.payment_status)) {
-      return NextResponse.json({ error: 'Salary records with payments cannot be deleted.' }, { status: 400 });
+      return NextResponse.json({ error: '该工资记录已有发放，不能删除（请先删除发放记录）' }, { status: 400 });
+    }
+
+    // 状态可能滞后（异步同步失败/延迟）：再实时查一次发放记录，避免级联删掉已发流水
+    {
+      const { count: paymentCount } = await client
+        .from('salary_payments')
+        .select('id', { count: 'exact', head: true })
+        .eq('salary_id', salaryId);
+      if ((paymentCount || 0) > 0) {
+        return NextResponse.json({ error: `该工资记录已有 ${paymentCount} 条发放记录，不能删除` }, { status: 400 });
+      }
     }
 
     const { error } = await client
