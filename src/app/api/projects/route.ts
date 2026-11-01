@@ -6,6 +6,7 @@ import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { isSuperAdminUser } from '@/lib/route-permissions';
 import { ensurePublicLogProject, isPublicLogProject, PUBLIC_LOG_PROJECT_TYPE } from '@/lib/public-log-project';
 import { isUserRestrictedFromPublicConstructionLog } from '@/lib/construction-log-submitters';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -187,10 +188,9 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // 获取所有项目的工人统计（一次查询优化性能）
-    const { data: allWorkers } = await client
-      .from('workers')
-      .select('project_id, status');
+    // 获取所有项目的工人统计（分页取全量：workers 已超 1000 行，单次查询会少算人数）
+    const allWorkers = await fetchAllRows<{ project_id?: number | null; status?: string | null }>((from, to) =>
+      client.from('workers').select('project_id, status').range(from, to));
 
     // 按项目统计在场/退场人数
     const workerStatsByProject: Record<number, { inService: number; left: number }> = {};

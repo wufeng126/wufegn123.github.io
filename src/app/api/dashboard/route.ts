@@ -95,10 +95,18 @@ export async function GET(request: Request) {
       workersQuery = workersQuery.eq('project_id', parseInt(projectId));
     }
     
-    const { data: workersData, error: workerError } = await workersQuery;
+    // 分页取全量：workers 已超 1000 行，单次查询会把在场/退场人数少算
+    let workersData: any[] = [];
+    let workerError: { message?: string } | null = null;
+    try {
+      workersData = await fetchAllRows<any>((from, to) => workersQuery.range(from, to));
+    } catch (error) {
+      workerError = { message: error instanceof Error ? error.message : String(error) };
+      console.error('[dashboard] 查询工人失败:', error);
+    }
 
     if (workerError) {
-      throw new Error(`查询工人数量失败: ${workerError.message}`);
+      throw new Error(`查询工人数量失败: ${workerError.message || ''}`);
     }
 
     const workerCount = workersData?.length || 0;

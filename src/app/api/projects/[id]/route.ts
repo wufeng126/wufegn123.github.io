@@ -4,6 +4,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import type { RequestAuthUser } from '@/lib/auth';
 import { auditLog } from '@/lib/audit-log';
+import { isReviewedStatus } from '@/lib/review-status';
 import { getProjectFinancialSummary } from '@/lib/data-aggregation';
 import { isEffectiveClientPaymentStatus, VISA_DONE_STATUSES } from '@/lib/business-logic';
 import { requireApiWritePermission, requireAuth, requireSuperAdmin } from '@/lib/api-auth';
@@ -166,12 +167,16 @@ export async function GET(
     const projectContractIds = (contractsForProject || []).map((c: { id: number }) => c.id);
     let totalSettlement = 0;
     if (projectContractIds.length > 0) {
-      const { data: settlementsData } = await client
-        .from('supplier_settlements')
-        .select('settlement_amount')
-        .in('contract_id', projectContractIds)
-        .eq('status', 'reviewed');
-      totalSettlement = settlementsData?.reduce((sum, r) => sum + parseFloat(String(r.settlement_amount || '0')), 0) || 0;
+      // 状态口径统一走 isReviewedStatus（兼容「已提交/已审核」等中文历史状态与 NULL），且分页取全量
+      const settlementsData = await fetchAllRows<{ settlement_amount?: unknown; status?: string | null }>((from, to) =>
+        client
+          .from('supplier_settlements')
+          .select('settlement_amount, status')
+          .in('contract_id', projectContractIds)
+          .range(from, to));
+      totalSettlement = settlementsData
+        .filter((r) => !r.status || isReviewedStatus(String(r.status)))
+        .reduce((sum, r) => sum + parseFloat(String(r.settlement_amount || '0')), 0);
     }
 
     return NextResponse.json({
