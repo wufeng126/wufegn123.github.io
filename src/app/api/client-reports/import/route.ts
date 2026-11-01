@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         proportional_payment: parseOptionalAmount(row.proportional_payment),
         report_date: reportDate,
         remark: row.remark || '',
-        status: REVIEW_STATUS.DRAFT,
+        status: REVIEW_STATUS.REVIEWED,
       });
     });
 
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
           report_amount: r.settlement_amount,
           report_date: r.report_date,
           remark: r.remark,
-          status: REVIEW_STATUS.DRAFT,
+          status: REVIEW_STATUS.REVIEWED,
         }));
 
         const { data: legacyData, error: legacyError } = await client

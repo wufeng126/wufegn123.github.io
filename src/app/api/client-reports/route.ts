@@ -241,7 +241,9 @@ export async function POST(request: NextRequest) {
         deduction_amount: deduction_amount ? Number(deduction_amount) : null,
         proportional_payment: proportional_payment ? Number(proportional_payment) : null,
         tax_rate: tax_rate ? Number(tax_rate) : null,
-        status: REVIEW_STATUS.DRAFT,
+        // 甲方报量没有审核界面：录入即生效（与零星材料/综合费用一致），
+        // 否则默认 draft 会让「草稿不计产值」把产值永久算成 0
+        status: REVIEW_STATUS.REVIEWED,
       };
     }).filter(item => item.project_id && item.report_date && item.report_amount !== null && item.report_amount !== undefined);
 
