@@ -294,6 +294,11 @@ export async function POST(request: NextRequest) {
     if (action === 'reject' && !['pending_manager', 'pending_boss'].includes(currentStatus)) {
       return apiBadRequest('只有待补充/待审批状态可以驳回');
     }
+    // 不允许审批自己提交的月报（含老板/超管），避免自批自审
+    if ((action === 'approve' || action === 'reject' || action === 'supplement')
+      && Number(auth.user.id) === Number(workflow?.created_by)) {
+      return apiBadRequest('不能审批/补充自己提交的月报，请由指定审批人处理');
+    }
     if (action === 'reject' && !reason) {
       return apiBadRequest('请填写驳回原因');
     }

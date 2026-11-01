@@ -258,10 +258,13 @@ export default function MonthlyReportFillPage() {
   }, [userOptions, approverKeyword, myId]);
 
   const canFill = (status === 'draft' || status === 'rejected') && (isBudgetOwner || isBossOrSuper || fillOwnerId === 0);
-  const canSupplement = status === 'pending_manager' && (
-    (designatedManagerId > 0 && myId === designatedManagerId) || isManagerOwner || isBossOrSuper
+  // 提交人本人不参与审批（即使他是老板/超管）：否则会出现"自己提交、自己补充/自己审批"
+  const isSubmitter = isBudgetOwner;
+  const canSupplement = status === 'pending_manager' && !isSubmitter && (
+    (designatedManagerId > 0 && myId === designatedManagerId)
+    || (designatedManagerId === 0 && (isManagerOwner || isBossOrSuper))
   );
-  const canApprove = status === 'pending_boss' && (
+  const canApprove = status === 'pending_boss' && !isSubmitter && (
     (designatedBossId > 0 && myId === designatedBossId) || isBossOrSuper
   );
 
