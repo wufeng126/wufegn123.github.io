@@ -169,6 +169,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
 
   // === 报表模块 ===
   '/reports': { permission: 'reports:monthly_view' },
+  '/reports/daily': { permission: 'reports:monthly_view' },
+  '/api/reports/daily/company': { permission: 'reports:monthly_view' },
   '/reports/monthly': { permission: 'reports:monthly_view' },
 
   // === 审计日志 ===

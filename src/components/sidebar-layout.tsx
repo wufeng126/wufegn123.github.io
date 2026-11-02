@@ -149,6 +149,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '供应商成本看板', href: '/data-board/supplier-cost', icon: Gauge },
     { name: '工人成本看板', href: '/data-board/worker-cost', icon: UserCheck },
     { name: '资金管理看板', href: '/data-board/fund-management', icon: Wallet },
+    { name: '公司项目日报', href: '/reports/daily', icon: FileBarChart },
     { name: '月度经营月报', href: '/reports/monthly', icon: FileBarChart },
   ],
   '/cost-estimation/bid': [
