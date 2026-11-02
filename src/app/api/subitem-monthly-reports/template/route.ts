@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
 
 
 // GET: Download import template (xlsx format, pre-filled with subitem names)
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
   try {
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);

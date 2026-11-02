@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
   try {
     const supabase = getSupabaseClient();
 

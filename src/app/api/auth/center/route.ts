@@ -1,7 +1,11 @@
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { NextRequest } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
   const supabase = getSupabaseClient();
   
   // 获取角色数量

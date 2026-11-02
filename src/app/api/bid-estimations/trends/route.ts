@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 function toNumber(value: unknown, fallback = 0) {
@@ -11,7 +13,9 @@ function toTime(value: unknown) {
   return Number.isFinite(time) ? time : 0;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
   try {
     const supabase = getSupabaseClient();
     const [standardResult, priceResult] = await Promise.all([

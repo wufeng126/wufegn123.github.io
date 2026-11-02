@@ -474,7 +474,7 @@ export async function POST(request: Request) {
     // 设置认证 Cookie（SameSite=lax 兼容钉钉 webview，不强制 Secure 以兼容 HTTP 代理场景）
     response.cookies.set('auth_token', token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60,
       path: '/',

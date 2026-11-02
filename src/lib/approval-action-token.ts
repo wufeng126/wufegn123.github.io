@@ -15,13 +15,15 @@ import crypto from 'node:crypto';
 export type ApprovalActionType = 'team_settlement' | 'monthly_report';
 export type ApprovalAction = 'approve' | 'reject';
 
-function getSecret(): string {
-  return String(
+function getSecret(): string | null {
+  const secret = String(
     process.env.APPROVAL_LINK_SECRET
     || process.env.DINGTALK_APP_SECRET
     || process.env.SUPABASE_SERVICE_ROLE_KEY
-    || 'dsh-approval-fallback-secret',
-  );
+    || '',
+  ).trim();
+  // 不允许使用可猜测的默认值：没有密钥时直接拒绝生成/校验，避免伪造审批链接
+  return secret.length >= 16 ? secret : null;
 }
 
 export function getAppBaseUrl(): string {
@@ -29,8 +31,10 @@ export function getAppBaseUrl(): string {
   return raw.replace(/\/+$/, '');
 }
 
-function sign(payload: string): string {
-  return crypto.createHmac('sha256', getSecret()).update(payload).digest('base64url');
+function sign(payload: string): string | null {
+  const secret = getSecret();
+  if (!secret) return null;
+  return crypto.createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
 export function createApprovalActionUrl(params: {
@@ -52,7 +56,9 @@ export function createApprovalActionUrl(params: {
     ...(params.scope ? { s: params.scope } : {}),
   };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const token = `${body}.${sign(body)}`;
+  const signature = sign(body);
+  if (!signature) return '';
+  const token = `${body}.${signature}`;
   return `${getAppBaseUrl()}/api/approvals/quick-action?token=${encodeURIComponent(token)}`;
 }
 
@@ -69,6 +75,7 @@ export function verifyApprovalActionToken(token: string): {
   const [body, signature] = raw.split('.');
   if (!body || !signature) return { ok: false, reason: '链接格式不正确' };
   const expected = sign(body);
+  if (!expected) return { ok: false, reason: '审批链接密钥未配置，请到系统中处理' };
   if (expected.length !== signature.length
     || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
     return { ok: false, reason: '链接签名校验失败' };

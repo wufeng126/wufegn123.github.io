@@ -136,3 +136,6 @@ yarn.lock
 /*.docx
 /*.pdf
 /*GDD_H5*.md
+
+# 会话/凭证文件，禁止入库
+cookies.txt
