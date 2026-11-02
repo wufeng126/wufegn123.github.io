@@ -56,32 +56,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2. 查询数据库中已存在的权限码
+    // 2. 查询数据库中已存在的权限码（只读，不再在 GET 里写库，避免被跨站 GET 触发同步）
     const { data: existingPerms } = await supabase
       .from('permissions')
       .select('code')
       .in('code', allCodes);
 
     const existingCodes = new Set(((existingPerms || []) as PermissionCodeRow[]).map(p => p.code));
-
-    // 3. 插入缺失的权限（使用 upsert 避免唯一约束冲突）
-    const missingPerms = flatPerms.filter(p => !existingCodes.has(p.code));
-    if (missingPerms.length > 0) {
-      console.log(`[Permission Menu] Inserting ${missingPerms.length} missing permissions...`);
-      const { error: insertError } = await supabase
-        .from('permissions')
-        .upsert(missingPerms, { onConflict: 'code' });
-      if (insertError) {
-        console.error('[Permission Menu] Upsert missing permissions error:', insertError);
-      }
+    const missingCount = flatPerms.filter(p => !existingCodes.has(p.code)).length;
+    if (missingCount > 0) {
+      console.warn(`[Permission Menu] 有 ${missingCount} 个权限未入库，请调用 POST /api/system/permission/menu 同步`);
     }
 
-    // 4. 返回前端定义的完整菜单结构（保证一致性）
     return NextResponse.json({
       success: true,
       menu: PERMISSION_MENU_STRUCTURE,
       source: 'default',
-      synced: missingPerms.length,
+      synced: 0,
+      pending_sync: missingCount,
     });
   } catch (error: unknown) {
     console.error('[Permission Menu] Error:', error);

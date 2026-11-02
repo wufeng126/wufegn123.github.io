@@ -11,11 +11,11 @@ import { cleanupOldBackups, runBackup, todayKey } from '@/lib/data-backup';
  */
 async function handle(request: NextRequest) {
   const expected = String(process.env.BACKUP_CRON_TOKEN || '').trim();
-  const provided = String(
-    request.headers.get('x-backup-token')
-    || new URL(request.url).searchParams.get('token')
-    || '',
-  ).trim();
+  const headerToken = String(request.headers.get('x-backup-token') || '').trim();
+  const queryToken = String(new URL(request.url).searchParams.get('token') || '').trim();
+  // 优先请求头；URL 里的 token 会进访问日志，仅做兼容并提示改用请求头
+  const provided = headerToken || queryToken;
+  const tokenFromQuery = !headerToken && Boolean(queryToken);
 
   if (expected) {
     if (provided !== expected) return apiForbidden('token 不正确');
@@ -33,6 +33,7 @@ async function handle(request: NextRequest) {
       // 清理失败不影响备份
     }
     return apiSuccess({
+      ...(tokenFromQuery ? { warn: 'token 走 URL 会进入访问日志，建议改用请求头 x-backup-token' } : {}),
       date: manifest.date,
       tableCount: manifest.tables.length,
       rowCount: manifest.totalRows,

@@ -165,6 +165,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
     { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },
     { name: '数据健康', href: '/system/data-health', icon: Activity, permissions: ['system:manage'] },
+    { name: '安全加固', href: '/system/security', icon: ShieldCheck, permissions: ['system:manage'] },
     { name: '数据备份', href: '/system/backups', icon: Database, permissions: ['system:manage'] },
     { name: '日志管理', href: '/system-management?tab=audit-logs', icon: History, permissions: ['audit:view'] },
   ],

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/api-auth';
-import { BACKUP_ROOT, readBackupFile } from '@/lib/data-backup';
+import { BACKUP_ROOT, BACKUP_TABLES, readBackupFile } from '@/lib/data-backup';
 
 /**
  * GET /api/system/backups/download?date=YYYY-MM-DD&table=xxx
@@ -16,6 +16,11 @@ export async function GET(request: NextRequest) {
   const table = String(searchParams.get('table') || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json({ error: '日期不合法' }, { status: 400 });
+  }
+
+  // 表名白名单：防止通过 ../ 读取任意对象
+  if (table !== 'manifest' && !BACKUP_TABLES.includes(table)) {
+    return NextResponse.json({ error: '表名不合法' }, { status: 400 });
   }
 
   try {
