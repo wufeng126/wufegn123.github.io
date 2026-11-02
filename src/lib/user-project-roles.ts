@@ -1,6 +1,7 @@
 export const PROJECT_ROLE_OPTIONS = [
   { code: 'budget', label: '预算员' },
   { code: 'project_manager', label: '项目经理' },
+  { code: 'boss', label: '老板' },
   { code: 'finance', label: '财务' },
   { code: 'site_staff', label: '现场人员' },
 ] as const;
