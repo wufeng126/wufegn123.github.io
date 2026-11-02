@@ -2385,6 +2385,17 @@ function WorkItemsContent() {
   const [ledgerReportRecords, setLedgerReportRecords] = useState<any[]>([]);
   const [ledgerSettlementRecords, setLedgerSettlementRecords] = useState<any[]>([]);
   const [ledgerRecordsLoading, setLedgerRecordsLoading] = useState(false);
+  // 明细记录编辑（对上报量 / 对下结算）：录入错了要能改、能删
+  const [recordEdit, setRecordEdit] = useState<{
+    kind: 'report' | 'settle';
+    id: number;
+    quantity: string;
+    unitPrice: string;
+    remark: string;
+    label: string;
+    unit: string;
+  } | null>(null);
+  const [recordSaving, setRecordSaving] = useState(false);
 
   // 对比台账行：analysisStats.rows 已合并预算分项与内部附加清单（isAddon 区分）
   const comparisonRows = useMemo(() => {
@@ -2473,6 +2484,64 @@ function WorkItemsContent() {
       setLedgerSettlementRecords([]);
     } finally {
       setLedgerRecordsLoading(false);
+    }
+  };
+
+  const saveRecordEdit = async () => {
+    if (!recordEdit) return;
+    const quantity = Number(recordEdit.quantity);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      toast({ title: '数量不合法', description: '请填写大于等于 0 的数字', variant: 'error' });
+      return;
+    }
+    setRecordSaving(true);
+    try {
+      const url = recordEdit.kind === 'report'
+        ? `/api/subitem-monthly-reports/${recordEdit.id}`
+        : `/api/subitem-monthly-progress/${recordEdit.id}`;
+      const body = recordEdit.kind === 'report'
+        ? { report_quantity: quantity, remark: recordEdit.remark || null }
+        : {
+            completed_quantity: quantity,
+            unit_price: recordEdit.unitPrice === '' ? null : Number(recordEdit.unitPrice),
+            remark: recordEdit.remark || null,
+          };
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) throw new Error(json.error || '保存失败');
+      toast({ title: '已修改', description: recordEdit.label, variant: 'success' });
+      setRecordEdit(null);
+      if (analysisYearMonth) await fetchLedgerRecords(analysisYearMonth);
+    } catch (error) {
+      toast({ title: '修改失败', description: error instanceof Error ? error.message : '请重试', variant: 'error' });
+    } finally {
+      setRecordSaving(false);
+    }
+  };
+
+  const deleteRecord = async (kind: 'report' | 'settle', id: number, label: string) => {
+    const ok = await confirm({
+      title: kind === 'report' ? '删除对上报量记录' : '删除对下结算记录',
+      description: `确认删除「${label}」？删除后该月台账会重新计算，不可恢复。`,
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    try {
+      const url = kind === 'report'
+        ? `/api/subitem-monthly-reports/${id}`
+        : `/api/subitem-monthly-progress/${id}`;
+      const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) throw new Error(json.error || '删除失败');
+      toast({ title: '已删除', description: label, variant: 'success' });
+      if (analysisYearMonth) await fetchLedgerRecords(analysisYearMonth);
+    } catch (error) {
+      toast({ title: '删除失败', description: error instanceof Error ? error.message : '请重试', variant: 'error' });
     }
   };
 
@@ -3280,6 +3349,7 @@ function WorkItemsContent() {
                                   <TableHead>分项工程</TableHead>
                                   <TableHead className="text-right">报量</TableHead>
                                   <TableHead>备注</TableHead>
+                                  <TableHead className="w-24 text-right">操作</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -3291,6 +3361,32 @@ function WorkItemsContent() {
                                       {formatQuantity(r.report_quantity)} {subitemUnitOf(Number(r.subitem_id))}
                                     </TableCell>
                                     <TableCell className="max-w-56 truncate text-slate-500" title={r.remark || ''}>{r.remark || '—'}</TableCell>
+                                    <TableCell className="whitespace-nowrap text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => setRecordEdit({
+                                          kind: 'report',
+                                          id: Number(r.id),
+                                          quantity: String(r.report_quantity ?? ''),
+                                          unitPrice: '',
+                                          remark: String(r.remark || ''),
+                                          label: `${subitemNameOf(Number(r.subitem_id))} ${r.year_month} 报量`,
+                                          unit: subitemUnitOf(Number(r.subitem_id)),
+                                        })}
+                                      >
+                                        <Pencil className="mr-1 h-3.5 w-3.5" />修正
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs text-red-600 hover:text-red-700"
+                                        onClick={() => void deleteRecord('report', Number(r.id), `${subitemNameOf(Number(r.subitem_id))} ${r.year_month}`)}
+                                      >
+                                        <Trash2 className="mr-1 h-3.5 w-3.5" />删除
+                                      </Button>
+                                    </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -3313,6 +3409,7 @@ function WorkItemsContent() {
                                   <TableHead className="text-right">结算量</TableHead>
                                   <TableHead className="text-right">单价</TableHead>
                                   <TableHead>备注</TableHead>
+                                  <TableHead className="w-24 text-right">操作</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -3329,6 +3426,32 @@ function WorkItemsContent() {
                                       {r.unit_price ? formatCurrency(r.unit_price) : '—'}
                                     </TableCell>
                                     <TableCell className="max-w-56 truncate text-slate-500" title={r.remark || ''}>{r.remark || '—'}</TableCell>
+                                    <TableCell className="whitespace-nowrap text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => setRecordEdit({
+                                          kind: 'settle',
+                                          id: Number(r.id),
+                                          quantity: String(r.completed_quantity ?? ''),
+                                          unitPrice: r.unit_price === null || r.unit_price === undefined ? '' : String(r.unit_price),
+                                          remark: String(r.remark || ''),
+                                          label: `${r.work_item_subitems?.subitem_name || subitemNameOf(Number(r.subitem_id))} ${r.year_month} 结算`,
+                                          unit: String(r.work_item_subitems?.unit || subitemUnitOf(Number(r.subitem_id)) || ''),
+                                        })}
+                                      >
+                                        <Pencil className="mr-1 h-3.5 w-3.5" />修正
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs text-red-600 hover:text-red-700"
+                                        onClick={() => void deleteRecord('settle', Number(r.id), `${r.work_item_subitems?.subitem_name || subitemNameOf(Number(r.subitem_id))} ${r.year_month}`)}
+                                      >
+                                        <Trash2 className="mr-1 h-3.5 w-3.5" />删除
+                                      </Button>
+                                    </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -4434,6 +4557,53 @@ function WorkItemsContent() {
               <Button type="submit">保存修改</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+      {/* 明细记录修正弹窗（录入错误可改可删） */}
+      <Dialog open={!!recordEdit} onOpenChange={(open) => { if (!open && !recordSaving) setRecordEdit(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>修正{recordEdit?.kind === 'report' ? '对上报量' : '对下结算'}</DialogTitle>
+            <DialogDescription>{recordEdit?.label}</DialogDescription>
+          </DialogHeader>
+          {recordEdit ? (
+            <div className="space-y-3">
+              <div>
+                <Label>数量（{recordEdit.unit || '单位未填'}）</Label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={recordEdit.quantity}
+                  onChange={(event) => setRecordEdit({ ...recordEdit, quantity: event.target.value })}
+                />
+              </div>
+              {recordEdit.kind === 'settle' ? (
+                <div>
+                  <Label>单价（元，可留空）</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={recordEdit.unitPrice}
+                    onChange={(event) => setRecordEdit({ ...recordEdit, unitPrice: event.target.value })}
+                  />
+                </div>
+              ) : null}
+              <div>
+                <Label>备注</Label>
+                <Textarea
+                  rows={2}
+                  value={recordEdit.remark}
+                  onChange={(event) => setRecordEdit({ ...recordEdit, remark: event.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setRecordEdit(null)} disabled={recordSaving}>取消</Button>
+                <Button onClick={() => void saveRecordEdit()} disabled={recordSaving}>
+                  {recordSaving ? '保存中…' : '保存修正'}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
