@@ -174,7 +174,7 @@ export const NOTIFICATION_ROUTE_RULES: NotificationRouteRule[] = [
     href: '/visas?todo=mine',
     workbenchTodoKey: 'visasPending',
     workbenchTodoLabel: '签证待办理',
-    cron: '/api/notifications/check?force=true',
+    cron: 'POST /api/notifications/check?force=true',
     bindingConfigurable: true,
     includeInTodoDigest: true,
   },

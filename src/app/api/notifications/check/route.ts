@@ -659,7 +659,9 @@ async function checkConstructionDailyReport(client: any, force = false) {
 }
 
 // 主检测函数
-export async function GET(request: NextRequest) {
+// 注意：本接口会写库（生成/更新通知），因此只允许 POST，避免被跨站 <img>/链接以 GET 触发。
+// 旧版 cron 若仍用 GET，请求会收到 405，需要改成 POST。
+export async function POST(request: NextRequest) {
   try {
     // 鉴权：定时任务密钥（阿里云 FC 定时调用携带 x-cron-secret）或登录管理员
     // 修复：此前公开可反复触发 → 轰炸钉钉群

@@ -658,7 +658,7 @@ export default function NotificationsPage() {
   const runCheck = async () => {
     setChecking(true);
     try {
-      const res = await fetch('/api/notifications/check?force=true');
+      const res = await fetch('/api/notifications/check?force=true', { method: 'POST', credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) {
         throw new Error(

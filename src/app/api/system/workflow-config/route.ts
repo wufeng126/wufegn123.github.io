@@ -66,22 +66,20 @@ export async function GET(request: NextRequest) {
       .select('workflow_type');
     if (existingError) throw new Error(existingError.message);
 
-    const existingTypes = new Set((existing || []).map((item: { workflow_type: string }) => item.workflow_type));
-    const missingConfigs = DEFAULT_WORKFLOW_CONFIGS.filter(config => !existingTypes.has(config.workflow_type));
-    if (missingConfigs.length > 0) {
-      const { error: seedError } = await supabase
-        .from('workflow_configs')
-        .upsert(missingConfigs, { onConflict: 'workflow_type' });
-      if (seedError) throw new Error(seedError.message);
-    }
-
-    const { data, error } = await supabase
+    // GET 只读：不再在读取时写库（避免被跨站 GET 触发写操作）
+    const { data: saved, error } = await supabase
       .from('workflow_configs')
       .select('*')
       .in('workflow_type', ALLOWED_WORKFLOW_TYPES)
       .order('id');
     if (error) throw new Error(error.message);
-    return NextResponse.json({ success: true, data: data || [] });
+
+    // 数据库里没有的流程类型，用默认值补齐返回（仅内存，不落库；保存时由 PUT 写入）
+    const savedByType = new Map(
+      (saved || []).map((item: { workflow_type: string }) => [item.workflow_type, item]),
+    );
+    const data = DEFAULT_WORKFLOW_CONFIGS.map((config) => savedByType.get(config.workflow_type) || config);
+    return NextResponse.json({ success: true, data });
   } catch (e: unknown) {
     return NextResponse.json({ success: false, error: getErrorMessage(e) }, { status: 500 });
   }
