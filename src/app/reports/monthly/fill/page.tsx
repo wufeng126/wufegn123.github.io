@@ -267,6 +267,8 @@ export default function MonthlyReportFillPage() {
   const canApprove = status === 'pending_boss' && !isSubmitter && (
     (designatedBossId > 0 && myId === designatedBossId) || isBossOrSuper
   );
+  // 卡在「待项目经理补充」但指定审批人无法处理时，老板/超管可退回给预算员重新提交
+  const canForceReject = status === 'pending_manager' && !isSubmitter && isBossOrSuper && !canSupplement;
 
   const tradeWagesMerged = useMemo(() => {
     const merged: Record<string, number> = {};
@@ -727,7 +729,26 @@ export default function MonthlyReportFillPage() {
           </section>
         ) : null}
 
-        {!canFill && !canSupplement && !canApprove && status !== 'approved' ? (
+        {canForceReject ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#FFE7BA] bg-[#FFFBE6] px-4 py-3">
+            <p className="text-sm text-[#874D00]">
+              这份月报指定由其他项目经理补充，你无需处理；如需重新提交，可把它退回预算员。
+            </p>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                if (!window.confirm('确认退回给预算员重新提交？')) return;
+                void post('reject', { reason: '管理员退回：原指定审批人无法处理，请预算员核对后重新提交' });
+              }}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-[var(--color-danger)] disabled:opacity-60"
+            >
+              <XCircle className="h-3.5 w-3.5" /> 退回给预算员
+            </button>
+          </div>
+        ) : null}
+
+        {!canFill && !canSupplement && !canApprove && !canForceReject && status !== 'approved' ? (
           <div className="mt-4 rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--color-text-3)]">
             当前环节由其他角色处理中，你暂无操作权限。
           </div>

@@ -281,8 +281,17 @@ export async function POST(request: NextRequest) {
         }
       } else {
         const managerUserId = Number(ownerRow?.manager_user_id) || 0;
-        if (managerUserId > 0 && Number(auth.user.id) !== managerUserId && !isSuper) {
-          return apiForbidden('只有该项目指定的项目经理可以补充提交');
+        const designatedManagerId = Number((workflow?.content as Record<string, unknown> | null | undefined)?.managerApproverId) || 0;
+        // 优先按「提交时指定的审批人」判定；未指定才回退项目负责人/老板
+        const allowed = designatedManagerId > 0
+          ? Number(auth.user.id) === designatedManagerId
+          : (managerUserId > 0 ? Number(auth.user.id) === managerUserId || isSuper : isSuper);
+        if (!allowed) {
+          return apiForbidden(
+            designatedManagerId > 0
+              ? '这份月报指定了其他项目经理补充，请由指定审批人处理'
+              : '只有该项目指定的项目经理可以补充提交',
+          );
         }
       }
     }

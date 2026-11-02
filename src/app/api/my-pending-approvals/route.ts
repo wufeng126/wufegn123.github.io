@@ -46,17 +46,18 @@ export async function GET(request: NextRequest) {
 
     const reports = (reportRows || []).filter((row: Record<string, unknown>) => {
       const content = (row.content || {}) as Record<string, unknown>;
+      // 指定了审批人就只算该审批人；没有指定才回退到老板/超管
       if (row.status === 'pending_manager') {
         const designated = Number(content.managerApproverId) || 0;
-        return isBoss || (designated > 0 && designated === userId);
+        return designated > 0 ? designated === userId : isBoss;
       }
       const designated = Number(content.bossApproverId) || 0;
-      return isBoss || (designated > 0 && designated === userId);
+      return designated > 0 ? designated === userId : isBoss;
     });
 
     const settlements = (settlementRows || []).filter((row: Record<string, unknown>) => {
       const designated = Number(row.approver_user_id) || 0;
-      return isBoss || (designated > 0 && designated === userId);
+      return designated > 0 ? designated === userId : isBoss;
     });
 
     const operatorName = String(auth.user.name || auth.user.username || '');
