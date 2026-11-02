@@ -78,11 +78,21 @@ const nextConfig: NextConfig = {
     ],
   },
   
-  // 生产环境优化
+  // 按需引入大包（减小首屏 JS）
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts'],
+  },
+
+  // 生产环境去掉 console.log/debug（保留 error/warn），减小体积并避免日志泄露
   ...(isProd && {
-    poweredByHeader: false,
-    compress: true,
+    compiler: {
+      removeConsole: { exclude: ['error', 'warn'] },
+    },
   }),
+
+  // 生产环境优化
+  poweredByHeader: false,
+  compress: true,
 };
 
 export default nextConfig;

@@ -14,7 +14,9 @@
     "test:watch": "vitest",
     "check:permissions": "node scripts/check-permission-drift.mjs",
     "validate": "pnpm run --parallel '/^(ts-check|lint:build)$/'",
-    "check:guards": "node scripts/guards/check-data-guards.mjs"
+    "check:guards": "node scripts/guards/check-data-guards.mjs",
+    "check": "pnpm ts-check && pnpm vitest run && pnpm check:guards",
+    "audit:dead-code": "node scripts/audit/dead-code.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1070.0",
