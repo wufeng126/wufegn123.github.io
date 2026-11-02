@@ -177,6 +177,40 @@ export async function uploadFile(options: {
   return key;
 }
 
+/** 按「指定 Key」上传（不做随机改名），用于备份等需要确定性路径的场景 */
+export async function uploadFileAtKey(options: {
+  key: string;
+  buffer: Buffer;
+  contentType?: string;
+  bucket?: string;
+}): Promise<string> {
+  const key = options.key.replace(/^\/+/, '');
+  if (!hasOssConfig()) {
+    const supabase = getSupabaseClient();
+    await ensureFallbackBucket();
+    const { error } = await supabase.storage
+      .from(getFallbackBucket())
+      .upload(key, options.buffer, {
+        contentType: options.contentType || 'application/octet-stream',
+        upsert: true,
+      });
+    if (error) throw new Error(`文件上传失败（Supabase 存储）: ${error.message}`);
+    return key;
+  }
+
+  const client = getClient();
+  const bucket = getBucket(options);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: options.buffer,
+      ContentType: options.contentType || 'application/octet-stream',
+    }),
+  );
+  return key;
+}
+
 /** 生成预签名 URL（阿里云 OSS 原生签名；回退模式用 Supabase Storage 签名） */
 export async function generatePresignedUrl(options: {
   key: string;
