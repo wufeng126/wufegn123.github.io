@@ -73,6 +73,8 @@ export default function DataHealthPage() {
   const [detail, setDetail] = useState<{ groups?: DupGroup[]; rows?: DetailRow[]; totalRows?: number } | null>(null);
   const [fixing, setFixing] = useState(false);
   const [fixResult, setFixResult] = useState<FixResult | null>(null);
+  const [slowApis, setSlowApis] = useState<Array<{ path: string; count: number; maxMs: number; avgMs: number; failCount: number }>>([]);
+  const [slowLoading, setSlowLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +92,21 @@ export default function DataHealthPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadSlowApis = useCallback(async () => {
+    setSlowLoading(true);
+    try {
+      const res = await fetch('/api/system/slow-apis?days=7', { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok && json.success !== false) setSlowApis(json.data?.rows || []);
+    } catch {
+      // 忽略
+    } finally {
+      setSlowLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadSlowApis(); }, [loadSlowApis]);
 
   const openDetailPanel = useCallback(async (checkId: string) => {
     const config = DETAIL_CONFIG[checkId];
@@ -311,6 +328,49 @@ export default function DataHealthPage() {
               </div>
             );
           })}
+        </div>
+
+        <div className="rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--foreground)]">慢接口（近 7 天，&gt;1.5 秒）</p>
+              <p className="mt-0.5 text-xs text-[var(--color-text-3)]">浏览器实测耗时；持续偏慢的接口需要加索引或改成分页/缓存。</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadSlowApis()}
+              disabled={slowLoading}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border)] px-2 text-xs disabled:opacity-60"
+            >
+              {slowLoading ? '加载中…' : '刷新'}
+            </button>
+          </div>
+          {slowApis.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-[var(--color-text-3)]">暂无慢接口记录（或数据表 api_timing_logs 尚未创建）</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="bg-[var(--color-muted)] text-[var(--color-text-3)]">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">接口</th>
+                  <th className="px-3 py-2 text-right font-medium">次数</th>
+                  <th className="px-3 py-2 text-right font-medium">最慢</th>
+                  <th className="px-3 py-2 text-right font-medium">平均</th>
+                  <th className="px-3 py-2 text-right font-medium">失败</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slowApis.map((row) => (
+                  <tr key={row.path} className="border-t border-[var(--border)]">
+                    <td className="px-3 py-1.5 font-mono">{row.path}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{row.count}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-[#CB2634]">{row.maxMs} ms</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{row.avgMs} ms</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{row.failCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {data ? (

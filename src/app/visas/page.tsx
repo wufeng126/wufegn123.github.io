@@ -41,6 +41,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useConfirm } from '@/hooks/use-confirm';
+import { compressImageFile } from '@/lib/image-compress';
 
 // 类型定义
 interface Project {
@@ -383,9 +384,11 @@ export default function VisasPage() {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        // 图片压缩后再上传
+        const uploadFile = await compressImageFile(file, { maxSize: 1600, quality: 0.8 });
         const formData = new FormData();
         formData.append('visaId', String(visaId));
-        formData.append('file', file);
+        formData.append('file', uploadFile);
         if (currentVisa?.status === '已提交') {
           formData.append('replace', 'true');
         }

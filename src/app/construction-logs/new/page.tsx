@@ -12,6 +12,7 @@ import {
 import { validateAttendanceCountConsistency } from '@/lib/construction-log-attendance-risk';
 import { isPublicLogRestrictedUser } from '@/lib/construction-log-role-rules';
 import { usePermission } from '@/contexts/permission-context';
+import { compressImageFile } from '@/lib/image-compress';
 
 type Project = { id: number | string; name: string; is_archived?: boolean };
 type AttendanceWorker = {
@@ -538,8 +539,10 @@ function NewConstructionLogPageContent() {
     setPhotoUploading(current => ({ ...current, [draftId]: true }));
     setError('');
     try {
+      // 施工照片压缩后再上传，显著降低存储与流量
+      const compressed = await Promise.all(files.map((file) => compressImageFile(file, { maxSize: 1600, quality: 0.8 })));
       const formData = new FormData();
-      files.forEach(file => formData.append('files', file));
+      compressed.forEach(file => formData.append('files', file));
       const res = await fetch('/api/construction-logs/attachments/upload', {
         method: 'POST',
         body: formData,

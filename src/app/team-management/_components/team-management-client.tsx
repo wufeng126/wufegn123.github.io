@@ -32,6 +32,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { compressImageFile } from '@/lib/image-compress';
 
 type Project = { id: number | string; name: string; status?: string };
 type TeamGroup = {
@@ -1734,8 +1735,9 @@ export function TeamSettlementNewPageClient({ editSettlementId }: { editSettleme
     if (attachmentsUploading) return;
     setAttachmentsUploading(true);
     try {
+      const uploadFile = await compressImageFile(file, { maxSize: 1600, quality: 0.8 });
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', uploadFile);
       const res = await fetch('/api/team-settlements/attachments/upload', {
         method: 'POST',
         credentials: 'include',

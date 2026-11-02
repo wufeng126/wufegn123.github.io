@@ -33,6 +33,7 @@ import {
   X,
 } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
+import { compressImageFile } from '@/lib/image-compress';
 
 type ProjectOption = {
   id: number;
@@ -658,8 +659,9 @@ export default function EvidenceChainPage() {
 
     setUploading(true);
     try {
+      const compressed = await Promise.all(files.map((file) => compressImageFile(file, { maxSize: 1600, quality: 0.8 })));
       const formData = new FormData();
-      files.forEach((file) => formData.append('files', file));
+      compressed.forEach((file) => formData.append('files', file));
       const res = await fetch('/api/evidence-chain/attachments/upload', {
         method: 'POST',
         body: formData,

@@ -27,6 +27,7 @@ import {
   ChevronLeft, ChevronRight, Download, CreditCard, Paperclip, X, FileIcon, Image as ImageIcon, Upload
 } from 'lucide-react';
 import { AnimatedNumber } from '@/components/ui/animated-number';
+import { compressImageFile } from '@/lib/image-compress';
 
 // 类型定义
 interface Attachment {
@@ -260,8 +261,10 @@ export default function CertificatesPage() {
           continue;
         }
 
+        // 图片先压缩再上传（照片可省 70%+ 存储与流量；PDF 等非图片原样上传）
+        const uploadFile = await compressImageFile(file, { maxSize: 1600, quality: 0.8 });
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', uploadFile);
         if (certificateId) {
           formData.append('certificateId', certificateId.toString());
         }

@@ -6,6 +6,7 @@ import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { PermissionProvider } from '@/contexts/permission-context';
 import { RouteGuard } from '@/components/route-guard';
 import { ConfirmProvider } from '@/hooks/use-confirm';
+import { PerfMonitor } from '@/components/perf-monitor';
 import FetchInterceptor from '@/components/fetch-interceptor';
 import './globals.css';
 
@@ -34,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
+        <PerfMonitor />
         <FetchInterceptor />
         <PermissionProvider>
           <ConfirmProvider>
