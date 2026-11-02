@@ -105,6 +105,7 @@ export function readMigrationFile(fileName: string): string {
     'add_data_backups.sql',
     'add_dingtalk_todo_tasks.sql',
     'add_project_role_boss.sql',
+    'add_api_timing_logs.sql',
     'client_reports_auto_review.sql',
   ];
   if (!allowed.includes(fileName)) throw new Error('该脚本不在允许执行的列表内');

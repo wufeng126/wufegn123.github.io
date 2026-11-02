@@ -6,6 +6,23 @@ import { AlertTriangle, CheckCircle2, Loader2, Play, ShieldCheck } from 'lucide-
 
 type Capability = { mode: 'postgres' | 'rpc' | 'none'; detail: string; functionName?: string };
 
+type EnvCheck = {
+  database: {
+    url_configured: boolean;
+    service_role_key_configured: boolean;
+    anon_key_configured: boolean;
+    effective_key_role: string;
+    using_service_role: boolean;
+  };
+  storage: {
+    mode: string;
+    backup_encryption_configured: boolean;
+    approval_link_secret_configured: boolean;
+    cron_token_configured: boolean;
+  };
+  rls_safety: { safe_to_enable: boolean; reason: string };
+};
+
 const SCRIPTS = [
   { file: 'enable_rls_core_tables.sql', label: '开启核心表行级安全（RLS）', desc: '执行后 anon key 无法直接读写业务数据，仅服务端 service_role 可访问' },
   { file: 'add_data_backups.sql', label: '创建数据备份表', desc: '数据备份功能依赖，缺表时备份会失败' },
@@ -16,6 +33,8 @@ const SCRIPTS = [
 
 export default function SecurityPage() {
   const [capability, setCapability] = useState<Capability | null>(null);
+  const [envCheck, setEnvCheck] = useState<EnvCheck | null>(null);
+  const [envError, setEnvError] = useState('');
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -37,6 +56,24 @@ export default function SecurityPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/system/env-check', { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok || json.success === false) {
+          if (!cancelled) setEnvError(json.error || '需要超级管理员权限');
+          return;
+        }
+        if (!cancelled) setEnvCheck(json.data as EnvCheck);
+      } catch (e) {
+        if (!cancelled) setEnvError(e instanceof Error ? e.message : '自检失败');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const run = useCallback(async (file: string) => {
     const input = window.prompt(`即将执行 ${file}（会先自动备份一次）。\n\n请输入 EXECUTE 确认：`);
@@ -76,6 +113,25 @@ export default function SecurityPage() {
             </p>
           </div>
         </div>
+
+        {envCheck ? (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${envCheck.rls_safety.safe_to_enable ? 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' : 'border-[#FFCCC7] bg-[#FFF2F0] text-[#CB2634]'}`}>
+            <p className="font-medium">
+              {envCheck.rls_safety.safe_to_enable ? '✅ 可以安全开启 RLS' : '⛔ 暂不要开启 RLS'}
+            </p>
+            <p className="mt-1">{envCheck.rls_safety.reason}</p>
+            <p className="mt-1 text-xs opacity-80">
+              数据库 key：{envCheck.database.effective_key_role}
+              （service_role {envCheck.database.service_role_key_configured ? '已配置' : '未配置'} / anon {envCheck.database.anon_key_configured ? '已配置' : '未配置'}）
+              　存储：{envCheck.storage.mode}
+              　备份加密：{envCheck.storage.backup_encryption_configured ? '已开启' : '未开启'}
+            </p>
+          </div>
+        ) : envError ? (
+          <div className="rounded-xl border border-[#FFE7BA] bg-[#FFFBE6] px-4 py-3 text-sm text-[#874D00]">
+            环境自检：{envError}（仅超级管理员可查看）
+          </div>
+        ) : null}
 
         <div className={`rounded-xl border px-4 py-3 text-sm ${capability?.mode === 'none' ? 'border-[#FFE7BA] bg-[#FFFBE6] text-[#874D00]' : 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]'}`}>
           {loading ? (
