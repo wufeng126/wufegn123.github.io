@@ -681,21 +681,17 @@ export default function PermissionCenterPage() {
       : editingUserRoles.filter((id) => id !== superAdminRole.id));
   };
 
+  // 内置超管角色可能不在 roles 表里，因此直接走专用接口，不再依赖角色行
   const canGrantSuperAdmin = currentIsSuperAdmin || users.every((u) => u.role !== 'super_admin');
 
   const promoteToSuperAdmin = async (target: User) => {
-    if (!superAdminRole) {
-      toast({ title: '缺少超级管理员角色', description: '请先在「岗位模板」里创建超级管理员角色', variant: 'error' });
-      return;
-    }
     const ok = window.confirm(`确认把「${target.name || target.username}」设为超级管理员？\n将拥有全部权限与全部项目，60 秒内生效。`);
     if (!ok) return;
     try {
-      const nextRoleIds = Array.from(new Set([...(target.role_ids || []), superAdminRole.id]));
-      const res = await fetch('/api/system/permission/users', {
-        method: 'PUT',
+      const res = await fetch('/api/system/permission/users/promote', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: target.id, role_ids: nextRoleIds, allowed_projects: target.allowed_projects || [] }),
+        body: JSON.stringify({ user_id: target.id, enabled: true }),
       });
       const data = await res.json();
       if (!res.ok || data.success === false) throw new Error(data.error || '设置失败');
