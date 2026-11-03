@@ -10,6 +10,7 @@ import { getGlobalSummary, getProjectFinancialSummary, getMultiProjectFinancialS
 import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { requireAuth } from '@/lib/api-auth';
 import { logger } from '@/lib/logger';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { getErrorMessage } from '@/lib/api-utils';
 
 // 获取当前月份
@@ -72,6 +73,10 @@ export async function GET(request: Request) {
     const rangeEndDate = now.toISOString().slice(0, 10);
     const dashboardDateRange = { start: rangeStartDate, end: rangeEndDate };
     
+    // 项目范围：非超管只能看到自己项目的汇总（null = 全部）
+    const scopeIds = await getAccessibleProjectIds(client, auth.user);
+    const inScope = (pid: unknown) => scopeIds === null || scopeIds.includes(Number(pid));
+
     // ========== 基础统计数据 ==========
     
     // 获取所有项目
@@ -85,8 +90,9 @@ export async function GET(request: Request) {
       throw new Error(`查询项目失败: ${projectError.message}`);
     }
 
-    const projectCount = allProjects?.length || 0;
-    const activeProjects = allProjects?.filter(p => isActiveProjectStatus(p.status)) || [];
+    const visibleProjects = (allProjects || []).filter((p) => inScope(p.id));
+    const projectCount = visibleProjects.length;
+    const activeProjects = visibleProjects.filter(p => isActiveProjectStatus(p.status)) || [];
 
     // 获取工人数量（区分在场/退场）- 支持项目筛选
     let workersQuery = client
@@ -111,6 +117,7 @@ export async function GET(request: Request) {
       throw new Error(`查询工人数量失败: ${workerError.message || ''}`);
     }
 
+    if (scopeIds !== null) workersData = workersData.filter((w) => inScope(w.project_id));
     const workerCount = workersData?.length || 0;
     const inServiceCount = workersData?.filter(w => isActiveWorkerStatus(String(w.status || ''))).length || 0;
     const leftCount = workersData?.filter(w => isLeftWorkerStatus(String(w.status || ''))).length || 0;
@@ -132,6 +139,8 @@ export async function GET(request: Request) {
       throw new Error(`查询分项工程失败: ${subitemsError.message}`);
     }
 
+    const scopedSubitems = scopeIds === null ? (subitemsData || []) : (subitemsData || []).filter((item: any) => inScope(item.project_id));
+
     // 计算各项目的预算量、对上报量、对下结算量
     const projectStats: Record<number, {
       budgetQuantity: number;
@@ -142,7 +151,7 @@ export async function GET(request: Request) {
       settledAmount: number;
     }> = {};
 
-    subitemsData?.forEach(item => {
+    scopedSubitems.forEach((item: any) => {
       const projectId = item.project_id;
       if (!projectId) return;
 
@@ -248,7 +257,7 @@ export async function GET(request: Request) {
 
     const unifiedSummary = selectedProjectId
       ? await getProjectFinancialSummary(selectedProjectId, dashboardDateRange)
-      : await getGlobalSummary(dashboardDateRange);
+      : await getGlobalSummary(dashboardDateRange, scopeIds === null ? undefined : scopeIds);
     const financialMetrics = selectedProjectId ? {
       taxableIncome: (unifiedSummary as any)?.taxableIncome || 0,
       clientPaidAmount: (unifiedSummary as any)?.clientPaidAmount || 0,
