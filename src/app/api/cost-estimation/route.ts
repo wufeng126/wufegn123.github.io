@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 
@@ -32,6 +33,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '工序和单价不能为空' }, { status: 400 });
     }
     const supabase = getSupabaseClient();
+    // 项目范围校验：防止往别人项目写单价
+    if (project_id) {
+      const access = await assertProjectAccess(supabase, auth.user, project_id);
+      if (!access.ok) return access.response;
+    }
     const amount = quantity ? parseFloat(quantity) * parseFloat(price) : null;
     const { data, error } = await supabase.from('unit_prices').insert({
       project_id: project_id ? parseInt(project_id) : null,

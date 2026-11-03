@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
@@ -84,6 +85,12 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+
+    // 项目范围校验：防止给无权限项目调人
+    {
+      const access = await assertProjectAccess(client, auth.user, project_id);
+      if (!access.ok) return access.response;
+    }
 
     if (action === 'transfer') {
       // 调动：结束旧项目分配，创建新项目分配

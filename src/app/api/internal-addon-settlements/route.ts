@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 
@@ -65,6 +66,10 @@ export async function POST(request: NextRequest) {
     for (const record of records) {
       const { project_id, addon_id, year_month, quantity, unit_price, remark } = record;
       if (!project_id || !addon_id || !year_month || quantity === undefined) continue;
+
+      // 项目范围校验：防止跨项目写入
+      const access = await assertProjectAccess(supabase, auth.user, project_id);
+      if (!access.ok) return access.response;
 
       const normalizedQuantity = quantity ? quantity.toString() : '0';
       const normalizedPrice = unit_price ? unit_price.toString() : '0';

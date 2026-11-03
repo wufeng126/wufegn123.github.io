@@ -298,9 +298,12 @@ export default function SidebarLayout({
     });
   }, [pathname]);
 
+  const currentRole = String(user?.role || '').trim().toLowerCase();
   const hasAnyPermission = (perms?: string[]) => {
     if (!perms || perms.length === 0) return true;
     if (isSuperAdmin) return true;
+    // 与后端一致：admin 角色拥有全部 system:* 权限（否则「系统管理」整组菜单会被隐藏）
+    if (currentRole === 'admin' && perms.some((p) => p.startsWith('system:'))) return true;
     return perms.some(p => hasCompatiblePermission(p, permissions));
   };
 

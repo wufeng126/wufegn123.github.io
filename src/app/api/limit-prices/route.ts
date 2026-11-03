@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { getRequestAuthUser, type RequestAuthUser } from '@/lib/auth';
@@ -122,6 +123,19 @@ export async function POST(request: NextRequest) {
     project_id, subitem_name, work_type, team_name, unit,
     limit_unit_price, plan_quantity, remark
   } = body;
+
+  // 项目范围校验：防止跨项目写入限价
+  {
+    const access = await assertProjectAccess(supabase, {
+      id: Number(auth.user.id),
+      username: auth.user.username,
+      role: auth.user.role,
+      roleId: 0,
+      is_super_admin: auth.user.is_super_admin,
+      permissions: auth.user.permissions,
+    } as never, project_id);
+    if (!access.ok) return access.response;
+  }
   
   if (!project_id || !subitem_name || !unit || !limit_unit_price) {
     return NextResponse.json({ error: '缺少必填字段' }, { status: 400 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { hasCompatiblePermission, isSuperAdminUser } from '@/lib/route-permissions';
 import { authFetch } from '@/lib/auth-client';
 
@@ -232,6 +232,12 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // 当前登录角色（用于与后端一致地放行 admin 的系统管理权限）
+  const userRoleRef = useRef<string>('');
+  useEffect(() => {
+    userRoleRef.current = user?.role || '';
+  }, [user]);
+
   // 初始化加载
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -243,6 +249,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   // 检查是否有某个权限
   const hasPermission = useCallback((permission: string): boolean => {
     if (isSuperAdmin) return true;
+    // 与后端一致：admin 角色拥有全部 system:* 权限（用于账号/权限分配，避免被锁死）
+    if (String(userRoleRef.current || '').trim().toLowerCase() === 'admin' && permission.startsWith('system:')) return true;
     return hasCompatiblePermission(permission, permissions);
   }, [permissions, isSuperAdmin]);
 
