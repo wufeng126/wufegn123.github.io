@@ -677,6 +677,31 @@ export default function PermissionCenterPage() {
       : editingUserRoles.filter((id) => id !== superAdminRole.id));
   };
 
+  const canGrantSuperAdmin = currentIsSuperAdmin || users.every((u) => u.role !== 'super_admin');
+
+  const promoteToSuperAdmin = async (target: User) => {
+    if (!superAdminRole) {
+      toast({ title: '缺少超级管理员角色', description: '请先在「岗位模板」里创建超级管理员角色', variant: 'error' });
+      return;
+    }
+    const ok = window.confirm(`确认把「${target.name || target.username}」设为超级管理员？\n将拥有全部权限与全部项目，60 秒内生效。`);
+    if (!ok) return;
+    try {
+      const nextRoleIds = Array.from(new Set([...(target.role_ids || []), superAdminRole.id]));
+      const res = await fetch('/api/system/permission/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: target.id, role_ids: nextRoleIds, allowed_projects: target.allowed_projects || [] }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) throw new Error(data.error || '设置失败');
+      toast({ title: '已设为超级管理员', description: `${target.name || target.username}（60 秒内生效）`, variant: 'success' });
+      await loadData();
+    } catch (error) {
+      toast({ title: '设置失败', description: error instanceof Error ? error.message : '请重试', variant: 'error' });
+    }
+  };
+
   const saveUserRoles = async () => {
     if (!editingUser) return;
 
@@ -1076,10 +1101,20 @@ export default function PermissionCenterPage() {
                             {getUserProjectRoleSummary(user.id)}
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" onClick={() => openUserRoleDialog(user)}>
-                              <UserCog className="w-4 h-4 mr-1" />
-                              分配岗位与项目
-                            </Button>
+                            <div className="flex flex-wrap gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => openUserRoleDialog(user)}>
+                                <UserCog className="w-4 h-4 mr-1" />
+                                改角色与项目
+                              </Button>
+                              {canGrantSuperAdmin && user.role !== 'super_admin' ? (
+                                <Button variant="ghost" size="sm" className="text-blue-600" onClick={() => void promoteToSuperAdmin(user)}>
+                                  设为超级管理员
+                                </Button>
+                              ) : null}
+                              {user.role === 'super_admin' ? (
+                                <span className="self-center rounded bg-blue-50 px-2 py-1 text-xs text-blue-600">超级管理员</span>
+                              ) : null}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -1149,6 +1184,11 @@ export default function PermissionCenterPage() {
                           <UserCog className="w-4 h-4 mr-1" />
                           改角色与项目
                         </Button>
+                          {canGrantSuperAdmin && user.role !== 'super_admin' ? (
+                            <Button variant="outline" size="sm" className="mt-2 w-full border-blue-200 text-blue-600" onClick={() => void promoteToSuperAdmin(user)}>
+                              设为超级管理员
+                            </Button>
+                          ) : null}
                       </article>
                     );
                   })
