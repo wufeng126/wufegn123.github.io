@@ -179,6 +179,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/system/security': { permission: 'system:manage' },
   '/system/ops': { permission: 'system:manage' },
   '/workers/vouchers': { permission: 'salaries:view' },
+  '/workers/labor-analysis': { permission: 'salaries:view' },
   '/api/vouchers': { permission: 'salaries:view' },
   '/system/permission-matrix': { permission: 'system:permission_manage' },
   '/system/audit-logs': { permission: 'audit:view' },
@@ -303,6 +304,7 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/ai/classify-material': 'miscellaneous_materials:edit',
   // 月度凭证：上传需要工资编辑权限；查看/状态流转在接口内按项目与角色校验
   '/api/vouchers': 'salaries:edit',
+  '/api/labor-analysis': 'salaries:edit',
   '/api/team-groups': 'team_groups:edit',
   '/api/team-settlements/workflow': 'team_settlements:view',
   '/api/team-settlements': 'team_settlements:edit',
