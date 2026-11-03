@@ -177,6 +177,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/system/data-health': { permission: 'system:manage' },
   '/system/backups': { permission: 'system:manage' },
   '/system/security': { permission: 'system:manage' },
+  '/system/ops': { permission: 'system:manage' },
   '/system/audit-logs': { permission: 'audit:view' },
   '/system/approval-config': { permission: 'system:manage' },
 

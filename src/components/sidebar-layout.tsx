@@ -30,7 +30,6 @@ import {
   FileBadge,
   CalendarDays,
   FileCheck2,
-  BellRing,
   ClipboardCheck,
   WalletCards,
   Package,
@@ -53,15 +52,11 @@ import {
   FileBarChart,
   Target,
   Archive,
-  UserCog,
   Link2,
   Workflow,
-  RefreshCw,
   Send,
   Bot,
-  History,
   type LucideIcon,
-  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hasCompatiblePermission } from '@/lib/route-permissions';
@@ -157,17 +152,12 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '历史标段库', href: '/cost-estimation/bid/library', icon: Archive },
   ],
   '/knowledge': [],
+  // 精简为 4 项：账号/权限、集成与通知、AI 配置、数据运维（体检/备份/加固/日志）
   '/system-management': [
-    { name: '权限中心', href: '/system-management?tab=permission', icon: ShieldCheck, permissions: ['system:permission_manage'] },
-    { name: '后台账号', href: '/system-management?tab=admin', icon: UserCog, permissions: ['system:manage'] },
-    { name: '钉钉绑定', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
-    { name: '通知中心', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
-    { name: 'WPS同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
+    { name: '权限与账号', href: '/system-management?tab=permission', icon: ShieldCheck, permissions: ['system:permission_manage'] },
+    { name: '集成与通知', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
     { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },
-    { name: '数据健康', href: '/system/data-health', icon: Activity, permissions: ['system:manage'] },
-    { name: '安全加固', href: '/system/security', icon: ShieldCheck, permissions: ['system:manage'] },
-    { name: '数据备份', href: '/system/backups', icon: Database, permissions: ['system:manage'] },
-    { name: '日志管理', href: '/system-management?tab=audit-logs', icon: History, permissions: ['audit:view'] },
+    { name: '数据运维', href: '/system/ops', icon: Database, permissions: ['system:manage'] },
   ],
 };
 
