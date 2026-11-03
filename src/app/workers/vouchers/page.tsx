@@ -171,7 +171,7 @@ export default function VouchersPage() {
               <FileText className="h-5 w-5 text-[var(--color-primary)]" /> 月度凭证（结算单 / 考勤表）
             </h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
-              纸质单据扫描件按「项目 + 月份 + 类型」归档，只存原件、不重复录人员金额；审批流程暂未启用。
+              纸质单据扫描件按「项目 + 月份 + 类型」归档，只存原件、不重复录金额；仅用于查账留档，不影响成本计算。
             </p>
           </div>
           <button

@@ -73,7 +73,7 @@ export default function LaborAnalysisListPage() {
               <TrendingUp className="h-5 w-5 text-[var(--color-primary)]" /> 月度用工分析
             </h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
-              按项目 + 月份查看用工分析；点某一行进入填报/查看详情。
+              按项目 + 月份查看用工分析；点某一行进入填报/查看详情。本模块仅用于成本分析与查账，金额不计入项目成本。
             </p>
           </div>
           <Link

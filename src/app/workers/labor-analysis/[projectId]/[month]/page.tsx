@@ -169,6 +169,9 @@ export default function LaborAnalysisDetailPage() {
             </Link>
             <h1 className="mt-2 text-xl font-bold text-[var(--foreground)]">{projectName} · {month} 用工分析</h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
+              仅用于成本分析与查账，<b>金额不计入项目成本</b>（成本以工资表/结算单为准）。
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-3)]">
               状态：{statusText(analysis?.status)}
               {analysis?.submitted_by_name ? ` · 提交人 ${analysis.submitted_by_name}` : ''}
             </p>
