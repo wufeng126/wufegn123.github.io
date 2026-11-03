@@ -1211,6 +1211,9 @@ export default function PermissionCenterPage() {
             <DialogDescription>
               {editingRole ? `编辑「${editingRole.name}」的权限配置` : '创建新岗位模板并配置权限'}
             </DialogDescription>
+            <p className="text-xs text-amber-600">
+              这是「岗位模板」的权限配置，不能在这里设置超级管理员。要把某个账号设为超级管理员：切到「用户分配」页签 → 找到该账号 → 点「改角色与项目」→ 勾选「设为超级管理员」。
+            </p>
           </DialogHeader>
           
           <div className="space-y-6">
@@ -1412,7 +1415,7 @@ export default function PermissionCenterPage() {
             </div>
 
             {/* 超级管理员开关（仅超级管理员可授予） */}
-            {currentIsSuperAdmin && superAdminRole ? (
+            {(currentIsSuperAdmin || users.every((u) => u.role !== 'super_admin')) && superAdminRole ? (
               <div className={`space-y-2 rounded-lg border p-3 ${editingIsSuperAdmin ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
                 <div className="flex items-center gap-2">
                   <Checkbox

@@ -200,8 +200,18 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
     
-    // 越权护栏（P0）：权限管理员不能改超管账号、不能授予超管角色（防止自我提权）
+    // 首次引导：数据库里还没有任何超级管理员时，允许权限管理员把账号提升为超管（避免无人可管理）
+    let allowBootstrapGrant = false;
     if (!auth.user.is_super_admin) {
+      const { count } = await supabase
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'super_admin');
+      allowBootstrapGrant = (count || 0) === 0;
+    }
+
+    // 越权护栏（P0）：权限管理员不能改超管账号、不能授予超管角色（防止自我提权）
+    if (!auth.user.is_super_admin && !allowBootstrapGrant) {
       if (String(existingUser.role || '') === 'super_admin') {
         return NextResponse.json({ error: '不能修改超级管理员账号，请联系超级管理员操作' }, { status: 403 });
       }
