@@ -79,7 +79,7 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/team-management': ['team_groups:view', 'team_settlements:view'],
   '/team-management/groups': ['team_groups:view', 'team_settlements:view'],
   '/team-settlement': ['team_groups:view', 'team_settlements:view'],
-  '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
+  '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'salaries:view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/construction-logs': [],
   '/cost-estimation': [],
   '/knowledge': [],
@@ -122,8 +122,6 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   ],
   '/hr-salary': [
     { name: '花名册', href: '/workers/roster', icon: Users },
-    { name: '月度用工分析', href: '/workers/labor-analysis', icon: TrendingUp, permissions: ['salaries:view'] },
-    { name: '月度凭证', href: '/workers/vouchers', icon: FileText, permissions: ['salaries:view'] },
     { name: '月度工资', href: '/workers/salaries', icon: ReceiptText },
     { name: '生活费台账', href: '/workers/living-allowances', icon: Coins, permissions: ['salaries:pay'] },
     { name: '工资发放', href: '/workers/payments', icon: Banknote },
@@ -151,6 +149,8 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '资金管理看板', href: '/data-board/fund-management', icon: Wallet },
     { name: '公司项目日报', href: '/reports/daily', icon: FileBarChart },
     { name: '月度经营月报', href: '/reports/monthly', icon: FileBarChart },
+    { name: '月度用工分析', href: '/workers/labor-analysis', icon: TrendingUp, permissions: ['salaries:view'] },
+    { name: '月度凭证（查账）', href: '/workers/vouchers', icon: FileText, permissions: ['salaries:view'] },
   ],
   '/cost-estimation/bid': [
     { name: '测算中心', href: '/cost-estimation/bid', icon: Target },
