@@ -17,7 +17,6 @@ const nextConfig: NextConfig = {
   async headers() {
     // 安全响应头：防点击劫持 / MIME 嗅探 / 泄露来源页 / 强制 HTTPS（生产）
     const securityHeaders = [
-      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), geolocation=(), microphone=(self)' },
@@ -28,12 +27,15 @@ const nextConfig: NextConfig = {
               key: 'Content-Security-Policy',
               value: [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-                "style-src 'self' 'unsafe-inline'",
+                // 钉钉 JSAPI 从 g.alicdn.com 加载，必须放行；否则 H5 免登报「JSAPI 加载失败」
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://g.alicdn.com https://*.alicdn.com https://*.dingtalk.com",
+                "style-src 'self' 'unsafe-inline' https://g.alicdn.com https://*.alicdn.com",
                 "img-src 'self' data: blob: https:",
-                "font-src 'self' data:",
+                "font-src 'self' data: https://*.alicdn.com",
                 "connect-src 'self' https: wss:",
-                "frame-ancestors 'self'",
+                "frame-src 'self' https://*.dingtalk.com https://*.alicdn.com",
+                // 允许在钉钉客户端内被嵌套打开（H5 微应用/工作台）
+                "frame-ancestors 'self' https://*.dingtalk.com https://dingtalk.com",
                 "base-uri 'self'",
                 "form-action 'self'",
                 "object-src 'none'",
