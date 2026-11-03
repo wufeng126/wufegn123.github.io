@@ -7,6 +7,7 @@ import { isSuperAdminUser } from '@/lib/route-permissions';
 import { ensurePublicLogProject, isPublicLogProject, PUBLIC_LOG_PROJECT_TYPE } from '@/lib/public-log-project';
 import { isUserRestrictedFromPublicConstructionLog } from '@/lib/construction-log-submitters';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { ensureMaterialWarehouseProject, isMaterialWarehouseProject } from '@/lib/material-warehouse-project';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -157,6 +158,9 @@ export async function GET(request: NextRequest) {
     const assignedOnly = ['assigned', 'managed', 'mine'].includes(scope || '');
     // 归档项目默认仍返回（历史查看），业务上"不再可选/不再统计"的页面传 excludeArchived=1
     const excludeArchived = ['1', 'true', 'yes'].includes(String(request.nextUrl.searchParams.get('excludeArchived') || '').toLowerCase());
+    // 库房是「零星材料」专用虚拟项目：其他模块一律不返回；仅零星材料传 includeWarehouse=1
+    const includeWarehouse = ['1', 'true', 'yes'].includes(String(request.nextUrl.searchParams.get('includeWarehouse') || '').toLowerCase());
+    if (includeWarehouse) await ensureMaterialWarehouseProject(client);
     if (includePublicLog) await ensurePublicLogProject(client);
     
     // 查询项目数据
@@ -190,6 +194,10 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    if (!includeWarehouse) {
+      filteredProjects = filteredProjects.filter((project) => !isMaterialWarehouseProject(project as { name?: string | null; project_type?: string | null }));
+    }
+
     if (excludeArchived) {
       filteredProjects = filteredProjects.filter((project) => !(project as { is_archived?: boolean | null }).is_archived);
     }

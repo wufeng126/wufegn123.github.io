@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
@@ -174,6 +175,10 @@ export async function GET(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+    // 红线：库房只允许在零星材料中使用
+    if (await isMaterialWarehouseProjectId(client, Number(parsedProjectId))) {
+      return NextResponse.json({ error: '「库房」项目只允许在零星材料模块使用' }, { status: 400 });
+    }
     
     // 获取当前用户
     const user = auth.user;

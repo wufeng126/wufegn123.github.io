@@ -148,10 +148,12 @@ export async function GET(request: NextRequest) {
       projectsQuery = projectsQuery.in('id', accessibleProjects);
     }
     
-    const { data: projects, error: projectError } = await projectsQuery;
+    const { data: projectsRaw, error: projectError } = await projectsQuery;
     if (projectError) {
       throw new Error(`查询项目失败: ${projectError.message}`);
     }
+    // 库房只用于零星材料，不进入成本利润中心
+    const projects = (projectsRaw || []).filter((p: { name?: string | null }) => String(p.name || '').trim() !== '库房');
 
     // ========== 2. 使用统一中间层获取各项目财务汇总 ==========
     const summaries = await Promise.all(

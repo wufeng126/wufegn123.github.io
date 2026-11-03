@@ -325,7 +325,7 @@ function MiscMaterialsContent() {
   // 获取项目列表
   async function fetchProjects() {
     try {
-      const response = await fetch('/api/projects');
+      const response = await fetch('/api/projects?includeWarehouse=1');
       const data = await response.json();
       setProjects(data.projects || []);
     } catch (error) {

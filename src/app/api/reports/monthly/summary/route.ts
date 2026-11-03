@@ -137,8 +137,10 @@ export async function GET(request: NextRequest) {
     } else if (projectScope !== null) {
       targetProjectIds = projectScope;
     } else {
-      const { data: allProjects } = await supabase.from('projects').select('id');
-      targetProjectIds = (allProjects || []).map((p: Record<string, unknown>) => p.id as number);
+      const { data: allProjects } = await supabase.from('projects').select('id, name');
+      targetProjectIds = (allProjects || [])
+        .filter((p: Record<string, unknown>) => String(p.name || '').trim() !== '库房')
+        .map((p: Record<string, unknown>) => p.id as number);
     }
 
     if (targetProjectIds.length === 0) {

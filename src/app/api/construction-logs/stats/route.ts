@@ -192,8 +192,10 @@ export async function GET(request: NextRequest) {
     if (parsedProjectId) projectsQuery = projectsQuery.eq('id', parsedProjectId);
     else if (Array.isArray(accessibleProjectIds)) projectsQuery = projectsQuery.in('id', accessibleProjectIds);
 
-    const { data: projectRows, error: projectError } = await projectsQuery;
+    const { data: projectRowsRaw, error: projectError } = await projectsQuery;
     if (projectError) throw new Error(projectError.message);
+    // 库房是零星材料专用虚拟项目，其他模块一律不出现
+    const projectRows = (projectRowsRaw || []).filter((row: Record<string, unknown>) => String(row.name || '').trim() !== '库房');
 
     // 跨项目整月日志可能超过 PostgREST 单次请求默认上限（1000 行），
     // 必须分页拉取全部行，否则下旬数据被截断会被误判为"未提交"。

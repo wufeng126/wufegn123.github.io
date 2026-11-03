@@ -867,6 +867,13 @@ export async function POST(request: NextRequest) {
 
     const { data: projectRows, error: projectRowsError } = await loadProjectsForArchiveCheck(supabase, uniqueProjectIds);
     if (projectRowsError) throw new Error(projectRowsError.message);
+    // 红线：「库房」是零星材料专用虚拟项目，禁止写施工日志
+    const warehouseProject = ((projectRows || []) as Array<{ id?: number; name?: string }>)
+      .find((project) => String(project.name || '').trim() === '库房');
+    if (warehouseProject) {
+      return apiBadRequest('「库房」项目只允许在零星材料模块使用，不能提交施工日志');
+    }
+
     const archivedProject = ((projectRows || []) as ProjectArchiveCheckRow[]).find((project) => project.is_archived && !isPublicLogProject(project));
     if (archivedProject) {
       return apiBadRequest(`项目已归档，不能再提交施工日志：${archivedProject.name || archivedProject.id}`);

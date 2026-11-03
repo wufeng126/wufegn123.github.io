@@ -90,7 +90,9 @@ export async function GET(request: Request) {
       throw new Error(`查询项目失败: ${projectError.message}`);
     }
 
-    const visibleProjects = (allProjects || []).filter((p) => inScope(p.id));
+    const visibleProjects = (allProjects || [])
+      .filter((p) => inScope(p.id))
+      .filter((p) => String((p as { name?: string | null }).name || '').trim() !== '库房');
     const projectCount = visibleProjects.length;
     const activeProjects = visibleProjects.filter(p => isActiveProjectStatus(p.status)) || [];
 
