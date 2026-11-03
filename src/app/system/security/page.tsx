@@ -36,6 +36,8 @@ export default function SecurityPage() {
   const [capability, setCapability] = useState<Capability | null>(null);
   const [envCheck, setEnvCheck] = useState<EnvCheck | null>(null);
   const [envError, setEnvError] = useState('');
+  const [bootstrap, setBootstrap] = useState<{ superAdminCount: number; canBootstrap: boolean } | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<string | null>(null);
@@ -102,6 +104,36 @@ export default function SecurityPage() {
     }
   }, [sqlView]);
 
+  const loadBootstrap = useCallback(async () => {
+    try {
+      const res = await fetch('/api/system/bootstrap-promote', { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok && json.success !== false) setBootstrap(json.data);
+    } catch {
+      // 忽略
+    }
+  }, []);
+
+  useEffect(() => { void loadBootstrap(); }, [loadBootstrap]);
+
+  const bootstrapSelf = useCallback(async () => {
+    if (!window.confirm('系统里当前没有任何超级管理员。\n确认把你自己设为超级管理员？')) return;
+    setBootstrapping(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/system/bootstrap-promote', { method: 'POST', credentials: 'include' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '设置失败');
+      setNotice(json.data?.message || '已设置');
+      await loadBootstrap();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '设置失败');
+    } finally {
+      setBootstrapping(false);
+    }
+  }, [loadBootstrap]);
+
   const run = useCallback(async (file: string) => {
     setPendingFile(null);
     setRunning(file);
@@ -140,6 +172,30 @@ export default function SecurityPage() {
             </p>
           </div>
         </div>
+
+        {bootstrap ? (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${bootstrap.canBootstrap ? 'border-[#FFE7BA] bg-[#FFFBE6] text-[#874D00]' : 'border-[var(--border)] bg-white text-[var(--color-text-2)]'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-medium">超级管理员状态</p>
+                <p className="mt-1 text-xs">
+                  当前系统中超级管理员数量：<b>{bootstrap.superAdminCount}</b>
+                  {bootstrap.canBootstrap ? '（没有任何超管，可通过下方按钮自救）' : '（正常）'}
+                </p>
+              </div>
+              {bootstrap.canBootstrap ? (
+                <button
+                  type="button"
+                  disabled={bootstrapping}
+                  onClick={() => void bootstrapSelf()}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#FF7D00] px-3 text-xs font-medium text-white disabled:opacity-60"
+                >
+                  {bootstrapping ? '设置中…' : '将我自己设为超级管理员'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {envCheck ? (
           <div className={`rounded-xl border px-4 py-3 text-sm ${envCheck.rls_safety.safe_to_enable ? 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' : 'border-[#FFCCC7] bg-[#FFF2F0] text-[#CB2634]'}`}>
