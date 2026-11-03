@@ -516,6 +516,25 @@ function CostCenterContent() {
             ))}
           </SelectContent>
         </Select>
+        {selectedProjectId !== 'all' ? (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <a
+              href={`/workers/labor-analysis/${selectedProjectId}/${new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 7)}`}
+              className="inline-flex h-8 items-center rounded-lg border px-3 text-xs"
+              style={{ borderColor: 'var(--border)', color: 'var(--color-primary)' }}
+            >
+              查看用工分析
+            </a>
+            <a
+              href="/workers/vouchers"
+              className="inline-flex h-8 items-center rounded-lg border px-3 text-xs"
+              style={{ borderColor: 'var(--border)', color: 'var(--color-primary)' }}
+            >
+              查看月度凭证
+            </a>
+          </div>
+        ) : null}
+
         {selectedProjectId !== 'all' && (
           <button
             onClick={clearFilter}

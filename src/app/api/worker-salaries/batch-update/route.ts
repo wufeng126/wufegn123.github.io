@@ -19,6 +19,7 @@ const ALLOWED_BATCH_UPDATE_FIELDS = [
   'fine',
   'gross_pay',
   'net_pay',
+  'person_category',
 ] as const;
 
 function normalizeIdList(value: unknown, maxCount = 500): number[] | null {
@@ -96,6 +97,20 @@ export async function POST(request: NextRequest) {
         locked_count: lockedRecords.length,
         locked_ids: lockedRecords.map(record => record.id),
       }, { status: 400 });
+    }
+
+    // 人员类别：字符串字段，只允许三个取值，直接更新
+    if (field === 'person_category') {
+      const category = String(value || '');
+      if (!['production', 'management', 'support'].includes(category)) {
+        return NextResponse.json({ error: '人员类别取值不正确' }, { status: 400 });
+      }
+      const { error: categoryError } = await client
+        .from('worker_salaries')
+        .update({ person_category: category })
+        .in('id', normalizedIds);
+      if (categoryError) throw new Error(categoryError.message);
+      return NextResponse.json({ success: true, updated: normalizedIds.length, field, value: category });
     }
 
     const requestedAdvancePay = field === 'advance_pay'

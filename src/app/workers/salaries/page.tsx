@@ -1087,10 +1087,25 @@ export default function WorkerSalariesPage() {
                   <SelectItem value="income_tax">个人所得税</SelectItem>
                   <SelectItem value="advance_pay">预支款</SelectItem>
                   <SelectItem value="labor_insurance">劳保费</SelectItem>
+                  <SelectItem value="person_category">人员类别</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {batchEditField && <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>新值</Label><Input type="number" step="0.01" value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>}
+            {batchEditField === 'person_category' ? (
+              <div>
+                <Label className="text-sm" style={{ color: 'var(--foreground)' }}>新值</Label>
+                <Select value={batchEditValue} onValueChange={setBatchEditValue}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择人员类别" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="production">生产工人</SelectItem>
+                    <SelectItem value="management">管理人员</SelectItem>
+                    <SelectItem value="support">后勤/其他</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : batchEditField ? (
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>新值</Label><Input type="number" step="0.01" value={batchEditValue} onChange={(e) => setBatchEditValue(e.target.value)} className="mt-1.5" /></div>
+            ) : null}
             <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:flex sm:justify-end" style={{ borderColor: 'var(--border)' }}>
               <Button type="button" variant="outline" onClick={() => setBatchEditDialogOpen(false)} className="border-gray-300">取消</Button>
               <Button type="submit" disabled={!batchEditField} className="btn-primary">确认修改</Button>
