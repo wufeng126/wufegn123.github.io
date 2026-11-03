@@ -41,6 +41,7 @@ type WorkerSalaryRow = {
   net_pay?: unknown;
   remark?: string | null;
   payment_status?: string | null;
+  person_category?: string | null;
   workers?: RelatedName;
   projects?: RelatedName;
 };
@@ -224,6 +225,7 @@ export async function GET(request: NextRequest) {
           net_pay,
           remark,
           payment_status,
+          person_category,
           workers (
             name
           ),
@@ -384,6 +386,7 @@ export async function GET(request: NextRequest) {
         paid_amount: paidAmount,
         unpaid_amount: calculateSalaryUnpaidAmount(netPay, paidAmount),
         payment_status: calculateSalaryPaymentStatus(netPay, paidAmount),
+        person_category: record.person_category || 'production',
         payment_warning: Math.round((paidAmount - netPay) * 100) / 100 > SALARY_PAYMENT_TOLERANCE ? '已发金额超过当月实发工资，请核实工资发放记录' : null,
         remark: record.remark,
       };
@@ -494,7 +497,8 @@ export async function POST(request: NextRequest) {
       labor_insurance,
       fine,
       net_pay,
-      remark 
+      remark,
+      person_category
     } = body;
 
     // 计算应发工资和实发工资（前端可能未传入，由后端自动计算）
@@ -573,7 +577,10 @@ export async function POST(request: NextRequest) {
         labor_insurance: labor_insurance || '0',
         fine: fine || '0',
         net_pay: calculatedNetPay,
-        remark 
+        remark,
+        person_category: ['production', 'management', 'support'].includes(String(person_category || ''))
+          ? String(person_category)
+          : 'production',
       }, client);
 
     const salaryData = Array.isArray(data) ? data[0] : data;

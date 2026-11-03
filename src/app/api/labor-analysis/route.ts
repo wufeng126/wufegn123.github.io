@@ -91,12 +91,23 @@ export async function GET(request: NextRequest) {
     }
 
     // 对账：当月工资表总工时与总金额
+    // 只统计「生产工人」：管理人员工资不计入用工分析的工时/包工口径
     const salaries = await fetchAllRows<{ work_hours?: unknown; gross_pay?: unknown; net_pay?: unknown }>((from, to) =>
       client
         .from('worker_salaries')
-        .select('work_hours, gross_pay, net_pay')
+        .select('work_hours, gross_pay, net_pay, person_category')
         .eq('project_id', projectId)
         .ilike('year_month', `${month}%`)
+        .or('person_category.is.null,person_category.eq.production')
+        .range(from, to));
+
+    const managementRows = await fetchAllRows<{ gross_pay?: unknown; work_hours?: unknown }>((from, to) =>
+      client
+        .from('worker_salaries')
+        .select('gross_pay, work_hours')
+        .eq('project_id', projectId)
+        .ilike('year_month', `${month}%`)
+        .eq('person_category', 'management')
         .range(from, to));
 
     const toNumber = (value: unknown) => {
@@ -125,6 +136,7 @@ export async function GET(request: NextRequest) {
         salaryGross: Number(salaryGross.toFixed(2)),
         analysisHours: Number(items.reduce((sum, item) => sum + toNumber(item.hours), 0).toFixed(2)),
         analysisAmount: Number(items.reduce((sum, item) => sum + toNumber(item.amount), 0).toFixed(2)),
+        managementGross: Number(managementRows.reduce((sum, row) => sum + toNumber(row.gross_pay), 0).toFixed(2)),
       },
       byCategory: Array.from(byCategory.entries()).map(([category, value]) => ({
         category,

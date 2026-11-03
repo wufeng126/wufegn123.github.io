@@ -54,7 +54,7 @@ export default function LaborAnalysisDetailPage() {
   const [items, setItems] = useState<Item[]>([newRow()]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
-  const [reconciliation, setReconciliation] = useState<{ salaryHours: number; salaryGross: number } | null>(null);
+  const [reconciliation, setReconciliation] = useState<{ salaryHours: number; salaryGross: number; managementGross?: number } | null>(null);
   const [byCategory, setByCategory] = useState<Array<{ category: string; hours: number; amount: number }>>([]);
   const [remark, setRemark] = useState('');
   const [projectName, setProjectName] = useState('');
@@ -193,8 +193,8 @@ export default function LaborAnalysisDetailPage() {
           {[
             { label: '填报总工时', value: totals.hours },
             { label: '填报总金额', value: totals.amount },
-            { label: '考勤/工资总工时', value: reconciliation?.salaryHours ?? 0 },
-            { label: '工资应发合计', value: reconciliation?.salaryGross ?? 0 },
+            { label: '生产工人总工时', value: reconciliation?.salaryHours ?? 0 },
+            { label: '生产工人应发', value: reconciliation?.salaryGross ?? 0 },
           ].map((card) => (
             <div key={card.label} className="rounded-xl border border-[var(--border)] bg-white p-3">
               <p className="text-xs text-[var(--color-text-3)]">{card.label}</p>
@@ -202,6 +202,12 @@ export default function LaborAnalysisDetailPage() {
             </div>
           ))}
         </div>
+
+        {reconciliation && (reconciliation.managementGross || 0) > 0 ? (
+          <div className="rounded-xl border border-[#FFE7BA] bg-[#FFFBE6] px-4 py-3 text-sm text-[#874D00]">
+            本月另有管理人员工资 <b>¥{(reconciliation.managementGross || 0).toLocaleString('zh-CN')}</b>（不计入下方点工工时统计，单列管理成本）
+          </div>
+        ) : null}
 
         <div className="rounded-xl border border-[var(--border)] bg-white">
           <div className="border-b border-[var(--border)] px-4 py-3">

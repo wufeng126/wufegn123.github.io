@@ -58,6 +58,7 @@ interface SalaryRecord {
   unpaid_amount?: number;
   payment_warning?: string | null;
   paid?: number;
+  person_category?: string | null;
 }
 
 interface SalaryImportIssue {
@@ -108,6 +109,7 @@ export default function WorkerSalariesPage() {
     advance_pay: '0',
     labor_insurance: '0',
     fine: '0',
+    person_category: 'production',
     remark: '',
   });
 
@@ -276,6 +278,7 @@ export default function WorkerSalariesPage() {
       advance_pay: '0',
       labor_insurance: '0',
       fine: '0',
+      person_category: 'production',
       remark: '',
     });
   };
@@ -646,6 +649,21 @@ export default function WorkerSalariesPage() {
                   </div>
                 </div>
                 <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>年月 *</Label><Input value={formData.year_month} onChange={(e) => setFormData({ ...formData, year_month: e.target.value })} className="mt-1.5" /></div>
+                <div>
+                  <Label className="text-sm" style={{ color: 'var(--foreground)' }}>人员类别 *</Label>
+                  <Select
+                    value={formData.person_category || 'production'}
+                    onValueChange={(value) => setFormData({ ...formData, person_category: value })}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="production">生产工人（进用工分析）</SelectItem>
+                      <SelectItem value="management">管理人员（进管理成本）</SelectItem>
+                      <SelectItem value="support">后勤/其他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>管理人员工资不计入用工分析工时/包工统计</p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>工时</Label><Input type="number" value={formData.work_hours} onChange={(e) => setFormData({ ...formData, work_hours: e.target.value })} className="mt-1.5" /></div>
                   <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>时薪</Label><Input type="number" step="0.01" value={formData.hourly_rate} onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })} className="mt-1.5" /></div>
