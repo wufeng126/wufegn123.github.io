@@ -566,10 +566,12 @@ export function findMatchingRoute(pathname: string): string | null {
 export function hasRoutePermission(
   pathname: string,
   userPermissions: string[],
-  isSuperAdmin: boolean
+  isSuperAdmin: boolean,
+  userRole?: string
 ): boolean {
-  // 超级管理员可访问所有路由
+  // 超级管理员 / 老板 / 管理员可访问所有路由
   if (isSuperAdmin) return true;
+  if (['super_admin', 'boss', 'admin'].includes(String(userRole || '').trim().toLowerCase())) return true;
 
   // 查找匹配的路由配置（使用按长度降序的精确匹配）
   const matchedRoute = findMatchingRoute(pathname);

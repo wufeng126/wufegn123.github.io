@@ -32,7 +32,7 @@ function checkCachedPermission(pathname: string): { allowed: boolean; user: User
   if (!isCacheValid()) return { allowed: false, user: null };
   const user = cachedUser!;
   const isSuperAdmin = isSuperAdminUser(user.role, user.roleId);
-  return { allowed: hasRoutePermission(pathname, user.permissions || [], isSuperAdmin), user };
+  return { allowed: hasRoutePermission(pathname, user.permissions || [], isSuperAdmin, user.role), user };
 }
 
 export function RouteGuard({ children }: RouteGuardProps) {

@@ -8,13 +8,21 @@ export type ApiAuthResult =
   | { ok: true; user: RequestAuthUser }
   | { ok: false; response: NextResponse };
 
-export function hasPermission(user: RequestAuthUser, permission: string): boolean {
+// 管理角色：超管 / 老板 / 管理员，拥有全部权限（老板不参与具体权限点分配）
+const MANAGEMENT_ROLES = new Set(['super_admin', 'boss', 'admin']);
+
+export function isManagementRole(user: RequestAuthUser): boolean {
   if (user.is_super_admin) return true;
+  return MANAGEMENT_ROLES.has(String(user.role || '').trim().toLowerCase());
+}
+
+export function hasPermission(user: RequestAuthUser, permission: string): boolean {
+  if (isManagementRole(user)) return true;
   return Boolean(user.permissions?.includes(permission));
 }
 
 export function hasAnyPermission(user: RequestAuthUser, permissions: string[]): boolean {
-  if (user.is_super_admin) return true;
+  if (isManagementRole(user)) return true;
   return permissions.some(permission => user.permissions?.includes(permission));
 }
 
