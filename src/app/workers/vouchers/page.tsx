@@ -252,9 +252,9 @@ export default function VouchersPage() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
-                          <a href={`/workers/vouchers/${voucher.id}`} className="inline-flex h-7 items-center rounded border border-[var(--border)] px-2 text-xs">
+                          <Link href={`/workers/vouchers/${voucher.id}`} className="inline-flex h-7 items-center rounded border border-[var(--border)] px-2 text-xs">
                             查看原件
-                          </a>
+                          </Link>
                           <button type="button" onClick={() => void patchVoucher(voucher, 'void')} className="h-7 rounded border border-[#FFCCC7] px-2 text-xs text-[#CB2634]">作废重传</button>
                         </div>
                       </td>

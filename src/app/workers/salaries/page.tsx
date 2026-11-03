@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect } from 'react';
@@ -1485,11 +1486,11 @@ function VoucherBar({ projectId, yearMonth }: { projectId: string; yearMonth: st
     <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-2 py-1 text-xs" style={{ color: 'var(--color-text-2)' }}>
       <span className="text-[var(--color-text-3)]">凭证</span>
       {loading ? <span className="text-[var(--color-text-3)]">…</span> : items.length === 0 ? (
-        <a href="/workers/vouchers" className="text-[var(--color-primary)] hover:underline">未上传，去上传</a>
+        <Link href="/workers/vouchers" className="text-[var(--color-primary)] hover:underline">未上传，去上传</Link>
       ) : items.map((item) => (
-        <a key={item.id} href={`/workers/vouchers`} className="hover:underline">
+        <Link key={item.id} href="/workers/vouchers" className="hover:underline">
           {label(item.doc_type)}（{item.page_count}页·{statusText(item.status)}）
-        </a>
+        </Link>
       ))}
     </div>
   );
