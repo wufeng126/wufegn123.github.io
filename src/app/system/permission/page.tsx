@@ -1133,7 +1133,7 @@ export default function PermissionCenterPage() {
                         </div>
                         <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => openUserRoleDialog(user)}>
                           <UserCog className="w-4 h-4 mr-1" />
-                          分配岗位与项目
+                          改角色与项目
                         </Button>
                       </article>
                     );
@@ -1362,7 +1362,7 @@ export default function PermissionCenterPage() {
       <Dialog open={userRoleDialogOpen} onOpenChange={setUserRoleDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>分配岗位与项目</DialogTitle>
+            <DialogTitle>改角色与项目</DialogTitle>
             <DialogDescription>
               为用户「{editingUser?.name}」指定岗位模板、可访问项目和项目内待办身份
             </DialogDescription>
