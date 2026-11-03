@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ensureMaterialWarehouseProject } from '@/lib/material-warehouse-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -43,7 +44,18 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
     
     // 获取用户可访问的项目列表
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    let accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    // 库房只属于零星材料：把它并入可访问项目（财务等角色无需额外分配项目）
+    try {
+      const warehouse = await ensureMaterialWarehouseProject(client);
+      if (warehouse?.id) {
+        accessibleProjects = accessibleProjects === null
+          ? null
+          : Array.from(new Set([...accessibleProjects, Number(warehouse.id)]));
+      }
+    } catch {
+      // 库房不存在时忽略
+    }
     const emptyPayload = {
       materials: [],
       pagination: { page, pageSize, total: 0, totalPages: 0 },

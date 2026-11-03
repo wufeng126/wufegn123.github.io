@@ -196,6 +196,15 @@ export async function GET(request: NextRequest) {
     
     if (!includeWarehouse) {
       filteredProjects = filteredProjects.filter((project) => !isMaterialWarehouseProject(project as { name?: string | null; project_type?: string | null }));
+    } else {
+      // 库房是零星材料专用项目：只要有该模块权限就能看到，不受"项目授权"限制（财务也需要录材料）
+      const warehouse = await ensureMaterialWarehouseProject(client);
+      if (warehouse?.id && !filteredProjects.some((project) => Number(project.id) === Number(warehouse.id))) {
+        filteredProjects = [
+          ...filteredProjects,
+          { id: warehouse.id, name: warehouse.name, project_type: warehouse.project_type } as never,
+        ];
+      }
     }
 
     if (excludeArchived) {
