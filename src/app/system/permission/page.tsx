@@ -1,5 +1,6 @@
 'use client';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/contexts/permission-context';
 import { PERMISSION_MODULES as PERMISSION_MENU } from '@/lib/permission-catalog';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -339,6 +340,7 @@ export default function PermissionCenterPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingUserName, setEditingUserName] = useState('');
   const [editingUserRoles, setEditingUserRoles] = useState<number[]>([]);
+  const { isSuperAdmin: currentIsSuperAdmin } = usePermission();
   const [editingUserProjects, setEditingUserProjects] = useState<number[]>([]);
   const [editingProjectRoles, setEditingProjectRoles] = useState<Record<number, ProjectRoleCode[]>>({});
 
@@ -350,6 +352,8 @@ export default function PermissionCenterPage() {
 
   const editingUserCanUseGlobalProjectScope = () => {
     if (editingUser?.role === 'super_admin') return true;
+    // 正在被授予超级管理员的账号也允许不选项目（全局可见）
+    if (roles.some((role) => role.is_super_admin && editingUserRoles.includes(role.id))) return true;
     return roles.some((role) => editingUserRoles.includes(role.id) && isBossRole(role));
   };
 
@@ -661,6 +665,16 @@ export default function PermissionCenterPage() {
       )
     );
     setUserRoleDialogOpen(true);
+  };
+
+  const superAdminRole = roles.find((role) => role.is_super_admin);
+  const editingIsSuperAdmin = Boolean(superAdminRole && editingUserRoles.includes(superAdminRole.id));
+
+  const toggleSuperAdminRole = (checked: boolean) => {
+    if (!superAdminRole) return;
+    setEditingUserRoles(checked
+      ? Array.from(new Set([...editingUserRoles, superAdminRole.id]))
+      : editingUserRoles.filter((id) => id !== superAdminRole.id));
   };
 
   const saveUserRoles = async () => {
@@ -1397,6 +1411,25 @@ export default function PermissionCenterPage() {
               </p>
             </div>
 
+            {/* 超级管理员开关（仅超级管理员可授予） */}
+            {currentIsSuperAdmin && superAdminRole ? (
+              <div className={`space-y-2 rounded-lg border p-3 ${editingIsSuperAdmin ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="system-super-admin"
+                    checked={editingIsSuperAdmin}
+                    onCheckedChange={(checked) => toggleSuperAdminRole(!!checked)}
+                  />
+                  <Label htmlFor="system-super-admin" className="cursor-pointer font-medium">
+                    设为超级管理员（拥有全部权限、全部项目）
+                  </Label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  勾选后该账号可管理所有项目与权限；保存后 60 秒内生效。取消勾选则恢复为下方岗位模板的权限。
+                </p>
+              </div>
+            ) : null}
+
             {/* 角色选择 */}
             <div className="space-y-2">
               <Label>1. 业务岗位模板</Label>
@@ -1409,6 +1442,7 @@ export default function PermissionCenterPage() {
                       <div key={role.id} className="flex items-center gap-2 rounded-md border border-gray-100 p-2">
                         <Checkbox
                           id={`role-${role.id}`}
+                          disabled={editingIsSuperAdmin}
                           checked={editingUserRoles.includes(role.id)}
                           onCheckedChange={(checked) => {
                             if (checked) {
