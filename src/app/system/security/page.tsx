@@ -23,12 +23,13 @@ type EnvCheck = {
   rls_safety: { safe_to_enable: boolean; reason: string };
 };
 
-const SCRIPTS = [
-  { file: 'enable_rls_core_tables.sql', label: '开启核心表行级安全（RLS）', desc: '执行后 anon key 无法直接读写业务数据，仅服务端 service_role 可访问' },
-  { file: 'add_data_backups.sql', label: '创建数据备份表', desc: '数据备份功能依赖，缺表时备份会失败' },
-  { file: 'add_dingtalk_todo_tasks.sql', label: '创建钉钉待办映射表', desc: '钉钉待办功能依赖' },
-  { file: 'add_project_role_boss.sql', label: '项目角色补充老板注释', desc: '仅更新字段注释，无数据结构变化' },
-  { file: 'client_reports_auto_review.sql', label: '甲方报量历史草稿转已审核', desc: '回填历史 draft/NULL 状态，修复产值统计为 0' },
+const SCRIPTS: Array<{ file: string; label: string; desc: string; level: '必做' | '建议' | '可选' }> = [
+  { file: 'add_data_backups.sql', label: '① 创建数据备份表', desc: '备份功能依赖；缺表时备份页会报错', level: '必做' },
+  { file: 'add_api_timing_logs.sql', label: '② 创建慢接口监控表', desc: '数据健康页的慢接口榜依赖；缺表时不显示数据', level: '必做' },
+  { file: 'client_reports_auto_review.sql', label: '③ 甲方报量历史草稿转已审核', desc: '回填历史 draft/NULL 状态，修复产值统计为 0', level: '建议' },
+  { file: 'add_dingtalk_todo_tasks.sql', label: '④ 创建钉钉待办映射表', desc: '钉钉待办功能依赖（不用待办可不执行）', level: '建议' },
+  { file: 'enable_rls_core_tables.sql', label: '⑤ 开启核心表行级安全（RLS）', desc: '执行后 anon key 无法直接读写业务数据，仅服务端 service_role 可访问', level: '建议' },
+  { file: 'add_project_role_boss.sql', label: '⑥ 项目角色补充老板注释', desc: '仅更新字段注释，无数据结构变化', level: '可选' },
 ];
 
 export default function SecurityPage() {
@@ -110,6 +111,7 @@ export default function SecurityPage() {
             </h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
               没有数据库连接串时，可通过平台提供的 SQL 执行能力运行迁移脚本（执行前自动备份）。
+              <span className="ml-1 text-[#B35B00]">绿色只代表具备执行条件，脚本仍需按 ①→⑥ 逐个执行。</span>
             </p>
           </div>
         </div>
@@ -151,7 +153,12 @@ export default function SecurityPage() {
           {SCRIPTS.map((script) => (
             <div key={script.file} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3 last:border-b-0">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-[var(--foreground)]">{script.label}</p>
+                <p className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+                  {script.label}
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] ${script.level === '必做' ? 'bg-[#FFECE8] text-[#CB2634]' : script.level === '建议' ? 'bg-[#FFF7E8] text-[#B35B00]' : 'bg-[var(--color-muted)] text-[var(--color-text-3)]'}`}>
+                    {script.level}
+                  </span>
+                </p>
                 <p className="mt-0.5 text-xs text-[var(--color-text-3)]">{script.desc}</p>
                 <p className="mt-0.5 font-mono text-[11px] text-[var(--color-text-3)]">migrations/{script.file}</p>
               </div>
