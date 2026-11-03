@@ -38,6 +38,7 @@ export default function SecurityPage() {
   const [envError, setEnvError] = useState('');
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -77,8 +78,7 @@ export default function SecurityPage() {
   }, []);
 
   const run = useCallback(async (file: string) => {
-    const input = window.prompt(`即将执行 ${file}（会先自动备份一次）。\n\n请输入 EXECUTE 确认：`);
-    if (input !== 'EXECUTE') return;
+    setPendingFile(null);
     setRunning(file);
     setError('');
     setNotice('');
@@ -165,7 +165,7 @@ export default function SecurityPage() {
               <button
                 type="button"
                 disabled={running !== null || capability?.mode === 'none'}
-                onClick={() => void run(script.file)}
+                onClick={() => setPendingFile(script.file)}
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs font-medium text-white disabled:opacity-50"
               >
                 {running === script.file ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
@@ -174,6 +174,36 @@ export default function SecurityPage() {
             </div>
           ))}
         </div>
+
+        {pendingFile ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+              <p className="text-base font-semibold text-[var(--foreground)]">确认执行这个脚本？</p>
+              <p className="mt-2 text-sm text-[var(--color-text-2)]">
+                脚本：<span className="font-mono">{pendingFile}</span>
+              </p>
+              <p className="mt-2 text-xs text-[var(--color-text-3)]">
+                执行前会自动做一次完整备份；脚本是幂等的（可重复执行）。确定后立即执行，不可撤销。
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingFile(null)}
+                  className="inline-flex h-9 items-center rounded-lg border border-[var(--border)] px-4 text-sm"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void run(pendingFile)}
+                  className="inline-flex h-9 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white"
+                >
+                  确认执行
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <p className="text-xs text-[var(--color-text-3)]">
           如果显示「平台未提供 SQL 执行函数」，请把对应脚本内容复制到云控制台的 SQL 窗口执行（脚本在仓库 migrations/ 目录）。
