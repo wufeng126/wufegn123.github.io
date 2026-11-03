@@ -56,6 +56,8 @@ import {
   Workflow,
   Send,
   Bot,
+  BellRing,
+  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -152,10 +154,12 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '历史标段库', href: '/cost-estimation/bid/library', icon: Archive },
   ],
   '/knowledge': [],
-  // 精简为 4 项：账号/权限、集成与通知、AI 配置、数据运维（体检/备份/加固/日志）
+  // 6 项（原 10 项）：账号权限、钉钉、通知、WPS、AI、数据运维；每个入口都直达对应页签
   '/system-management': [
     { name: '权限与账号', href: '/system-management?tab=permission', icon: ShieldCheck, permissions: ['system:permission_manage'] },
-    { name: '集成与通知', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
+    { name: '钉钉集成', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
+    { name: '通知与待办', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
+    { name: 'WPS 同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
     { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },
     { name: '数据运维', href: '/system/ops', icon: Database, permissions: ['system:manage'] },
   ],
