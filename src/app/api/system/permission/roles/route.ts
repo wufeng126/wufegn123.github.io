@@ -16,6 +16,7 @@ type RolePermissionRow = {
 
 type RoleRow = {
   id: number;
+  name?: string | null;
   code?: string | null;
   role_permissions?: RolePermissionRow[];
 };
@@ -234,7 +235,9 @@ export async function GET(request: NextRequest) {
         .map((item) => permissionCodeById.get(Number(item.permission_id)))
         .filter(Boolean),
       role_permissions: undefined, // 移除嵌套数据
-      is_super_admin: isSuperAdminUser(role.code || undefined),
+      is_super_admin: isSuperAdminUser(role.code || undefined)
+        || String(role.code || '').toLowerCase() === 'super_admin'
+        || String(role.name || '').includes('超级管理员'),
     }));
     
     console.log('[Roles API] Found', processedRoles.length, 'roles');

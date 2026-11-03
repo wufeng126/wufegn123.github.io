@@ -49,7 +49,10 @@ function normalizeIntegerList(value: unknown): number[] | null {
 }
 
 function inferUserBaseRole(existingRole: string | null | undefined, assignedRoles: RoleRow[]) {
-  if (existingRole === 'super_admin' || assignedRoles.some((role) => role.is_super_admin)) return 'super_admin';
+  if (existingRole === 'super_admin'
+    || assignedRoles.some((role) => role.is_super_admin
+      || String(role.code || '').toLowerCase() === 'super_admin'
+      || String(role.name || '').includes('超级管理员'))) return 'super_admin';
   if (assignedRoles.length === 0) return 'pending';
 
   const normalizedRoles = assignedRoles.map((role) => ({

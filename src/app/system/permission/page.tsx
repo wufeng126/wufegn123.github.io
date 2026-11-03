@@ -353,7 +353,9 @@ export default function PermissionCenterPage() {
   const editingUserCanUseGlobalProjectScope = () => {
     if (editingUser?.role === 'super_admin') return true;
     // 正在被授予超级管理员的账号也允许不选项目（全局可见）
-    if (roles.some((role) => role.is_super_admin && editingUserRoles.includes(role.id))) return true;
+    if (roles.some((role) => (role.is_super_admin
+      || String(role.code || '').toLowerCase() === 'super_admin'
+      || String(role.name || '').includes('超级管理员')) && editingUserRoles.includes(role.id))) return true;
     return roles.some((role) => editingUserRoles.includes(role.id) && isBossRole(role));
   };
 
@@ -667,7 +669,9 @@ export default function PermissionCenterPage() {
     setUserRoleDialogOpen(true);
   };
 
-  const superAdminRole = roles.find((role) => role.is_super_admin);
+  const superAdminRole = roles.find((role) => role.is_super_admin
+    || String(role.code || '').toLowerCase() === 'super_admin'
+    || String(role.name || '').includes('超级管理员'));
   const editingIsSuperAdmin = Boolean(superAdminRole && editingUserRoles.includes(superAdminRole.id));
 
   const toggleSuperAdminRole = (checked: boolean) => {

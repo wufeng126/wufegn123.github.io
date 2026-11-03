@@ -101,7 +101,10 @@ export default function PermissionMatrixPage() {
       return {
         module,
         cells: roles.map((role) => {
-          if (role.is_super_admin) return { granted: codes.length, total: codes.length, all: true };
+          const isSuper = role.is_super_admin
+            || String(role.code || '').toLowerCase() === 'super_admin'
+            || String(role.name || '').includes('超级管理员');
+          if (isSuper) return { granted: codes.length, total: codes.length, all: true };
           const grantedCodes = codes.filter((code) => (role.permission_codes || []).includes(code));
           return { granted: grantedCodes.length, total: codes.length, all: grantedCodes.length === codes.length };
         }),
@@ -158,7 +161,10 @@ export default function PermissionMatrixPage() {
                         <td key={role.id} className="px-3 py-2 text-center">
                           <button
                             type="button"
-                            disabled={role.is_super_admin || Boolean(savingKey)}
+                            disabled={role.is_super_admin
+                              || String(role.code || '').toLowerCase() === 'super_admin'
+                              || String(role.name || '').includes('超级管理员')
+                              || Boolean(savingKey)}
                             onClick={() => void toggleCell(role, module)}
                             title={role.is_super_admin ? '超级管理员拥有全部权限' : '点击授予/取消该模块权限'}
                             className={`mx-auto flex h-7 min-w-8 items-center justify-center rounded px-1.5 transition ${
