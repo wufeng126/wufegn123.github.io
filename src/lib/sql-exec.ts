@@ -63,6 +63,14 @@ export async function detectSqlCapability(): Promise<SqlCapability> {
 }
 
 /** 执行一段 SQL；返回执行方式与影响 */
+function splitStatements(sql: string): string[] {
+  return sql
+    .split(';')
+    .map((part) => part.trim())
+    .map((part) => part.replace(/^\s*(--[^\n]*\n)+/g, '').trim()) // 去掉语句前的整行注释
+    .filter((part) => part.length > 0);
+}
+
 export async function executeSql(sql: string): Promise<{ ok: boolean; mode: string; detail: string }> {
   const capability = await detectSqlCapability();
 
@@ -90,9 +98,27 @@ export async function executeSql(sql: string): Promise<{ ok: boolean; mode: stri
     if (!admin) return { ok: false, mode: 'rpc', detail: '缺少 service role key' };
     const candidate = RPC_CANDIDATES.find((item) => item.name === capability.functionName);
     if (!candidate) return { ok: false, mode: 'rpc', detail: '未知的 RPC 函数' };
-    const { error } = await admin.rpc(candidate.name, candidate.args(sql));
-    if (error) return { ok: false, mode: 'rpc', detail: error.message };
-    return { ok: true, mode: 'rpc', detail: `已通过 ${capability.functionName} 执行` };
+
+    // 平台 RPC 通常只能执行单条语句：逐条执行，收集失败项（不因一条失败中断全部）
+    const statements = splitStatements(sql);
+    const failures: string[] = [];
+    let executed = 0;
+    for (const statement of statements) {
+      const { error } = await admin.rpc(candidate.name, candidate.args(statement));
+      if (error) {
+        failures.push(`${statement.slice(0, 80)}… → ${error.message}`);
+      } else {
+        executed += 1;
+      }
+    }
+    if (failures.length > 0) {
+      return {
+        ok: false,
+        mode: 'rpc',
+        detail: `成功 ${executed} 条，失败 ${failures.length} 条；首个错误：${failures[0]}`,
+      };
+    }
+    return { ok: true, mode: 'rpc', detail: `已通过 ${capability.functionName} 执行 ${executed} 条语句` };
   }
 
   return { ok: false, mode: 'none', detail: capability.detail };
