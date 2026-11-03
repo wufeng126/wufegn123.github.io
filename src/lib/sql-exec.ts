@@ -30,7 +30,7 @@ function getAdminClient() {
 
 export type SqlCapability =
   | { mode: 'postgres'; detail: string }
-  | { mode: 'rpc'; functionName: string; detail: string }
+  | { mode: 'rpc'; functionName: string; variant: number; detail: string }
   | { mode: 'none'; detail: string };
 
 /** 探测当前环境可用的 SQL 执行方式 */
@@ -44,13 +44,15 @@ export async function detectSqlCapability(): Promise<SqlCapability> {
     return { mode: 'none', detail: '缺少 COZE_SUPABASE_URL / SERVICE_ROLE_KEY' };
   }
 
-  for (const candidate of RPC_CANDIDATES) {
+  for (let index = 0; index < RPC_CANDIDATES.length; index += 1) {
+    const candidate = RPC_CANDIDATES[index];
     try {
       const { error } = await admin.rpc(candidate.name, candidate.args('select 1 as ok'));
       if (!error) {
         return {
           mode: 'rpc',
           functionName: candidate.name,
+          variant: index,
           detail: `平台提供 SQL 执行函数：${candidate.name}`,
         };
       }
@@ -96,7 +98,7 @@ export async function executeSql(sql: string): Promise<{ ok: boolean; mode: stri
   if (capability.mode === 'rpc') {
     const admin = getAdminClient();
     if (!admin) return { ok: false, mode: 'rpc', detail: '缺少 service role key' };
-    const candidate = RPC_CANDIDATES.find((item) => item.name === capability.functionName);
+    const candidate = RPC_CANDIDATES[capability.variant] || RPC_CANDIDATES.find((item) => item.name === capability.functionName);
     if (!candidate) return { ok: false, mode: 'rpc', detail: '未知的 RPC 函数' };
 
     // 平台 RPC 通常只能执行单条语句：逐条执行，收集失败项（不因一条失败中断全部）
@@ -104,12 +106,17 @@ export async function executeSql(sql: string): Promise<{ ok: boolean; mode: stri
     const failures: string[] = [];
     let executed = 0;
     for (const statement of statements) {
-      const { error } = await admin.rpc(candidate.name, candidate.args(statement));
-      if (error) {
-        failures.push(`${statement.slice(0, 80)}… → ${error.message}`);
-      } else {
-        executed += 1;
+      let lastError = '';
+      let done = false;
+      for (const variant of RPC_CANDIDATES) {
+        const { error } = await admin.rpc(variant.name, variant.args(statement));
+        if (!error) { done = true; break; }
+        lastError = error.message || String(error);
+        // 只有"函数不存在/参数不匹配"才继续换形态，其余错误直接记录
+        if (!/could not find the function|does not exist|schema cache/i.test(lastError)) break;
       }
+      if (done) executed += 1;
+      else failures.push(`${statement.slice(0, 80)}… → ${lastError}`);
     }
     if (failures.length > 0) {
       return {

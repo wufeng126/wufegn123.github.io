@@ -39,6 +39,8 @@ export default function SecurityPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<string | null>(null);
+  const [sqlView, setSqlView] = useState<{ file: string; sql: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -76,6 +78,29 @@ export default function SecurityPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const viewSql = useCallback(async (file: string) => {
+    try {
+      const res = await fetch(`/api/system/sql?file=${encodeURIComponent(file)}`, { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '读取失败');
+      setSqlView({ file, sql: json.data.sql });
+      setCopied(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '读取失败');
+    }
+  }, []);
+
+  const copySql = useCallback(async () => {
+    if (!sqlView) return;
+    try {
+      await navigator.clipboard.writeText(sqlView.sql);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('复制失败，请手动全选复制');
+    }
+  }, [sqlView]);
 
   const run = useCallback(async (file: string) => {
     setPendingFile(null);
@@ -164,6 +189,13 @@ export default function SecurityPage() {
               </div>
               <button
                 type="button"
+                onClick={() => void viewSql(script.file)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 text-xs text-[var(--color-text-2)]"
+              >
+                查看 SQL
+              </button>
+              <button
+                type="button"
                 disabled={running !== null || capability?.mode === 'none'}
                 onClick={() => setPendingFile(script.file)}
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs font-medium text-white disabled:opacity-50"
@@ -174,6 +206,36 @@ export default function SecurityPage() {
             </div>
           ))}
         </div>
+
+        {sqlView ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+            <div className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-xl bg-white p-5 shadow-xl">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-base font-semibold text-[var(--foreground)]">{sqlView.file}</p>
+                <button
+                  type="button"
+                  onClick={() => void copySql()}
+                  className="inline-flex h-8 items-center rounded-lg bg-[var(--color-primary)] px-3 text-xs font-medium text-white"
+                >
+                  {copied ? '已复制' : '复制全部'}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-[var(--color-text-3)]">
+                把下面内容粘贴到云控制台的 SQL 窗口执行（数据库 → SQL 查询）。
+              </p>
+              <pre className="mt-3 flex-1 overflow-auto rounded-lg bg-[var(--color-muted)] p-3 text-[11px] leading-5">{sqlView.sql}</pre>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSqlView(null)}
+                  className="inline-flex h-9 items-center rounded-lg border border-[var(--border)] px-4 text-sm"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {pendingFile ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">

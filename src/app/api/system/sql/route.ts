@@ -14,6 +14,10 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireSuperAdmin(request);
     if (!auth.ok) return auth.response;
+    const file = new URL(request.url).searchParams.get('file');
+    if (file) {
+      return apiSuccess({ file, sql: readMigrationFile(file) });
+    }
     const capability = await detectSqlCapability();
     return apiSuccess(capability);
   } catch (error: unknown) {
