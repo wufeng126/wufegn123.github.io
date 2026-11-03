@@ -220,6 +220,27 @@ function CostCenterContent() {
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  // 「已支付」明细对账：点击卡片查看付款构成与异常（项目错挂/重复/最大单笔）
+  const [payDetailOpen, setPayDetailOpen] = useState(false);
+  const [payDetailLoading, setPayDetailLoading] = useState(false);
+  const [payDetail, setPayDetail] = useState<any>(null);
+
+  const openPayDetail = async () => {
+    setPayDetailOpen(true);
+    setPayDetailLoading(true);
+    setPayDetail(null);
+    try {
+      const target = selectedProjectId === 'all' ? '' : `?projectId=${selectedProjectId}`;
+      const res = await fetch(`/api/cost-center/diagnose${target}`, { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '查询失败');
+      setPayDetail(json.data);
+    } catch (error) {
+      setPayDetail({ error: error instanceof Error ? error.message : '查询失败' });
+    } finally {
+      setPayDetailLoading(false);
+    }
+  };
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview', 'table', 'warnings']));
 
   // 零星材料下钻：summary=按项目分类汇总列表；project=单项目明细
@@ -847,6 +868,15 @@ function CostCenterContent() {
                     <p className="text-xs font-medium" style={{ color: 'var(--color-text-2)' }}>{item.label}</p>
                     <p className="text-xl font-bold tabular-nums mt-1" style={{ color: item.color }}>{formatAmountSmart(item.value)}</p>
                     <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-3)' }} title={item.desc}>{item.desc}</p>
+                    {item.label === '已支付' ? (
+                      <button
+                        type="button"
+                        onClick={() => void openPayDetail()}
+                        className="mt-1 text-xs text-[var(--color-primary)] hover:underline"
+                      >
+                        查看明细 / 对账
+                      </button>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -1322,6 +1352,129 @@ function CostCenterContent() {
           )}
         </DialogContent>
       </Dialog>
+      {payDetailOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-3" onClick={() => setPayDetailOpen(false)}>
+          <div
+            className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-xl bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-base font-semibold text-[var(--foreground)]">已支付明细对账</p>
+              <button type="button" onClick={() => setPayDetailOpen(false)} className="text-sm text-[var(--color-text-3)]">关闭</button>
+            </div>
+
+            {payDetailLoading ? (
+              <p className="py-10 text-center text-sm text-[var(--color-text-3)]">正在取数…</p>
+            ) : payDetail?.error ? (
+              <p className="py-6 text-center text-sm text-[#CB2634]">{payDetail.error}</p>
+            ) : payDetail ? (
+              <div className="mt-3 space-y-3 overflow-y-auto text-xs">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                    <p className="text-[var(--color-text-3)]">供应商已付</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums">{formatAmountSmart(payDetail.totals?.supplierPaid || 0)}</p>
+                    <p className="text-[var(--color-text-3)]">{payDetail.totals?.supplierPaymentRows || 0} 笔记录</p>
+                  </div>
+                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                    <p className="text-[var(--color-text-3)]">工资已发</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums">{formatAmountSmart(payDetail.totals?.workerPaid || 0)}</p>
+                    <p className="text-[var(--color-text-3)]">{payDetail.totals?.salaryPaymentRows || 0} 笔记录</p>
+                  </div>
+                  <div className="rounded-lg bg-[#FFF7E8] px-3 py-2">
+                    <p className="text-[#B35B00]">项目错挂金额</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums text-[#B35B00]">{formatAmountSmart(payDetail.projectMismatchSum || 0)}</p>
+                    <p className="text-[#B35B00]">付款项目≠合同项目</p>
+                  </div>
+                  <div className="rounded-lg bg-[#FFF1F0] px-3 py-2">
+                    <p className="text-[#CB2634]">重复付款组</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums text-[#CB2634]">{(payDetail.duplicateGroups || []).length}</p>
+                    <p className="text-[#CB2634]">同供应商+同日期+同金额</p>
+                  </div>
+                </div>
+
+                {(payDetail.projectMismatch || []).length > 0 ? (
+                  <div className="rounded-lg border border-[#FFE7BA] p-2">
+                    <p className="font-medium text-[#874D00]">⚠ 项目错挂的付款（这些钱记到了当前项目，但合同属于别的项目）</p>
+                    <table className="mt-1 w-full">
+                      <thead className="text-[var(--color-text-3)]">
+                        <tr><th className="text-left">付款ID</th><th className="text-left">合同ID</th><th className="text-right">金额</th><th className="text-left">日期</th><th className="text-left">付款项目→合同项目</th></tr>
+                      </thead>
+                      <tbody>
+                        {(payDetail.projectMismatch || []).slice(0, 10).map((row: any) => (
+                          <tr key={row.id} className="border-t border-[var(--border)]">
+                            <td>#{row.id}</td>
+                            <td>#{row.contractId}</td>
+                            <td className="text-right tabular-nums">{formatAmountSmart(row.amount)}</td>
+                            <td>{String(row.date || '').slice(0, 10)}</td>
+                            <td>{row.paymentProject} → {row.contractProject}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+
+                {(payDetail.duplicateGroups || []).length > 0 ? (
+                  <div className="rounded-lg border border-[#FFCCC7] p-2">
+                    <p className="font-medium text-[#CB2634]">⚠ 疑似重复付款</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {(payDetail.duplicateGroups || []).slice(0, 8).map((group: any) => (
+                        <li key={group.key}>
+                          {group.key.replaceAll('|', ' / ')} → {group.count} 笔，合计 {formatAmountSmart(group.sum)}，ID：{group.ids.join('、')}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <div className="rounded-lg border p-2">
+                  <p className="font-medium text-[var(--foreground)]">按项目汇总（前 8）</p>
+                  <table className="mt-1 w-full">
+                    <thead className="text-[var(--color-text-3)]">
+                      <tr><th className="text-left">项目</th><th className="text-right">供应商已付</th><th className="text-right">工资已发</th><th className="text-right">合计</th></tr>
+                    </thead>
+                    <tbody>
+                      {(payDetail.byProject || []).slice(0, 8).map((row: any) => (
+                        <tr key={row.projectId} className="border-t border-[var(--border)]">
+                          <td>{row.projectName}</td>
+                          <td className="text-right tabular-nums">{formatAmountSmart(row.supplierPaid)}</td>
+                          <td className="text-right tabular-nums">{formatAmountSmart(row.workerPaid)}</td>
+                          <td className="text-right tabular-nums">{formatAmountSmart(row.totalPaid)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="rounded-lg border p-2">
+                  <p className="font-medium text-[var(--foreground)]">最大 10 笔付款</p>
+                  <table className="mt-1 w-full">
+                    <thead className="text-[var(--color-text-3)]">
+                      <tr><th className="text-left">ID</th><th className="text-left">项目</th><th className="text-right">金额</th><th className="text-left">日期</th><th className="text-left">状态</th></tr>
+                    </thead>
+                    <tbody>
+                      {(payDetail.largestPayments || []).slice(0, 10).map((row: any) => (
+                        <tr key={row.id} className="border-t border-[var(--border)]">
+                          <td>#{row.id}</td>
+                          <td>{row.projectName}</td>
+                          <td className="text-right tabular-nums">{formatAmountSmart(row.amount)}</td>
+                          <td>{String(row.date || '').slice(0, 10)}</td>
+                          <td>{row.status || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="text-[var(--color-text-3)]">
+                  判断口径：已支付 = 供应商付款（有效状态）+ 工资发放记录。若「已支付」大于「总成本」，通常是上面两类异常造成。
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
     </div>
   );
 }
