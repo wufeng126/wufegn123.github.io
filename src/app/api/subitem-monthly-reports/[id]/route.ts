@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
@@ -101,6 +102,25 @@ export async function PUT(
 
     if (!existing) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+    }
+
+    // 项目范围校验：防止跨项目修改报量
+    {
+      const { data: subitemRow } = await supabase
+        .from('work_item_subitems')
+        .select('project_id, work_item_id')
+        .eq('id', Number(existing.subitem_id))
+        .maybeSingle();
+      let pid = Number((subitemRow as { project_id?: unknown } | null)?.project_id) || 0;
+      const wid = Number((subitemRow as { work_item_id?: unknown } | null)?.work_item_id) || 0;
+      if (!pid && wid) {
+        const { data: parentItem } = await supabase.from('work_items').select('project_id').eq('id', wid).maybeSingle();
+        pid = Number((parentItem as { project_id?: unknown } | null)?.project_id) || 0;
+      }
+      if (pid > 0) {
+        const access = await assertProjectAccess(supabase, auth.user, pid);
+        if (!access.ok) return access.response;
+      }
     }
 
     const updateData: any = {};

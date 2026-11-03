@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError } from '@/lib/api-utils';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isSuperAdminUser } from '@/lib/route-permissions';
+import { getLiveUserState } from '@/lib/api-auth';
 import { getUserDisplayName } from '@/lib/user-display-name';
 import { isDevelopmentAuthBypassEnabled } from '@/lib/auth-bypass';
 
@@ -108,7 +109,7 @@ export async function GET(request: Request) {
     const client = getSupabaseClient();
     const { data: userRecord } = await client
       .from('users')
-      .select('is_disabled,dingtalk_name,name,username')
+      .select('is_disabled,dingtalk_name,name,username,role')
       .eq('id', user.id)
       .single();
 
@@ -116,13 +117,14 @@ export async function GET(request: Request) {
       return apiError('账号已被禁用，请联系管理员', 403, 'ACCOUNT_DISABLED');
     }
 
-    // 获取用户权限码（优先从token获取，否则实时查询数据库）
-    let permissions: string[] = [];
-    if (user.permissions && user.permissions.length > 0) {
-      permissions = user.permissions;
-    } else {
-      permissions = await fetchUserPermissions(user.id, user.role);
+    // 角色与权限以数据库实时值为准（token 里是登录时快照；改角色后 60 秒内生效，无需重新登录）
+    const live = await getLiveUserState(Number(user.id) || 0);
+    const effectiveRole = String(live?.role || userRecord?.role || user.role || '');
+    let permissions: string[] = live?.permissions || [];
+    if (permissions.length === 0) {
+      permissions = await fetchUserPermissions(user.id, effectiveRole);
     }
+    const effectiveSuperAdmin = live ? live.isSuperAdmin : isSuperAdminUser(effectiveRole);
 
     const displayName = getUserDisplayName({
       id: user.id,
@@ -137,7 +139,8 @@ export async function GET(request: Request) {
       data: {
         id: user.id,
         username: user.username,
-        role: user.role,
+        role: effectiveRole,
+        is_super_admin: effectiveSuperAdmin,
         name: displayName,
         dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
         roleId: user.role_id ?? 0,
@@ -146,7 +149,8 @@ export async function GET(request: Request) {
       user: {
         id: user.id,
         username: user.username,
-        role: user.role,
+        role: effectiveRole,
+        is_super_admin: effectiveSuperAdmin,
         name: displayName,
         dingtalk_name: userRecord?.dingtalk_name || user.dingtalk_name,
         role_id: user.role_id ?? 0,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
@@ -16,6 +17,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请提供子项数据' }, { status: 400 });
     }
 
+
+    // 项目范围校验：防止批量导入到无权限项目
+    {
+      const client = getSupabaseClient();
+      let targetProjectId = project_id ? Number(project_id) : 0;
+      if (!targetProjectId && work_item_id) {
+        const { data: parentItem } = await client.from('work_items').select('project_id').eq('id', Number(work_item_id)).maybeSingle();
+        targetProjectId = Number((parentItem as { project_id?: unknown } | null)?.project_id) || 0;
+      }
+      if (targetProjectId > 0) {
+        const access = await assertProjectAccess(client, auth.user, targetProjectId);
+        if (!access.ok) return access.response;
+      }
+    }
     if (!work_item_id && !project_id) {
       return NextResponse.json({ error: '需要提供 work_item_id 或 project_id' }, { status: 400 });
     }

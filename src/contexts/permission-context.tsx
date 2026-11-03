@@ -246,6 +246,20 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [loadUserPermissions]);
 
+  // 角色/权限变更无需重新登录：每 60 秒 + 页面重新可见时刷新一次
+  useEffect(() => {
+    const refresh = () => { void loadUserPermissions(); };
+    const interval = window.setInterval(refresh, 60_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [loadUserPermissions]);
+
   // 检查是否有某个权限
   const hasPermission = useCallback((permission: string): boolean => {
     if (isSuperAdmin) return true;

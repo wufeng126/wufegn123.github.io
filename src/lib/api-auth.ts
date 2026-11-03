@@ -44,7 +44,7 @@ export function invalidateLiveUserState(userId?: number) {
   else liveUserStateCache.clear();
 }
 
-async function getLiveUserState(userId: number): Promise<LiveUserState | null> {
+export async function getLiveUserState(userId: number): Promise<LiveUserState | null> {
   if (!Number.isInteger(userId) || userId <= 0) return null;
   const cached = liveUserStateCache.get(userId);
   if (cached && Date.now() - cached.loadedAt < LIVE_USER_STATE_TTL_MS) return cached;
