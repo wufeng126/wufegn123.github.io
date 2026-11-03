@@ -8,21 +8,18 @@ export type ApiAuthResult =
   | { ok: true; user: RequestAuthUser }
   | { ok: false; response: NextResponse };
 
-// 管理角色：超管 / 老板 / 管理员，拥有全部权限（老板不参与具体权限点分配）
-const MANAGEMENT_ROLES = new Set(['super_admin', 'boss', 'admin']);
-
-export function isManagementRole(user: RequestAuthUser): boolean {
-  if (user.is_super_admin) return true;
-  return MANAGEMENT_ROLES.has(String(user.role || '').trim().toLowerCase());
-}
-
+// 全量权限只给超级管理员（老板账号与本人在账号设置里改为 super_admin 即可）；
+// 普通 admin 只保留「系统管理」类权限，避免改角色时把管理员锁死。
 export function hasPermission(user: RequestAuthUser, permission: string): boolean {
-  if (isManagementRole(user)) return true;
+  if (user.is_super_admin) return true;
+  if (String(user.role || '').trim().toLowerCase() === 'admin' && permission.startsWith('system:')) return true;
   return Boolean(user.permissions?.includes(permission));
 }
 
 export function hasAnyPermission(user: RequestAuthUser, permissions: string[]): boolean {
-  if (isManagementRole(user)) return true;
+  if (user.is_super_admin) return true;
+  if (String(user.role || '').trim().toLowerCase() === 'admin'
+    && permissions.some((permission) => permission.startsWith('system:'))) return true;
   return permissions.some(permission => user.permissions?.includes(permission));
 }
 

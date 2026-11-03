@@ -432,7 +432,7 @@ export function checkApiWritePermission(
   method: string,
   userPermissions: string[],
   isSuperAdmin: boolean,
-  userRole?: string
+  userRole?: string // 预留：如需按角色放行在此扩展；当前仅认 super_admin
 ): boolean {
   // GET 请求仅需登录（读权限由页面级路由控制）
   if (method === 'GET') return true;
@@ -569,9 +569,9 @@ export function hasRoutePermission(
   isSuperAdmin: boolean,
   userRole?: string
 ): boolean {
-  // 超级管理员 / 老板 / 管理员可访问所有路由
+  // 全量路由只给超级管理员；普通 admin 仅放行系统管理（用于分配角色，避免锁死）
   if (isSuperAdmin) return true;
-  if (['super_admin', 'boss', 'admin'].includes(String(userRole || '').trim().toLowerCase())) return true;
+  if (String(userRole || '').trim().toLowerCase() === 'admin' && pathname.startsWith('/system-management')) return true;
 
   // 查找匹配的路由配置（使用按长度降序的精确匹配）
   const matchedRoute = findMatchingRoute(pathname);

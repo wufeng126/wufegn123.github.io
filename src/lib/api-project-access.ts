@@ -53,11 +53,9 @@ export async function getAccessibleProjectIds(
   client: unknown,
   user: RequestAuthUser
 ): Promise<number[] | null> {
-  // 管理角色（超管 / 老板 / 管理员）默认可见全部项目；
+  // 只有超级管理员默认可见全部项目（老板账号请改为 super_admin 角色）；
   // 其他人按 users.managed_projects + user_project_roles 的项目授权过滤。
-  // 修复：原来只放行 super_admin，导致老板/管理员没有分配项目时所有列表为空（工资应付显示 0、数据看不到）。
-  const role = String(user.role || '').trim().toLowerCase();
-  if (user.is_super_admin || ['super_admin', 'boss', 'admin'].includes(role)) return null;
+  if (user.is_super_admin) return null;
 
   const db = client as ProjectAccessClient;
   const { data, error } = await db
