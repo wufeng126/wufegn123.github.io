@@ -1446,7 +1446,7 @@ function VoucherBar({ projectId, yearMonth }: { projectId: string; yearMonth: st
   }, [projectId, yearMonth]);
 
   const label = (type: string) => (type === 'settlement' ? '结算单' : '考勤表');
-  const statusText = (status: string) => status === 'approved' ? '已审批' : status === 'confirmed' ? '已核对' : '待核对';
+  const statusText = (_status: string) => '已上传';
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-2 py-1 text-xs" style={{ color: 'var(--color-text-2)' }}>

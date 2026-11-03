@@ -24,10 +24,11 @@ type Voucher = {
 };
 type PageItem = { id: number; file_name?: string; content_type?: string; page_index: number; url: string };
 
+// 暂不启用审批流程：上传即完成，只保留「已上传 / 已作废」两种状态
 const STATUS_LABEL: Record<string, { text: string; className: string }> = {
-  uploaded: { text: '待项目经理核对', className: 'bg-[#FFF7E8] text-[#B35B00]' },
-  confirmed: { text: '项目经理已核对', className: 'bg-[#E8F3FF] text-[#165DFF]' },
-  approved: { text: '老板已审批', className: 'bg-[#E8FFEA] text-[#00A870]' },
+  uploaded: { text: '已上传', className: 'bg-[#E8FFEA] text-[#00A870]' },
+  confirmed: { text: '已上传', className: 'bg-[#E8FFEA] text-[#00A870]' },
+  approved: { text: '已上传', className: 'bg-[#E8FFEA] text-[#00A870]' },
   voided: { text: '已作废', className: 'bg-[#F2F3F5] text-[#86909C]' },
 };
 
@@ -97,10 +98,9 @@ export default function VouchersPage() {
 
   const summary = useMemo(() => {
     const total = vouchers.length;
-    const pending = vouchers.filter((v) => v.status === 'uploaded').length;
-    const confirmed = vouchers.filter((v) => v.status === 'confirmed').length;
-    const approved = vouchers.filter((v) => v.status === 'approved').length;
-    return { total, pending, confirmed, approved };
+    const settlement = vouchers.filter((v) => v.doc_type === 'settlement').length;
+    const attendance = vouchers.filter((v) => v.doc_type === 'attendance').length;
+    return { total, settlement, attendance };
   }, [vouchers]);
 
   const openViewer = async (voucher: Voucher) => {
@@ -151,8 +151,18 @@ export default function VouchersPage() {
       if (upRemark.trim()) form.append('remark', upRemark.trim());
       if (upReplace) form.append('replace', '1');
       upFiles.forEach((file) => form.append('files', file));
-      const res = await fetch('/api/vouchers', { method: 'POST', credentials: 'include', body: form });
-      const json = await res.json();
+      let res = await fetch('/api/vouchers', { method: 'POST', credentials: 'include', body: form });
+      let json = await res.json();
+      // 已存在同类凭证：询问后自动替换
+      if (!res.ok && String(json?.error || '').includes('已有同类凭证')) {
+        if (!window.confirm('该项目本月已有同类凭证，是否替换为本次上传？（原凭证作废留痕）')) {
+          setUploading(false);
+          return;
+        }
+        form.append('replace', '1');
+        res = await fetch('/api/vouchers', { method: 'POST', credentials: 'include', body: form });
+        json = await res.json();
+      }
       if (!res.ok || json.success === false) throw new Error(json.error || '上传失败');
       setNotice(`上传成功（${json.data?.pages || upFiles.length} 页），等待项目经理核对`);
       setUploadOpen(false);
@@ -178,7 +188,7 @@ export default function VouchersPage() {
               <FileText className="h-5 w-5 text-[var(--color-primary)]" /> 月度凭证（结算单 / 考勤表）
             </h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
-              纸质单据扫描件按「项目 + 月份 + 类型」归档；项目经理核对、老板审批。只存原件，不重复录人员金额。
+              纸质单据扫描件按「项目 + 月份 + 类型」归档，只存原件、不重复录人员金额；审批流程暂未启用。
             </p>
           </div>
           <button
@@ -193,9 +203,8 @@ export default function VouchersPage() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
             { label: '凭证总数', value: summary.total },
-            { label: '待项目经理核对', value: summary.pending },
-            { label: '待老板审批', value: summary.confirmed },
-            { label: '已审批', value: summary.approved },
+            { label: '结算单', value: summary.settlement },
+            { label: '考勤表', value: summary.attendance },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-[var(--border)] bg-white p-3">
               <p className="text-xs text-[var(--color-text-3)]">{item.label}</p>
@@ -257,23 +266,13 @@ export default function VouchersPage() {
                       </td>
                       <td className="px-3 py-2">
                         <span className={`rounded px-2 py-0.5 text-xs ${meta.className}`}>{meta.text}</span>
-                        {voucher.confirmed_by_name ? <div className="mt-1 text-[11px] text-[var(--color-text-3)]">核对：{voucher.confirmed_by_name}</div> : null}
-                        {voucher.approved_by_name ? <div className="text-[11px] text-[var(--color-text-3)]">审批：{voucher.approved_by_name}</div> : null}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
                           <button type="button" onClick={() => void openViewer(voucher)} className="h-7 rounded border border-[var(--border)] px-2 text-xs">
                             {viewLoading ? '打开中…' : '查看原件'}
                           </button>
-                          {voucher.status === 'uploaded' ? (
-                            <button type="button" onClick={() => void patchVoucher(voucher, 'confirm')} className="h-7 rounded bg-[var(--color-primary)] px-2 text-xs text-white">确认核对</button>
-                          ) : null}
-                          {voucher.status === 'confirmed' ? (
-                            <button type="button" onClick={() => void patchVoucher(voucher, 'approve')} className="h-7 rounded bg-[#00A870] px-2 text-xs text-white">审批通过</button>
-                          ) : null}
-                          {voucher.status !== 'approved' ? (
-                            <button type="button" onClick={() => void patchVoucher(voucher, 'void')} className="h-7 rounded border border-[#FFCCC7] px-2 text-xs text-[#CB2634]">作废</button>
-                          ) : null}
+                          <button type="button" onClick={() => void patchVoucher(voucher, 'void')} className="h-7 rounded border border-[#FFCCC7] px-2 text-xs text-[#CB2634]">作废重传</button>
                         </div>
                       </td>
                     </tr>
