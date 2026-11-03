@@ -3,7 +3,6 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
-import { generatePresignedUrl } from '@/lib/oss-storage';
 import { auditLog } from '@/lib/audit-log';
 
 /**
@@ -43,16 +42,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq('voucher_id', voucherId)
       .order('page_index', { ascending: true });
 
-    const pages = [];
-    for (const file of files || []) {
-      let url = '';
-      try {
-        url = await generatePresignedUrl({ key: String(file.file_key), expireTime: 3600 });
-      } catch {
-        url = '';
-      }
-      pages.push({ ...file, url });
-    }
+    // 同源地址：由 /api/vouchers/files/[fileId] 流式返回，避免签名 URL 跨域/CSP 问题
+    const pages = (files || []).map((file) => ({
+      ...file,
+      url: `/api/vouchers/files/${Number(file.id)}`,
+    }));
 
     return apiSuccess({ voucher, pages });
   } catch (error: unknown) {

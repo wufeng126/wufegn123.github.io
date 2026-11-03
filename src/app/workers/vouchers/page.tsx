@@ -22,7 +22,6 @@ type Voucher = {
   approved_at?: string | null;
   created_at?: string | null;
 };
-type PageItem = { id: number; file_name?: string; content_type?: string; page_index: number; url: string };
 
 // 暂不启用审批流程：上传即完成，只保留「已上传 / 已作废」两种状态
 const STATUS_LABEL: Record<string, { text: string; className: string }> = {
@@ -59,8 +58,6 @@ export default function VouchersPage() {
   const [upFiles, setUpFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  const [viewing, setViewing] = useState<{ voucher: Voucher; pages: PageItem[] } | null>(null);
-  const [viewLoading, setViewLoading] = useState(false);
 
   const loadVouchers = useCallback(async () => {
     setLoading(true);
@@ -102,20 +99,6 @@ export default function VouchersPage() {
     const attendance = vouchers.filter((v) => v.doc_type === 'attendance').length;
     return { total, settlement, attendance };
   }, [vouchers]);
-
-  const openViewer = async (voucher: Voucher) => {
-    setViewLoading(true);
-    try {
-      const res = await fetch(`/api/vouchers/${voucher.id}`, { credentials: 'include', cache: 'no-store' });
-      const json = await res.json();
-      if (!res.ok || json.success === false) throw new Error(json.error || '打开失败');
-      setViewing({ voucher: json.data.voucher as Voucher, pages: (json.data.pages || []) as PageItem[] });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '打开失败');
-    } finally {
-      setViewLoading(false);
-    }
-  };
 
   const patchVoucher = async (voucher: Voucher, action: 'confirm' | 'approve' | 'void') => {
     const confirmText = action === 'confirm' ? '确认本月凭证已核对无误？' : action === 'approve' ? '确认审批通过？通过后凭证锁定。' : '确认作废该凭证？作废后可重新上传。';
@@ -269,9 +252,9 @@ export default function VouchersPage() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
-                          <button type="button" onClick={() => void openViewer(voucher)} className="h-7 rounded border border-[var(--border)] px-2 text-xs">
-                            {viewLoading ? '打开中…' : '查看原件'}
-                          </button>
+                          <a href={`/workers/vouchers/${voucher.id}`} className="inline-flex h-7 items-center rounded border border-[var(--border)] px-2 text-xs">
+                            查看原件
+                          </a>
                           <button type="button" onClick={() => void patchVoucher(voucher, 'void')} className="h-7 rounded border border-[#FFCCC7] px-2 text-xs text-[#CB2634]">作废重传</button>
                         </div>
                       </td>
@@ -334,32 +317,6 @@ export default function VouchersPage() {
         </div>
       ) : null}
 
-      {/* 查看原件 */}
-      {viewing ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="flex max-h-[88vh] w-full max-w-3xl flex-col rounded-xl bg-white p-4 shadow-xl">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-base font-semibold">
-                {viewing.voucher.year_month} · {DOC_LABEL[viewing.voucher.doc_type]} · {viewing.pages.length} 页
-              </p>
-              <button type="button" onClick={() => setViewing(null)} className="text-[var(--color-text-3)]"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="mt-3 flex-1 space-y-3 overflow-y-auto">
-              {viewing.pages.map((page) => (
-                <div key={page.id} className="rounded-lg border border-[var(--border)] p-2">
-                  <p className="mb-1 text-xs text-[var(--color-text-3)]">第 {page.page_index} 页 · {page.file_name}</p>
-                  {page.content_type?.includes('pdf') ? (
-                    <iframe src={page.url} className="h-[60vh] w-full rounded" title={`page-${page.page_index}`} />
-                  ) : (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={page.url} alt={`第${page.page_index}页`} className="max-h-[70vh] w-full object-contain" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
