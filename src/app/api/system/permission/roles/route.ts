@@ -220,10 +220,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
+    // 权限 id → 权限码（供「角色权限矩阵」使用）
+    const { data: permissionRows } = await supabase.from('permissions').select('id, code');
+    const permissionCodeById = new Map(
+      ((permissionRows || []) as Array<{ id: number; code: string }>).map((row) => [Number(row.id), row.code]),
+    );
+
     // 处理角色数据，计算权限数量
     const processedRoles = ((roles || []) as RoleRow[]).map((role) => ({
       ...role,
       permission_count: role.role_permissions?.length || 0,
+      permission_codes: (role.role_permissions || [])
+        .map((item) => permissionCodeById.get(Number(item.permission_id)))
+        .filter(Boolean),
       role_permissions: undefined, // 移除嵌套数据
       is_super_admin: isSuperAdminUser(role.code || undefined),
     }));

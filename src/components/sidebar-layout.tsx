@@ -57,6 +57,7 @@ import {
   Send,
   Bot,
   BellRing,
+  Grid3x3,
   RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
@@ -157,6 +158,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   // 6 项（原 10 项）：账号权限、钉钉、通知、WPS、AI、数据运维；每个入口都直达对应页签
   '/system-management': [
     { name: '权限与账号', href: '/system-management?tab=permission', icon: ShieldCheck, permissions: ['system:permission_manage'] },
+    { name: '角色权限矩阵', href: '/system/permission-matrix', icon: Grid3x3, permissions: ['system:permission_manage'] },
     { name: '钉钉集成', href: '/system-management?tab=dingtalk', icon: Link2, permissions: ['system:dingtalk_manage'] },
     { name: '通知与待办', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
     { name: 'WPS 同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
