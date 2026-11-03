@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 
@@ -68,6 +69,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+
+    // 项目范围校验：防止跨项目写入
+    {
+      const access = await assertProjectAccess(supabase, auth.user, project_id);
+      if (!access.ok) return access.response;
+    }
 
     if (action === 'import_templates') {
       const { data: templates, error: templateError } = await supabase

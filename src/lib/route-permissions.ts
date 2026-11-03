@@ -296,6 +296,8 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/payments': 'supplier_payments:edit',
   '/api/comprehensive-expenses': 'comprehensive_expenses:edit',
   '/api/miscellaneous-materials': 'miscellaneous_materials:edit',
+  // AI 材料分类：与零星材料录入同一权限（原来未映射导致普通用户一律 403）
+  '/api/ai/classify-material': 'miscellaneous_materials:edit',
   '/api/team-groups': 'team_groups:edit',
   '/api/team-settlements/workflow': 'team_settlements:view',
   '/api/team-settlements': 'team_settlements:edit',

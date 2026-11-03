@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -69,6 +70,27 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
+
+    // 项目范围校验：由分项反查项目，防止跨项目写入
+    {
+      const { data: subitemRow } = await client
+        .from('work_item_subitems')
+        .select('project_id, work_item_id')
+        .eq('id', Number(subitem_id))
+        .maybeSingle();
+      let projectIdForScope = Number((subitemRow as { project_id?: unknown } | null)?.project_id) || 0;
+      const workItemId = Number((subitemRow as { work_item_id?: unknown } | null)?.work_item_id) || 0;
+      if (!projectIdForScope && workItemId) {
+        const { data: parentItem } = await client.from('work_items').select('project_id').eq('id', workItemId).maybeSingle();
+        projectIdForScope = Number((parentItem as { project_id?: unknown } | null)?.project_id) || 0;
+      }
+      if (projectIdForScope > 0) {
+        const access = await assertProjectAccess(client, auth.user, projectIdForScope);
+        if (!access.ok) return access.response;
+      }
+    }
+
+    // 检查是否已存在该月份的记录    const client = getSupabaseClient();
 
     // 检查是否已存在该月份的记录
     const { data: existing } = await client

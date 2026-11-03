@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import { parseNumeric, validateSettlementLimitPrice } from '@/lib/business-logic';
@@ -149,6 +150,24 @@ export async function POST(request: NextRequest) {
     for (const record of records) {
       const { subitem_id, year_month, completed_quantity, unit_price, over_limit_reason, remark } = record;
 
+      // 项目范围校验：由分项反查项目，防止跨项目写入
+      if (subitem_id) {
+        const { data: scopeSubitem } = await client
+          .from('work_item_subitems')
+          .select('project_id, work_item_id')
+          .eq('id', Number(subitem_id))
+          .maybeSingle();
+        let projectIdForScope = Number((scopeSubitem as { project_id?: unknown } | null)?.project_id) || 0;
+        const workItemId = Number((scopeSubitem as { work_item_id?: unknown } | null)?.work_item_id) || 0;
+        if (!projectIdForScope && workItemId) {
+          const { data: parentItem } = await client.from('work_items').select('project_id').eq('id', workItemId).maybeSingle();
+          projectIdForScope = Number((parentItem as { project_id?: unknown } | null)?.project_id) || 0;
+        }
+        if (projectIdForScope > 0) {
+          const access = await assertProjectAccess(client, auth.user, projectIdForScope);
+          if (!access.ok) return access.response;
+        }
+      }
       if (!subitem_id || !year_month || completed_quantity === undefined) {
         continue;
       }

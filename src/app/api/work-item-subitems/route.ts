@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 
@@ -96,6 +97,24 @@ export async function POST(request: NextRequest) {
       limit_price,
       remark 
     } = body;
+
+    // 项目范围校验：防止跨项目写入（IDOR）
+    {
+      const clientForScope = getSupabaseClient();
+      let targetProjectId = project_id ? Number(project_id) : 0;
+      if (!targetProjectId && work_item_id) {
+        const { data: parentItem } = await clientForScope
+          .from('work_items')
+          .select('project_id')
+          .eq('id', Number(work_item_id))
+          .maybeSingle();
+        targetProjectId = Number((parentItem as { project_id?: unknown } | null)?.project_id) || 0;
+      }
+      if (targetProjectId > 0) {
+        const access = await assertProjectAccess(clientForScope, auth.user, targetProjectId);
+        if (!access.ok) return access.response;
+      }
+    }
 
     // 支持两种模式：
     // 1. 作为work_item的子项：需要work_item_id
