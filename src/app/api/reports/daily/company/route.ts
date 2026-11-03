@@ -23,9 +23,10 @@ export async function GET(request: NextRequest) {
 
     const { data: projectRows } = await client
       .from('projects')
-      .select('id, name, status')
+      .select('id, name, status, is_archived')
       .order('id', { ascending: true });
-    const projects = (projectRows || []) as Array<{ id: number; name: string; status?: string | null }>;
+    const projects = ((projectRows || []) as Array<{ id: number; name: string; status?: string | null; is_archived?: boolean | null }>)
+      .filter((project) => !project.is_archived);
 
     // 施工日志（当天；排除待提交/已作废，NULL 状态按历史有效处理）
     const logs = await fetchAllRows<Record<string, unknown>>((from, to) =>

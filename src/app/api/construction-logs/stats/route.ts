@@ -184,6 +184,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // 归档项目不再纳入施工日志统计（回款/报量/工资仍可更新，只是日志不再统计）
+    const { data: archivedRows } = await supabase.from('projects').select('id').eq('is_archived', true);
+    const archivedProjectIds = new Set((archivedRows || []).map((row: { id?: unknown }) => Number(row.id)));
+
     let projectsQuery = supabase.from('projects').select('id,name').order('year', { ascending: false }).order('created_at', { ascending: false });
     if (parsedProjectId) projectsQuery = projectsQuery.eq('id', parsedProjectId);
     else if (Array.isArray(accessibleProjectIds)) projectsQuery = projectsQuery.in('id', accessibleProjectIds);
@@ -203,6 +207,9 @@ export async function GET(request: NextRequest) {
         .range(from, to);
       if (parsedProjectId) pageQuery = pageQuery.eq('project_id', parsedProjectId);
       else if (Array.isArray(accessibleProjectIds)) pageQuery = pageQuery.in('project_id', accessibleProjectIds);
+    if (archivedProjectIds.size > 0) {
+      pageQuery = pageQuery.not('project_id', 'in', `(${Array.from(archivedProjectIds).join(',')})`);
+    }
       if (dateFrom) pageQuery = pageQuery.gte('log_date', dateFrom);
       if (dateTo) pageQuery = pageQuery.lte('log_date', dateTo);
       if (month) {

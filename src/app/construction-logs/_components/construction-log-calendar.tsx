@@ -179,7 +179,7 @@ export default function ConstructionLogCalendar() {
   useEffect(() => {
     async function fetchProjects() {
       try {
-        const res = await fetch('/api/projects?includePublicLog=1');
+        const res = await fetch('/api/projects?includePublicLog=1&excludeArchived=1');
         const json = await res.json();
         const list = Array.isArray(json.projects)
           ? json.projects

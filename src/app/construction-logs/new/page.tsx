@@ -265,7 +265,7 @@ function NewConstructionLogPageContent() {
   }, [logDate]);
 
   useEffect(() => {
-    fetch('/api/projects?includePublicLog=1')
+    fetch('/api/projects?includePublicLog=1&excludeArchived=1')
       .then(r => r.json())
       .then(j => {
         const rawList = Array.isArray(j.projects) ? j.projects : [];

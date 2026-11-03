@@ -405,7 +405,7 @@ export default function ConstructionLogsClient() {
       const [logRes, statsRes, projRes] = await Promise.all([
         fetch(`/api/construction-logs?page=1&pageSize=${LOG_PAGE_SIZE}${userFilter}${buildLogFilterQuery()}`),
         fetch(`/api/construction-logs/stats?month=${month}${statsProjectId !== 'all' ? `&projectId=${statsProjectId}` : ''}`),
-        fetch('/api/projects?includePublicLog=1'),
+        fetch('/api/projects?includePublicLog=1&excludeArchived=1'),
       ]);
       const logJson = await logRes.json();
       const statsJson = await statsRes.json();

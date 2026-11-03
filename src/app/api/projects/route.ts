@@ -155,6 +155,8 @@ export async function GET(request: NextRequest) {
     const scope = request.nextUrl.searchParams.get('scope');
     const includePublicLog = ['1', 'true', 'yes'].includes(String(request.nextUrl.searchParams.get('includePublicLog') || '').toLowerCase());
     const assignedOnly = ['assigned', 'managed', 'mine'].includes(scope || '');
+    // 归档项目默认仍返回（历史查看），业务上"不再可选/不再统计"的页面传 excludeArchived=1
+    const excludeArchived = ['1', 'true', 'yes'].includes(String(request.nextUrl.searchParams.get('excludeArchived') || '').toLowerCase());
     if (includePublicLog) await ensurePublicLogProject(client);
     
     // 查询项目数据
@@ -188,6 +190,10 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    if (excludeArchived) {
+      filteredProjects = filteredProjects.filter((project) => !(project as { is_archived?: boolean | null }).is_archived);
+    }
+
     // 获取所有项目的工人统计（分页取全量：workers 已超 1000 行，单次查询会少算人数）
     const allWorkers = await fetchAllRows<{ project_id?: number | null; status?: string | null }>((from, to) =>
       client.from('workers').select('project_id, status').range(from, to));
