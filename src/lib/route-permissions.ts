@@ -181,6 +181,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/workers/vouchers': { permission: 'salaries:view' },
   '/workers/labor-analysis': { permission: 'salaries:view' },
   '/api/vouchers': { permission: 'salaries:view' },
+  '/api/labor-analysis': { permission: 'salaries:view' },
   '/system/permission-matrix': { permission: 'system:permission_manage' },
   '/system/audit-logs': { permission: 'audit:view' },
   '/system/approval-config': { permission: 'system:manage' },
