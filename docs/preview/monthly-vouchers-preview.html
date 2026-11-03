@@ -75,7 +75,7 @@
   <div class="tabs">
     <div class="tab active" data-panel="p1">① 凭证台账</div>
     <div class="tab" data-panel="p2">② 上传归档</div>
-    <div class="tab" data-panel="p3">③ 工资表关联</div>
+    <div class="tab" data-panel="p3">③ 现有工资/考勤页入口</div>
     <div class="tab" data-panel="p4">④ 权限与流程</div>
   </div>
 
@@ -224,13 +224,13 @@
     </div>
   </section>
 
-  <!-- ③ 工资表关联 -->
+  <!-- ③ 现有工资页顶部入口 -->
   <section class="panel" id="p3">
     <div class="card">
       <div class="card-h">
         <div>
-          <div class="card-t">工人工资（月度）· 关联原始凭证</div>
-          <div class="card-s">每个月旁边直接打开结算单/考勤表原件；差异只做提示</div>
+          <div class="card-t">现有「工人工资（月度）」页 · 顶部多一条凭证栏</div>
+          <div class="card-s">下方表格是现有工资表，结构完全不变；凭证只加"查看原件"入口，不新增人员行、不新增金额列</div>
         </div>
         <div class="filters">
           <select class="select"><option>扶风五小项目</option></select>
@@ -238,42 +238,47 @@
         </div>
       </div>
       <div class="card-b">
-        <div class="diff">
-          <span>⚠ 分账合计（结算单）<b>19,657.00</b> 元 · 应发合计（工资表）<b>19,200.00</b> 元 · 差异 <b>457.00</b> 元</span>
-          <span class="muted">仅提示，不影响计算</span>
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:#FAFBFC;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+            <div>
+              <b>本月原始凭证</b>
+              <div class="muted" style="margin-top:2px">项目经理已核对（李魁宝 08-26 10:12）· 待老板审批</div>
+            </div>
+            <div class="row-actions">
+              <button class="btn sm">📄 结算单（3页）</button>
+              <button class="btn sm">🕘 考勤表（2页）</button>
+              <button class="btn sm primary">审批通过</button>
+            </div>
+          </div>
+          <div style="margin-top:10px" class="diff">
+            <span>⚠ 结算单分账合计 19,657.00 元 · 本月工资应发合计 19,200.00 元 · 差异 457.00 元</span>
+            <span class="muted">仅提示，不影响计算，可在设置里关闭</span>
+          </div>
         </div>
-        <div class="flow">
-          <div class="step done">✓ 已上传（李明辉 08-25）</div><span class="arrow">→</span>
-          <div class="step done">✓ 项目经理已核对（李魁宝 08-26）</div><span class="arrow">→</span>
-          <div class="step now">待老板审批</div>
-        </div>
+
+        <div class="muted" style="margin-bottom:6px">↓ 以下是现有工资表（本次不改动）</div>
         <table>
           <thead>
-            <tr><th>姓名</th><th>工时</th><th>工价</th><th style="text-align:right">应发</th><th style="text-align:right">扣款</th><th style="text-align:right">实发</th><th>原始凭证</th></tr>
+            <tr><th>姓名</th><th>工时</th><th>工价</th><th style="text-align:right">应发</th><th style="text-align:right">扣款</th><th style="text-align:right">实发</th></tr>
           </thead>
           <tbody>
-            <tr>
-              <td>王争利</td><td>100</td><td>30</td>
-              <td style="text-align:right">3,000.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>3,000.00</b></td>
-              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
-            </tr>
-            <tr>
-              <td>杨顶</td><td>96</td><td>30</td>
-              <td style="text-align:right">2,880.00</td><td style="text-align:right">120</td><td style="text-align:right"><b>2,760.00</b></td>
-              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
-            </tr>
-            <tr>
-              <td>罗付军</td><td>100</td><td>30</td>
-              <td style="text-align:right">3,000.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>3,000.00</b></td>
-              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
-            </tr>
-            <tr>
-              <td>邓文强</td><td>96</td><td>30</td>
-              <td style="text-align:right">2,880.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>2,880.00</b></td>
-              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
-            </tr>
+            <tr><td>王争利</td><td>100</td><td>30</td><td style="text-align:right">3,000.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>3,000.00</b></td></tr>
+            <tr><td>杨顶</td><td>96</td><td>30</td><td style="text-align:right">2,880.00</td><td style="text-align:right">120</td><td style="text-align:right"><b>2,760.00</b></td></tr>
+            <tr><td>罗付军</td><td>100</td><td>30</td><td style="text-align:right">3,000.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>3,000.00</b></td></tr>
+            <tr><td>邓文强</td><td>96</td><td>30</td><td style="text-align:right">2,880.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>2,880.00</b></td></tr>
           </tbody>
         </table>
+        <p class="muted" style="margin-top:10px">凭证模块自己的数据只有：项目、月份、类型、文件、状态、上传人、确认人——<b>没有任何人员明细</b>。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><div><div class="card-t">考勤页同理</div><div class="card-s">现有考勤统计页顶部同样加一条「原始考勤表」入口</div></div></div>
+      <div class="card-b">
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:#FAFBFC;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+          <div><b>2026-08 考勤原始表</b><div class="muted" style="margin-top:2px">老板已审批（08-28）</div></div>
+          <div class="row-actions"><button class="btn sm">🕘 查看考勤表（2页）</button></div>
+        </div>
       </div>
     </div>
   </section>

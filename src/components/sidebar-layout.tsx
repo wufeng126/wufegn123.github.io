@@ -122,6 +122,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   ],
   '/hr-salary': [
     { name: '花名册', href: '/workers/roster', icon: Users },
+    { name: '月度凭证', href: '/workers/vouchers', icon: FileText, permissions: ['salaries:view'] },
     { name: '月度工资', href: '/workers/salaries', icon: ReceiptText },
     { name: '生活费台账', href: '/workers/living-allowances', icon: Coins, permissions: ['salaries:pay'] },
     { name: '工资发放', href: '/workers/payments', icon: Banknote },

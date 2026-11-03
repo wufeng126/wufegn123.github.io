@@ -563,6 +563,7 @@ export default function WorkerSalariesPage() {
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-3)' }}>按月录入和管理工人工资</p>
         </div>
         <div className="mobile-action-grid sm:flex sm:w-auto sm:flex-wrap sm:justify-end sm:gap-2">
+          <VoucherBar projectId={filterProject === 'all' ? '' : filterProject} yearMonth={`${filterYear}-${String(filterMonth).padStart(2, '0')}`} />
           <Button variant="outline" onClick={downloadTemplate} className="btn-secondary h-9">
             <Download className="w-4 h-4 mr-1.5" />下载模板
           </Button>
@@ -1420,4 +1421,45 @@ export default function WorkerSalariesPage() {
       </AlertDialog>
     </div>
   );
+
+/** 月度凭证入口：显示当前项目+月份的结算单/考勤表状态，可打开原件，也可跳转上传 */
+function VoucherBar({ projectId, yearMonth }: { projectId: string; yearMonth: string }) {
+  const [items, setItems] = useState<Array<{ id: number; doc_type: string; status: string; page_count: number }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!projectId || !/^\d{4}-\d{2}$/.test(yearMonth)) { setItems([]); return; }
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/vouchers?project_id=${projectId}&month=${yearMonth}`, { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        if (!cancelled && res.ok && json.success !== false) setItems(json.data?.vouchers || []);
+      } catch {
+        // 忽略
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, yearMonth]);
+
+  const label = (type: string) => (type === 'settlement' ? '结算单' : '考勤表');
+  const statusText = (status: string) => status === 'approved' ? '已审批' : status === 'confirmed' ? '已核对' : '待核对';
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-2 py-1 text-xs" style={{ color: 'var(--color-text-2)' }}>
+      <span className="text-[var(--color-text-3)]">凭证</span>
+      {loading ? <span className="text-[var(--color-text-3)]">…</span> : items.length === 0 ? (
+        <a href="/workers/vouchers" className="text-[var(--color-primary)] hover:underline">未上传，去上传</a>
+      ) : items.map((item) => (
+        <a key={item.id} href={`/workers/vouchers`} className="hover:underline">
+          {label(item.doc_type)}（{item.page_count}页·{statusText(item.status)}）
+        </a>
+      ))}
+    </div>
+  );
+}
+
 }

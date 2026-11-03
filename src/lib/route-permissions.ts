@@ -178,6 +178,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/system/backups': { permission: 'system:manage' },
   '/system/security': { permission: 'system:manage' },
   '/system/ops': { permission: 'system:manage' },
+  '/workers/vouchers': { permission: 'salaries:view' },
+  '/api/vouchers': { permission: 'salaries:view' },
   '/system/permission-matrix': { permission: 'system:permission_manage' },
   '/system/audit-logs': { permission: 'audit:view' },
   '/system/approval-config': { permission: 'system:manage' },
@@ -299,6 +301,8 @@ export const API_WRITE_PERMISSIONS: Record<string, string> = {
   '/api/miscellaneous-materials': 'miscellaneous_materials:edit',
   // AI 材料分类：与零星材料录入同一权限（原来未映射导致普通用户一律 403）
   '/api/ai/classify-material': 'miscellaneous_materials:edit',
+  // 月度凭证：上传需要工资编辑权限；查看/状态流转在接口内按项目与角色校验
+  '/api/vouchers': 'salaries:edit',
   '/api/team-groups': 'team_groups:edit',
   '/api/team-settlements/workflow': 'team_settlements:view',
   '/api/team-settlements': 'team_settlements:edit',
