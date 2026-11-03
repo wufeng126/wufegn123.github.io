@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>月度凭证（结算单/考勤表）· 静态预览</title>
+<style>
+  :root{
+    --primary:#165DFF; --primary-weak:#E8F3FF; --bg:#F5F6F8; --card:#fff;
+    --text:#1D2129; --text2:#4E5969; --text3:#86909C; --border:#E5E6EB;
+    --green:#00A870; --green-bg:#E8FFEA; --orange:#B35B00; --orange-bg:#FFF7E8;
+    --red:#CB2634; --red-bg:#FFECE8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
+  .preview-tip{background:#FFFBE6;border:1px solid #FFE7BA;color:#874D00;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--text3);font-size:13px;margin-bottom:18px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .tab{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:13px;color:var(--text2)}
+  .tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .card-t{font-weight:600}
+  .card-s{color:var(--text3);font-size:12px;margin-top:2px}
+  .card-b{padding:16px}
+  .btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--primary)}
+  .btn.danger{color:var(--red);border-color:#FFCCC7;background:#fff}
+  .btn.sm{height:28px;padding:0 10px;font-size:12px}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .select,.input{height:34px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:0 10px;font-size:13px;color:var(--text);min-width:120px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+  th{background:#FAFBFC;color:var(--text3);font-weight:500;font-size:12px}
+  tr:last-child td{border-bottom:none}
+  .tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+  .tag.green{background:var(--green-bg);color:var(--green)}
+  .tag.orange{background:var(--orange-bg);color:var(--orange)}
+  .tag.red{background:var(--red-bg);color:var(--red)}
+  .tag.blue{background:var(--primary-weak);color:var(--primary)}
+  .tag.gray{background:#F2F3F5;color:var(--text3)}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .doc{display:flex;align-items:center;gap:10px}
+  .doc-ico{width:34px;height:34px;border-radius:8px;background:var(--primary-weak);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:15px}
+  .muted{color:var(--text3);font-size:12px}
+  .diff{display:flex;gap:8px;align-items:center;background:var(--orange-bg);color:var(--orange);border:1px solid #FFE7BA;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:12px;flex-wrap:wrap}
+  .flow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 14px}
+  .step{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:12.5px;color:var(--text2)}
+  .step.done{border-color:#B7EB8F;background:#F6FFED;color:#237804}
+  .step.now{border-color:var(--primary);background:var(--primary-weak);color:var(--primary)}
+  .arrow{color:var(--text3)}
+  .upload{border:1.5px dashed #C9CDD4;border-radius:12px;padding:26px;text-align:center;color:var(--text3);background:#FCFCFD}
+  .upload b{color:var(--primary)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .mini{background:#FAFBFC;border:1px solid var(--border);border-radius:10px;padding:12px}
+  .mini p{margin:2px 0;font-size:12.5px;color:var(--text2)}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi .k{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px}
+  .kpi .k p{margin:0;font-size:12px;color:var(--text3)}
+  .kpi .k strong{display:block;margin-top:4px;font-size:20px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}.kpi{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="preview-tip">静态预览页（数据为示例，不可操作）：用于确认「月度凭证」的页面结构与流程，确认后我按这个做进系统。</div>
+  <h1>月度凭证 · 结算单 / 考勤表</h1>
+  <div class="sub">按月归档纸质单据扫描件，项目经理核对 → 老板审批；与工资表、考勤统计互相跳转。</div>
+
+  <div class="tabs">
+    <div class="tab active" data-panel="p1">① 凭证台账</div>
+    <div class="tab" data-panel="p2">② 上传归档</div>
+    <div class="tab" data-panel="p3">③ 工资表关联</div>
+    <div class="tab" data-panel="p4">④ 权限与流程</div>
+  </div>
+
+  <!-- ① 台账 -->
+  <section class="panel active" id="p1">
+    <div class="kpi">
+      <div class="k"><p>本月应上传</p><strong>24</strong></div>
+      <div class="k"><p>已上传</p><strong style="color:var(--primary)">21</strong></div>
+      <div class="k"><p>待项目经理核对</p><strong style="color:var(--orange)">3</strong></div>
+      <div class="k"><p>老板已审批</p><strong style="color:var(--green)">18</strong></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <div>
+          <div class="card-t">凭证台账</div>
+          <div class="card-s">按项目 + 月份 + 类型归档；扫描件上传后锁定原文件，只能作废重传</div>
+        </div>
+        <div class="filters">
+          <select class="select"><option>全部项目</option><option>扶风五小项目</option><option>南京中交智慧港</option></select>
+          <select class="select"><option>2026-08</option><option>2026-09</option></select>
+          <select class="select"><option>全部类型</option><option>结算单</option><option>考勤表</option></select>
+          <button class="btn primary">＋ 上传凭证</button>
+        </div>
+      </div>
+      <div class="card-b" style="padding:0">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:34%">项目 / 月份</th>
+              <th>类型</th>
+              <th>文件</th>
+              <th>上传</th>
+              <th>状态</th>
+              <th style="width:250px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>扶风五小项目</b><div class="muted">2026-08</div></td>
+              <td><span class="tag blue">结算单</span></td>
+              <td><div class="doc"><div class="doc-ico">📄</div><div>结算单_扶风五小_2026-08.pdf<div class="muted">3 页 · 2.4 MB</div></div></div></td>
+              <td>李明辉<div class="muted">08-25 14:20</div></td>
+              <td><span class="tag orange">待项目经理核对</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn sm">查看</button>
+                  <button class="btn sm primary">确认核对</button>
+                  <button class="btn sm danger">作废</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>扶风五小项目</b><div class="muted">2026-08</div></td>
+              <td><span class="tag blue">考勤表</span></td>
+              <td><div class="doc"><div class="doc-ico">📄</div><div>考勤表_扶风五小_2026-08.pdf<div class="muted">2 页 · 1.7 MB</div></div></div></td>
+              <td>李明辉<div class="muted">08-25 14:22</div></td>
+              <td><span class="tag green">老板已审批</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn sm">查看</button>
+                  <button class="btn sm" disabled style="opacity:.5;cursor:not-allowed">已锁定</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>南京中交智慧港</b><div class="muted">2026-08</div></td>
+              <td><span class="tag blue">结算单</span></td>
+              <td><div class="doc"><div class="doc-ico">📄</div><div>结算单_南京_2026-08.pdf<div class="muted">5 页 · 4.1 MB</div></div></div></td>
+              <td>武绍秀<div class="muted">08-26 09:10</div></td>
+              <td><span class="tag green">项目经理已核对</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn sm">查看</button>
+                  <button class="btn sm primary">审批通过</button>
+                  <button class="btn sm danger">驳回</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><b>南京中交智慧港</b><div class="muted">2026-08</div></td>
+              <td><span class="tag blue">考勤表</span></td>
+              <td><div class="doc"><div class="doc-ico">📄</div><div>—</div></div></td>
+              <td class="muted">—</td>
+              <td><span class="tag red">未上传</span></td>
+              <td><button class="btn sm primary">去上传</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 上传 -->
+  <section class="panel" id="p2">
+    <div class="card">
+      <div class="card-h">
+        <div>
+          <div class="card-t">上传凭证</div>
+          <div class="card-s">拍照或上传 PDF；一个项目一个月可各传 1 份结算单 + 1 份考勤表，支持多页</div>
+        </div>
+      </div>
+      <div class="card-b">
+        <div class="grid2">
+          <div>
+            <div class="filters" style="margin-bottom:12px">
+              <select class="select"><option>扶风五小项目</option><option>南京中交智慧港</option></select>
+              <select class="select"><option>2026-08</option><option>2026-09</option></select>
+              <select class="select"><option>结算单</option><option>考勤表</option></select>
+            </div>
+            <div class="upload">
+              <div style="font-size:26px;margin-bottom:6px">📷</div>
+              <div>把纸质单据<b>拍照</b>或<b>选择 PDF</b> 拖到这里</div>
+              <div class="muted" style="margin-top:6px">支持 JPG / PNG / PDF，多页请合并成一个 PDF；系统自动压缩照片</div>
+            </div>
+            <div style="margin-top:12px">
+              <label class="muted">分账合计（选填，用于和工资表对比）</label>
+              <input class="input" style="width:100%;margin-top:6px" placeholder="例如 19657" />
+            </div>
+            <div style="margin-top:12px">
+              <label class="muted">备注（选填）</label>
+              <input class="input" style="width:100%;margin-top:6px" placeholder="例如：含 2 张钢网片结算" />
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn">取消</button>
+              <button class="btn primary">上传并提交核对</button>
+            </div>
+          </div>
+          <div>
+            <div class="mini" style="margin-bottom:12px">
+              <b>上传后会发生什么</b>
+              <p>1. 文件存到私有存储，只有管理层和本项目项目经理能看</p>
+              <p>2. 状态变为「待项目经理核对」</p>
+              <p>3. 项目经理核对后 → 状态「项目经理已核对」，老板收到待办</p>
+              <p>4. 老板审批后 → 锁定，不能修改，只能作废重传</p>
+            </div>
+            <div class="mini">
+              <b>原件与系统数据的关系</b>
+              <p>· 系统工资表/考勤表仍是"主数据"，用于统计</p>
+              <p>· 扫描件只做原档留存，<b>不重复录每人金额</b></p>
+              <p>· 若填了「分账合计」，会和当月应发合计对比，差异仅提示不阻断</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 工资表关联 -->
+  <section class="panel" id="p3">
+    <div class="card">
+      <div class="card-h">
+        <div>
+          <div class="card-t">工人工资（月度）· 关联原始凭证</div>
+          <div class="card-s">每个月旁边直接打开结算单/考勤表原件；差异只做提示</div>
+        </div>
+        <div class="filters">
+          <select class="select"><option>扶风五小项目</option></select>
+          <select class="select"><option>2026-08</option></select>
+        </div>
+      </div>
+      <div class="card-b">
+        <div class="diff">
+          <span>⚠ 分账合计（结算单）<b>19,657.00</b> 元 · 应发合计（工资表）<b>19,200.00</b> 元 · 差异 <b>457.00</b> 元</span>
+          <span class="muted">仅提示，不影响计算</span>
+        </div>
+        <div class="flow">
+          <div class="step done">✓ 已上传（李明辉 08-25）</div><span class="arrow">→</span>
+          <div class="step done">✓ 项目经理已核对（李魁宝 08-26）</div><span class="arrow">→</span>
+          <div class="step now">待老板审批</div>
+        </div>
+        <table>
+          <thead>
+            <tr><th>姓名</th><th>工时</th><th>工价</th><th style="text-align:right">应发</th><th style="text-align:right">扣款</th><th style="text-align:right">实发</th><th>原始凭证</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>王争利</td><td>100</td><td>30</td>
+              <td style="text-align:right">3,000.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>3,000.00</b></td>
+              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
+            </tr>
+            <tr>
+              <td>杨顶</td><td>96</td><td>30</td>
+              <td style="text-align:right">2,880.00</td><td style="text-align:right">120</td><td style="text-align:right"><b>2,760.00</b></td>
+              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
+            </tr>
+            <tr>
+              <td>罗付军</td><td>100</td><td>30</td>
+              <td style="text-align:right">3,000.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>3,000.00</b></td>
+              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
+            </tr>
+            <tr>
+              <td>邓文强</td><td>96</td><td>30</td>
+              <td style="text-align:right">2,880.00</td><td style="text-align:right">0</td><td style="text-align:right"><b>2,880.00</b></td>
+              <td><button class="btn sm">📄 结算单</button> <button class="btn sm">🕘 考勤表</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ 权限与流程 -->
+  <section class="panel" id="p4">
+    <div class="card">
+      <div class="card-h"><div><div class="card-t">谁可以看 / 谁可以确认</div><div class="card-s">按你确认的口径：公司管理层 + 项目经理</div></div></div>
+      <div class="card-b" style="padding:0">
+        <table>
+          <thead><tr><th>角色</th><th>查看范围</th><th>上传</th><th>项目经理核对</th><th>老板审批</th></tr></thead>
+          <tbody>
+            <tr><td>超级管理员 / 老板</td><td>全部项目</td><td>✅</td><td>—</td><td>✅</td></tr>
+            <tr><td>财务</td><td>全部项目（只读）</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>项目经理</td><td>只看自己项目</td><td>✅</td><td>✅</td><td>—</td></tr>
+            <tr><td>预算员 / 资料员</td><td>自己项目</td><td>✅</td><td>—</td><td>—</td></tr>
+            <tr><td>工人 / 班组长</td><td>不可见（本期不做自助查询）</td><td>—</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><div class="card-t">状态流转</div><div class="card-s">任何一步都会记录操作人和时间，全程可追溯</div></div></div>
+      <div class="card-b">
+        <div class="flow">
+          <div class="step done">已上传</div><span class="arrow">→</span>
+          <div class="step done">项目经理已核对</div><span class="arrow">→</span>
+          <div class="step now">老板已审批（锁定）</div>
+        </div>
+        <p class="muted">作废后状态变「已作废」，可重新上传；作废记录保留，不会删除历史。</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.panel).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
