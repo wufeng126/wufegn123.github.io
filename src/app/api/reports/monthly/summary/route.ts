@@ -1443,6 +1443,77 @@ export async function GET(request: NextRequest) {
       seasonalNotes.push('年末甲方通常加快审批和付款进度，回款率可能高于月均值，需注意区分季节性回款与经营改善。');
     }
     const seasonalNote = seasonalNotes.length > 0 ? seasonalNotes.join('') : '';
+    // ===== 用工分析（仅展示，不计入成本）=====
+    let laborAnalysis: {
+      hasData: boolean;
+      totalHours: number;
+      totalAmount: number;
+      managementGross: number;
+      byCategory: Array<{ category: string; hours: number; amount: number; ratio: number }>;
+      byProject: Array<{ projectId: number; projectName: string; hours: number; amount: number; status: string }>;
+    } = { hasData: false, totalHours: 0, totalAmount: 0, managementGross: 0, byCategory: [], byProject: [] };
+    try {
+      const { data: analysisRows } = await supabase
+        .from('monthly_labor_analyses')
+        .select('id, project_id, total_hours, total_amount, status')
+        .eq('year_month', reportMonth)
+        .in('project_id', targetProjectIds);
+
+      if (analysisRows && analysisRows.length > 0) {
+        const analysisIds = analysisRows.map((row: { id?: unknown }) => Number(row.id)).filter(Boolean);
+        const { data: itemRows } = await supabase
+          .from('monthly_labor_items')
+          .select('analysis_id, category, hours, amount')
+          .in('analysis_id', analysisIds);
+
+        const categoryMap = new Map<string, { hours: number; amount: number }>();
+        (itemRows || []).forEach((item: { category?: unknown; hours?: unknown; amount?: unknown }) => {
+          const key = String(item.category || '其他');
+          const bucket = categoryMap.get(key) || { hours: 0, amount: 0 };
+          bucket.hours += Number(item.hours) || 0;
+          bucket.amount += Number(item.amount) || 0;
+          categoryMap.set(key, bucket);
+        });
+
+        const totalHours = Array.from(categoryMap.values()).reduce((sum, item) => sum + item.hours, 0);
+        const totalAmount = Array.from(categoryMap.values()).reduce((sum, item) => sum + item.amount, 0);
+        const projectNameMap = new Map(projects.map((project) => [Number(project.id), String(project.name || '')]));
+
+        // 管理人员工资（不计入用工分析工时，单独展示）
+        const { data: managementRows } = await supabase
+          .from('worker_salaries')
+          .select('gross_pay')
+          .eq('year_month', reportMonth)
+          .in('project_id', targetProjectIds)
+          .eq('person_category', 'management');
+
+        laborAnalysis = {
+          hasData: true,
+          totalHours: Math.round(totalHours * 100) / 100,
+          totalAmount: Math.round(totalAmount * 100) / 100,
+          managementGross: Math.round(((managementRows || []) as Array<{ gross_pay?: unknown }>)
+            .reduce((sum, row) => sum + (Number(row.gross_pay) || 0), 0) * 100) / 100,
+          byCategory: Array.from(categoryMap.entries())
+            .map(([category, value]) => ({
+              category,
+              hours: Math.round(value.hours * 100) / 100,
+              amount: Math.round(value.amount * 100) / 100,
+              ratio: totalHours > 0 ? Math.round((value.hours / totalHours) * 1000) / 10 : 0,
+            }))
+            .sort((a, b) => b.hours - a.hours),
+          byProject: analysisRows.map((row: Record<string, unknown>) => ({
+            projectId: Number(row.project_id),
+            projectName: projectNameMap.get(Number(row.project_id)) || `项目#${row.project_id}`,
+            hours: Number(row.total_hours) || 0,
+            amount: Number(row.total_amount) || 0,
+            status: String(row.status || 'draft'),
+          })),
+        };
+      }
+    } catch (error) {
+      logger.warn?.('[Monthly Summary] labor analysis unavailable:', error);
+    }
+
     const financialSummary = targetProjectIds.length === 1
       ? await getProjectFinancialSummary(targetProjectIds[0], reportDateRange)
       : await getGlobalSummary(reportDateRange, targetProjectIds);
@@ -1468,6 +1539,7 @@ export async function GET(request: NextRequest) {
         supplierSettlementByProject,
         supplierPaymentsBySupplier,
         financialSummary,
+        laborAnalysis,
         businessConclusion,
         collectionLagAnalysis,
         seasonalNote,

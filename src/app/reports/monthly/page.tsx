@@ -121,6 +121,14 @@ interface MonthlyReportData {
   projects: ProjectItem[];
   payablePlan: PayablePlan;
   laborCostByProject: LaborCostItem[];
+  laborAnalysis?: {
+    hasData: boolean;
+    totalHours: number;
+    totalAmount: number;
+    managementGross: number;
+    byCategory: Array<{ category: string; hours: number; amount: number; ratio: number }>;
+    byProject: Array<{ projectId: number; projectName: string; hours: number; amount: number; status: string }>;
+  };
   supplierSettlementByProject: SupplierSettlementItem[];
   supplierPaymentsBySupplier: { supplierName: string; projectName: string; monthSettlement: number; monthPaid: number; totalSettlement: number; totalPaid: number; totalUnpaid: number; totalPayable: number; paymentRate: number }[];
   businessConclusion: string;
@@ -867,6 +875,7 @@ export default function MonthlyReportPage() {
               <div className="overflow-x-auto pb-1">
                 <TabsList className="w-max min-w-full justify-start">
                   <TabsTrigger value="labor" className="flex items-center gap-1.5 whitespace-nowrap"><Users className="w-3.5 h-3.5" />人工成本</TabsTrigger>
+                  <TabsTrigger value="labor-analysis" className="flex items-center gap-1.5 whitespace-nowrap"><Users className="w-3.5 h-3.5" />用工分析</TabsTrigger>
                   <TabsTrigger value="supplier" className="flex items-center gap-1.5 whitespace-nowrap"><Building2 className="w-3.5 h-3.5" />供应商结算</TabsTrigger>
                   <TabsTrigger value="supplier-payment" className="flex items-center gap-1.5 whitespace-nowrap"><CreditCard className="w-3.5 h-3.5" />供应商付款</TabsTrigger>
                   <TabsTrigger value="projects" className="flex items-center gap-1.5 whitespace-nowrap"><Shield className="w-3.5 h-3.5" />项目明细</TabsTrigger>
@@ -920,6 +929,65 @@ export default function MonthlyReportPage() {
                       </div>
                     </div>
                     {laborCosts.length === 0 && <EmptyState message="暂无人工成本数据" />}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="labor-analysis">
+                <Card>
+                  <CardContent className="p-4 space-y-4">
+                    {!data?.laborAnalysis?.hasData ? (
+                      <EmptyState message="本月未填报用工分析（不影响成本计算，仅用于工时去向分析）" />
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">点工总工时</p>
+                            <p className="mt-1 text-lg font-semibold tabular-nums">{data.laborAnalysis.totalHours.toLocaleString('zh-CN')} 小时</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">点工金额</p>
+                            <p className="mt-1 text-lg font-semibold tabular-nums">¥{data.laborAnalysis.totalAmount.toLocaleString('zh-CN')}</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">管理人员工资（单列）</p>
+                            <p className="mt-1 text-lg font-semibold tabular-nums">¥{data.laborAnalysis.managementGross.toLocaleString('zh-CN')}</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">已填项目</p>
+                            <p className="mt-1 text-lg font-semibold tabular-nums">{data.laborAnalysis.byProject.length}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="mb-2 text-sm font-medium">按工作内容分类</p>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead><tr className="border-b text-xs text-muted-foreground">
+                                <th className="py-2 pr-3 text-left">分类</th>
+                                <th className="py-2 pr-3 text-right">工时</th>
+                                <th className="py-2 pr-3 text-right">金额</th>
+                                <th className="py-2 text-right">工时占比</th>
+                              </tr></thead>
+                              <tbody>
+                                {data.laborAnalysis.byCategory.map((row) => (
+                                  <tr key={row.category} className="border-b last:border-0">
+                                    <td className="py-2 pr-3">{row.category}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{row.hours.toLocaleString('zh-CN')}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">¥{row.amount.toLocaleString('zh-CN')}</td>
+                                    <td className="py-2 text-right tabular-nums">{row.ratio}%</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          说明：用工分析仅用于成本分析与查账，金额不进入本月成本计算；成本仍以工资表/结算单为准。
+                        </p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
