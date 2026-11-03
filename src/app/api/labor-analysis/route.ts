@@ -31,9 +31,46 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectId = Number(searchParams.get('project_id')) || 0;
     const month = normalizeMonth(searchParams.get('month'));
-    if (!projectId || !month) return apiBadRequest('请选择项目与月份');
-
     const scope = await getAccessibleProjectIds(client, auth.user);
+
+    // 列表模式：只给筛选条件（项目/月份），返回按项目+月份汇总的清单
+    if (!projectId || !month) {
+      const filterProject = Number(searchParams.get('filter_project_id')) || 0;
+      const filterMonth = normalizeMonth(searchParams.get('filter_month'));
+
+      let listQuery = client
+        .from('monthly_labor_analyses')
+        .select('id, project_id, year_month, total_hours, total_amount, status, submitted_by_name, submitted_at, confirmed_by_name, confirmed_at, updated_at')
+        .order('year_month', { ascending: false })
+        .order('id', { ascending: false });
+
+      if (filterProject > 0) listQuery = listQuery.eq('project_id', filterProject);
+      else if (scope !== null) {
+        if (scope.length === 0) return apiSuccess({ list: [] });
+        listQuery = listQuery.in('project_id', scope);
+      }
+      if (filterMonth) listQuery = listQuery.eq('year_month', filterMonth);
+
+      const { data: rows, error } = await listQuery.limit(500);
+      if (error) throw new Error(error.message);
+
+      const projectIds = Array.from(new Set((rows || []).map((row: { project_id?: unknown }) => Number(row.project_id))));
+      const projectMap = new Map<number, string>();
+      if (projectIds.length > 0) {
+        const { data: projects } = await client.from('projects').select('id, name').in('id', projectIds);
+        (projects || []).forEach((project: { id?: unknown; name?: unknown }) => {
+          projectMap.set(Number(project.id), String(project.name || ''));
+        });
+      }
+
+      return apiSuccess({
+        list: (rows || []).map((row: Record<string, unknown>) => ({
+          ...row,
+          project_name: projectMap.get(Number(row.project_id)) || `项目#${row.project_id}`,
+        })),
+      });
+    }
+
     if (scope !== null && !scope.includes(projectId)) return apiForbidden('无权查看该项目');
 
     const { data: analysis } = await client
@@ -139,8 +176,6 @@ export async function POST(request: NextRequest) {
 
     const totalHours = Number(items.reduce((sum: number, item: any) => sum + item.hours, 0).toFixed(2));
     const totalAmount = Number(items.reduce((sum: number, item: any) => sum + item.amount, 0).toFixed(2));
-    const budgetHours = body?.budget_hours === '' || body?.budget_hours == null ? null : Number(body.budget_hours);
-    const budgetAmount = body?.budget_amount === '' || body?.budget_amount == null ? null : Number(body.budget_amount);
 
     const { data: existing } = await client
       .from('monthly_labor_analyses')
@@ -157,8 +192,6 @@ export async function POST(request: NextRequest) {
     const payload = {
       project_id: projectId,
       year_month: month,
-      budget_hours: Number.isFinite(budgetHours as number) ? budgetHours : null,
-      budget_amount: Number.isFinite(budgetAmount as number) ? budgetAmount : null,
       total_hours: totalHours,
       total_amount: totalAmount,
       status,
