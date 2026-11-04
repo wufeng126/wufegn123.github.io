@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Loader2, Search } from 'lucide-react';
-import { VoucherThumb } from '@/components/voucher-thumb';
 
 type Project = { id: number; name: string };
 type Voucher = { id: number; project_id: number; year_month: string; doc_type: string; page_count: number; first_file_id?: number | null; first_file_url?: string | null };
@@ -11,7 +10,6 @@ type Voucher = { id: number; project_id: number; year_month: string; doc_type: s
 export default function VouchersProjectSummaryPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
-  const [fileToken, setFileToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -29,7 +27,6 @@ export default function VouchersProjectSummaryPage() {
       const list = Array.isArray(projJson.projects) ? projJson.projects : Array.isArray(projJson.data) ? projJson.data : [];
       setProjects((list as Project[]).map((p) => ({ id: Number(p.id), name: String(p.name || '') })));
       setVouchers((voucherJson.data?.vouchers || []) as Voucher[]);
-      setFileToken(String(voucherJson.data?.fileToken || ''));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -66,7 +63,7 @@ export default function VouchersProjectSummaryPage() {
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Link href="/business-analysis/ledger" className="text-sm text-[var(--color-primary)] hover:underline">← 返回台账总览</Link>
+            <Link href="/reports/monthly" className="text-sm text-[var(--color-primary)] hover:underline">← 返回月度经营月报</Link>
             <h1 className="mt-2 flex items-center gap-2 text-xl font-bold text-[var(--foreground)]">
               <FileText className="h-5 w-5 text-[var(--color-primary)]" /> 月度凭证（查账）
             </h1>
@@ -96,14 +93,11 @@ export default function VouchersProjectSummaryPage() {
                 href={`/workers/vouchers/${row.project.id}`}
                 className="group rounded-xl border border-[var(--border)] bg-white p-4 transition hover:border-[var(--color-primary)]"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[var(--foreground)] group-hover:text-[var(--color-primary)]">{row.project.name}</p>
-                    <p className="mt-1 text-xs text-[var(--color-text-3)]">
-                      {row.count > 0 ? `共 ${row.count} 份 · 最近 ${row.latest}` : '暂无凭证'}
-                    </p>
-                  </div>
-                  <VoucherThumb fileId={row.coverFileId} url={row.cover} token={fileToken} className="h-14 w-10" alt="封面" />
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[var(--foreground)] group-hover:text-[var(--color-primary)]">{row.project.name}</p>
+                  <p className="mt-1 text-xs text-[var(--color-text-3)]">
+                    {row.count > 0 ? `共 ${row.count} 份 · 最近 ${row.latest}` : '暂无凭证'}
+                  </p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
                   {row.count > 0 ? (

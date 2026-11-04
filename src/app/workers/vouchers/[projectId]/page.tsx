@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { FileText, Loader2, Upload, X } from 'lucide-react';
-import { VoucherThumb } from '@/components/voucher-thumb';
 
 type Project = { id: number; name: string };
 type Voucher = {
@@ -46,7 +45,6 @@ export default function VouchersProjectPage() {
   const projectIdParam = String(params?.projectId || '');
   const [projects, setProjects] = useState<Project[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
-  const [fileToken, setFileToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -78,7 +76,6 @@ export default function VouchersProjectPage() {
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '加载失败');
       setVouchers((json.data?.vouchers || []) as Voucher[]);
-      setFileToken(String(json.data?.fileToken || ''));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -279,7 +276,6 @@ export default function VouchersProjectPage() {
             <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">缩略图</th>
                   <th className="px-3 py-2 text-left font-medium">项目 / 月份</th>
                   <th className="px-3 py-2 text-left font-medium">类型</th>
                   <th className="px-3 py-2 text-left font-medium">页数</th>
@@ -290,16 +286,13 @@ export default function VouchersProjectPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="px-3 py-10 text-center text-[var(--color-text-3)]"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />加载中…</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-10 text-center text-[var(--color-text-3)]"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />加载中…</td></tr>
                 ) : vouchers.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-10 text-center text-[var(--color-text-3)]">暂无凭证，点右上角「上传凭证」</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-10 text-center text-[var(--color-text-3)]">暂无凭证，点右上角「上传凭证」</td></tr>
                 ) : vouchers.map((voucher) => {
                   const meta = STATUS_LABEL[voucher.status] || STATUS_LABEL.uploaded;
                   return (
                     <tr key={voucher.id} className="border-t border-[var(--border)]">
-                      <td className="px-3 py-2">
-                        <VoucherThumb fileId={voucher.first_file_id} url={voucher.first_file_url} token={fileToken} className="h-12 w-9" />
-                      </td>
                       <td className="px-3 py-2">
                         <div className="font-medium">{voucher.project_name}</div>
                         <div className="text-xs text-[var(--color-text-3)]">{voucher.year_month}</div>
