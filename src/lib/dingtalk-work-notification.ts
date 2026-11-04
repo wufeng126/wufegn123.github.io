@@ -102,7 +102,11 @@ interface DingTalkActionCardMessage {
     title: string;
     text: string;
     btnOrientation: '0' | '1';
-    btnJSONList: Array<{ title: string; actionURL: string }>;
+    /** 机器人接口使用（多按钮） */
+    btnJSONList?: Array<{ title: string; actionURL: string }>;
+    /** 工作通知 asyncsend_v2 使用（单按钮） */
+    singleTitle?: string;
+    singleURL?: string;
   };
 }
 
@@ -154,13 +158,16 @@ export function formatDingTalkWorkCard(params: NotificationParams): DingTalkActi
   if (quickReject) btnJSONList.push({ title: params.extra?.快捷驳回标题 || '❌ 驳回', actionURL: toCardActionUrl(quickReject) });
   if (actionHref) btnJSONList.push({ title: actionLabel, actionURL: toCardActionUrl(actionHref) });
 
+  // asyncsend_v2 的 actionCard 只认 singleTitle/singleURL（btnJSONList 是机器人接口字段）
+  const primaryButton = btnJSONList[0];
+
   return {
     msgtype: 'actionCard',
     actionCard: {
       title,
       text: mdLines.join('\n'),
       btnOrientation: '1',
-      btnJSONList,
+      ...(primaryButton ? { singleTitle: primaryButton.title, singleURL: primaryButton.actionURL } : {}),
     },
   };
 }
@@ -215,7 +222,7 @@ export async function sendDingTalkWorkNotification(
           body: {
             agent_id: agentId,
             userid_list: group.join(','),
-            msg: formatDingTalkWorkCard(params),
+            msg: JSON.stringify(formatDingTalkWorkCard(params)),
           },
         }
       );
@@ -230,7 +237,7 @@ export async function sendDingTalkWorkNotification(
             body: {
               agent_id: agentId,
               userid_list: group.join(','),
-              msg: { msgtype: 'text', text: { content: text } },
+              msg: JSON.stringify({ msgtype: 'text', text: { content: text } }),
             },
           }
         );
@@ -243,7 +250,7 @@ export async function sendDingTalkWorkNotification(
           body: {
             agent_id: agentId,
             userid_list: group.join(','),
-            msg: { msgtype: 'text', text: { content: text } },
+            msg: JSON.stringify({ msgtype: 'text', text: { content: text } }),
           },
         }
       );
