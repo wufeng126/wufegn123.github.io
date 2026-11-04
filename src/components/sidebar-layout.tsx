@@ -79,7 +79,6 @@ const MENU_VISIBILITY: Record<string, string[]> = {
   '/team-management': ['team_groups:view', 'team_settlements:view'],
   '/team-management/groups': ['team_groups:view', 'team_settlements:view'],
   '/team-settlement': ['team_groups:view', 'team_settlements:view'],
-  '/business-analysis/ledger': ['reports:monthly_view', 'salaries:view'],
   '/business-analysis': ['business_overview:view', 'cost_center:view', 'data_board:worker_cost_view', 'data_board:supplier_cost_view', 'data_board:fund_management_view', 'reports:monthly_view', 'salaries:view', 'suppliers:view', 'settlements:view', 'supplier_payments:view', 'comprehensive_expenses:view', 'miscellaneous_materials:view'],
   '/construction-logs': [],
   '/cost-estimation': [],
@@ -96,7 +95,7 @@ const TOP_LEVEL_MENUS: Array<{ name: string; href: string; icon: BrandIconName; 
   { name: '供应商与费用', href: '/supplier-expense', icon: 'wrench', group: '业务' },
   { name: '班组管理', href: '/team-management/groups', icon: 'hardhat', group: '业务' },
   { name: '企业数据看板', href: '/business-analysis', icon: 'chart', group: '决策' },
-  { name: '经营分析', href: '/business-analysis/ledger', icon: 'book', group: '决策' },
+  { name: '经营分析', href: '/reports/monthly', icon: 'book', group: '决策' },
   { name: '投标测算', href: '/cost-estimation/bid', icon: 'calculator', group: '决策' },
   { name: '知识库', href: '/knowledge', icon: 'book', group: '决策' },
   { name: '系统管理', href: '/system-management', icon: 'doc', group: '系统' },
@@ -151,8 +150,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '资金管理看板', href: '/data-board/fund-management', icon: Wallet },
     { name: '公司项目日报', href: '/reports/daily', icon: FileBarChart },
   ],
-  '/business-analysis/ledger': [
-    { name: '台账总览', href: '/business-analysis/ledger', icon: FileBarChart },
+  '/reports/monthly': [
     { name: '月度经营月报', href: '/reports/monthly', icon: FileBarChart, permissions: ['reports:monthly_view'] },
     { name: '月度用工分析', href: '/workers/labor-analysis', icon: TrendingUp, permissions: ['salaries:view'] },
     { name: '月度凭证（查账）', href: '/workers/vouchers', icon: FileText, permissions: ['salaries:view'] },
@@ -341,7 +339,7 @@ export default function SidebarLayout({
     if (pathname.startsWith('/ai-assistant')) return '/workspace';
 
     // 经营台账（月报/用工分析/凭证）
-    if (['/business-analysis/ledger', '/reports/monthly', '/reports/daily', '/workers/labor-analysis', '/workers/vouchers'].some(p => pathname.startsWith(p))) return '/business-analysis/ledger';
+    if (['/reports/monthly', '/workers/labor-analysis', '/workers/vouchers'].some(p => pathname.startsWith(p))) return '/reports/monthly';
 
     // 项目管理
     if (['/project-center', '/projects', '/quantity-reporting', '/work-items', '/limit-prices', '/visas', '/evidence-chain', '/client-reports', '/client-payments'].some(p => pathname.startsWith(p))) return '/project-center';
