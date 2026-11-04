@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
     const { data: rows, error } = await client
       .from('monthly_report_workflows')
-      .select('id, year_month, project_scope, status, submitted_by_name, submitted_at, approved_by, approved_at, updated_at')
+      .select('id, year_month, project_scope, status, fill_user, manager_user, submitted_manager_at, submitted_boss_at, approved_by, approved_at, updated_at')
       .eq('status', 'approved')
       .order('year_month', { ascending: false })
       .order('approved_at', { ascending: false })
@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
           month: String(row.year_month || ''),
           projectScope: scope,
           projectName: scope === 'all' ? '全公司' : (projectMap.get(Number(scope)) || `项目#${scope}`),
-          submittedByName: String(row.submitted_by_name || ''),
-          submittedAt: row.submitted_at || null,
+          submittedByName: String(row.manager_user || row.fill_user || ''),
+          submittedAt: row.submitted_boss_at || row.submitted_manager_at || null,
           approvedBy: String(row.approved_by || ''),
           approvedAt: row.approved_at || null,
         };
