@@ -13,8 +13,9 @@ import { auditLog } from '@/lib/audit-log';
  */
 
 const CATEGORIES = [
-  '文明施工', '装卸车', '清理搬运', '材料倒运', '辅助配合',
-  '返工修补', '临时设施', '安全防护', '其他',
+  '文明施工', '安全防护', '装卸车', '清理搬运', '材料倒运',
+  '甲方用工', '砼工帮工', '钢筋帮工', '外架帮工',
+  '返工修补', '临时设施', '其他',
 ];
 
 function normalizeMonth(value: unknown) {

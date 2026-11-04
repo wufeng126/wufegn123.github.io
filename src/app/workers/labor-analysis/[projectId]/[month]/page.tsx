@@ -27,7 +27,7 @@ type Analysis = {
   remark?: string | null;
 };
 
-const DEFAULT_CATEGORIES = ['文明施工', '装卸车', '清理搬运', '材料倒运', '辅助配合', '返工修补', '临时设施', '安全防护', '其他'];
+const DEFAULT_CATEGORIES = ['文明施工', '安全防护', '装卸车', '清理搬运', '材料倒运', '甲方用工', '砼工帮工', '钢筋帮工', '外架帮工', '返工修补', '临时设施', '其他'];
 
 function newRow(category = '文明施工'): Item {
   return {
@@ -312,7 +312,7 @@ export default function LaborAnalysisDetailPage() {
                   <tr key={item.key} className="border-t border-[var(--border)]">
                     <td className="px-2 py-1.5">
                       <select value={item.category} onChange={(e) => updateItem(item.key, { category: e.target.value })} className="h-8 w-32 rounded border border-[var(--border)] px-1 text-xs">
-                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {(categories.includes(item.category) ? categories : [item.category, ...categories]).map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </td>
                     <td className="px-2 py-1.5">
