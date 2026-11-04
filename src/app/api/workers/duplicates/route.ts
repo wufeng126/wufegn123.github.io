@@ -73,14 +73,16 @@ export async function GET(request: NextRequest) {
       else union(owner, id);
     };
 
+    // 只在「同一项目内」判定重复：三项相同但项目不同 = 同一人在不同项目任职，属正常
     workers.forEach((worker) => {
       const id = Number(worker.id);
+      const projectKey = `pr${Number(worker.project_id) || 0}`;
       const name = normName(worker.name);
       const phone = normPhone(worker.phone);
       const card = normCard(worker.id_card);
-      if (name.length >= 2) keyed(`n:${name}`, id);
-      if (phone.length >= 7) keyed(`p:${phone}`, id);
-      if (card.length >= 15) keyed(`c:${card}`, id);
+      if (name.length >= 2) keyed(`${projectKey}:n:${name}`, id);
+      if (phone.length >= 7) keyed(`${projectKey}:p:${phone}`, id);
+      if (card.length >= 15) keyed(`${projectKey}:c:${card}`, id);
     });
 
     const clusters = new Map<number, number[]>();
@@ -156,7 +158,8 @@ export async function GET(request: NextRequest) {
         // 三项是否完全一致 → 可自动去重
         const signature = (member: (typeof members)[number]) =>
           `${normName(member.name)}|${normPhone(member.phone)}|${normCard(member.idCard)}`;
-        const allSame = new Set(members.map(signature)).size === 1;
+        const allSame = new Set(members.map(signature)).size === 1
+          && new Set(members.map((member) => member.projectId)).size === 1;
 
         // 建议保留：有身份证优先 → 工资记录多 → 发放记录多 → id 小
         const suggestedKeepId = [...members].sort((a, b) => {

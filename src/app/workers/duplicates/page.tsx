@@ -127,7 +127,7 @@ export default function WorkerDuplicatesPage() {
               <Users className="h-5 w-5 text-[var(--color-primary)]" /> 花名册重复人员
             </h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
-              姓名 / 电话 / 身份证号任一相同即归为一组；三项完全一致的可一键自动合并，其余需人工确认保留谁。
+              同一项目内，姓名 / 电话 / 身份证号任一相同即归为一组；三项完全一致的可一键自动合并，其余需人工确认。跨项目同名同电话（同一人在不同项目任职）属正常，不会出现在这里。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
