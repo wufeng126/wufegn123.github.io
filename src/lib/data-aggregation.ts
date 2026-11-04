@@ -776,9 +776,23 @@ export async function getProjectFinancialSummary(
     console.warn('[data-aggregation] 老表 payments 查询失败，已跳过（不影响其余统计）:', legacyError);
     legacyPayments = [];
   }
+  // 去重：老表 payments 与新表 supplier_payments 可能存在同一笔付款（迁移/重复录入），
+  // 以「项目 + 日期 + 金额」判断，已在新表出现的就不再计入，避免已支付被双算。
+  const newPaymentKeys = new Set<string>();
+  supplierPaymentMapById.forEach((row: SupplierPaymentRow) => {
+    if (!isEffectiveSupplierPaymentStatus(row.status)) return;
+    const key = `${Number(row.project_id) || 0}|${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
+    newPaymentKeys.add(key);
+  });
+  let legacyDuplicateSkipped = 0;
   legacyPayments.forEach((row) => {
     if (!isEffectiveSupplierPaymentStatus(String(row.status ?? ''))) return;
     const id = Number(row.id) || 0;
+    const legacyKey = `${Number(row.project_id) || 0}|${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
+    if (newPaymentKeys.has(legacyKey)) {
+      legacyDuplicateSkipped += 1;
+      return;
+    }
     // 与 supplier_payments 的 id 空间错开，避免覆盖
     supplierPaymentMapById.set(1_000_000_000 + id, {
       id: 1_000_000_000 + id,

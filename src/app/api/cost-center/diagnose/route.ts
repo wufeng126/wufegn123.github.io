@@ -108,6 +108,41 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.sum - a.sum)
       .slice(0, 20);
 
+    // 老表 payments（历史付款）：与 supplier_payments 同「项目+日期+金额」的视为重复，不再计入
+    let legacyRows: Array<Record<string, unknown>> = [];
+    try {
+      legacyRows = await fetchAllRows<Record<string, unknown>>((from, to) => {
+        let q = client.from('payments').select('*').range(from, to);
+        if (targetProject > 0) q = q.eq('project_id', targetProject);
+        return q;
+      });
+    } catch {
+      legacyRows = [];
+    }
+    const newKeys = new Set<string>();
+    supplierPayments.forEach((row) => {
+      if (!isEffective(row.status)) return;
+      newKeys.add(`${Number(row.project_id) || 0}|${String(row.payment_date || '').slice(0, 10)}|${toNumber(row.payment_amount)}`);
+    });
+    let legacyKept = 0;
+    let legacyKeptSum = 0;
+    let legacyDupRows = 0;
+    let legacyDupSum = 0;
+    legacyRows.forEach((row) => {
+      if (!isEffective(row.status)) return;
+      const pid = Number(row.project_id) || 0;
+      if (!inScope(pid)) return;
+      const amount = toNumber(row.payment_amount);
+      const key = `${pid}|${String(row.payment_date || '').slice(0, 10)}|${amount}`;
+      if (newKeys.has(key)) {
+        legacyDupRows += 1;
+        legacyDupSum += amount;
+      } else {
+        legacyKept += 1;
+        legacyKeptSum += amount;
+      }
+    });
+
     const rows = Array.from(new Set([...supplierByProject.keys(), ...salaryByProject.keys()]))
       .map((pid) => {
         const supplier = supplierByProject.get(pid) || { count: 0, sum: 0 };
@@ -132,6 +167,13 @@ export async function GET(request: NextRequest) {
         workerPaid: Number(Array.from(salaryByProject.values()).reduce((s, v) => s + v.sum, 0).toFixed(2)),
         supplierPaymentRows: supplierPayments.length,
         salaryPaymentRows: salaryPayments.length,
+        legacyPaid: Number(legacyKeptSum.toFixed(2)),
+        legacyRows: legacyKept,
+        legacyDuplicatePaid: Number(legacyDupSum.toFixed(2)),
+        legacyDuplicateRows: legacyDupRows,
+        grandTotalPaid: Number((Array.from(supplierByProject.values()).reduce((s2, v) => s2 + v.sum, 0)
+          + Array.from(salaryByProject.values()).reduce((s2, v) => s2 + v.sum, 0)
+          + legacyKeptSum).toFixed(2)),
       },
       byProject: rows,
       projectMismatch: mismatch.slice(0, 50),

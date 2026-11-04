@@ -1369,7 +1369,7 @@ function CostCenterContent() {
               <p className="py-6 text-center text-sm text-[#CB2634]">{payDetail.error}</p>
             ) : payDetail ? (
               <div className="mt-3 space-y-3 overflow-y-auto text-xs">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
                     <p className="text-[var(--color-text-3)]">供应商已付</p>
                     <p className="mt-0.5 text-base font-semibold tabular-nums">{formatAmountSmart(payDetail.totals?.supplierPaid || 0)}</p>
@@ -1379,6 +1379,11 @@ function CostCenterContent() {
                     <p className="text-[var(--color-text-3)]">工资已发</p>
                     <p className="mt-0.5 text-base font-semibold tabular-nums">{formatAmountSmart(payDetail.totals?.workerPaid || 0)}</p>
                     <p className="text-[var(--color-text-3)]">{payDetail.totals?.salaryPaymentRows || 0} 笔记录</p>
+                  </div>
+                  <div className="rounded-lg bg-[#E8F3FF] px-3 py-2">
+                    <p className="text-[#165DFF]">历史付款（老表，去重后）</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums">{formatAmountSmart(payDetail.totals?.legacyPaid || 0)}</p>
+                    <p className="text-[#165DFF]">{payDetail.totals?.legacyRows || 0} 笔（已剔除重复 {payDetail.totals?.legacyDuplicateRows || 0} 笔）</p>
                   </div>
                   <div className="rounded-lg bg-[#FFF7E8] px-3 py-2">
                     <p className="text-[#B35B00]">项目错挂金额</p>
@@ -1391,6 +1396,14 @@ function CostCenterContent() {
                     <p className="text-[#CB2634]">同供应商+同日期+同金额</p>
                   </div>
                 </div>
+
+                <p className="text-[var(--color-text-3)]">
+                  合计（供应商新表 + 历史付款去重后 + 工资已发）：
+                  <b className="text-[var(--foreground)]">{formatAmountSmart(payDetail.totals?.grandTotalPaid || 0)}</b>
+                  {payDetail.totals?.legacyDuplicateRows
+                    ? `；另有 ${payDetail.totals.legacyDuplicateRows} 笔历史付款与新表重复（¥${formatAmountSmart(payDetail.totals?.legacyDuplicatePaid || 0)}）已剔除，不再计入`
+                    : ''}
+                </p>
 
                 {(payDetail.projectMismatch || []).length > 0 ? (
                   <div className="rounded-lg border border-[#FFE7BA] p-2">
