@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .order('page_index', { ascending: true });
 
     // 同源地址：由 /api/vouchers/files/[fileId] 流式返回，避免签名 URL 跨域/CSP 问题
-    // 内嵌预览无法带 Cookie：签发 1 小时短时 token 放在 URL 上（verifyRequest 支持 ?token=）
+    // 内嵌预览无法带 Cookie：签发 1 小时短时 token，由前端用 Authorization header 携带（不走 URL，避免被安全策略拦截）
     const fileToken = await generateShortLivedToken({
       id: Number(auth.user.id),
       username: String(auth.user.username || ''),
@@ -54,10 +54,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }, '1h');
     const pages = (files || []).map((file) => ({
       ...file,
-      url: `/api/vouchers/files/${Number(file.id)}?token=${encodeURIComponent(fileToken)}`,
+      url: `/api/vouchers/files/${Number(file.id)}`,
     }));
 
-    return apiSuccess({ voucher, pages });
+    return apiSuccess({ voucher, pages, fileToken });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '查看凭证失败'));
   }

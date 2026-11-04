@@ -88,12 +88,13 @@ export async function GET(request: NextRequest) {
     }
 
     return apiSuccess({
+      fileToken: thumbToken,
       vouchers: rows.map((row: Record<string, unknown>) => ({
         ...row,
         project_name: projectMap.get(Number(row.project_id)) || `项目#${row.project_id}`,
         first_file_id: firstFileMap.get(Number(row.id)) || null,
         first_file_url: firstFileMap.get(Number(row.id))
-          ? `/api/vouchers/files/${firstFileMap.get(Number(row.id))}?token=${encodeURIComponent(thumbToken)}`
+          ? `/api/vouchers/files/${firstFileMap.get(Number(row.id))}`
           : null,
       })),
     });

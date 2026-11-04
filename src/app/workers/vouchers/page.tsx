@@ -11,6 +11,7 @@ type Voucher = { id: number; project_id: number; year_month: string; doc_type: s
 export default function VouchersProjectSummaryPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [fileToken, setFileToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -28,6 +29,7 @@ export default function VouchersProjectSummaryPage() {
       const list = Array.isArray(projJson.projects) ? projJson.projects : Array.isArray(projJson.data) ? projJson.data : [];
       setProjects((list as Project[]).map((p) => ({ id: Number(p.id), name: String(p.name || '') })));
       setVouchers((voucherJson.data?.vouchers || []) as Voucher[]);
+      setFileToken(String(voucherJson.data?.fileToken || ''));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -101,7 +103,7 @@ export default function VouchersProjectSummaryPage() {
                       {row.count > 0 ? `共 ${row.count} 份 · 最近 ${row.latest}` : '暂无凭证'}
                     </p>
                   </div>
-                  <VoucherThumb fileId={row.coverFileId} url={row.cover} className="h-14 w-10" alt="封面" />
+                  <VoucherThumb fileId={row.coverFileId} url={row.cover} token={fileToken} className="h-14 w-10" alt="封面" />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
                   {row.count > 0 ? (

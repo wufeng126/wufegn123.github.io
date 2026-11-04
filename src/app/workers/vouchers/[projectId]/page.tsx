@@ -46,6 +46,7 @@ export default function VouchersProjectPage() {
   const projectIdParam = String(params?.projectId || '');
   const [projects, setProjects] = useState<Project[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [fileToken, setFileToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -77,6 +78,7 @@ export default function VouchersProjectPage() {
       const json = await res.json();
       if (!res.ok || json.success === false) throw new Error(json.error || '加载失败');
       setVouchers((json.data?.vouchers || []) as Voucher[]);
+      setFileToken(String(json.data?.fileToken || ''));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -296,7 +298,7 @@ export default function VouchersProjectPage() {
                   return (
                     <tr key={voucher.id} className="border-t border-[var(--border)]">
                       <td className="px-3 py-2">
-                        <VoucherThumb fileId={voucher.first_file_id} url={voucher.first_file_url} className="h-12 w-9" />
+                        <VoucherThumb fileId={voucher.first_file_id} url={voucher.first_file_url} token={fileToken} className="h-12 w-9" />
                       </td>
                       <td className="px-3 py-2">
                         <div className="font-medium">{voucher.project_name}</div>

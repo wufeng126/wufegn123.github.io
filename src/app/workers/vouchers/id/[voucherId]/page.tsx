@@ -29,6 +29,7 @@ export default function VoucherDetailPage() {
   const [projectName, setProjectName] = useState('');
   const [loading, setLoading] = useState(true);
   const [blobUrls, setBlobUrls] = useState<Record<number, string>>({});
+  const [fileToken, setFileToken] = useState('');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -41,6 +42,7 @@ export default function VoucherDetailPage() {
       if (!res.ok || json.success === false) throw new Error(json.error || '加载失败');
       setVoucher(json.data.voucher as Voucher);
       setPages((json.data.pages || []) as PageItem[]);
+      setFileToken(String(json.data.fileToken || ''));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -58,7 +60,10 @@ export default function VoucherDetailPage() {
       const map: Record<number, string> = {};
       for (const page of pages) {
         try {
-          const res = await fetch(page.url || `/api/vouchers/files/${page.id}`, { credentials: 'include' });
+          const res = await fetch(page.url || `/api/vouchers/files/${page.id}`, {
+            credentials: 'include',
+            headers: fileToken ? { Authorization: `Bearer ${fileToken}` } : undefined,
+          });
           if (!res.ok) continue;
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
@@ -74,7 +79,7 @@ export default function VoucherDetailPage() {
       cancelled = true;
       created.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [pages]);
+  }, [pages, fileToken]);
 
   useEffect(() => {
     (async () => {

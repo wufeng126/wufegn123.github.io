@@ -9,11 +9,13 @@ import { useEffect, useState } from 'react';
 export function VoucherThumb({
   fileId,
   url,
+  token,
   className = 'h-12 w-9',
   alt = '缩略图',
 }: {
   fileId?: number | null;
   url?: string | null;
+  token?: string | null;
   className?: string;
   alt?: string;
 }) {
@@ -26,7 +28,10 @@ export function VoucherThumb({
     let created = '';
     (async () => {
       try {
-        const res = await fetch(url || `/api/vouchers/files/${fileId}`, { credentials: 'include' });
+        const res = await fetch(url || `/api/vouchers/files/${fileId}`, {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!res.ok) throw new Error(String(res.status));
         const blob = await res.blob();
         created = URL.createObjectURL(blob);
@@ -39,7 +44,7 @@ export function VoucherThumb({
       cancelled = true;
       if (created) URL.revokeObjectURL(created);
     };
-  }, [fileId, url]);
+  }, [fileId, url, token]);
 
   if (failed || (!fileId && !url)) {
     return (
