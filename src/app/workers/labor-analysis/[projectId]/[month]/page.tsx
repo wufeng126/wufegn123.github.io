@@ -183,7 +183,7 @@ export default function LaborAnalysisDetailPage() {
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Link href="/workers/labor-analysis" className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] hover:underline">
+            <Link href={`/workers/labor-analysis/${projectId}`} className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] hover:underline">
               <ArrowLeft className="h-4 w-4" /> 返回用工分析列表
             </Link>
             <h1 className="mt-2 text-xl font-bold text-[var(--foreground)]">{projectName} · {month} 用工分析</h1>

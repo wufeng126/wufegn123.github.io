@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 
-type PageItem = { id: number; file_name?: string; content_type?: string; page_index: number };
+type PageItem = { id: number; file_name?: string; content_type?: string; page_index: number; url?: string };
 type Voucher = {
   id: number;
   project_id: number;
@@ -22,8 +22,8 @@ type Voucher = {
 const DOC_LABEL: Record<string, string> = { settlement: '结算单', attendance: '考勤表' };
 
 export default function VoucherDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
+  const params = useParams<{ voucherId: string }>();
+  const id = params?.voucherId;
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [pages, setPages] = useState<PageItem[]>([]);
   const [projectName, setProjectName] = useState('');
@@ -94,7 +94,7 @@ export default function VoucherDetailPage() {
         ) : (
           <div className="space-y-4">
             {pages.map((page) => {
-              const url = `/api/vouchers/files/${page.id}`;
+              const url = page.url || `/api/vouchers/files/${page.id}`;
               const isPdf = String(page.content_type || '').includes('pdf');
               return (
                 <div key={page.id} className="rounded-xl border border-[var(--border)] bg-white">
