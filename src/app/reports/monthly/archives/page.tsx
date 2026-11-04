@@ -55,7 +55,7 @@ export default function MonthlyArchivesPage() {
           <h1 className="mt-2 flex items-center gap-2 text-xl font-bold text-[var(--foreground)]">
             <Archive className="h-5 w-5 text-[var(--color-primary)]" /> 已审批归档月报
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-3)]">老板已审批通过的月报会归档在这里，可随时查看和导出。</p>
+          <p className="mt-1 text-sm text-[var(--color-text-3)]">老板已审批通过的月报会归档在这里；点「查看」进入填报/审批记录页（预算员填报、项目经理补充、老板审批的完整内容）。</p>
         </div>
 
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
@@ -74,7 +74,7 @@ export default function MonthlyArchivesPage() {
               <div key={month} className="rounded-xl border border-[var(--border)] bg-white">
                 <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2">
                   <p className="text-sm font-semibold">{month}</p>
-                  <Link href={`/reports/monthly?month=${month}`} className="text-xs text-[var(--color-primary)] hover:underline">
+                  <Link href={`/reports/monthly/fill?month=${month}`} className="text-xs text-[var(--color-primary)] hover:underline">
                     查看该月报表
                   </Link>
                 </div>
@@ -99,7 +99,7 @@ export default function MonthlyArchivesPage() {
                         </td>
                         <td className="px-3 py-2">
                           <Link
-                            href={`/reports/monthly?month=${report.month}${report.projectScope !== 'all' ? `&projectId=${report.projectScope}` : ''}`}
+                            href={`/reports/monthly/fill?month=${report.month}${report.projectScope !== 'all' ? `&projectId=${report.projectScope}` : ''}`}
                             className="text-xs text-[var(--color-primary)] hover:underline"
                           >
                             查看
