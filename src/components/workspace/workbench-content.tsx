@@ -327,7 +327,6 @@ export default function WorkbenchContent() {
   const [todos, setTodos] = useState<TodoResponse>({ total: 0, items: fallbackTodos });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [reminder, setReminder] = useState<{ month: string; count: number; missing: Array<{ projectId: number; projectName: string; missing: string[] }> } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -354,17 +353,6 @@ export default function WorkbenchContent() {
 
     loadTodos();
 
-    (async () => {
-      try {
-        const res = await fetch('/api/workspace/voucher-reminders', { cache: 'no-store' });
-        const json = await res.json();
-        if (mounted && res.ok && json.success !== false && Number(json.data?.count || 0) > 0) {
-          setReminder(json.data);
-        }
-      } catch {
-        // 提醒失败不打扰工作台
-      }
-    })();
 
     const refreshTodos = () => {
       void loadTodos({ silent: true });
@@ -408,30 +396,6 @@ export default function WorkbenchContent() {
           <div className="flex min-w-0 flex-col gap-6">
             <section className="space-y-4">
               <ActionCard item={roleWorkbench.primary} large />
-              {reminder && reminder.count > 0 ? (
-                <div className="rounded-xl border border-[#FFE7BA] bg-[#FFFBE6] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-[#874D00]">
-                      ⚠ {reminder.month} 还有 {reminder.count} 个项目资料未交齐（凭证 / 用工分析）
-                    </p>
-                    <Link href="/workers/vouchers" className="text-xs text-[#874D00] underline">去上传凭证</Link>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {reminder.missing.slice(0, 6).map((row) => (
-                      <span key={row.projectId} className="flex items-center gap-1 rounded border border-[#FFE7BA] bg-white px-2 py-1 text-xs text-[#874D00]">
-                        {row.projectName}
-                        {row.missing.includes('用工分析') ? (
-                          <Link href={`/workers/labor-analysis/${row.projectId}`} className="rounded bg-[#FFF7E8] px-1 hover:bg-[#FFE7BA]">补用工分析</Link>
-                        ) : null}
-                        {row.missing.some((item) => item !== '用工分析') ? (
-                          <Link href={`/workers/vouchers/${row.projectId}`} className="rounded bg-[#FFF7E8] px-1 hover:bg-[#FFE7BA]">补凭证</Link>
-                        ) : null}
-                      </span>
-                    ))}
-                    {reminder.count > 6 ? <span className="self-center text-xs text-[#874D00]">等 {reminder.count} 个项目</span> : null}
-                  </div>
-                </div>
-              ) : null}
               <div className="rounded-xl border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between border-b border-slate-100 px-2 pb-3">
                   <div>
