@@ -154,6 +154,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '月度经营月报', href: '/reports/monthly', icon: FileBarChart, permissions: ['reports:monthly_view'] },
     { name: '月度用工分析', href: '/workers/labor-analysis', icon: TrendingUp, permissions: ['salaries:view'] },
     { name: '月度凭证（查账）', href: '/workers/vouchers', icon: FileText, permissions: ['salaries:view'] },
+    { name: '各工种累计费用', href: '/workers/trade-cost', icon: Users, permissions: ['salaries:view'] },
   ],
   '/cost-estimation/bid': [
     { name: '测算中心', href: '/cost-estimation/bid', icon: Target },

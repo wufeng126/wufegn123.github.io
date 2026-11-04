@@ -41,6 +41,7 @@ const INTERNAL_APIS = [
   '/api/workers',
   '/api/worker-salaries',
   '/api/labor-analysis',
+  '/api/trade-cost',
   '/api/vouchers',
   '/api/work-items',
   '/api/work-item-subitems',
