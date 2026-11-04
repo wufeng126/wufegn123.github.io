@@ -257,7 +257,8 @@ export default function BidHistoryPage() {
                             <th className="px-4 py-2 text-left">地区 / 类型</th>
                             <th className="px-4 py-2 text-right">中标单价</th>
                             <th className="px-4 py-2 text-left">含材料</th>
-                            <th className="px-4 py-2 text-left">备注</th>`n                            <th className="px-4 py-2 text-right">操作</th>
+                            <th className="px-4 py-2 text-left">备注</th>
+                            <th className="px-4 py-2 text-right">操作</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border)]">

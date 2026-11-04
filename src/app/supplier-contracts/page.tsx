@@ -390,6 +390,7 @@ export default function SupplierContractsPage() {
               <TH className={numCell()}>进度应付</TH>
               <TH className={numCell()}>决算应付</TH>
               <TH className={numCell()}>已付</TH>
+              <TH className={numCell()}>未付</TH>
               <TH>到期日</TH>
               <TH className="text-center">状态</TH>
               {canManage && <TH className="text-center">操作</TH>}
@@ -397,7 +398,7 @@ export default function SupplierContractsPage() {
           )}
         >
           {pagedContracts.length === 0 ? (
-            <EmptyRow colSpan={canManage ? 10 : 9} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
+            <EmptyRow colSpan={canManage ? 11 : 10} title="暂无合同" description="点击右上角「新增合同」建立第一条合同" />
           ) : pagedContracts.map(contract => (
             <TableRow key={contract.id} className="hover:bg-muted/40">
               <TableCell>
@@ -415,8 +416,18 @@ export default function SupplierContractsPage() {
                 <div className="font-medium text-purple-600">{Number(contract.payment_ratio_final || 0)}%</div>
               </TableCell>
               <TableCell className={numCell("font-medium text-primary")}>{formatCurrency(contract.total_settlement)}</TableCell>
-              <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency((contract as any).progress_payable ?? contract.total_payable)}</TableCell>`n              <TableCell className={numCell("font-medium text-purple-600")}>{formatCurrency((contract as any).final_payable ?? 0)}</TableCell>
+              <TableCell className={numCell("font-medium text-orange-600")}>{formatCurrency((contract as any).progress_payable ?? contract.total_payable)}</TableCell>
+              <TableCell className={numCell("font-medium text-purple-600")}>{formatCurrency((contract as any).final_payable ?? 0)}</TableCell>
               <TableCell className={numCell("text-green-600")}>{formatCurrency(contract.total_paid)}</TableCell>
+              <TableCell className={numCell(Number(contract.pending_amount || 0) > 0 ? "font-medium text-red-600" : "text-muted-foreground")}>
+                {Number(contract.total_paid || 0) - Number(contract.total_payable || 0) > 0.01 ? (
+                  <span className="text-red-600" title="已付金额超过应付金额">
+                    超付 {formatCurrency(Number(contract.total_paid || 0) - Number(contract.total_payable || 0))}
+                  </span>
+                ) : (
+                  formatCurrency(Number(contract.pending_amount || 0))
+                )}
+              </TableCell>
               <TableCell>
                 {contract.expire_date ? (() => {
                   const days = daysUntilExpire(contract.expire_date);
@@ -494,6 +505,14 @@ export default function SupplierContractsPage() {
                 <div>
                   <p className="text-muted-foreground">已付</p>
                   <p className="mt-0.5 font-semibold tabular-nums text-green-600">{formatCurrency(contract.total_paid)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">未付</p>
+                  <p className={`mt-0.5 font-semibold tabular-nums ${Number(contract.pending_amount || 0) > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                    {Number(contract.total_paid || 0) - Number(contract.total_payable || 0) > 0.01
+                      ? `超付 ${formatCurrency(Number(contract.total_paid || 0) - Number(contract.total_payable || 0))}`
+                      : formatCurrency(Number(contract.pending_amount || 0))}
+                  </p>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
