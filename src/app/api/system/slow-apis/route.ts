@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth, requirePermission } from '@/lib/api-auth';
 import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
@@ -12,7 +12,8 @@ import { apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
-    if (!auth.ok) return auth.response;
+    // 上报接口：未登录（如退出后/登录页）静默忽略，返回 204，避免控制台刷 401 错误
+    if (!auth.ok) return new NextResponse(null, { status: 204 });
 
     const body = await request.json().catch(() => ({}));
     const path = String(body?.path || '').slice(0, 300);
