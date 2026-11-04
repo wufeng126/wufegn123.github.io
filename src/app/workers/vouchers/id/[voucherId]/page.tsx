@@ -126,23 +126,38 @@ export default function VoucherDetailPage() {
         ) : (
           <div className="space-y-4">
             {pages.map((page) => {
-              const url = blobUrls[page.id] || page.url || `/api/vouchers/files/${page.id}`;
+              const url = blobUrls[page.id] || '';
               const isPdf = String(page.content_type || '').includes('pdf');
               return (
                 <div key={page.id} className="rounded-xl border border-[var(--border)] bg-white">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2">
                     <p className="text-sm font-medium">第 {page.page_index} 页 · {page.file_name || ''}</p>
                     <div className="flex gap-2">
-                      <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs">
+                      <a
+                        href={url || undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-disabled={!url}
+                        className={`inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs ${url ? '' : 'pointer-events-none opacity-40'}`}
+                      >
                         新窗口打开
                       </a>
-                      <a href={url} download={page.file_name || `page-${page.page_index}`} className="inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs">
+                      <a
+                        href={url || undefined}
+                        download={page.file_name || `page-${page.page_index}`}
+                        aria-disabled={!url}
+                        className={`inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs ${url ? '' : 'pointer-events-none opacity-40'}`}
+                      >
                         <Download className="h-3 w-3" /> 下载
                       </a>
                     </div>
                   </div>
                   <div className="p-3">
-                    {isPdf ? (
+                    {!url ? (
+                      <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-3)]">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 正在加载原件…
+                      </div>
+                    ) : isPdf ? (
                       <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />
                     ) : (
                       /* eslint-disable-next-line @next/next/no-img-element */

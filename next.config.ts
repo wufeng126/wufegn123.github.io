@@ -6,6 +6,11 @@ const isProd = process.env.NODE_ENV === 'production';
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      { source: '/business-analysis/ledger', destination: '/reports/monthly', permanent: false },
+    ];
+  },
   allowedDevOrigins: ['*.dev.coze.site', '*.sxshhy.top', 'sxshhy.top'],
   outputFileTracingRoot: projectRoot,
   turbopack: {
@@ -33,12 +38,13 @@ const nextConfig: NextConfig = {
                 "img-src 'self' data: blob: https:",
                 "font-src 'self' data: https://*.alicdn.com",
                 "connect-src 'self' https: wss:",
-                "frame-src 'self' https://*.dingtalk.com https://*.alicdn.com",
+                "frame-src 'self' blob: https://*.dingtalk.com https://*.alicdn.com",
                 // 允许在钉钉客户端内被嵌套打开（H5 微应用/工作台）
                 "frame-ancestors 'self' https://*.dingtalk.com https://dingtalk.com",
                 "base-uri 'self'",
                 "form-action 'self'",
                 "object-src 'none'",
+        "worker-src 'self' blob:",
               ].join('; '),
             },
           ]
