@@ -71,7 +71,7 @@ export async function PUT(
     const paymentId = Number(id);
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const { payment_amount, payment_date, payment_method, remark } = body;
+    const { payment_amount, payment_date, payment_method, remark, settlement_id } = body;
 
     const { data: currentPayment, error: currentError } = await supabase
       .from('supplier_payments')
@@ -97,6 +97,32 @@ export async function PUT(
     if (payment_method !== undefined) updateData.payment_method = payment_method;
     if (remark !== undefined) updateData.remark = remark;
 
+    // 重新关联结算单（入账后仍可调整）：校验结算单属于同一合同、未被作废
+    let nextSettlementId: number | null = currentPayment.settlement_id ? Number(currentPayment.settlement_id) : null;
+    if (settlement_id !== undefined) {
+      const parsed = settlement_id === null || settlement_id === '' ? null : Number(settlement_id);
+      if (parsed !== null && (!Number.isInteger(parsed) || parsed <= 0)) {
+        return NextResponse.json({ error: '结算单参数不正确' }, { status: 400 });
+      }
+      if (parsed !== null) {
+        const { data: settlement } = await supabase
+          .from('supplier_settlements')
+          .select('id, contract_id, status')
+          .eq('id', parsed)
+          .maybeSingle();
+        if (!settlement) return NextResponse.json({ error: '结算单不存在' }, { status: 400 });
+        if (currentPayment.contract_id && Number(settlement.contract_id) !== Number(currentPayment.contract_id)) {
+          return NextResponse.json({ error: '结算单不属于当前合同' }, { status: 400 });
+        }
+        const settlementStatus = String(settlement.status || '').toLowerCase();
+        if (settlementStatus === 'voided' || settlementStatus === '作废') {
+          return NextResponse.json({ error: '该结算单已作废，不能关联' }, { status: 400 });
+        }
+      }
+      nextSettlementId = parsed;
+      updateData.settlement_id = parsed;
+    }
+
     if (payment_amount !== undefined) {
       if (Number(payment_amount) <= 0) {
         return NextResponse.json({ error: '请输入有效的付款金额' }, { status: 400 });
@@ -113,9 +139,9 @@ export async function PUT(
         }
       }
 
-      if (currentPayment.settlement_id) {
+      if (nextSettlementId) {
         const settlementValidation = await validateSupplierSettlementPayment({
-          settlement_id: Number(currentPayment.settlement_id),
+          settlement_id: Number(nextSettlementId),
           payment_amount: Number(payment_amount),
           exclude_payment_id: paymentId,
         });

@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Download, Plus, Trash2, FileText } from 'lucide-react';
+import { Download, Plus, Trash2, FileText, Pencil } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
 import { usePermission } from '@/contexts/permission-context';
 import { authFetch } from '@/lib/auth-client';
@@ -148,6 +148,7 @@ export default function PaymentsPage() {
   const { hasAnyPermission, isLoading: permissionLoading } = usePermission();
   const canCreatePayment = hasAnyPermission(['supplier_payments:create', 'supplier_payments:edit']);
   const canDeletePayment = hasAnyPermission(['supplier_payments:delete', 'supplier_payments:edit']);
+  const canEditPayment = hasAnyPermission(['supplier_payments:edit', 'supplier_payments:create']);
   const newPaymentQueryAppliedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -169,6 +170,7 @@ export default function PaymentsPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -491,6 +493,32 @@ export default function PaymentsPage() {
     setDialogOpen(true);
   };
 
+  const openEditDialog = (payment: Payment) => {
+    if (!canEditPayment) {
+      toast.error('当前账号没有编辑付款权限，请联系管理员');
+      return;
+    }
+    fetchSettlements();
+    setEditingPayment(payment);
+    setFormData({
+      supplier_id: payment.supplier_id ? String(payment.supplier_id) : '',
+      contract_id: payment.contract_id ? String(payment.contract_id) : '',
+      settlement_ids: payment.settlement_id ? [String(payment.settlement_id)] : [],
+      amount: String(payment.payment_amount ?? ''),
+      payment_date: formatDate(payment.payment_date) || localToday(),
+      payment_type: payment.payment_type || 'progress',
+      payment_method: payment.payment_method || '银行转账',
+      remark: payment.remark || '',
+    });
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setEditingPayment(null);
+    resetForm();
+  };
+
   const handleSupplierChange = (supplierId: string) => {
     const supplierContracts = contracts.filter((contract) => Number(contract.supplier_id) === Number(supplierId));
     const onlyContract = supplierContracts.length === 1 ? supplierContracts[0] : null;
@@ -551,20 +579,32 @@ export default function PaymentsPage() {
 
     setSubmitting(true);
     try {
-      const res = await authFetch('/api/supplier-contracts/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contract_id: Number(formData.contract_id),
-          settlement_ids: formData.settlement_ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
-          settlement_id: formData.settlement_ids[0] ? Number(formData.settlement_ids[0]) : null,
-          payment_amount: Number(formData.amount),
-          payment_date: formData.payment_date,
-          payment_type: formData.payment_type,
-          payment_method: formData.payment_method,
-          remark: formData.remark || null,
-        }),
-      });
+      const res = editingPayment
+        ? await authFetch(`/api/supplier-contracts/payments/${editingPayment.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              settlement_id: formData.settlement_ids[0] ? Number(formData.settlement_ids[0]) : null,
+              payment_amount: Number(formData.amount),
+              payment_date: formData.payment_date,
+              payment_method: formData.payment_method,
+              remark: formData.remark || null,
+            }),
+          })
+        : await authFetch('/api/supplier-contracts/payments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contract_id: Number(formData.contract_id),
+              settlement_ids: formData.settlement_ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
+              settlement_id: formData.settlement_ids[0] ? Number(formData.settlement_ids[0]) : null,
+              payment_amount: Number(formData.amount),
+              payment_date: formData.payment_date,
+              payment_type: formData.payment_type,
+              payment_method: formData.payment_method,
+              remark: formData.remark || null,
+            }),
+          });
 
       const data = await res.json().catch(() => null);
       if (res.ok) {
@@ -574,8 +614,7 @@ export default function PaymentsPage() {
         } else {
           toast.success('付款记录保存成功');
         }
-        setDialogOpen(false);
-        resetForm();
+        closeDialog();
         fetchPayments();
       } else {
         const message = data?.error || `保存失败（接口状态 ${res.status}${res.status === 403 ? '：当前账号没有新增付款权限' : ''}）`;
@@ -813,16 +852,28 @@ export default function PaymentsPage() {
                     </div>
                   </div>
                   {payment.remark && <p className="line-clamp-2 text-xs text-muted-foreground">{payment.remark}</p>}
-                  {canDeletePayment && (
-                    <div className="flex justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  {(canDeletePayment || canEditPayment) && (
+                    <div className="flex justify-end gap-1">
+                      {canEditPayment && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(event) => { event.stopPropagation(); openEditDialog(payment); }}
+                          className="text-[var(--color-primary)]"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDeletePayment && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -890,6 +941,11 @@ export default function PaymentsPage() {
                         <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedPayment(payment); }}>
                           <FileText className="h-4 w-4 text-blue-600" />
                         </Button>
+                        {canEditPayment && (
+                          <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); openEditDialog(payment); }} className="text-[var(--color-primary)]" aria-label="编辑">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         {canDeletePayment && (
                           <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); handleDelete(payment.id); }} className="text-red-600 hover:text-red-700" aria-label="删除">
                             <Trash2 className="h-4 w-4" />
@@ -972,7 +1028,7 @@ export default function PaymentsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>新增付款记录</DialogTitle>
+            <DialogTitle>{editingPayment ? '编辑付款记录' : '新增付款记录'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -1186,7 +1242,7 @@ export default function PaymentsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>取消</Button>
+              <Button type="button" variant="outline" onClick={closeDialog} disabled={submitting}>取消</Button>
               <Button type="submit" disabled={submitting}>{submitting ? '保存中...' : '保存'}</Button>
             </div>
           </form>
