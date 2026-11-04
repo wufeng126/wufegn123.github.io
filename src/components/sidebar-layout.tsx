@@ -62,7 +62,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { hasCompatiblePermission } from '@/lib/route-permissions';
+import { hasCompatiblePermission, hasRoutePermission } from '@/lib/route-permissions';
 import { BrandIconContainer, BrandLogo, type BrandIconName } from '@/components/ui/brand-icon';
 import { usePermission } from '@/contexts/permission-context';
 import { FloatingAIAssistant } from '@/components/floating-ai-assistant';
@@ -316,10 +316,22 @@ export default function SidebarLayout({
     return perms.some(p => hasCompatiblePermission(p, permissions));
   };
 
+  // 页面级权限（以路由权限表为准），未授权页面不显示入口
+  const isRouteAllowed = (href: string) => hasRoutePermission(href, permissions, isSuperAdmin, user?.role);
+
+  // 二级菜单过滤：既看菜单声明的权限，也看页面路由权限
+  const getVisibleSecondary = (menuHref: string) =>
+    (SECONDARY_MENUS[menuHref] || []).filter(item => hasAnyPermission(item.permissions) && isRouteAllowed(item.href));
+
   // 判断一级菜单是否对当前角色可见
   const isMenuVisible = (menuHref: string) => {
+    if (menuHref === '/workspace') return true;
     const requiredPerms = MENU_VISIBILITY[menuHref];
-    return hasAnyPermission(requiredPerms);
+    if (!hasAnyPermission(requiredPerms)) return false;
+    const secondarySource = SECONDARY_MENUS[menuHref] || [];
+    // 有二级菜单：只要还有至少一个可见子项就显示；否则看模块首页本身是否有权限
+    if (secondarySource.length > 0) return getVisibleSecondary(menuHref).length > 0 || isRouteAllowed(menuHref);
+    return isRouteAllowed(menuHref);
   };
 
   // 判断哪个一级菜单当前激活
@@ -597,7 +609,7 @@ export default function SidebarLayout({
               .filter(menu => isMenuVisible(menu.href))
               .map((menu, idx, arr) => {
                 const isActive = activeMenu === menu.href;
-                const secondaryMenus = SECONDARY_MENUS[menu.href]?.filter(item => hasAnyPermission(item.permissions)) || [];
+                const secondaryMenus = getVisibleSecondary(menu.href);
                 // 分组标题：仅在该组第一个菜单前显示
                 const showGroup = menu.group && (idx === 0 || arr[idx - 1].group !== menu.group);
                 return (

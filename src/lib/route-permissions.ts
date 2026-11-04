@@ -47,6 +47,8 @@ const DEFAULT_ACCESS_FOR_UNMAPPED =
 export interface RoutePermissionConfig {
   /** 路由所需的权限码（与 permissions 表中的 code 对应） */
   permission?: string;
+  /** 多个权限码：满足任意一个即放行（用于多人协作的页签场景） */
+  permissions?: string[];
   /** 是否仅超级管理员可访问 */
   superAdminOnly?: boolean;
   /** 兼容旧逻辑：角色名列表（仅作为 fallback，优先使用 permission） */
@@ -173,6 +175,10 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/reports/daily': { permission: 'reports:monthly_view' },
   '/api/reports/daily/company': { permission: 'reports:monthly_view' },
   '/reports/monthly': { permission: 'reports:monthly_view' },
+  // 月报填报/审批页：预算员填写、项目经理补充、老板审批、只读查看 任一权限可进
+  '/reports/monthly/fill': { permissions: ['monthly_report:fill', 'monthly_report:supplement', 'monthly_report:approve', 'reports:monthly_view'] },
+  // 我的提交/待我审批：登录即可访问（接口内部再按身份过滤）
+  '/my-submissions': {},
 
   // === 审计日志 ===
   '/system/data-health': { permission: 'system:manage' },
@@ -450,6 +456,12 @@ export function checkApiWritePermission(
   // 超级管理员自动通过
   if (isSuperAdmin) return true;
 
+  // 月报流程：预算员填写 / 项目经理补充 / 老板审批 三种角色都能提交流转
+  if (pathname === '/api/reports/monthly/workflow') {
+    return ['monthly_report:fill', 'monthly_report:supplement', 'monthly_report:approve']
+      .some((code) => hasCompatiblePermission(code, userPermissions));
+  }
+
   if (pathname === '/api/ai/knowledge/monthly/workflow') {
     return ['admin', 'project_manager', 'boss'].includes(userRole || '');
   }
@@ -597,6 +609,11 @@ export function hasRoutePermission(
 
   const config = ROUTE_PERMISSIONS[matchedRoute];
   if (config.superAdminOnly && !isSuperAdmin) return false;
+
+  // 多个权限码：任一满足即可
+  if (config.permissions && config.permissions.length > 0) {
+    return config.permissions.some((code) => hasCompatiblePermission(code, userPermissions));
+  }
 
   // 如果有 permission 字段，检查用户是否拥有该权限码
   if (config.permission) {
