@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, TrendingUp } from 'lucide-react';
 
@@ -18,6 +18,12 @@ type Row = {
   updated_at?: string | null;
 };
 
+function nextMonth(month: string) {
+  const [year, mon] = month.split('-').map(Number);
+  const date = new Date(Date.UTC(year, mon, 1));
+  return date.toISOString().slice(0, 7);
+}
+
 function currentMonth() {
   return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 7);
 }
@@ -27,6 +33,7 @@ export default function LaborAnalysisListPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filterProject, setFilterProject] = useState('all');
   const [filterMonth, setFilterMonth] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -63,6 +70,18 @@ export default function LaborAnalysisListPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const visibleRows = useMemo(
+    () => (filterStatus ? rows.filter((row) => row.status === filterStatus) : rows),
+    [rows, filterStatus],
+  );
+
+  const summary = useMemo(() => {
+    const totalHours = rows.reduce((sum, row) => sum + Number(row.total_hours || 0), 0);
+    const totalAmount = rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+    const submitted = rows.filter((row) => row.status === 'submitted' || row.status === 'confirmed').length;
+    return { count: rows.length, totalHours, totalAmount, submitted };
+  }, [rows]);
+
   return (
     <div className="min-h-screen bg-[var(--background)] px-4 py-6">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -86,6 +105,20 @@ export default function LaborAnalysisListPage() {
 
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
 
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { label: '已填报项目', value: summary.count },
+            { label: '已提交/已确认', value: summary.submitted },
+            { label: '合计工时', value: Math.round(summary.totalHours * 100) / 100 },
+            { label: '合计金额', value: Math.round(summary.totalAmount * 100) / 100 },
+          ].map((card) => (
+            <div key={card.label} className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs text-[var(--color-text-3)]">{card.label}</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums">{card.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</p>
+            </div>
+          ))}
+        </div>
+
         <div className="rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-3">
             <select value={filterProject} onChange={(e) => setFilterProject(e.target.value)} className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm">
@@ -93,6 +126,12 @@ export default function LaborAnalysisListPage() {
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm" />
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm">
+              <option value="">全部状态</option>
+              <option value="draft">草稿</option>
+              <option value="submitted">已提交</option>
+              <option value="confirmed">已确认</option>
+            </select>
             <button type="button" onClick={() => void load()} className="h-9 rounded-lg border border-[var(--border)] px-3 text-sm">刷新</button>
           </div>
 
@@ -113,9 +152,9 @@ export default function LaborAnalysisListPage() {
               <tbody>
                 {loading ? (
                   <tr><td colSpan={8} className="px-3 py-10 text-center text-[var(--color-text-3)]"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />加载中…</td></tr>
-                ) : rows.length === 0 ? (
+                ) : visibleRows.length === 0 ? (
                   <tr><td colSpan={8} className="px-3 py-10 text-center text-[var(--color-text-3)]">暂无用工分析，点右上角「新增填报」</td></tr>
-                ) : rows.map((row) => (
+                ) : visibleRows.map((row) => (
                   <tr key={row.id} className="border-t border-[var(--border)] hover:bg-[var(--color-muted)]/40">
                     <td className="px-3 py-2 font-medium">
                       <Link href={`/workers/labor-analysis/${row.project_id}/${row.year_month}`} className="text-[var(--color-primary)] hover:underline">
@@ -139,9 +178,17 @@ export default function LaborAnalysisListPage() {
                       {row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
                     </td>
                     <td className="px-3 py-2">
-                      <Link href={`/workers/labor-analysis/${row.project_id}/${row.year_month}`} className="text-xs text-[var(--color-primary)] hover:underline">
-                        查看/编辑
-                      </Link>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <Link href={`/workers/labor-analysis/${row.project_id}/${row.year_month}`} className="text-[var(--color-primary)] hover:underline">
+                          查看/编辑
+                        </Link>
+                        <Link
+                          href={`/workers/labor-analysis/${row.project_id}/${nextMonth(row.year_month)}?copyFrom=${row.year_month}`}
+                          className="text-[var(--color-text-3)] hover:underline"
+                        >
+                          复制到次月
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

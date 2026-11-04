@@ -21,6 +21,7 @@ type Voucher = {
   approved_by_name?: string | null;
   approved_at?: string | null;
   created_at?: string | null;
+  first_file_id?: number | null;
 };
 
 // 暂不启用审批流程：上传即完成，只保留「已上传 / 已作废」两种状态
@@ -119,6 +120,30 @@ export default function VouchersPage() {
     }
   };
 
+  const missingList = useMemo(() => {
+    if (!filterMonth) return [] as Array<{ id: number; name: string; missing: string[] }>;
+    return projects
+      .map((project) => {
+        const rows = vouchers.filter((v) => Number(v.project_id) === project.id && v.year_month === filterMonth);
+        const missing: string[] = [];
+        if (!rows.some((v) => v.doc_type === 'settlement')) missing.push('结算单');
+        if (!rows.some((v) => v.doc_type === 'attendance')) missing.push('考勤表');
+        return { id: project.id, name: project.name, missing };
+      })
+      .filter((item) => item.missing.length > 0);
+  }, [projects, vouchers, filterMonth]);
+
+  const quickUpload = (projectId: number, type: 'settlement' | 'attendance') => {
+    setUpProject(String(projectId));
+    setUpMonth(filterMonth || currentMonth());
+    setUpType(type);
+    setUpFiles([]);
+    setUpAmount('');
+    setUpRemark('');
+    setUpReplace(false);
+    setUploadOpen(true);
+  };
+
   const submitUpload = async () => {
     if (!upProject) { setError('请选择项目'); return; }
     if (!upMonth) { setError('请选择月份'); return; }
@@ -199,6 +224,30 @@ export default function VouchersPage() {
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
         {notice ? <div className="rounded-xl border border-[#B7EB8F] bg-[#F6FFED] px-4 py-3 text-sm text-[#237804]">{notice}</div> : null}
 
+        {filterMonth && missingList.length > 0 ? (
+          <div className="rounded-xl border border-[#FFE7BA] bg-[#FFFBE6] px-4 py-3 text-sm text-[#874D00]">
+            <p className="font-medium">{filterMonth} 还有 {missingList.length} 个项目凭证不齐</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {missingList.slice(0, 10).map((item) => (
+                <span key={item.id} className="flex items-center gap-1 rounded border border-[#FFE7BA] bg-white px-2 py-1 text-xs">
+                  {item.name}
+                  {item.missing.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => quickUpload(item.id, type === '结算单' ? 'settlement' : 'attendance')}
+                      className="rounded bg-[#FFF7E8] px-1 text-[#B35B00] hover:bg-[#FFE7BA]"
+                    >
+                      补{type}
+                    </button>
+                  ))}
+                </span>
+              ))}
+              {missingList.length > 10 ? <span className="self-center text-xs">等 {missingList.length} 个项目</span> : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-3">
             <select value={filterProject} onChange={(e) => setFilterProject(e.target.value)} className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm">
@@ -218,6 +267,7 @@ export default function VouchersPage() {
             <table className="w-full min-w-[900px] text-sm">
               <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
                 <tr>
+                  <th className="px-3 py-2 text-left font-medium">缩略图</th>
                   <th className="px-3 py-2 text-left font-medium">项目 / 月份</th>
                   <th className="px-3 py-2 text-left font-medium">类型</th>
                   <th className="px-3 py-2 text-left font-medium">页数</th>
@@ -228,13 +278,25 @@ export default function VouchersPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="px-3 py-10 text-center text-[var(--color-text-3)]"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />加载中…</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-10 text-center text-[var(--color-text-3)]"><Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />加载中…</td></tr>
                 ) : vouchers.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-10 text-center text-[var(--color-text-3)]">暂无凭证，点右上角「上传凭证」</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-10 text-center text-[var(--color-text-3)]">暂无凭证，点右上角「上传凭证」</td></tr>
                 ) : vouchers.map((voucher) => {
                   const meta = STATUS_LABEL[voucher.status] || STATUS_LABEL.uploaded;
                   return (
                     <tr key={voucher.id} className="border-t border-[var(--border)]">
+                      <td className="px-3 py-2">
+                        {voucher.first_file_id ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={`/api/vouchers/files/${voucher.first_file_id}`}
+                            alt="缩略图"
+                            className="h-12 w-9 rounded border border-[var(--border)] object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-9 items-center justify-center rounded border border-dashed border-[var(--border)] text-[10px] text-[var(--color-text-3)]">无</div>
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         <div className="font-medium">{voucher.project_name}</div>
                         <div className="text-xs text-[var(--color-text-3)]">{voucher.year_month}</div>
@@ -290,13 +352,46 @@ export default function VouchersPage() {
               </div>
               <input value={upRemark} onChange={(e) => setUpRemark(e.target.value)} placeholder="备注（选填）" className="h-9 w-full rounded-lg border border-[var(--border)] px-2 text-sm" />
               <div>
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  multiple
-                  onChange={(e) => setUpFiles(Array.from(e.target.files || []))}
-                  className="w-full rounded-lg border border-dashed border-[#C9CDD4] px-3 py-6 text-sm"
-                />
+                <label
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const dropped = Array.from(e.dataTransfer.files || []);
+                    if (dropped.length > 0) setUpFiles((prev) => [...prev, ...dropped]);
+                  }}
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#C9CDD4] px-3 py-6 text-sm"
+                >
+                  <span className="text-[var(--color-text-2)]">点击选择 或 拖拽文件到这里</span>
+                  <span className="mt-1 text-xs text-[var(--color-text-3)]">支持多张照片 / PDF，按顺序作为第 1、2、3… 页</span>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    multiple
+                    onChange={(e) => setUpFiles((prev) => [...prev, ...Array.from(e.target.files || [])])}
+                    className="hidden"
+                  />
+                </label>
+                {upFiles.length > 0 ? (
+                  <div className="mt-2 space-y-1">
+                    {upFiles.map((file, index) => (
+                      <div key={`${file.name}-${index}`} className="flex items-center gap-2 rounded border border-[var(--border)] px-2 py-1 text-xs">
+                        <span className="w-8 text-[var(--color-text-3)]">第{index + 1}页</span>
+                        <span className="flex-1 truncate">{file.name}</span>
+                        <button type="button" disabled={index === 0} onClick={() => setUpFiles((prev) => {
+                          const next = [...prev];
+                          [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                          return next;
+                        })} className="rounded border px-1 disabled:opacity-30">↑</button>
+                        <button type="button" disabled={index === upFiles.length - 1} onClick={() => setUpFiles((prev) => {
+                          const next = [...prev];
+                          [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                          return next;
+                        })} className="rounded border px-1 disabled:opacity-30">↓</button>
+                        <button type="button" onClick={() => setUpFiles((prev) => prev.filter((_, i) => i !== index))} className="text-[#CB2634]">删除</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <p className="mt-1 text-xs text-[var(--color-text-3)]">
                   可多选：图片按选择顺序作为第 1、2、3…页；PDF 作为单页文件。单份不超过 20MB。
                   {upFiles.length > 0 ? `　已选 ${upFiles.length} 个文件` : ''}

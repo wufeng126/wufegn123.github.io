@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, Plus, Save, Trash2 } from 'lucide-react';
 
 type Item = {
@@ -50,6 +50,8 @@ export default function LaborAnalysisDetailPage() {
   const params = useParams<{ projectId: string; month: string }>();
   const projectId = params?.projectId || '';
   const month = params?.month || '';
+  const searchParams = useSearchParams();
+  const copyFrom = searchParams?.get('copyFrom') || '';
 
   const [items, setItems] = useState<Item[]>([newRow()]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -89,6 +91,23 @@ export default function LaborAnalysisDetailPage() {
           remark: String(item.remark || ''),
         }));
         setItems(rows.length > 0 ? rows : [newRow()]);
+      } else if (copyFrom && /^\d{4}-\d{2}$/.test(copyFrom)) {
+        // 复制上月：只带分类与事项，工时/金额清零
+        const copyRes = await fetch(`/api/labor-analysis?project_id=${projectId}&month=${copyFrom}`, { credentials: 'include', cache: 'no-store' });
+        const copyJson = await copyRes.json();
+        const copied = ((copyJson.data?.items || []) as Array<Record<string, unknown>>).map((item) => ({
+          key: Math.random().toString(36).slice(2),
+          category: String(item.category || '其他'),
+          work_content: String(item.work_content || ''),
+          worker_type: String(item.worker_type || '普工'),
+          hours: '',
+          hourly_rate: item.hourly_rate != null ? String(item.hourly_rate) : '',
+          amount: '',
+          remark: '',
+        }));
+        setItems(copied.length > 0 ? copied : [newRow()]);
+        setRemark('');
+        setNotice(`已带入 ${copyFrom} 的分类行，请填写本月工时`);
       } else {
         setItems([newRow()]);
         setRemark('');
@@ -98,7 +117,7 @@ export default function LaborAnalysisDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, month]);
+  }, [projectId, month, copyFrom]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -183,6 +202,9 @@ export default function LaborAnalysisDetailPage() {
             <button type="button" onClick={() => void save('draft')} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 text-sm disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} 保存草稿
             </button>
+            <button type="button" onClick={() => window.print()} className="inline-flex h-9 items-center rounded-lg border border-[var(--border)] bg-white px-3 text-sm">
+              打印
+            </button>
             <button type="button" onClick={() => void save('submitted')} disabled={saving} className="inline-flex h-9 items-center rounded-lg bg-[var(--color-primary)] px-3 text-sm text-white disabled:opacity-60">
               提交
             </button>
@@ -191,6 +213,15 @@ export default function LaborAnalysisDetailPage() {
 
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
         {notice ? <div className="rounded-xl border border-[#B7EB8F] bg-[#F6FFED] px-4 py-3 text-sm text-[#237804]">{notice}</div> : null}
+
+        {reconciliation ? (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${Math.abs((reconciliation.salaryHours || 0) - totals.hours) > 0.5 ? 'border-[#FFE7BA] bg-[#FFFBE6] text-[#874D00]' : 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]'}`}>
+            对账：生产工人工时 <b>{reconciliation.salaryHours}</b> 小时 · 填报合计 <b>{totals.hours}</b> 小时
+            {Math.abs((reconciliation.salaryHours || 0) - totals.hours) > 0.5
+              ? ` · 差异 ${Math.round((totals.hours - (reconciliation.salaryHours || 0)) * 100) / 100} 小时（请核对）`
+              : ' · 一致 ✓'}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
@@ -294,7 +325,14 @@ export default function LaborAnalysisDetailPage() {
                     <td className="py-1">{row.category}</td>
                     <td className="py-1 text-right tabular-nums">{row.hours}</td>
                     <td className="py-1 text-right tabular-nums">{row.amount.toLocaleString('zh-CN')}</td>
-                    <td className="py-1 text-right tabular-nums">{totals.hours > 0 ? `${((row.hours / totals.hours) * 100).toFixed(1)}%` : '-'}</td>
+                    <td className="py-1">
+                      <div className="flex items-center justify-end gap-1">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--color-muted)]">
+                          <div className="h-full bg-[var(--color-primary)]" style={{ width: `${totals.hours > 0 ? (row.hours / totals.hours) * 100 : 0}%` }} />
+                        </div>
+                        <span className="w-12 text-right tabular-nums">{totals.hours > 0 ? `${((row.hours / totals.hours) * 100).toFixed(1)}%` : '-'}</span>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

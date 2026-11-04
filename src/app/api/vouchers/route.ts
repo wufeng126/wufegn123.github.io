@@ -63,10 +63,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // 附带每份凭证的首页文件 id（用于列表缩略图）
+    const voucherIds = rows.map((row: Record<string, unknown>) => Number(row.id)).filter(Boolean);
+    const firstFileMap = new Map<number, number>();
+    if (voucherIds.length > 0) {
+      const { data: files } = await client
+        .from('monthly_voucher_files')
+        .select('id, voucher_id, page_index')
+        .in('voucher_id', voucherIds)
+        .order('page_index', { ascending: true });
+      (files || []).forEach((file: { id?: unknown; voucher_id?: unknown }) => {
+        const voucherId = Number(file.voucher_id);
+        if (!firstFileMap.has(voucherId)) firstFileMap.set(voucherId, Number(file.id));
+      });
+    }
+
     return apiSuccess({
       vouchers: rows.map((row: Record<string, unknown>) => ({
         ...row,
         project_name: projectMap.get(Number(row.project_id)) || `项目#${row.project_id}`,
+        first_file_id: firstFileMap.get(Number(row.id)) || null,
       })),
     });
   } catch (error: unknown) {
