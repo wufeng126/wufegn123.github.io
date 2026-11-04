@@ -1,5 +1,6 @@
 'use client';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/contexts/permission-context';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -190,12 +191,7 @@ const notificationListTabs: Array<{
   countKey?: NotificationCategory;
 }> = [
   { value: 'all', label: '全部' },
-  { value: 'unread', label: '未读' },
-  { value: 'warning', label: '预警' },
   { value: 'todo', label: '待办', category: 'todo', countKey: 'todo' },
-  { value: 'risk', label: '风险', category: 'risk', countKey: 'risk' },
-  { value: 'result', label: '结果', category: 'result', countKey: 'result' },
-  { value: 'cc', label: '抄送', category: 'cc', countKey: 'cc' },
 ];
 
 type NotificationRuleItem = (typeof notificationRules)[number];
@@ -338,6 +334,27 @@ export default function NotificationsPage() {
   });
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
+  const { isSuperAdmin } = usePermission();
+  const canPurgeNotifications = isSuperAdmin;
+  const [purging, setPurging] = useState(false);
+
+  const purgeNonTodo = async () => {
+    if (purging) return;
+    if (!window.confirm('将删除所有非「待办」类通知（预警/风险/结果/抄送等），且不可恢复。确认继续？')) return;
+    setPurging(true);
+    try {
+      const res = await fetch('/api/notifications/purge-non-todo', { method: 'POST', credentials: 'include' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '清理失败');
+      alert(`已删除 ${json.data?.deleted ?? 0} 条，保留待办 ${json.data?.kept ?? 0} 条`);
+      window.location.reload();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '清理失败');
+    } finally {
+      setPurging(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState('all');
   const [showSettings, setShowSettings] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -1230,12 +1247,19 @@ export default function NotificationsPage() {
                 })}
               </TabsList>
             </Tabs>
-            {stats.unread > 0 && (
-              <Button variant="ghost" size="sm" onClick={markAllRead} className="w-full text-xs sm:w-auto">
-                <CheckCheck className="w-4 h-4 mr-1" />
-                全部已读
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-1">
+              {stats.unread > 0 && (
+                <Button variant="ghost" size="sm" onClick={markAllRead} className="text-xs">
+                  <CheckCheck className="w-4 h-4 mr-1" />
+                  全部已读
+                </Button>
+              )}
+              {canPurgeNotifications && (
+                <Button variant="ghost" size="sm" onClick={() => void purgeNonTodo()} className="text-xs text-[#CB2634]">
+                  只保留待办（清除其他）
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
