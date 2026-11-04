@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { readFile } from '@/lib/oss-storage';
+import { verifyFileToken } from '@/lib/file-token';
 
 /**
  * GET /api/vouchers/files/[fileId]
@@ -10,11 +11,13 @@ import { readFile } from '@/lib/oss-storage';
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
   try {
-    const auth = await requireAuth(request);
-    if (!auth.ok) return auth.response;
-
     const { fileId } = await params;
     const id = Number(fileId);
+    const token = new URL(request.url).searchParams.get('t') || '';
+    const tokenValid = token ? verifyFileToken(token, id) : false;
+
+    const auth = await requireAuth(request);
+    if (!auth.ok && !tokenValid) return auth.response;
     if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json({ error: '参数不正确' }, { status: 400 });
     }
@@ -34,9 +37,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .maybeSingle();
     if (!voucher) return NextResponse.json({ error: '凭证不存在' }, { status: 404 });
 
-    const scope = await getAccessibleProjectIds(client, auth.user);
-    if (scope !== null && !scope.includes(Number(voucher.project_id))) {
-      return NextResponse.json({ error: '无权查看该凭证' }, { status: 403 });
+    if (auth.ok) {
+      const scope = await getAccessibleProjectIds(client, auth.user);
+      if (scope !== null && !scope.includes(Number(voucher.project_id))) {
+        return NextResponse.json({ error: '无权查看该凭证' }, { status: 403 });
+      }
     }
 
     const buffer = await readFile({ fileKey: String(file.file_key) });

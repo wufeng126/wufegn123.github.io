@@ -22,6 +22,7 @@ type Voucher = {
   approved_at?: string | null;
   created_at?: string | null;
   first_file_id?: number | null;
+  first_file_url?: string | null;
 };
 
 // 暂不启用审批流程：上传即完成，只保留「已上传 / 已作废」两种状态
@@ -286,10 +287,10 @@ export default function VouchersPage() {
                   return (
                     <tr key={voucher.id} className="border-t border-[var(--border)]">
                       <td className="px-3 py-2">
-                        {voucher.first_file_id ? (
+                        {voucher.first_file_url ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img
-                            src={`/api/vouchers/files/${voucher.first_file_id}`}
+                            src={voucher.first_file_url}
                             alt="缩略图"
                             className="h-12 w-9 rounded border border-[var(--border)] object-cover"
                           />

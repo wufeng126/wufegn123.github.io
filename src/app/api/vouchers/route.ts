@@ -6,6 +6,7 @@ import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { uploadFileAtKey } from '@/lib/oss-storage';
 import { auditLog } from '@/lib/audit-log';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { createFileToken } from '@/lib/file-token';
 
 /**
  * 月度凭证（结算单 / 考勤表）
@@ -83,6 +84,9 @@ export async function GET(request: NextRequest) {
         ...row,
         project_name: projectMap.get(Number(row.project_id)) || `项目#${row.project_id}`,
         first_file_id: firstFileMap.get(Number(row.id)) || null,
+        first_file_url: firstFileMap.get(Number(row.id))
+          ? `/api/vouchers/files/${firstFileMap.get(Number(row.id))}?t=${createFileToken(Number(firstFileMap.get(Number(row.id))))}`
+          : null,
       })),
     });
   } catch (error: unknown) {
