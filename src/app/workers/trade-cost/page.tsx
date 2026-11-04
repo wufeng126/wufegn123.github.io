@@ -8,6 +8,9 @@ type TradeRow = { trade: string; gross: number; hours: number; ratio: number };
 type ProjectRow = { projectId: number; projectName: string; total: number; months: number; trades: TradeRow[] };
 
 function money(value: number) {
+  if (Math.abs(value) >= 10000) {
+    return `¥${(value / 10000).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}万`;
+  }
   return `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
 }
 
@@ -17,6 +20,7 @@ export default function TradeCostPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [keyword, setKeyword] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,16 +40,21 @@ export default function TradeCostPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const grandTotal = useMemo(() => projects.reduce((sum, row) => sum + row.total, 0), [projects]);
+  const visibleProjects = useMemo(
+    () => (keyword.trim() ? projects.filter((row) => row.projectName.includes(keyword.trim())) : projects),
+    [projects, keyword],
+  );
+
+  const grandTotal = useMemo(() => visibleProjects.reduce((sum, row) => sum + row.total, 0), [visibleProjects]);
   const totalsByTrade = useMemo(() => {
     const map = new Map<string, number>();
-    projects.forEach((project) => {
+    visibleProjects.forEach((project) => {
       project.trades.forEach((trade) => {
         map.set(trade.trade, (map.get(trade.trade) || 0) + trade.gross);
       });
     });
     return map;
-  }, [projects]);
+  }, [visibleProjects]);
   const topTrades = useMemo(() => trades.slice(0, 8), [trades]);
 
   return (
@@ -61,9 +70,17 @@ export default function TradeCostPage() {
               按项目汇总从进场以来各工种的应发工资（含管理人员单列），数据来自月度工资表。
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-right">
-            <p className="text-xs text-[var(--color-text-3)]">全部项目合计</p>
-            <p className="text-lg font-bold tabular-nums">{money(grandTotal)}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索项目"
+              className="h-9 w-44 rounded-lg border border-[var(--border)] bg-white px-3 text-sm"
+            />
+            <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-right">
+              <p className="text-xs text-[var(--color-text-3)]">当前范围合计</p>
+              <p className="text-lg font-bold tabular-nums">{money(grandTotal)}</p>
+            </div>
           </div>
         </div>
 
@@ -78,10 +95,10 @@ export default function TradeCostPage() {
         ) : (
           <>
             <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-white">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full min-w-[1000px] text-sm">
                 <thead className="bg-[var(--color-muted)] text-xs text-[var(--color-text-3)]">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium">项目</th>
+                    <th className="sticky left-0 z-10 w-56 bg-[var(--color-muted)] px-3 py-2 text-left font-medium">项目</th>
                     {topTrades.map((trade) => (
                       <th key={trade} className="px-3 py-2 text-right font-medium">{trade}</th>
                     ))}
@@ -89,13 +106,13 @@ export default function TradeCostPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((project) => {
+                  {visibleProjects.map((project) => {
                     const tradeMap = new Map(project.trades.map((row) => [row.trade, row]));
                     const isOpen = expanded === project.projectId;
                     return (
                       <Fragment key={project.projectId}>
                         <tr className="cursor-pointer border-t border-[var(--border)] hover:bg-[var(--color-muted)]/40" onClick={() => setExpanded(isOpen ? null : project.projectId)}>
-                          <td className="px-3 py-2 font-medium">
+                          <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">
                             <span className="flex items-center gap-1">
                               {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                               {project.projectName}

@@ -28,6 +28,7 @@ export default function VoucherDetailPage() {
   const [pages, setPages] = useState<PageItem[]>([]);
   const [projectName, setProjectName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [blobUrls, setBlobUrls] = useState<Record<number, string>>({});
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -48,6 +49,32 @@ export default function VoucherDetailPage() {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // 通过 fetch 拿文件字节再转 blob URL：避免 img/iframe 子请求在第三方上下文里丢 Cookie
+  useEffect(() => {
+    let cancelled = false;
+    const created: string[] = [];
+    (async () => {
+      const map: Record<number, string> = {};
+      for (const page of pages) {
+        try {
+          const res = await fetch(page.url || `/api/vouchers/files/${page.id}`, { credentials: 'include' });
+          if (!res.ok) continue;
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          created.push(url);
+          map[page.id] = url;
+        } catch {
+          // 单页失败不影响其他页
+        }
+      }
+      if (!cancelled) setBlobUrls(map);
+    })();
+    return () => {
+      cancelled = true;
+      created.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [pages]);
 
   useEffect(() => {
     (async () => {
@@ -94,7 +121,7 @@ export default function VoucherDetailPage() {
         ) : (
           <div className="space-y-4">
             {pages.map((page) => {
-              const url = page.url || `/api/vouchers/files/${page.id}`;
+              const url = blobUrls[page.id] || page.url || `/api/vouchers/files/${page.id}`;
               const isPdf = String(page.content_type || '').includes('pdf');
               return (
                 <div key={page.id} className="rounded-xl border border-[var(--border)] bg-white">

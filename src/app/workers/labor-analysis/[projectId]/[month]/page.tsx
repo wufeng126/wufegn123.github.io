@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, Plus, Save, Trash2 } from 'lucide-react';
 
 type Item = {
@@ -50,6 +50,7 @@ export default function LaborAnalysisDetailPage() {
   const params = useParams<{ projectId: string; month: string }>();
   const projectId = params?.projectId || '';
   const month = params?.month || '';
+  const router = useRouter();
   const searchParams = useSearchParams();
   const copyFrom = searchParams?.get('copyFrom') || '';
 
@@ -190,6 +191,18 @@ export default function LaborAnalysisDetailPage() {
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
               仅用于成本分析与查账，<b>金额不计入项目成本</b>（成本以工资表/结算单为准）。
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-[var(--color-text-3)]">填报月份</span>
+              <input
+                type="month"
+                value={month}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (/^\d{4}-\d{2}$/.test(next)) router.push(`/workers/labor-analysis/${projectId}/${next}`);
+                }}
+                className="h-8 rounded-lg border border-[var(--border)] px-2 text-sm"
+              />
+            </div>
             <p className="mt-0.5 text-xs text-[var(--color-text-3)]">
               状态：{statusText(analysis?.status)}
               {analysis?.submitted_by_name ? ` · 提交人 ${analysis.submitted_by_name}` : ''}
@@ -242,6 +255,37 @@ export default function LaborAnalysisDetailPage() {
             本月另有管理人员工资 <b>¥{(reconciliation.managementGross || 0).toLocaleString('zh-CN')}</b>（不计入下方点工工时统计，单列管理成本）
           </div>
         ) : null}
+
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">按工作内容统计</p>
+            <span className="text-xs text-[var(--color-text-3)]">合计 {totals.hours.toLocaleString('zh-CN')} 小时 / ¥{totals.amount.toLocaleString('zh-CN')}</span>
+          </div>
+          {byCategory.length === 0 ? (
+            <p className="py-6 text-center text-sm text-[var(--color-text-3)]">暂无数据，请在下方明细中填写</p>
+          ) : (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {byCategory.map((row) => {
+                const ratio = totals.hours > 0 ? (row.hours / totals.hours) * 100 : 0;
+                return (
+                  <div key={row.category} className="rounded-lg border border-[var(--border)] p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{row.category}</span>
+                      <span className="text-xs text-[var(--color-text-3)]">{ratio.toFixed(1)}%</span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-muted)]">
+                      <div className="h-full bg-[var(--color-primary)]" style={{ width: `${ratio}%` }} />
+                    </div>
+                    <div className="mt-2 flex justify-between text-xs text-[var(--color-text-2)]">
+                      <span>{row.hours.toLocaleString('zh-CN')} 小时</span>
+                      <span>¥{row.amount.toLocaleString('zh-CN')}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-white">
           <div className="border-b border-[var(--border)] px-4 py-3">
@@ -310,38 +354,9 @@ export default function LaborAnalysisDetailPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-sm font-semibold">按工作内容汇总</p>
-            <table className="mt-2 w-full text-xs">
-              <thead className="text-[var(--color-text-3)]">
-                <tr><th className="py-1 text-left">分类</th><th className="py-1 text-right">工时</th><th className="py-1 text-right">金额</th><th className="py-1 text-right">占比</th></tr>
-              </thead>
-              <tbody>
-                {byCategory.length === 0 ? (
-                  <tr><td colSpan={4} className="py-4 text-center text-[var(--color-text-3)]">暂无数据</td></tr>
-                ) : byCategory.map((row) => (
-                  <tr key={row.category} className="border-t border-[var(--border)]">
-                    <td className="py-1">{row.category}</td>
-                    <td className="py-1 text-right tabular-nums">{row.hours}</td>
-                    <td className="py-1 text-right tabular-nums">{row.amount.toLocaleString('zh-CN')}</td>
-                    <td className="py-1">
-                      <div className="flex items-center justify-end gap-1">
-                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--color-muted)]">
-                          <div className="h-full bg-[var(--color-primary)]" style={{ width: `${totals.hours > 0 ? (row.hours / totals.hours) * 100 : 0}%` }} />
-                        </div>
-                        <span className="w-12 text-right tabular-nums">{totals.hours > 0 ? `${((row.hours / totals.hours) * 100).toFixed(1)}%` : '-'}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-sm font-semibold">备注</p>
-            <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={6} className="mt-2 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm" placeholder="本月用工情况说明（选填）" />
-          </div>
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+          <p className="text-sm font-semibold">备注</p>
+          <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={4} className="mt-2 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm" placeholder="本月用工情况说明（选填）" />
         </div>
       </div>
     </div>

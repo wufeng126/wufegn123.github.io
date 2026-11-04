@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Loader2, Search } from 'lucide-react';
+import { VoucherThumb } from '@/components/voucher-thumb';
 
 type Project = { id: number; name: string };
-type Voucher = { id: number; project_id: number; year_month: string; doc_type: string; page_count: number; first_file_url?: string | null };
+type Voucher = { id: number; project_id: number; year_month: string; doc_type: string; page_count: number; first_file_id?: number | null; first_file_url?: string | null };
 
 export default function VouchersProjectSummaryPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -51,6 +52,7 @@ export default function VouchersProjectSummaryPage() {
           latestHasSettlement: latestRows.some((v) => v.doc_type === 'settlement'),
           latestHasAttendance: latestRows.some((v) => v.doc_type === 'attendance'),
           cover: list[0]?.first_file_url || null,
+          coverFileId: list[0]?.first_file_id || null,
         };
       })
       .filter((row) => (keyword ? row.project.name.includes(keyword) : true))
@@ -99,12 +101,7 @@ export default function VouchersProjectSummaryPage() {
                       {row.count > 0 ? `共 ${row.count} 份 · 最近 ${row.latest}` : '暂无凭证'}
                     </p>
                   </div>
-                  {row.cover ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={row.cover} alt="封面" className="h-14 w-10 rounded border border-[var(--border)] object-cover" />
-                  ) : (
-                    <div className="flex h-14 w-10 items-center justify-center rounded border border-dashed border-[var(--border)] text-[10px] text-[var(--color-text-3)]">无</div>
-                  )}
+                  <VoucherThumb fileId={row.coverFileId} url={row.cover} className="h-14 w-10" alt="封面" />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
                   {row.count > 0 ? (

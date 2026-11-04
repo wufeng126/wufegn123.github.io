@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { FileText, Loader2, Upload, X } from 'lucide-react';
+import { VoucherThumb } from '@/components/voucher-thumb';
 
 type Project = { id: number; name: string };
 type Voucher = {
@@ -295,16 +296,7 @@ export default function VouchersProjectPage() {
                   return (
                     <tr key={voucher.id} className="border-t border-[var(--border)]">
                       <td className="px-3 py-2">
-                        {voucher.first_file_url ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={voucher.first_file_url}
-                            alt="缩略图"
-                            className="h-12 w-9 rounded border border-[var(--border)] object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-9 items-center justify-center rounded border border-dashed border-[var(--border)] text-[10px] text-[var(--color-text-3)]">无</div>
-                        )}
+                        <VoucherThumb fileId={voucher.first_file_id} url={voucher.first_file_url} className="h-12 w-9" />
                       </td>
                       <td className="px-3 py-2">
                         <div className="font-medium">{voucher.project_name}</div>
