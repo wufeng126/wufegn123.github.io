@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { auditLog } from '@/lib/audit-log';
-import { createFileToken } from '@/lib/file-token';
+import { generateShortLivedToken } from '@/lib/auth';
 
 /**
  * /api/vouchers/[id]
@@ -44,13 +44,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .order('page_index', { ascending: true });
 
     // 同源地址：由 /api/vouchers/files/[fileId] 流式返回，避免签名 URL 跨域/CSP 问题
-    const pages = (files || []).map((file) => {
-      const fileId = Number(file.id);
-      return {
-        ...file,
-        url: `/api/vouchers/files/${fileId}?t=${createFileToken(fileId)}`,
-      };
-    });
+    // 内嵌预览无法带 Cookie：签发 1 小时短时 token 放在 URL 上（verifyRequest 支持 ?token=）
+    const fileToken = await generateShortLivedToken({
+      id: Number(auth.user.id),
+      username: String(auth.user.username || ''),
+      name: String(auth.user.name || auth.user.username || ''),
+      role: (auth.user.role || 'admin') as never,
+      permissions: auth.user.permissions,
+    }, '1h');
+    const pages = (files || []).map((file) => ({
+      ...file,
+      url: `/api/vouchers/files/${Number(file.id)}?token=${encodeURIComponent(fileToken)}`,
+    }));
 
     return apiSuccess({ voucher, pages });
   } catch (error: unknown) {

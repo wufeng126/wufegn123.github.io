@@ -119,6 +119,17 @@ export async function generateToken(payload: UserPayload): Promise<string> {
   return token;
 }
 
+// 生成短时 JWT（用于 iframe/内嵌预览等无法携带 Cookie 的场景，默认 1 小时）
+export async function generateShortLivedToken(payload: UserPayload, expiresIn: string = '1h'): Promise<string> {
+  const secretKey = getSecretKey();
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setJti(crypto.randomUUID())
+    .setIssuedAt()
+    .setExpirationTime(expiresIn)
+    .sign(secretKey);
+}
+
 // 验证 JWT Token（Edge Runtime 安全）
 export async function verifyToken(token: string): Promise<UserPayload | null> {
   try {

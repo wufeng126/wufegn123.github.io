@@ -6,7 +6,7 @@ import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { uploadFileAtKey } from '@/lib/oss-storage';
 import { auditLog } from '@/lib/audit-log';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
-import { createFileToken } from '@/lib/file-token';
+import { generateShortLivedToken } from '@/lib/auth';
 
 /**
  * 月度凭证（结算单 / 考勤表）
@@ -64,6 +64,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const thumbToken = await generateShortLivedToken({
+      id: Number(auth.user.id),
+      username: String(auth.user.username || ''),
+      name: String(auth.user.name || auth.user.username || ''),
+      role: (auth.user.role || 'admin') as never,
+      permissions: auth.user.permissions,
+    }, '1h');
+
     // 附带每份凭证的首页文件 id（用于列表缩略图）
     const voucherIds = rows.map((row: Record<string, unknown>) => Number(row.id)).filter(Boolean);
     const firstFileMap = new Map<number, number>();
@@ -85,7 +93,7 @@ export async function GET(request: NextRequest) {
         project_name: projectMap.get(Number(row.project_id)) || `项目#${row.project_id}`,
         first_file_id: firstFileMap.get(Number(row.id)) || null,
         first_file_url: firstFileMap.get(Number(row.id))
-          ? `/api/vouchers/files/${firstFileMap.get(Number(row.id))}?t=${createFileToken(Number(firstFileMap.get(Number(row.id))))}`
+          ? `/api/vouchers/files/${firstFileMap.get(Number(row.id))}?token=${encodeURIComponent(thumbToken)}`
           : null,
       })),
     });
