@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Search, TrendingUp } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Search, TrendingUp } from 'lucide-react';
 
-type Project = { id: number; name: string };
+type Project = { id: number; name: string; status?: string };
 type Analysis = { project_id: number; year_month: string; total_hours?: number | null; total_amount?: number | null; status: string };
 
 export default function LaborAnalysisProjectsPage() {
@@ -13,6 +13,7 @@ export default function LaborAnalysisProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [showFinished, setShowFinished] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -25,7 +26,7 @@ export default function LaborAnalysisProjectsPage() {
       const projJson = await projRes.json();
       const listJson = await listRes.json();
       const list = Array.isArray(projJson.projects) ? projJson.projects : Array.isArray(projJson.data) ? projJson.data : [];
-      setProjects((list as Project[]).map((p) => ({ id: Number(p.id), name: String(p.name || '') })));
+      setProjects((list as Project[]).map((p) => ({ id: Number(p.id), name: String(p.name || ''), status: String((p as { status?: unknown }).status || '') })));
       setRows((listJson.data?.list || []) as Analysis[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
@@ -35,6 +36,11 @@ export default function LaborAnalysisProjectsPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const isFinished = (status?: string) => {
+    const text = String(status || '').trim();
+    return ['已完成', '已完工', '竣工结算', 'completed'].includes(text);
+  };
 
   const cards = useMemo(() => {
     return projects
@@ -48,6 +54,9 @@ export default function LaborAnalysisProjectsPage() {
       .filter((row) => (keyword ? row.project.name.includes(keyword) : true))
       .sort((a, b) => b.hours - a.hours || a.project.name.localeCompare(b.project.name, 'zh-CN'));
   }, [projects, rows, keyword]);
+
+  const activeCards = useMemo(() => cards.filter((card) => !isFinished(card.project.status)), [cards]);
+  const finishedCards = useMemo(() => cards.filter((card) => isFinished(card.project.status)), [cards]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] px-4 py-6">
@@ -77,8 +86,9 @@ export default function LaborAnalysisProjectsPage() {
         ) : cards.length === 0 ? (
           <div className="rounded-xl border border-[var(--border)] bg-white py-16 text-center text-sm text-[var(--color-text-3)]">暂无项目</div>
         ) : (
+          <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {cards.map((card) => (
+            {activeCards.map((card) => (
               <Link
                 key={card.project.id}
                 href={`/workers/labor-analysis/${card.project.id}`}
@@ -101,6 +111,41 @@ export default function LaborAnalysisProjectsPage() {
               </Link>
             ))}
           </div>
+
+          {finishedCards.length > 0 ? (
+            <div className="rounded-xl border border-[var(--border)] bg-white">
+              <button
+                type="button"
+                onClick={() => setShowFinished((prev) => !prev)}
+                className="flex w-full items-center justify-between px-4 py-3 text-sm"
+              >
+                <span className="flex items-center gap-2 font-medium text-[var(--color-text-2)]">
+                  {showFinished ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  已竣工结算项目（{finishedCards.length}）
+                </span>
+                <span className="text-xs text-[var(--color-text-3)]">{showFinished ? '收起' : '展开查看'}</span>
+              </button>
+              {showFinished ? (
+                <div className="grid gap-3 border-t border-[var(--border)] p-4 md:grid-cols-2 xl:grid-cols-3">
+                  {finishedCards.map((card) => (
+                    <Link
+                      key={card.project.id}
+                      href={`/workers/labor-analysis/${card.project.id}`}
+                      className="group rounded-xl border border-[var(--border)] bg-[var(--color-muted)]/40 p-4 transition hover:border-[var(--color-primary)]"
+                    >
+                      <p className="truncate font-medium text-[var(--color-text-2)] group-hover:text-[var(--color-primary)]">{card.project.name}</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-3)]">已竣工结算 · {card.months.length} 个月</p>
+                      <div className="mt-2 flex justify-between text-xs text-[var(--color-text-2)]">
+                        <span>{card.hours.toLocaleString('zh-CN')} 小时</span>
+                        <span>¥{card.amount.toLocaleString('zh-CN')}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          </>
         )}
       </div>
     </div>
