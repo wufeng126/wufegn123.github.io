@@ -175,6 +175,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/api/reports/daily/company': { permission: 'reports:monthly_view' },
   '/reports/monthly': { permission: 'reports:monthly_view' },
   // 月报填报/审批页：预算员填写、项目经理补充、老板审批、只读查看 任一权限可进
+  '/reports/monthly/archives': { permission: 'reports:monthly_view' },
   '/reports/monthly/fill': { permissions: ['monthly_report:fill', 'monthly_report:supplement', 'monthly_report:approve', 'reports:monthly_view'] },
   // 我的提交/待我审批：登录即可访问（接口内部再按身份过滤）
   '/my-submissions': {},

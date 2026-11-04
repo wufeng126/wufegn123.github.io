@@ -509,6 +509,24 @@ export async function pushBusinessNotification(params: {
             notification: notificationByRecipientId.get(user.id),
           }));
 
+        if (dingtalkRecipients.length === 0) {
+          console.warn('[DingTalk Work] 审批人未绑定钉钉，个人通知无法发送。recipientUserIds=', uniqueRecipientIds, 'type=', type);
+          // 回退：群机器人广播（若已配置且本条还没通过机器人发出）
+          const fallbackWebhook = notificationSettings.dingtalk_webhook?.value;
+          const fallbackEnabled = fallbackWebhook
+            && isNotificationSettingEnabled(notificationSettings.dingtalk_webhook?.enabled, true)
+            && isNotificationSettingEnabled(notificationSettings.dingtalk_robot_broadcast_enabled?.enabled, true);
+          if (!robotSent && fallbackEnabled) {
+            const fallback = await sendDingTalkNotification(
+              String(fallbackWebhook),
+              notificationSettings.dingtalk_secret?.value,
+              msgTitle,
+              `${text}\n\n> 审批人尚未绑定钉钉，本条改为群提醒，请相关同事转达。`,
+            );
+            if (fallback.success) notificationIds.forEach((id) => sentNotificationIds.add(id));
+          }
+        }
+
         for (const recipient of dingtalkRecipients) {
           const personalParams: NotificationParams = {
             ...notifParams,
