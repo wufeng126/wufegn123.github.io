@@ -27,6 +27,8 @@ export default function LaborAnalysisProjectPage() {
   const [projectName, setProjectName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [movingMonth, setMovingMonth] = useState<string>('');
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -62,6 +64,34 @@ export default function LaborAnalysisProjectPage() {
     })();
   }, [projectId]);
 
+  const changeMonth = async (fromMonth: string) => {
+    const next = window.prompt(`把 ${fromMonth} 的填报改到哪个月份？（格式 YYYY-MM）`, fromMonth);
+    if (!next || next === fromMonth) return;
+    if (!/^\d{4}-\d{2}$/.test(next)) {
+      setError('月份格式应为 YYYY-MM，例如 2026-10');
+      return;
+    }
+    setMovingMonth(fromMonth);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/labor-analysis/change-month', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ project_id: Number(projectId), from_month: fromMonth, to_month: next }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '修改月份失败');
+      setNotice(`已把 ${fromMonth} 的填报改为 ${next}`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '修改月份失败');
+    } finally {
+      setMovingMonth('');
+    }
+  };
+
   const maxHours = useMemo(() => Math.max(1, ...byCategory.map((row) => row.hours)), [byCategory]);
 
   return (
@@ -82,6 +112,7 @@ export default function LaborAnalysisProjectPage() {
         </div>
 
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
+        {notice ? <div className="rounded-xl border border-[#B7EB8F] bg-[#F6FFED] px-4 py-3 text-sm text-[#237804]">{notice}</div> : null}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
@@ -158,6 +189,14 @@ export default function LaborAnalysisProjectPage() {
                     <div className="flex flex-wrap gap-2 text-xs">
                       <Link href={`/workers/labor-analysis/${projectId}/${row.year_month}`} className="text-[var(--color-primary)] hover:underline">查看/编辑</Link>
                       <Link href={`/workers/labor-analysis/${projectId}/${nextMonth(row.year_month)}?copyFrom=${row.year_month}`} className="text-[var(--color-text-3)] hover:underline">复制到次月</Link>
+                      <button
+                        type="button"
+                        disabled={movingMonth !== '' || row.status === 'confirmed'}
+                        onClick={() => void changeMonth(row.year_month)}
+                        className="text-[var(--color-text-3)] hover:underline disabled:opacity-40"
+                      >
+                        {movingMonth === row.year_month ? '修改中…' : '改月份'}
+                      </button>
                     </div>
                   </td>
                 </tr>
