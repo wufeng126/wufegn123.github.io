@@ -406,10 +406,16 @@ export async function POST(request: NextRequest) {
     const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
     const stageLabel = action === 'submit_manager' ? '项目经理补充' : '老板审批';
     const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
-    if (notifyApproverId === 0 && (action === 'submit_manager' || action === 'supplement')) {
-      console.warn('[MonthlyWorkflow] 未指定下一级审批人：不会创建钉钉待办/定向通知');
+    // 未指定审批人时兜底：项目经理补充 → 找该项目的项目经理；老板审批 → 找老板/超管
+    let recipientIds: number[] = notifyApproverId > 0 ? [notifyApproverId] : [];
+    if (recipientIds.length === 0 && (action === 'submit_manager' || action === 'supplement')) {
+      recipientIds = await resolveFallbackApprovers(client, action, scope);
+      console.warn('[MonthlyWorkflow] 未指定审批人，使用兜底审批人：', recipientIds);
     }
-    if (notifyApproverId > 0) {
+    if (recipientIds.length === 0) {
+      console.warn('[MonthlyWorkflow] 仍未找到可通知的审批人，跳过钉钉推送');
+    }
+    if (recipientIds.length > 0) {
       try {
         const { pushBusinessNotification } = await import('@/lib/business-notification');
         await pushBusinessNotification({
@@ -419,7 +425,7 @@ export async function POST(request: NextRequest) {
           severity: 'info',
           relatedId: Number(saved?.id) || undefined,
           relatedType: 'monthly_report',
-          recipientUserIds: [notifyApproverId],
+          recipientUserIds: recipientIds,
           metadata: {
             业务摘要: `${month} ${scopeLabel} 月报待${stageLabel}`,
             责任人: notifyApproverName || '',
@@ -639,4 +645,49 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '月报审批操作失败'));
   }
+}
+
+/** 兜底审批人：项目经理阶段优先取项目的 manager_user_id / 项目角色；老板阶段取超管或 boss 角色 */
+async function resolveFallbackApprovers(
+  client: ReturnType<typeof getSupabaseClient>,
+  action: string,
+  scope: string,
+): Promise<number[]> {
+  const ids = new Set<number>();
+  const scopeId = Number(scope) || 0;
+
+  if (action === 'submit_manager' && scopeId > 0) {
+    const { data: project } = await client
+      .from('projects')
+      .select('manager_user_id')
+      .eq('id', scopeId)
+      .maybeSingle();
+    const managerId = Number((project as { manager_user_id?: unknown } | null)?.manager_user_id) || 0;
+    if (managerId > 0) ids.add(managerId);
+
+    const { data: roleRows } = await client
+      .from('user_project_roles')
+      .select('user_id, role_code')
+      .eq('project_id', scopeId);
+    (roleRows || []).forEach((row: { user_id?: unknown; role_code?: unknown }) => {
+      if (String(row.role_code || '') === 'project_manager') {
+        const userId = Number(row.user_id) || 0;
+        if (userId > 0) ids.add(userId);
+      }
+    });
+  }
+
+  if (ids.size === 0) {
+    const { data: bosses } = await client
+      .from('users')
+      .select('id, role, is_disabled')
+      .in('role', ['super_admin', 'boss'])
+      .limit(20);
+    (bosses || []).forEach((user: { id?: unknown; is_disabled?: unknown }) => {
+      const userId = Number(user.id) || 0;
+      if (userId > 0 && user.is_disabled !== true) ids.add(userId);
+    });
+  }
+
+  return Array.from(ids);
 }
