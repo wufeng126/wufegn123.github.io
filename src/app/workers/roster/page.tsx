@@ -629,9 +629,9 @@ export default function WorkerRosterPage() {
     } catch { /* ignore */ }
   };
 
-  const openBatchEditDialog = () => {
+  const openBatchEditDialog = (presetField?: string) => {
     if (selectedIds.size === 0) return toast({ title: '请先选择要修改的工人', variant: 'error' });
-    setBatchEditField('');
+    setBatchEditField(presetField || '');
     setBatchEditValue('');
     setBatchEditDialogOpen(true);
   };
@@ -1145,7 +1145,10 @@ export default function WorkerRosterPage() {
             {selectedIds.size > 0 && (
               <span className="text-sm" style={{ color: 'var(--color-text-3)' }}>已选 {selectedIds.size} 项</span>
             )}
-            <Button variant="outline" size="sm" onClick={openBatchEditDialog} disabled={selectedIds.size === 0} className="h-8"><Pencil className="w-4 h-4 mr-1" />批量修改</Button>
+            <Button variant="outline" size="sm" onClick={() => openBatchEditDialog('work_type')} disabled={selectedIds.size === 0} className="h-8"><Pencil className="w-4 h-4 mr-1" />批量补工种</Button>
+            <Link href="/workers/duplicates" className="inline-flex h-8 items-center rounded-md border border-[var(--border)] px-3 text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+              重复人员
+            </Link>
             <Button variant="outline" size="sm" onClick={handleBatchLeave} disabled={selectedIds.size === 0} className="h-8 text-orange-600 border-orange-300 hover:bg-orange-50"><LogOut className="w-4 h-4 mr-1" />批量退场</Button>
             <Button variant="destructive" size="sm" onClick={handleBatchDelete} disabled={selectedIds.size === 0} className="h-8"><Trash2 className="w-4 h-4 mr-1" />批量删除</Button>
           </div>
