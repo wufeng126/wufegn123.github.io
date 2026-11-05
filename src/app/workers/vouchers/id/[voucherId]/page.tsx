@@ -31,6 +31,7 @@ export default function VoucherDetailPage() {
   const [blobUrls, setBlobUrls] = useState<Record<number, string>>({});
   const [fileToken, setFileToken] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [isDingTalk, setIsDingTalk] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -55,9 +56,50 @@ export default function VoucherDetailPage() {
 
   useEffect(() => {
     const ua = navigator.userAgent || '';
-    const mobileUA = /Android|iPhone|iPad|iPod|Mobile|MicroMessenger|DingTalk/i.test(ua);
+    const mobileUA = /Android|iPhone|iPad|iPod|Mobile|MicroMessenger/i.test(ua);
     setIsMobile(mobileUA || window.innerWidth < 768);
+    setIsDingTalk(/DingTalk/i.test(ua));
   }, []);
+
+  const fetchBlob = async (pageId: number, fallbackUrl?: string) => {
+    const res = await fetch(fallbackUrl || `/api/vouchers/files/${pageId}`, {
+      credentials: 'include',
+      headers: fileToken ? { Authorization: `Bearer ${fileToken}` } : undefined,
+    });
+    if (!res.ok) throw new Error(res.status === 401 ? '登录状态失效，请重新登录后重试' : '原件读取失败');
+    return res.blob();
+  };
+
+  const openPageFile = async (pageId: number, fileName?: string, fallbackUrl?: string) => {
+    try {
+      const blob = await fetchBlob(pageId, fallbackUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      const opened = window.open(objectUrl, '_blank');
+      if (!opened) {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName || `page-${pageId}.pdf`;
+        link.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '原件打开失败');
+    }
+  };
+
+  const downloadPageFile = async (pageId: number, fileName?: string, fallbackUrl?: string) => {
+    try {
+      const blob = await fetchBlob(pageId, fallbackUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName || `page-${pageId}.pdf`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '原件下载失败');
+    }
+  };
 
   // 通过 fetch 拿文件字节再转 blob URL：避免 img/iframe 子请求在第三方上下文里丢 Cookie
   useEffect(() => {
@@ -140,23 +182,20 @@ export default function VoucherDetailPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2">
                     <p className="text-sm font-medium">第 {page.page_index} 页 · {page.file_name || ''}</p>
                     <div className="flex gap-2">
-                      <a
-                        href={url || undefined}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-disabled={!url}
-                        className={`inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs ${url ? '' : 'pointer-events-none opacity-40'}`}
+                      <button
+                        type="button"
+                        onClick={() => void openPageFile(page.id, page.file_name, page.url)}
+                        className="inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs"
                       >
                         新窗口打开
-                      </a>
-                      <a
-                        href={url || undefined}
-                        download={page.file_name || `page-${page.page_index}`}
-                        aria-disabled={!url}
-                        className={`inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs ${url ? '' : 'pointer-events-none opacity-40'}`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void downloadPageFile(page.id, page.file_name, page.url)}
+                        className="inline-flex h-7 items-center gap-1 rounded border border-[var(--border)] px-2 text-xs"
                       >
                         <Download className="h-3 w-3" /> 下载
-                      </a>
+                      </button>
                     </div>
                   </div>
                   <div className="p-3">
@@ -165,25 +204,24 @@ export default function VoucherDetailPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 正在加载原件…
                       </div>
                     ) : isPdf ? (
-                      isMobile ? (
+                      isDingTalk || isMobile ? (
                         <div className="flex flex-col items-center gap-3 py-8">
-                          <p className="text-sm text-[var(--color-text-3)]">手机端不支持内嵌预览 PDF</p>
-                          <a
-                            href={page.url || `/api/vouchers/files/${page.id}`}
-                            target="_blank"
-                            rel="noreferrer"
+                          <p className="text-sm text-[var(--color-text-3)]">当前环境不支持内嵌预览 PDF</p>
+                          <button
+                            type="button"
+                            onClick={() => void openPageFile(page.id, page.file_name, page.url)}
                             className="inline-flex h-11 w-full max-w-xs items-center justify-center rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white"
                           >
                             打开原件（PDF）
-                          </a>
-                          <a
-                            href={page.url || `/api/vouchers/files/${page.id}`}
-                            download={page.file_name || `page-${page.page_index}`}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void downloadPageFile(page.id, page.file_name, page.url)}
                             className="inline-flex h-11 w-full max-w-xs items-center justify-center rounded-lg border border-[var(--border)] px-5 text-sm"
                           >
-                            下载到手机
-                          </a>
-                          <p className="text-xs text-[var(--color-text-3)]">若在钉钉内打不开，点右上角「···」→ 在浏览器中打开</p>
+                            下载到本地
+                          </button>
+                          <p className="text-xs text-[var(--color-text-3)]">若无法打开，请先在浏览器中登录后重试；或点「下载到本地」后用阅读器打开</p>
                         </div>
                       ) : (
                         <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />
