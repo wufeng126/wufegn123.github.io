@@ -58,8 +58,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return {
         ...file,
         url: `/api/vouchers/files/${fileId}`,
-        // 钉钉内置浏览器直接打开用（10 分钟有效，仅此文件）
-        directUrl: `/api/vouchers/files/${fileId}?t=${createFileToken(fileId)}`,
+        // 钉钉内置浏览器直接打开用（10 分钟有效、仅此文件；令牌放路径避免查询串被代理/webview 丢弃）
+        directUrl: `/api/vouchers/files/${fileId}/t/${createFileToken(fileId)}`,
       };
     });
 
