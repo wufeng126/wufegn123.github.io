@@ -75,7 +75,7 @@ export default function MonthlyArchivesPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] px-4 py-6">
-      <div className="mx-auto max-w-5xl space-y-4">
+      <div className="mx-auto max-w-7xl space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <Link href="/reports/monthly" className="text-sm text-[var(--color-primary)] hover:underline">← 返回月度经营月报</Link>
@@ -97,13 +97,29 @@ export default function MonthlyArchivesPage() {
 
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
 
+        {!loading ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { label: `${year} 年归档份数`, value: reports.filter((report) => report.month.startsWith(year)).length },
+              { label: '覆盖月份', value: new Set(reports.filter((report) => report.month.startsWith(year)).map((report) => report.month)).size },
+              { label: '全部年份归档', value: reports.length },
+              { label: '最近归档', value: reports[0]?.month || '-' },
+            ].map((card) => (
+              <div key={card.label} className="rounded-xl border border-[var(--border)] bg-white px-4 py-3">
+                <p className="text-xs text-[var(--color-text-3)]">{card.label}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums">{card.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         {loading ? (
           <div className="rounded-xl border border-[var(--border)] bg-white py-16 text-center text-sm text-[var(--color-text-3)]">
             <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> 加载中…
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
               {MONTH_LABELS.map((label, index) => {
                 const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
                 const list = byMonth.get(monthKey) || [];
@@ -113,7 +129,7 @@ export default function MonthlyArchivesPage() {
                     key={monthKey}
                     type="button"
                     onClick={() => setActiveMonth(isActive ? '' : monthKey)}
-                    className={`rounded-xl border p-3 text-left transition ${isActive ? 'border-[var(--color-primary)] bg-[#E8F3FF]' : list.length > 0 ? 'border-[var(--border)] bg-white hover:border-[var(--color-primary)]' : 'border-dashed border-[var(--border)] bg-white/60'}`}
+                    className={`rounded-xl border px-3 py-2.5 text-left transition ${isActive ? 'border-[var(--color-primary)] bg-[#E8F3FF]' : list.length > 0 ? 'border-[var(--border)] bg-white hover:border-[var(--color-primary)]' : 'border-dashed border-[var(--border)] bg-white/60'}`}
                   >
                     <div className="flex items-center justify-between">
                       <span className={`text-sm font-semibold ${list.length > 0 ? 'text-[var(--foreground)]' : 'text-[var(--color-text-3)]'}`}>{label}</span>
@@ -124,7 +140,9 @@ export default function MonthlyArchivesPage() {
                       )}
                     </div>
                     <p className="mt-1 truncate text-xs text-[var(--color-text-3)]">
-                      {list.length > 0 ? list.slice(0, 2).map((report) => report.projectName).join('、') : '暂无归档'}
+                      {list.length > 0
+                        ? `${list.slice(0, 2).map((report) => report.projectName).join('、')}${list.length > 2 ? ` 等${list.length}个` : ''}`
+                        : '暂无归档'}
                     </p>
                   </button>
                 );
@@ -171,6 +189,11 @@ export default function MonthlyArchivesPage() {
                         </td>
                       </tr>
                     ))}
+                    <tr className="border-t-2 border-[var(--border)] bg-[var(--color-muted)]/60 text-xs font-semibold">
+                      <td className="px-3 py-2" colSpan={5}>本年度合计：{reports.filter((report) => report.month.startsWith(year)).length} 份归档 ·
+                        {' '}{new Set(reports.filter((report) => report.month.startsWith(year)).map((report) => report.month)).size} 个月份
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
