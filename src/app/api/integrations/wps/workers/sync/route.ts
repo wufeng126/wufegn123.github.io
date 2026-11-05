@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { hasPermission, requireAuth } from '@/lib/api-auth';
 import { apiForbidden } from '@/lib/api-utils';
-import { buildWpsWorkerLookupCache, extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerLookupCache, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
+import { buildWpsWorkerLookupCache, extractWpsWorkerRecords, previewWpsWorkerRecord, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerLookupCache, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
 import { applyWpsFieldMapping, extractWpsFileId, getWpsDbsheetSchema, listWpsDbsheetRecords, type WpsFieldMapping, type WpsIntegrationConfig, type WpsSheetSchema } from '@/lib/wps-openapi';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
@@ -557,6 +557,54 @@ export async function POST(request: NextRequest) {
 
     if ((body as Record<string, unknown>).testOnly) {
       return runParseTest(client, targetBindings, body as Record<string, unknown>, integrationConfig);
+    }
+
+    // 同步预览（Dry Run）：只判断会新增/更新/跳过/报错，不写库
+    if ((body as Record<string, unknown>).dryRun || (body as Record<string, unknown>).previewOnly) {
+      const previewResults: WpsWorkerSyncResult[] = [];
+      const previewBindings: Array<Record<string, unknown>> = [];
+      for (const binding of targetBindings) {
+        try {
+          const { rows, worksheetName } = await fetchBindingRows(binding, integrationConfig);
+          const rawRecords = buildRecordsFromRows(binding, rows, worksheetName);
+          const { records } = dedupeWpsWorkerRecords(rawRecords);
+
+          const bindingProjectId = Number((binding as { project_id?: unknown }).project_id) || 0;
+          let workerCache: WpsWorkerLookupCache | null = null;
+          if (bindingProjectId > 0) {
+            const { data: projectWorkers } = await client
+              .from('workers')
+              .select('id, name, work_type, gender, id_card, phone, bank_card, project_id, entry_date, team_name, status')
+              .eq('project_id', bindingProjectId);
+            workerCache = buildWpsWorkerLookupCache((projectWorkers || []) as never[]);
+          }
+
+          const results = await runWithConcurrency(records, 5, (record) => previewWpsWorkerRecord(client, record, workerCache));
+          previewResults.push(...results);
+          previewBindings.push({
+            bindingId: binding.id,
+            projectName: getProjectName(binding),
+            worksheetName,
+            totalRows: rows.length,
+            summary: summarizeResults(results, rows.length),
+          });
+        } catch (error) {
+          previewBindings.push({
+            bindingId: binding.id,
+            projectName: getProjectName(binding),
+            status: 'error',
+            message: error instanceof Error ? error.message : '预览失败',
+          });
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        mode: 'dry-run',
+        message: '同步预览完成，未写入任何数据',
+        summary: summarizeResults(previewResults),
+        bindings: previewBindings,
+        samples: previewResults.slice(0, 20),
+      });
     }
 
     const allResults: WpsWorkerSyncResult[] = [];

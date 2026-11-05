@@ -986,3 +986,81 @@ export async function syncWpsWorkerRecord(
     }
   }
 }
+/** 同步预览（不写库）：判断每条记录会新增/更新/跳过/报错 */
+export async function previewWpsWorkerRecord(
+  client: SupabaseClient,
+  input: WpsWorkerInput,
+  cache?: WpsWorkerLookupCache | null
+): Promise<WpsWorkerSyncResult> {
+  if (!input.name?.trim()) {
+    return { success: false, action: 'skipped', status: 'warning', message: '缺少姓名，将跳过' };
+  }
+  const binding = await findProjectByBinding(client, input);
+  const project = await resolveBindingProject(client, binding) || await findProject(client, input.projectName || input.worksheetName);
+  if (!project) {
+    return {
+      success: false,
+      action: 'error',
+      status: 'error',
+      message: `未找到项目：${input.projectName || input.worksheetName || '未提供项目名称'}`,
+      workerName: input.name.trim(),
+    };
+  }
+
+  const existing = await findExistingWorker(client, input, project.id, cache);
+  if (!existing) {
+    return {
+      success: true,
+      action: 'created',
+      status: 'success',
+      message: '将新增工人档案',
+      workerName: input.name.trim(),
+      projectId: project.id,
+      projectName: project.name,
+    };
+  }
+
+  const sameName = String(existing.name || '').replace(/\s/g, '') === String(input.name || '').replace(/\s/g, '');
+  const existingCard = sanitizeIdCard(String(existing.id_card || ''));
+  const inputCard = sanitizeIdCard(input.idCard);
+  const existingPhone = sanitizePhone(String(existing.phone || ''));
+  const inputPhone = sanitizePhone(input.phone);
+
+  if (sameName && inputCard && inputCard === existingCard && inputPhone && inputPhone === existingPhone) {
+    return {
+      success: false,
+      action: 'skipped',
+      status: 'warning',
+      message: '三项完全一致，将自动去重',
+      workerId: Number(existing.id),
+      workerName: String(existing.name || input.name || ''),
+      projectId: project.id,
+      projectName: project.name,
+      duplicateSkipped: true,
+    };
+  }
+
+  if (sameName && isValidChineseIdCard(inputCard) && existingCard && inputCard !== existingCard) {
+    return {
+      success: false,
+      action: 'skipped',
+      status: 'warning',
+      message: '同项目同名但身份证不一致，将跳过',
+      workerId: Number(existing.id),
+      workerName: input.name.trim(),
+      projectId: project.id,
+      projectName: project.name,
+    };
+  }
+
+  return {
+    success: true,
+    action: 'updated',
+    status: 'success',
+    message: '将更新已有工人档案',
+    workerId: Number(existing.id),
+    workerName: String(existing.name || input.name || ''),
+    projectId: project.id,
+    projectName: project.name,
+  };
+}

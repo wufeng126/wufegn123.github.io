@@ -183,13 +183,41 @@ export async function getWpsAccessToken(config: WpsIntegrationConfig) {
   return json.access_token;
 }
 
+// 表格结构缓存（5 分钟）：多个绑定同步同一文档时避免重复调用 WPS 接口
+const schemaCache = new Map<string, { at: number; sheets: WpsSheetSchema[] }>();
+const SCHEMA_TTL_MS = 5 * 60 * 1000;
+
+function schemaCacheKey(config: WpsIntegrationConfig) {
+  return `${config.appId || ''}|${config.fileId || extractWpsFileId(config.documentUrl) || config.documentUrl || ''}`;
+}
+
+/** 带一次重试的 fetch（WPS 接口偶发超时/网络抖动） */
+async function fetchWithRetry(url: string, init: RequestInit, retries = 1): Promise<Response> {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok || attempt === retries) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  throw lastError instanceof Error ? lastError : new Error('WPS 请求失败');
+}
+
 export async function getWpsDbsheetSchema(config: WpsIntegrationConfig) {
+  const cacheKey = schemaCacheKey(config);
+  const cached = schemaCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < SCHEMA_TTL_MS) return cached.sheets;
+
   const appId = required(config.appId, 'WPS AppID');
   const appSecret = required(config.appSecret, 'WPS AppSecret');
   const fileId = required(config.fileId || extractWpsFileId(config.documentUrl), 'WPS 多维表格文件 ID');
   const accessToken = await getWpsAccessToken(config);
   const requestUri = `/v7/coop/dbsheet/${encodeURIComponent(fileId)}/schema`;
-  const response = await fetch(`https://openapi.wps.cn${requestUri}`, {
+  const response = await fetchWithRetry(`https://openapi.wps.cn${requestUri}`, {
     method: 'GET',
     cache: 'no-store',
     headers: {
@@ -200,7 +228,7 @@ export async function getWpsDbsheetSchema(config: WpsIntegrationConfig) {
   const json = await readWpsJson<WpsSchemaResponse>(response);
   assertWpsSuccess(json, 'WPS Schema 读取失败');
 
-  return (json.data?.sheets || []).map((sheet): WpsSheetSchema => ({
+  const sheets = (json.data?.sheets || []).map((sheet): WpsSheetSchema => ({
     id: String(sheet.sheet_id || sheet.id || ''),
     name: sheet.sheet_name || sheet.name || String(sheet.sheet_id || sheet.id || ''),
     recordsCount: Number(sheet.records_count || sheet.recordsCount || 0),
@@ -212,6 +240,9 @@ export async function getWpsDbsheetSchema(config: WpsIntegrationConfig) {
       }))
       .filter(field => field.name),
   })).filter(sheet => sheet.id || sheet.name);
+
+  schemaCache.set(cacheKey, { at: Date.now(), sheets });
+  return sheets;
 }
 
 function parseJsonObject(value: unknown) {
@@ -255,7 +286,7 @@ export async function listWpsDbsheetRecords(config: WpsIntegrationConfig, sheetI
       prefer_id: false,
       ...(pageToken ? { page_token: pageToken } : {}),
     });
-    const response = await fetch(`https://openapi.wps.cn${requestUri}`, {
+    const response = await fetchWithRetry(`https://openapi.wps.cn${requestUri}`, {
       method: 'POST',
       cache: 'no-store',
       headers: {

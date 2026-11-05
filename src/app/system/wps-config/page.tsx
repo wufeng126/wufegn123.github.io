@@ -726,6 +726,29 @@ export default function WpsConfigPage() {
     }
   };
 
+  const handlePreviewSync = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/integrations/wps/workers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '预览失败');
+      const summary = asObject(data.summary) || {};
+      toast({
+        title: '同步预览（未写入）',
+        description: `将新增 ${Number(summary.created || 0)} 人、更新 ${Number(summary.updated || 0)} 人、跳过 ${Number(summary.skipped || 0)} 人、失败 ${Number(summary.failed || 0)} 人`,
+        variant: Number(summary.failed || 0) > 0 ? 'warning' : 'default',
+      });
+    } catch (error) {
+      toast({ title: '预览失败', description: error instanceof Error ? error.message : '预览失败', variant: 'error' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const testBinding = async (binding: WpsBinding) => {
     setTestingBindingId(binding.id);
     try {
@@ -862,6 +885,9 @@ export default function WpsConfigPage() {
           <Button variant="outline" onClick={() => void fetchData()} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
+          </Button>
+          <Button variant="outline" onClick={handlePreviewSync} disabled={syncing || bindings.length === 0}>
+            预览同步
           </Button>
           <Button onClick={handleSync} disabled={syncing || bindings.length === 0}>
             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
