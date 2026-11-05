@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 
-type PageItem = { id: number; file_name?: string; content_type?: string; page_index: number; url?: string };
+type PageItem = { id: number; file_name?: string; content_type?: string; page_index: number; url?: string; directUrl?: string };
 type Voucher = {
   id: number;
   project_id: number;
@@ -209,7 +209,11 @@ export default function VoucherDetailPage() {
                           <p className="text-sm text-[var(--color-text-3)]">当前环境不支持内嵌预览 PDF</p>
                           <button
                             type="button"
-                            onClick={() => void openPageFile(page.id, page.file_name, page.url)}
+                            onClick={() => {
+                              const direct = page.directUrl || page.url;
+                              if (direct && window.open(direct, '_blank')) return;
+                              void openPageFile(page.id, page.file_name, page.url);
+                            }}
                             className="inline-flex h-11 w-full max-w-xs items-center justify-center rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white"
                           >
                             打开原件（PDF）
@@ -221,7 +225,7 @@ export default function VoucherDetailPage() {
                           >
                             下载到本地
                           </button>
-                          <p className="text-xs text-[var(--color-text-3)]">若无法打开，请先在浏览器中登录后重试；或点「下载到本地」后用阅读器打开</p>
+                          <p className="text-xs text-[var(--color-text-3)]">点「打开原件」会调用钉钉自带的 PDF 预览；打不开时请点「下载到本地」</p>
                         </div>
                       ) : (
                         <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />

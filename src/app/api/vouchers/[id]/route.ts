@@ -5,6 +5,7 @@ import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, g
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { auditLog } from '@/lib/audit-log';
 import { generateShortLivedToken } from '@/lib/auth';
+import { createFileToken } from '@/lib/file-token';
 
 /**
  * /api/vouchers/[id]
@@ -52,10 +53,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       role: (auth.user.role || 'admin') as never,
       permissions: auth.user.permissions,
     }, '1h');
-    const pages = (files || []).map((file) => ({
-      ...file,
-      url: `/api/vouchers/files/${Number(file.id)}`,
-    }));
+    const pages = (files || []).map((file) => {
+      const fileId = Number(file.id);
+      return {
+        ...file,
+        url: `/api/vouchers/files/${fileId}`,
+        // 钉钉内置浏览器直接打开用（10 分钟有效，仅此文件）
+        directUrl: `/api/vouchers/files/${fileId}?t=${createFileToken(fileId)}`,
+      };
+    });
 
     return apiSuccess({ voucher, pages, fileToken });
   } catch (error: unknown) {

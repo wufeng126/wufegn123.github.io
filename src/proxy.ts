@@ -186,7 +186,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // 7.1 API 请求若试图通过 URL ?token= 传参，直接拒绝（防止 token 泄漏到日志/Referer）
-  if (isApi && urlTokenParam && !request.cookies.get('auth_token')?.value) {
+  const fileTokenAllowed = pathname.startsWith('/api/vouchers/files/')
+    || pathname.startsWith('/api/labor-analysis/attachments/');
+  if (isApi && urlTokenParam && !fileTokenAllowed && !request.cookies.get('auth_token')?.value) {
     const errResp = jsonError('禁止通过 URL 传递 token，请使用 Cookie 或 Authorization header', 401);
     return addCorsHeaders(errResp, request);
   }
