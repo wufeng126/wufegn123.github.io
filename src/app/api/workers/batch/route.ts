@@ -289,6 +289,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 「同项目 + 姓名 + 身份证号 + 手机号」完全一致 → 自动去重
+    const normalizedPhone = (value: unknown) => String(value || '').replace(/[^\d]/g, '');
+    const tripleKeyOf = (projectId: unknown, name: unknown, idCard: unknown, phone: unknown) =>
+      `${Number(projectId) || 0}|${String(name || '').replace(/\s/g, '').trim()}|${String(idCard || '').replace(/\s/g, '').toUpperCase()}|${normalizedPhone(phone)}`;
+    const existingTripleSet = new Set<string>();
+    existingWorkersMap.forEach((row: { project_id?: unknown; name?: unknown; id_card?: unknown; phone?: unknown }) => {
+      if (!row.id_card) return;
+      existingTripleSet.add(tripleKeyOf(row.project_id, row.name, row.id_card, row.phone));
+    });
+    const batchTripleKeys = new Set<string>();
+
     // 分离新增、更新和调岗数据
     const toInsert: any[] = [];
     const toUpdate: Array<{ id: number; data: any; old_project_id: number | null }> = [];
@@ -321,6 +332,22 @@ export async function POST(request: NextRequest) {
 
     for (const item of validData) {
       const { row, data, id_card_upper } = item;
+
+      // 同项目 + 姓名 + 身份证 + 手机号 完全一致：自动去重（不再报错打断）
+      if (id_card_upper) {
+        const tripleKey = tripleKeyOf(data.project_id, data.name, id_card_upper, data.phone);
+        if (batchTripleKeys.has(tripleKey)) {
+          batchErrors.push({ row, name: data.name, reason: '同一文件中「项目+姓名+身份证+手机号」完全一致，已自动去重' });
+          stats.skipped++;
+          continue;
+        }
+        if (existingTripleSet.has(tripleKey)) {
+          batchErrors.push({ row, name: data.name, reason: '同项目已存在「姓名+身份证+手机号」完全一致的人员，已自动跳过' });
+          stats.skipped++;
+          continue;
+        }
+        batchTripleKeys.add(tripleKey);
+      }
 
       // 检查批次内身份证号重复
       if (id_card_upper) {

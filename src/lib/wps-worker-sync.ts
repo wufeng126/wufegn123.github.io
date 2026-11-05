@@ -853,6 +853,31 @@ export async function syncWpsWorkerRecord(
       return result;
     }
 
+    // 同项目「姓名 + 身份证号 + 手机号」完全一致 → 自动去重，不再更新/新增
+    {
+      const sameName = String(existing.name || '').replace(/\s/g, '') === String(input.name || '').replace(/\s/g, '');
+      const existingCard = sanitizeIdCard(String(existing.id_card || ''));
+      const inputCard = sanitizeIdCard(input.idCard);
+      const existingPhone = sanitizePhone(String(existing.phone || ''));
+      const inputPhone = sanitizePhone(input.phone);
+      const sameCard = Boolean(inputCard) && inputCard === existingCard;
+      const samePhone = Boolean(inputPhone) && inputPhone === existingPhone;
+      if (sameName && sameCard && samePhone) {
+        result = {
+          success: false,
+          action: 'skipped',
+          status: 'warning',
+          message: '同项目已存在「姓名+身份证+手机号」完全一致的人员，已自动去重',
+          workerId: Number(existing.id),
+          workerName: String(existing.name || input.name || ''),
+          projectId: project.id,
+          projectName: project.name,
+          duplicateSkipped: true,
+        };
+        return result;
+      }
+    }
+
     const updatePayload = buildWorkerUpdateData(input, project.id, existing as ExistingWorkerRow);
     const isTransfer = existing.project_id && existing.project_id !== project.id;
 
