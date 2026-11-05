@@ -30,6 +30,7 @@ export default function VoucherDetailPage() {
   const [loading, setLoading] = useState(true);
   const [blobUrls, setBlobUrls] = useState<Record<number, string>>({});
   const [fileToken, setFileToken] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -51,6 +52,12 @@ export default function VoucherDetailPage() {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    const mobileUA = /Android|iPhone|iPad|iPod|Mobile|MicroMessenger|DingTalk/i.test(ua);
+    setIsMobile(mobileUA || window.innerWidth < 768);
+  }, []);
 
   // 通过 fetch 拿文件字节再转 blob URL：避免 img/iframe 子请求在第三方上下文里丢 Cookie
   useEffect(() => {
@@ -158,24 +165,29 @@ export default function VoucherDetailPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 正在加载原件…
                       </div>
                     ) : isPdf ? (
-                      <>
-                        <div className="hidden md:block">
-                          <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />
-                        </div>
-                        <div className="flex flex-col items-center gap-3 py-10 md:hidden">
-                          <p className="text-sm text-[var(--color-text-3)]">手机端不支持内嵌预览 PDF，请点击打开原件</p>
-                          <button
-                            type="button"
-                            onClick={() => window.open(url, '_blank')}
-                            className="inline-flex h-10 items-center rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white"
+                      isMobile ? (
+                        <div className="flex flex-col items-center gap-3 py-8">
+                          <p className="text-sm text-[var(--color-text-3)]">手机端不支持内嵌预览 PDF</p>
+                          <a
+                            href={page.url || `/api/vouchers/files/${page.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex h-11 w-full max-w-xs items-center justify-center rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white"
                           >
-                            打开原件
-                          </button>
-                          <a href={url} download={page.file_name || `page-${page.page_index}`} className="text-sm text-[var(--color-primary)] hover:underline">
+                            打开原件（PDF）
+                          </a>
+                          <a
+                            href={page.url || `/api/vouchers/files/${page.id}`}
+                            download={page.file_name || `page-${page.page_index}`}
+                            className="inline-flex h-11 w-full max-w-xs items-center justify-center rounded-lg border border-[var(--border)] px-5 text-sm"
+                          >
                             下载到手机
                           </a>
+                          <p className="text-xs text-[var(--color-text-3)]">若在钉钉内打不开，点右上角「···」→ 在浏览器中打开</p>
                         </div>
-                      </>
+                      ) : (
+                        <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />
+                      )
                     ) : (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={url} alt={`第${page.page_index}页`} className="mx-auto max-h-[80vh] w-auto object-contain" />
