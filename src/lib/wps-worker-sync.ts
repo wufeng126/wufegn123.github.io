@@ -648,7 +648,61 @@ async function findProjectByBinding(client: SupabaseClient, input: WpsWorkerInpu
  *
  * 注意：不做"跨项目纯姓名匹配"，避免同名不同人被错误合并。
  */
-async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput, projectId?: number | null) {
+export type WpsWorkerLookupCache = {
+  byIdCard: Map<string, ExistingWorkerRow>;
+  byNamePhone: Map<string, ExistingWorkerRow>;
+  byNameBank: Map<string, ExistingWorkerRow>;
+  byName: Map<string, ExistingWorkerRow>;
+};
+
+/** 预取某项目全部工人，构建内存索引，避免逐条同步时反复查库（N+1） */
+export function buildWpsWorkerLookupCache(rows: ExistingWorkerRow[]): WpsWorkerLookupCache {
+  const byIdCard = new Map<string, ExistingWorkerRow>();
+  const byNamePhone = new Map<string, ExistingWorkerRow>();
+  const byNameBank = new Map<string, ExistingWorkerRow>();
+  const byName = new Map<string, ExistingWorkerRow>();
+  rows.forEach((row) => {
+    const name = String(row.name || '').trim();
+    const idCard = sanitizeIdCard(String(row.id_card || ''));
+    const phone = sanitizePhone(String(row.phone || ''));
+    const bank = sanitizeBankCard(String(row.bank_card || ''));
+    if (idCard && !byIdCard.has(idCard)) byIdCard.set(idCard, row);
+    if (name && phone && !byNamePhone.has(`${name}|${phone}`)) byNamePhone.set(`${name}|${phone}`, row);
+    if (name && bank && !byNameBank.has(`${name}|${bank}`)) byNameBank.set(`${name}|${bank}`, row);
+    if (name && !byName.has(name)) byName.set(name, row);
+  });
+  return { byIdCard, byNamePhone, byNameBank, byName };
+}
+
+function findInCache(cache: WpsWorkerLookupCache | null | undefined, input: WpsWorkerInput): ExistingWorkerRow | null {
+  if (!cache) return null;
+  const idCard = sanitizeIdCard(input.idCard);
+  const name = input.name?.trim() || '';
+  const phone = sanitizePhone(input.phone);
+  const bankCard = sanitizeBankCard(input.bankCard);
+  if (idCard) {
+    const hit = cache.byIdCard.get(idCard);
+    if (hit) return hit;
+  }
+  if (name && phone) {
+    const hit = cache.byNamePhone.get(`${name}|${phone}`);
+    if (hit) return hit;
+  }
+  if (name && bankCard) {
+    const hit = cache.byNameBank.get(`${name}|${bankCard}`);
+    if (hit) return hit;
+  }
+  if (name) {
+    const hit = cache.byName.get(name);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+async function findExistingWorker(client: SupabaseClient, input: WpsWorkerInput, projectId?: number | null, cache?: WpsWorkerLookupCache | null) {
+  const cached = findInCache(cache, input);
+  if (cached && (!projectId || Number(cached.project_id) === Number(projectId))) return cached;
+
   const idCard = sanitizeIdCard(input.idCard);
   const name = input.name?.trim();
   const phone = sanitizePhone(input.phone);
@@ -790,7 +844,8 @@ async function transferWorker(
 
 export async function syncWpsWorkerRecord(
   client: SupabaseClient,
-  input: WpsWorkerInput
+  input: WpsWorkerInput,
+  cache?: WpsWorkerLookupCache | null
 ): Promise<WpsWorkerSyncResult> {
   let result: WpsWorkerSyncResult | null = null;
   let bindingId: number | null = null;
@@ -815,7 +870,7 @@ export async function syncWpsWorkerRecord(
       return result;
     }
 
-    const existing = await findExistingWorker(client, input, project.id);
+    const existing = await findExistingWorker(client, input, project.id, cache);
     const entryDate = normalizeDate(input.entryDate);
 
     // 去重保护：项目内已存在同名但身份证不同的人员 → 跳过并提示（防止同名不同人被误合并/改错身份证）

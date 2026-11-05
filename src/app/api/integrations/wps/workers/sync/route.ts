@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { hasPermission, requireAuth } from '@/lib/api-auth';
 import { apiForbidden } from '@/lib/api-utils';
-import { extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
+import { buildWpsWorkerLookupCache, extractWpsWorkerRecords, syncWpsWorkerRecord, type WpsWorkerInput, type WpsWorkerLookupCache, type WpsWorkerSyncResult } from '@/lib/wps-worker-sync';
 import { applyWpsFieldMapping, extractWpsFileId, getWpsDbsheetSchema, listWpsDbsheetRecords, type WpsFieldMapping, type WpsIntegrationConfig, type WpsSheetSchema } from '@/lib/wps-openapi';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
@@ -294,6 +294,20 @@ async function fetchBindingRows(
   return fetchDocumentRows(binding);
 }
 
+async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 function summarizeResults(results: WpsWorkerSyncResult[], readRows = results.length) {
   const created = results.filter((item) => item.action === 'created').length;
   const updated = results.filter((item) => item.action === 'updated').length;
@@ -496,9 +510,7 @@ export async function POST(request: NextRequest) {
     if (manualRecords.length > 0) {
       const { records, duplicateResults } = dedupeWpsWorkerRecords(manualRecords);
       const results = [...duplicateResults];
-      for (const record of records) {
-        results.push(await syncWpsWorkerRecord(client, record));
-      }
+      results.push(...await runWithConcurrency(records, 5, (record) => syncWpsWorkerRecord(client, record)));
       return NextResponse.json({
         success: results.some((item) => item.success),
         mode: 'payload',
@@ -582,10 +594,21 @@ export async function POST(request: NextRequest) {
 
         const rawRecords = buildRecordsFromRows(binding, rows, worksheetName);
         const { records, duplicateResults } = dedupeWpsWorkerRecords(rawRecords);
-        const results = [...duplicateResults];
-        for (const record of records) {
-          results.push(await syncWpsWorkerRecord(client, record));
+
+        // 预取该项目现有工人，构建内存索引，减少逐条查库（N+1）
+        const bindingProjectId = Number((binding as { project_id?: unknown }).project_id) || 0;
+        let workerCache: WpsWorkerLookupCache | null = null;
+        if (bindingProjectId > 0) {
+          const { data: projectWorkers } = await client
+            .from('workers')
+            .select('id, name, work_type, gender, id_card, phone, bank_card, project_id, entry_date, team_name, status')
+            .eq('project_id', bindingProjectId);
+          workerCache = buildWpsWorkerLookupCache((projectWorkers || []) as never[]);
         }
+
+        const results = [...duplicateResults];
+        const synced = await runWithConcurrency(records, 5, (record) => syncWpsWorkerRecord(client, record, workerCache));
+        results.push(...synced);
         allResults.push(...results);
 
         const summary = summarizeResults(results, rows.length);
