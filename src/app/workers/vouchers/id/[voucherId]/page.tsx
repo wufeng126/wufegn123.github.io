@@ -158,7 +158,24 @@ export default function VoucherDetailPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 正在加载原件…
                       </div>
                     ) : isPdf ? (
-                      <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />
+                      <>
+                        <div className="hidden md:block">
+                          <iframe src={url} title={`pdf-${page.page_index}`} className="h-[70vh] w-full rounded border-0" />
+                        </div>
+                        <div className="flex flex-col items-center gap-3 py-10 md:hidden">
+                          <p className="text-sm text-[var(--color-text-3)]">手机端不支持内嵌预览 PDF，请点击打开原件</p>
+                          <button
+                            type="button"
+                            onClick={() => window.open(url, '_blank')}
+                            className="inline-flex h-10 items-center rounded-lg bg-[var(--color-primary)] px-5 text-sm text-white"
+                          >
+                            打开原件
+                          </button>
+                          <a href={url} download={page.file_name || `page-${page.page_index}`} className="text-sm text-[var(--color-primary)] hover:underline">
+                            下载到手机
+                          </a>
+                        </div>
+                      </>
                     ) : (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={url} alt={`第${page.page_index}页`} className="mx-auto max-h-[80vh] w-auto object-contain" />

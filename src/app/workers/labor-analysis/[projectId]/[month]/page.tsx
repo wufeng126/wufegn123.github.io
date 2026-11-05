@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, Plus, Save, Trash2 } from 'lucide-react';
@@ -65,6 +65,9 @@ export default function LaborAnalysisDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [attachments, setAttachments] = useState<Array<{ id: number; file_name?: string; content_type?: string; size_bytes?: number; uploaded_by_name?: string; created_at?: string }>>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     if (!projectId || !month) return;
@@ -135,6 +138,72 @@ export default function LaborAnalysisDetailPage() {
       }
     })();
   }, [projectId]);
+
+  const loadAttachments = useCallback(async () => {
+    if (!projectId || !month) return;
+    try {
+      const res = await fetch(`/api/labor-analysis/attachments?project_id=${projectId}&month=${month}`, { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok && json.success !== false) setAttachments(json.data?.attachments || []);
+    } catch {
+      // 附件加载失败不影响主表
+    }
+  }, [projectId, month]);
+
+  useEffect(() => { void loadAttachments(); }, [loadAttachments]);
+
+  const uploadAttachments = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setError('');
+    try {
+      const form = new FormData();
+      form.append('project_id', projectId);
+      form.append('month', month);
+      Array.from(files).forEach((file) => form.append('files', file));
+      const res = await fetch('/api/labor-analysis/attachments', { method: 'POST', credentials: 'include', body: form });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '上传失败');
+      setNotice(`已上传 ${json.data?.count || files.length} 个附件`);
+      await loadAttachments();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '上传失败');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const openAttachment = async (attachmentId: number, fileName?: string) => {
+    try {
+      const res = await fetch(`/api/labor-analysis/attachments/${attachmentId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('附件打开失败');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const opened = window.open(url, '_blank');
+      if (!opened) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || 'attachment';
+        link.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '附件打开失败');
+    }
+  };
+
+  const deleteAttachment = async (attachmentId: number) => {
+    if (!window.confirm('删除该附件？')) return;
+    try {
+      const res = await fetch(`/api/labor-analysis/attachments?id=${attachmentId}`, { method: 'DELETE', credentials: 'include' });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '删除失败');
+      await loadAttachments();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败');
+    }
+  };
 
   const totals = useMemo(() => {
     const hours = items.reduce((sum, item) => sum + num(item.hours), 0);
@@ -352,6 +421,44 @@ export default function LaborAnalysisDetailPage() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold">附件</p>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={(event) => void uploadAttachments(event.target.files)}
+              />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="h-8 rounded-lg border border-[var(--border)] px-3 text-xs disabled:opacity-50"
+              >
+                {uploading ? '上传中…' : '上传附件'}
+              </button>
+            </div>
+          </div>
+          {attachments.length === 0 ? (
+            <p className="mt-3 text-xs text-[var(--color-text-3)]">暂无附件（可上传原始用工统计表扫描件/照片）</p>
+          ) : (
+            <div className="mt-3 space-y-1.5">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="flex items-center gap-2 rounded border border-[var(--border)] px-2 py-1.5 text-xs">
+                  <span className="flex-1 truncate">{attachment.file_name || `附件#${attachment.id}`}</span>
+                  <span className="text-[var(--color-text-3)]">{attachment.uploaded_by_name || ''}</span>
+                  <button type="button" onClick={() => void openAttachment(attachment.id, attachment.file_name)} className="text-[var(--color-primary)] hover:underline">查看</button>
+                  <button type="button" onClick={() => void deleteAttachment(attachment.id)} className="text-[#CB2634] hover:underline">删除</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-white p-4">
