@@ -5,6 +5,7 @@ import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
 import { REVIEW_STATUS } from '@/lib/business-logic';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { withMaterialWarehouseAccess } from '@/lib/material-warehouse-project';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import {
   calculateMiscellaneousMaterialAmount,
@@ -270,7 +271,7 @@ export async function POST(request: NextRequest) {
       throw new Error(`查询项目失败: ${projectError.message}`);
     }
 
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjects = await withMaterialWarehouseAccess(client, auth.user);
     if (accessibleProjects !== null && accessibleProjects.length === 0) {
       return NextResponse.json({ error: '当前账号没有可导入的项目' }, { status: 403 });
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureMaterialWarehouseProject } from '@/lib/material-warehouse-project';
+import { ensureMaterialWarehouseProject, withMaterialWarehouseAccess } from '@/lib/material-warehouse-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -384,7 +384,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjects = await withMaterialWarehouseAccess(client, auth.user);
     const unauthorizedProjects = accessibleProjects === null ? [] : projectIds.filter(id => !accessibleProjects.includes(id));
     if (unauthorizedProjects.length > 0) {
       return NextResponse.json({
@@ -542,7 +542,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '请选择项目' }, { status: 400 });
     }
 
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjects = await withMaterialWarehouseAccess(client, auth.user);
     if (
       accessibleProjects !== null &&
       (!accessibleProjects.includes(Number(currentMaterial.project_id)) || !accessibleProjects.includes(targetProjectId))
@@ -694,7 +694,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
     }
 
-    const accessibleProjects = await getAccessibleProjectIds(client, auth.user);
+    const accessibleProjects = await withMaterialWarehouseAccess(client, auth.user);
     if (accessibleProjects !== null && !accessibleProjects.includes(Number(currentMaterial?.project_id))) {
       return NextResponse.json({ error: '当前账号无权删除该项目材料记录' }, { status: 403 });
     }

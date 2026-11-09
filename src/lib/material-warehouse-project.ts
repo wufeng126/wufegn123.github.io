@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import type { RequestAuthUser } from '@/lib/auth';
 
 /**
  * 「库房」虚拟项目：只允许在「零星材料」模块中出现。
@@ -110,4 +112,25 @@ export async function ensureMaterialWarehouseProject(client: SupabaseClient) {
     name: MATERIAL_WAREHOUSE_PROJECT_NAME,
     project_type: MATERIAL_WAREHOUSE_PROJECT_TYPE,
   };
+}
+
+/**
+ * 零星材料专用：把「库房」虚拟项目并入当前账号的可访问项目集合。
+ * - 超级管理员（null=全部）保持不变
+ * - 其他账号：即使没有被分配库房项目，也允许在零星材料模块使用库房
+ */
+export async function withMaterialWarehouseAccess(
+  client: SupabaseClient,
+  user: RequestAuthUser,
+): Promise<number[] | null> {
+  const ids = await getAccessibleProjectIds(client, user);
+  if (ids === null) return null;
+  try {
+    const warehouse = await ensureMaterialWarehouseProject(client);
+    const warehouseId = Number(warehouse?.id) || 0;
+    if (!warehouseId) return ids;
+    return ids.includes(warehouseId) ? ids : [...ids, warehouseId];
+  } catch {
+    return ids;
+  }
 }
