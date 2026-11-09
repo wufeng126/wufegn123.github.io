@@ -278,9 +278,6 @@ export default function LaborAnalysisDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setItems((rows) => [...rows, newRow()])} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 text-sm">
-              <Plus className="h-4 w-4" /> 加一行
-            </button>
             <button type="button" onClick={() => void save('draft')} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 text-sm disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} 保存草稿
             </button>
@@ -420,6 +417,16 @@ export default function LaborAnalysisDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] px-4 py-3">
+            <span className="text-xs text-[var(--color-text-3)]">共 {items.length} 行 · 合计 {totals.hours.toLocaleString('zh-CN')} 小时 / ¥{totals.amount.toLocaleString('zh-CN')}</span>
+            <button
+              type="button"
+              onClick={() => setItems((rows) => [...rows, newRow()])}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-primary)] px-4 text-sm text-[var(--color-primary)] hover:bg-[#E8F3FF]"
+            >
+              <Plus className="h-4 w-4" /> 加一行
+            </button>
           </div>
         </div>
 
