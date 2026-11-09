@@ -90,6 +90,12 @@ export default function MonthlyReportFillPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rejectMode, setRejectMode] = useState(false);
+  const [laborSummary, setLaborSummary] = useState<null | {
+    hasData: boolean;
+    totals: { hours: number; amount: number; projects: number };
+    byCategory: Array<{ category: string; hours: number; amount: number; ratio: number }>;
+    byProject: Array<{ projectId: number; projectName: string; hours: number; amount: number; status: string }>;
+  }>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [myId, setMyId] = useState<number>(0);
   const [myRole, setMyRole] = useState<string>('');
@@ -351,6 +357,22 @@ export default function MonthlyReportFillPage() {
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ month });
+        if (projectId && projectId !== 'all') params.set('project_id', projectId);
+        const res = await fetch(`/api/labor-analysis/month-summary?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
+        const json = await res.json();
+        if (!cancelled && res.ok && json.success !== false) setLaborSummary(json.data);
+      } catch {
+        // 用工分析缺失不阻断月报
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [month, projectId]);
+
   const budgetContent: WorkflowContent = { analysis, risk, nextPlan, remark };
 
   return (
@@ -478,6 +500,62 @@ export default function MonthlyReportFillPage() {
               ) : null}
             </div>
           ) : null}
+        </section>
+
+        {/* 月度用工分析（自动带出，只读） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
+            <h2 className="flex items-center gap-2 font-semibold text-[var(--foreground)]">
+              月度用工分析
+              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">自动带出 · 仅分析用</span>
+            </h2>
+            <span className="text-xs text-[var(--color-text-3)]">
+              {laborSummary?.hasData
+                ? `合计 ${laborSummary.totals.hours.toLocaleString('zh-CN')} 小时 / ¥${laborSummary.totals.amount.toLocaleString('zh-CN')}`
+                : '本月暂无用工分析'}
+            </span>
+          </div>
+          <div className="px-5 py-4">
+            {!laborSummary?.hasData ? (
+              <p className="text-sm text-[var(--color-text-3)]">本月还没有填报用工分析，可在「经营分析 → 月度用工分析」中填报后自动带出。</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">点工总工时</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.totals.hours.toLocaleString('zh-CN')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">点工总金额</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">¥{laborSummary.totals.amount.toLocaleString('zh-CN')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">已填报项目</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.totals.projects}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">工作内容类别</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.byCategory.length}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {laborSummary.byCategory.slice(0, 10).map((row) => (
+                    <span key={row.category} className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--color-text-2)]">
+                      {row.category}
+                      <span className="ml-1 font-medium tabular-nums">{row.hours.toLocaleString('zh-CN')}h</span>
+                      <span className="ml-1 text-[var(--color-text-3)]">¥{row.amount.toLocaleString('zh-CN')}</span>
+                      <span className="ml-1 text-[var(--color-primary)]">{row.ratio}%</span>
+                    </span>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-[var(--color-text-3)]">
+                  数据来自「月度用工分析」，仅用于成本分析与查账，不计入项目成本；详细填报请到「经营分析 → 月度用工分析」。
+                </p>
+              </>
+            )}
+          </div>
         </section>
 
         {/* 预算员分析 */}
