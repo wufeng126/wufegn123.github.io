@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 
@@ -20,13 +21,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. 查询所有发放记录
-    const { data: payments, error: paymentsError } = await client
-      .from('salary_payments')
-      .select('id, salary_id, worker_id, project_id, year_month, payment_amount');
-
-    if (paymentsError) {
-      throw new Error(`查询发放记录失败：${paymentsError.message}`);
-    }
+    const payments = await fetchAllRows<{ id?: unknown; salary_id?: unknown; worker_id?: unknown; project_id?: unknown; year_month?: unknown; payment_amount?: unknown }>((from, to) =>
+      client
+        .from('salary_payments')
+        .select('id, salary_id, worker_id, project_id, year_month, payment_amount')
+        .order('id', { ascending: true })
+        .range(from, to));
 
     // 3. 按 salary_id 聚合发放金额
     const paidBySalaryId = new Map<number, number>();
