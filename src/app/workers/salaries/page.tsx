@@ -91,6 +91,7 @@ export default function WorkerSalariesPage() {
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSalaryId, setEditingSalaryId] = useState<number | null>(null);
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
   
   const [filterYear, setFilterYear] = useState(urlYearMonth.year || new Date().getFullYear().toString());
@@ -232,11 +233,35 @@ export default function WorkerSalariesPage() {
     }
   };
 
+  const openEditSalary = (salary: {
+    id: number; worker_id: number; project_id?: number; year_month: string;
+    work_hours: string; hourly_rate: string; contract_work_pay: string;
+    income_tax: string; advance_pay: string; labor_insurance: string; fine: string;
+    remark: string | null; person_category?: string | null;
+  }) => {
+    setEditingSalaryId(salary.id);
+    setFormData({
+      worker_id: String(salary.worker_id || ''),
+      project_id: salary.project_id ? String(salary.project_id) : '',
+      year_month: salary.year_month,
+      work_hours: String(salary.work_hours ?? '0'),
+      hourly_rate: String(salary.hourly_rate ?? '0'),
+      contract_work_pay: String(salary.contract_work_pay ?? '0'),
+      income_tax: String(salary.income_tax ?? '0'),
+      advance_pay: String(salary.advance_pay ?? '0'),
+      labor_insurance: String(salary.labor_insurance ?? '0'),
+      fine: String(salary.fine ?? '0'),
+      person_category: salary.person_category || 'production',
+      remark: salary.remark || '',
+    });
+    setDialogOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/worker-salaries', {
-        method: 'POST',
+      const res = await fetch(editingSalaryId ? `/api/worker-salaries/${editingSalaryId}` : '/api/worker-salaries', {
+        method: editingSalaryId ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,6 +281,7 @@ export default function WorkerSalariesPage() {
       });
       if (res.ok) {
         setDialogOpen(false);
+        setEditingSalaryId(null);
         resetForm();
         fetchSalaries();
       } else {
@@ -953,7 +979,12 @@ export default function WorkerSalariesPage() {
                               {projectSalaries.map((salary) => (
                                 <TableRow key={salary.id} style={{ background: selectedIds.has(salary.id) ? '#E8F3FF' : 'transparent', borderBottom: '1px solid #E5E6EB' }}>
                                   <TableCell><Checkbox checked={selectedIds.has(salary.id)} onCheckedChange={() => handleSelectOne(salary.id)} /></TableCell>
-                                  <TableCell className="font-medium" style={{ color: 'var(--foreground)' }}>{salary.worker_name}</TableCell>
+                                  <TableCell className="font-medium" style={{ color: 'var(--foreground)' }}>
+                                    <button type="button" onClick={() => openEditSalary(salary)} className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]">
+                                      {salary.worker_name}
+                                      <Pencil className="h-3 w-3 opacity-40" />
+                                    </button>
+                                  </TableCell>
                                   <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.work_hours}</TableCell>
                                   <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.hourly_rate}</TableCell>
                                   <TableCell className="text-right" style={{ color: 'var(--color-text-2)' }}>{salary.contract_work_pay}</TableCell>
