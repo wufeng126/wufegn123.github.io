@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -45,19 +46,25 @@ async function getSupplierVisibleStats(
 
   let settlementSum: any[] = [];
   if (contractIds.length > 0) {
-    const { data } = await client
-      .from('supplier_settlements')
-      .select('settlement_amount, status')
-      .in('contract_id', contractIds);
-    settlementSum = data || [];
+    // 结算/付款可能超过 1000 行，必须分页取全量后再汇总
+    settlementSum = await fetchAllRows<{ settlement_amount?: unknown; status?: unknown }>((from, to) =>
+      client
+        .from('supplier_settlements')
+        .select('settlement_amount, status')
+        .in('contract_id', contractIds)
+        .order('id', { ascending: true })
+        .range(from, to));
 
     // supplier_payments 无 supplier_id/project_id 列，付款必须经由合同(contract_id)关联获取。
     // 且付款必挂 contract_id，故按合同查询已覆盖该供应商在项目范围内全部付款。
-    const { data: contractPayments } = await client
-      .from('supplier_payments')
-      .select('id, payment_amount, status')
-      .in('contract_id', contractIds);
-    addPaymentRows(contractPayments);
+    const contractPayments = await fetchAllRows<{ id?: unknown; payment_amount?: unknown; status?: unknown }>((from, to) =>
+      client
+        .from('supplier_payments')
+        .select('id, payment_amount, status')
+        .in('contract_id', contractIds)
+        .order('id', { ascending: true })
+        .range(from, to));
+    addPaymentRows(contractPayments as never[]);
   }
 
   const totalSettlement = (settlementSum || [])
