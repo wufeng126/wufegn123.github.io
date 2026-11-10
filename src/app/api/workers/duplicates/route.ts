@@ -93,11 +93,21 @@ export async function GET(request: NextRequest) {
       clusters.set(root, list);
     });
 
-    // 工资 / 发放统计
-    const salaryRows = await fetchAllRows<{ worker_id?: unknown; gross_pay?: unknown; net_pay?: unknown }>((from, to) =>
-      client.from('worker_salaries').select('worker_id, gross_pay, net_pay').range(from, to));
-    const paymentRows = await fetchAllRows<{ worker_id?: unknown; payment_amount?: unknown }>((from, to) =>
-      client.from('salary_payments').select('worker_id, payment_amount').range(from, to));
+    // 工资 / 发放统计：只查本次涉及的工人，避免全表扫描
+    const workerIdList = Array.from(byId.keys());
+    const salaryRows: Array<{ worker_id?: unknown; gross_pay?: unknown; net_pay?: unknown }> = [];
+    const paymentRows: Array<{ worker_id?: unknown; payment_amount?: unknown }> = [];
+    for (let i = 0; i < workerIdList.length; i += 500) {
+      const chunk = workerIdList.slice(i, i + 500);
+      const [salaryChunk, paymentChunk] = await Promise.all([
+        fetchAllRows<{ worker_id?: unknown; gross_pay?: unknown; net_pay?: unknown }>((from, to) =>
+          client.from('worker_salaries').select('worker_id, gross_pay, net_pay').in('worker_id', chunk).range(from, to)),
+        fetchAllRows<{ worker_id?: unknown; payment_amount?: unknown }>((from, to) =>
+          client.from('salary_payments').select('worker_id, payment_amount').in('worker_id', chunk).range(from, to)),
+      ]);
+      salaryRows.push(...salaryChunk);
+      paymentRows.push(...paymentChunk);
+    }
 
     const toNumber = (value: unknown) => {
       const n = Number(String(value ?? '').replace(/,/g, ''));

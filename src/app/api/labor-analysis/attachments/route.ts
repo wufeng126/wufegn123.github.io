@@ -5,6 +5,7 @@ import { apiBadRequest, apiForbidden, apiNotFound, apiServerError, apiSuccess, g
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { uploadFileAtKey } from '@/lib/oss-storage';
 import { auditLog } from '@/lib/audit-log';
+import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
 
 /**
  * 月度用工分析附件
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
     const scope = await getAccessibleProjectIds(client, auth.user);
     if (scope !== null && !scope.includes(projectId)) return apiForbidden('无权上传该项目的附件');
+    if (await isMaterialWarehouseProjectId(client, projectId)) return apiBadRequest('「库房」项目只允许在零星材料模块使用');
 
     const analysisId = await getOrCreateAnalysisId(
       client,

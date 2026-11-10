@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { verifyRequest } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
+import { assertProjectAccess } from "@/lib/api-project-scope";
 import { OSSStorage } from '@/lib/oss-storage';
 
 // 删除签证附件
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await verifyRequest(request);
-    if (!auth?.id) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
-    const userId = auth.id;
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
     const attachmentId = searchParams.get("id");
@@ -35,25 +33,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "附件不存在" }, { status: 404 });
     }
 
-    // 获取用户信息
-    const { data: user } = await supabase
-      .from("users")
-      .select("role, managed_projects")
-      .eq("id", userId)
-      .single();
-
-    // 非超级管理员需要验证项目权限
-    const projectId = attachment.visas?.project_id;
-    if ((user as any)?.role !== "super_admin" && userId !== 1) {
-      if (projectId && (user as any)?.managed_projects && Array.isArray((user as any).managed_projects)) {
-        if (!((user as any).managed_projects as number[]).includes(projectId)) {
-          return NextResponse.json(
-            { error: "无权删除此附件" },
-            { status: 403 }
-          );
-        }
-      }
-    }
+    // 项目范围校验
+    const projectId = (attachment as { visas?: { project_id?: number } }).visas?.project_id;
+    const access = await assertProjectAccess(supabase, auth.user, projectId);
+    if (!access.ok) return access.response;
 
     // 删除文件
     const storage = new OSSStorage();

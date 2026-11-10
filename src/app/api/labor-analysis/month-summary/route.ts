@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 /**
  * GET /api/labor-analysis/month-summary?month=YYYY-MM&project_id=all|123
@@ -46,11 +47,13 @@ export async function GET(request: NextRequest) {
     const ids = (analyses || []).map((row: { id?: unknown }) => Number(row.id)).filter(Boolean);
     const categoryMap = new Map<string, { hours: number; amount: number }>();
     if (ids.length > 0) {
-      const { data: items } = await client
-        .from('monthly_labor_items')
-        .select('analysis_id, category, hours, amount')
-        .in('analysis_id', ids);
-      (items || []).forEach((item: { category?: unknown; hours?: unknown; amount?: unknown }) => {
+      const items = await fetchAllRows<{ category?: unknown; hours?: unknown; amount?: unknown }>((from, to) =>
+        client
+          .from('monthly_labor_items')
+          .select('analysis_id, category, hours, amount')
+          .in('analysis_id', ids)
+          .range(from, to));
+      items.forEach((item) => {
         const key = String(item.category || '其他');
         const bucket = categoryMap.get(key) || { hours: 0, amount: 0 };
         bucket.hours += Number(item.hours) || 0;

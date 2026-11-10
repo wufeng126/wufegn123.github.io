@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     let query = client
       .from('monthly_vouchers')
       .select('id, project_id, year_month, doc_type, page_count, amount_total, remark, status, uploaded_by_name, confirmed_by_name, confirmed_at, approved_by_name, approved_at, void_reason, created_at')
-      .neq('status', 'voided')
+      .or('status.is.null,status.neq.voided')
       .order('year_month', { ascending: false })
       .order('id', { ascending: false });
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       .eq('project_id', projectId)
       .eq('year_month', yearMonth)
       .eq('doc_type', docType)
-      .neq('status', 'voided')
+      .or('status.is.null,status.neq.voided')
       .maybeSingle();
 
     if (existing && !replace) {

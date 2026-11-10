@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireAuth } from '@/lib/api-auth';
 import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 /**
  * GET /api/labor-analysis/project-summary?project_id=1&year=2026
@@ -37,11 +38,13 @@ export async function GET(request: NextRequest) {
     const itemCountByAnalysis = new Map<number, number>();
 
     if (ids.length > 0) {
-      const { data: items } = await client
-        .from('monthly_labor_items')
-        .select('analysis_id, category, hours, amount')
-        .in('analysis_id', ids);
-      (items || []).forEach((item: { analysis_id?: unknown; category?: unknown; hours?: unknown; amount?: unknown }) => {
+      const items = await fetchAllRows<{ analysis_id?: unknown; category?: unknown; hours?: unknown; amount?: unknown }>((from, to) =>
+        client
+          .from('monthly_labor_items')
+          .select('analysis_id, category, hours, amount')
+          .in('analysis_id', ids)
+          .range(from, to));
+      items.forEach((item) => {
         const key = String(item.category || '其他');
         const bucket = categoryMap.get(key) || { hours: 0, amount: 0 };
         bucket.hours += Number(item.hours) || 0;

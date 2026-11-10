@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission } from '@/lib/api-auth';
 import { apiBadRequest, apiNotFound, apiServerError, apiSuccess, getErrorMessage } from '@/lib/api-utils';
 import { auditLog } from '@/lib/audit-log';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 
 /**
  * POST /api/workers/merge
@@ -56,6 +57,17 @@ export async function POST(request: NextRequest) {
       .select('id, name, phone, id_card, person_id, project_id, work_type')
       .in('id', mergeIds);
     if (!mergeWorkers || mergeWorkers.length === 0) return apiNotFound('要合并的人员不存在');
+
+    // 项目范围校验：不能合并自己无权限项目的人员
+    const projectIds = Array.from(new Set(
+      [keepWorker, ...mergeWorkers]
+        .map((worker) => Number((worker as { project_id?: unknown }).project_id) || 0)
+        .filter(Boolean),
+    ));
+    for (const projectId of projectIds) {
+      const access = await assertProjectAccess(client, auth.user, projectId);
+      if (!access.ok) return access.response;
+    }
 
     let movedPayments = 0;
     let movedSalaries = 0;

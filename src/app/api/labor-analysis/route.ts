@@ -5,6 +5,7 @@ import { apiBadRequest, apiForbidden, apiServerError, apiSuccess, getErrorMessag
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { auditLog } from '@/lib/audit-log';
+import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
 
 /**
  * 月度用工分析
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (scope !== null && !scope.includes(projectId)) return apiForbidden('无权查看该项目');
+    if (await isMaterialWarehouseProjectId(client, projectId)) return apiBadRequest('「库房」项目只允许在零星材料模块使用');
 
     const { data: analysis } = await client
       .from('monthly_labor_analyses')
@@ -166,6 +168,7 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
     const scope = await getAccessibleProjectIds(client, auth.user);
     if (scope !== null && !scope.includes(projectId)) return apiForbidden('无权维护该项目');
+    if (await isMaterialWarehouseProjectId(client, projectId)) return apiBadRequest('「库房」项目只允许在零星材料模块使用');
 
     const rawItems = Array.isArray(body?.items) ? body.items : [];
     const items = rawItems

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { verifyRequest } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
+import { assertProjectAccess } from "@/lib/api-project-scope";
 import { OSSStorage } from '@/lib/oss-storage';
 
 function createStorage() {
@@ -10,10 +11,8 @@ function createStorage() {
 // 上传签证附件
 export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyRequest(request) as unknown as { id: number } | null;
-    if (!auth?.id) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (!auth.ok) return auth.response;
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -25,6 +24,21 @@ export async function POST(request: NextRequest) {
         { error: "请选择文件和签证记录" },
         { status: 400 }
       );
+    }
+
+    // 项目范围校验：只能给自己有权限项目的签证上传附件
+    {
+      const supabase = getSupabaseClient();
+      const { data: visaRow } = await supabase
+        .from("visas")
+        .select("project_id")
+        .eq("id", Number(visaId))
+        .maybeSingle();
+      if (!visaRow) {
+        return NextResponse.json({ error: "签证记录不存在" }, { status: 404 });
+      }
+      const access = await assertProjectAccess(supabase, auth.user, (visaRow as { project_id?: number }).project_id);
+      if (!access.ok) return access.response;
     }
 
     // 验证文件大小（10MB）
@@ -70,63 +84,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 获取用户信息和权限
-    const { data: user } = await supabase
-      .from("users")
-      .select("id, role, managed_projects")
-      .eq("id", auth.id)
-      .single();
-
-    // 非超级管理员需要验证项目权限
-    const userRole = (user as { role?: string })?.role || "user";
-    if (userRole !== "super_admin" && auth.id !== 1) {
-      if (user?.managed_projects && Array.isArray(user.managed_projects)) {
-        if (!user.managed_projects.includes(visa.project_id)) {
-          return NextResponse.json(
-            { error: "无权操作此签证记录" },
-            { status: 403 }
-          );
-        }
-      } else {
-        // 检查 user_roles 表
-        const { data: userRoles } = await supabase
-          .from("user_roles")
-          .select("role_id")
-          .eq("user_id", auth.id);
-
-        if (!userRoles || userRoles.length === 0) {
-          return NextResponse.json(
-            { error: "无权操作此签证记录" },
-            { status: 403 }
-          );
-        }
-
-        // 获取角色可访问的项目
-        const roleIds = userRoles.map((ur: { role_id: number }) => ur.role_id);
-        const { data: roles } = await supabase
-          .from("roles")
-          .select("allowed_projects")
-          .in("id", roleIds);
-
-        const allAllowedProjects: number[] = [];
-        roles?.forEach((role: { allowed_projects?: number[] }) => {
-          if (role.allowed_projects) {
-            allAllowedProjects.push(...role.allowed_projects);
-          }
-        });
-
-        if (
-          allAllowedProjects.length > 0 &&
-          !allAllowedProjects.includes(visa.project_id)
-        ) {
-          return NextResponse.json(
-            { error: "无权操作此签证记录" },
-            { status: 403 }
-          );
-        }
-      }
-    }
-
     // 上传到对象存储
     const storage = createStorage();
     const uniqueFileName = `${Date.now()}-${file.name}`;
@@ -148,7 +105,7 @@ export async function POST(request: NextRequest) {
         file_key: actualFileKey,
         file_size: file.size,
         file_type: file.type,
-        uploaded_by: auth.id,
+        uploaded_by: auth.user.id,
       })
       .select()
       .single();
