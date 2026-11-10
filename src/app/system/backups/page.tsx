@@ -36,6 +36,8 @@ function formatBytes(value: number) {
 
 export default function DataBackupPage() {
   const [rows, setRows] = useState<BackupRow[]>([]);
+  const [nas, setNas] = useState<null | { endpoint: string; bucket: string; region: string; configured: boolean; rcloneConfig: string; syncCommand: string; notes: string[] }>(null);
+  const [copied, setCopied] = useState('');
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
@@ -64,7 +66,28 @@ export default function DataBackupPage() {
     }
   }, []);
 
-  useEffect(() => { void load(true); }, [load]);
+
+  const loadNas = useCallback(async () => {
+    try {
+      const res = await fetch('/api/system/backup/nas-config', { credentials: 'include', cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok && json.success !== false) setNas(json.data);
+    } catch {
+      // 忽略
+    }
+  }, []);
+
+  const copyText = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(''), 1500);
+    } catch {
+      // 忽略
+    }
+  };
+
+  useEffect(() => { void load(true); void loadNas(); }, [load, loadNas]);
 
   const runNow = useCallback(async () => {
     setRunning(true);
@@ -164,6 +187,67 @@ export default function DataBackupPage() {
 
         {error ? <div className="rounded-xl border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-sm text-[#CB2634]">{error}</div> : null}
         {notice ? <div className="rounded-xl border border-[#B7EB8F] bg-[#F6FFED] px-4 py-3 text-sm text-[#237804]">{notice}</div> : null}
+
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold">NAS 本地备份（由 NAS 主动拉取）</p>
+              <p className="mt-1 text-xs text-[var(--color-text-3)]">
+                云端文件（照片/合同/结算单/凭证）都在对象存储里，NAS 用 rclone 每天拉取一份到本地盘即可；云端无需开放端口。
+              </p>
+            </div>
+            {nas ? (
+              <span className={`rounded px-2 py-1 text-xs ${nas.configured ? 'bg-[#E8FFEA] text-[#00A870]' : 'bg-[#FFF7E8] text-[#B35B00]'}`}>
+                {nas.configured ? `已配置：${nas.bucket}` : '对象存储未配置，当前回退 Supabase Storage'}
+              </span>
+            ) : null}
+          </div>
+
+          {nas ? (
+            <div className="mt-3 space-y-3 text-xs">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                  <p className="text-[var(--color-text-3)]">Endpoint</p>
+                  <p className="mt-0.5 break-all font-medium">{nas.endpoint || '-'}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                  <p className="text-[var(--color-text-3)]">Bucket</p>
+                  <p className="mt-0.5 break-all font-medium">{nas.bucket || '-'}</p>
+                </div>
+                <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                  <p className="text-[var(--color-text-3)]">Region</p>
+                  <p className="mt-0.5 font-medium">{nas.region}</p>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="font-medium">① 在 NAS 上保存 rclone 配置</p>
+                  <button type="button" onClick={() => void copyText(nas.rcloneConfig, 'config')} className="text-[var(--color-primary)] hover:underline">
+                    {copied === 'config' ? '已复制' : '复制配置'}
+                  </button>
+                </div>
+                <pre className="max-h-44 overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-5 text-slate-100">{nas.rcloneConfig}</pre>
+                <p className="mt-1 text-[var(--color-text-3)]">把 YOUR_ACCESS_KEY_ID / YOUR_ACCESS_KEY_SECRET 换成对象存储的密钥（建议只读子账号）。</p>
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="font-medium">② 在 NAS 上执行一次同步（之后设为每日计划任务）</p>
+                  <button type="button" onClick={() => void copyText(nas.syncCommand, 'cmd')} className="text-[var(--color-primary)] hover:underline">
+                    {copied === 'cmd' ? '已复制' : '复制命令'}
+                  </button>
+                </div>
+                <pre className="overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-5 text-slate-100">{nas.syncCommand}</pre>
+                <p className="mt-1 text-[var(--color-text-3)]">路径按你 NAS 的共享目录调整（群晖一般是 /volume1/xxx，威联通是 /share/xxx）。</p>
+              </div>
+
+              <ul className="list-disc space-y-1 pl-5 text-[var(--color-text-3)]">
+                {nas.notes.map((note) => <li key={note}>{note}</li>)}
+              </ul>
+            </div>
+          ) : null}
+        </div>
 
         <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <table className="w-full text-sm">
