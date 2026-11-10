@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { DEFAULT_PAYMENT_RATIOS, isEffectiveSupplierPaymentStatus, isReviewedStatus } from '@/lib/business-logic';
@@ -85,10 +86,12 @@ export async function GET(request: NextRequest) {
     const contractsWithStats = await Promise.all(
       (data || []).map(async (contract: any) => {
         // 获取结算统计
-        const { data: settlements } = await supabase
-          .from('supplier_settlements')
-          .select('settlement_amount, payable_amount, settlement_type, status')
-          .eq('contract_id', contract.id);
+        const settlements = await fetchAllRows<{ settlement_amount?: unknown; payable_amount?: unknown; settlement_type?: unknown; status?: unknown }>((from, to) =>
+          supabase
+            .from('supplier_settlements')
+            .select('settlement_amount, payable_amount, settlement_type, status')
+            .eq('contract_id', contract.id)
+            .range(from, to));
 
         const activeSettlements = (settlements || []).filter((s: any) => isReviewedStatus(s.status));
 
@@ -100,22 +103,24 @@ export async function GET(request: NextRequest) {
         );
 
         // 获取已完结结算单
-        const completeSettlement = activeSettlements.find((s) => isFinalSettlementType(s.settlement_type));
+        const completeSettlement = activeSettlements.find((s) => isFinalSettlementType(String(s.settlement_type || '')));
 
         // 拆成两个口径：进度应付（非最终结算）与决算应付（最终结算）
-        const finalSettlements = activeSettlements.filter((s: any) => isFinalSettlementType(s.settlement_type));
-        const progressSettlements = activeSettlements.filter((s: any) => !isFinalSettlementType(s.settlement_type));
+        const finalSettlements = activeSettlements.filter((s: any) => isFinalSettlementType(String(s.settlement_type || '')));
+        const progressSettlements = activeSettlements.filter((s: any) => !isFinalSettlementType(String(s.settlement_type || '')));
         const progressPayable = progressSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
         const finalPayable = finalSettlements.reduce((sum: number, s: any) => sum + Number(s.payable_amount || 0), 0);
 
         // 获取付款统计
-        const { data: payments } = await supabase
-          .from('supplier_payments')
-          .select('payment_amount, status')
-          .eq('contract_id', contract.id);
+        const payments = await fetchAllRows<{ payment_amount?: unknown; status?: unknown }>((from, to) =>
+          supabase
+            .from('supplier_payments')
+            .select('payment_amount, status')
+            .eq('contract_id', contract.id)
+            .range(from, to));
 
         const totalPaid = (payments || [])
-          .filter((p) => isEffectiveSupplierPaymentStatus(p.status))
+          .filter((p) => isEffectiveSupplierPaymentStatus(String(p.status || '')))
           .reduce(
           (sum: number, p: any) => sum + Number(p.payment_amount || 0), 0
         );
