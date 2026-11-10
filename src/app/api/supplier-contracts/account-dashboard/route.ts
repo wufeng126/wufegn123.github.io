@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { isEffectiveSupplierPaymentStatus, isReviewedStatus } from '@/lib/business-logic';
 import { requireAuth } from '@/lib/api-auth';
@@ -51,23 +52,25 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取所有合同及汇总数据
-    let query = supabase
-      .from('supplier_contracts')
-      .select(`
-        id, contract_name, contract_no, total_amount, contract_status, locked,
-        supplier:supplier_id(id, name, type),
-        project:project_id(id, name)
-      `);
+    const contracts = await fetchAllRows<Record<string, unknown>>((from, to) => {
+      let query = supabase
+        .from('supplier_contracts')
+        .select(`
+          id, contract_name, contract_no, total_amount, contract_status, locked,
+          supplier:supplier_id(id, name, type),
+          project:project_id(id, name)
+        `)
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (supplierId) query = query.eq('supplier_id', supplierId);
-    if (requestedProjectId) {
-      query = query.eq('project_id', requestedProjectId);
-    } else if (projectScope !== null) {
-      query = query.in('project_id', projectScope);
-    }
-
-    const { data: contracts, error: contractError } = await query;
-    if (contractError) throw contractError;
+      if (supplierId) query = query.eq('supplier_id', supplierId);
+      if (requestedProjectId) {
+        query = query.eq('project_id', requestedProjectId);
+      } else if (projectScope !== null) {
+        query = query.in('project_id', projectScope);
+      }
+      return query;
+    });
 
     const contractIds = (contracts || []).map((c: any) => Number(c.id)).filter(Boolean);
     const contractIdSet = new Set(contractIds);
