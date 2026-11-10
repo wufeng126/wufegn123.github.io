@@ -92,6 +92,7 @@ export default function WorkerSalariesPage() {
   const [showContent, setShowContent] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalaryId, setEditingSalaryId] = useState<number | null>(null);
+  const [forceEdit, setForceEdit] = useState(false);
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
   
   const [filterYear, setFilterYear] = useState(urlYearMonth.year || new Date().getFullYear().toString());
@@ -275,6 +276,7 @@ export default function WorkerSalariesPage() {
           advance_pay: parseFloat(formData.advance_pay) || 0,
           labor_insurance: parseFloat(formData.labor_insurance) || 0,
           fine: parseFloat(formData.fine) || 0,
+          force: forceEdit,
           gross_pay: (parseFloat(formData.work_hours) || 0) * (parseFloat(formData.hourly_rate) || 0) + (parseFloat(formData.contract_work_pay) || 0),
           net_pay: (parseFloat(formData.work_hours) || 0) * (parseFloat(formData.hourly_rate) || 0) + (parseFloat(formData.contract_work_pay) || 0) - (parseFloat(formData.income_tax) || 0) - (parseFloat(formData.advance_pay) || 0) - (parseFloat(formData.labor_insurance) || 0) - (parseFloat(formData.fine) || 0),
         }),
@@ -282,6 +284,7 @@ export default function WorkerSalariesPage() {
       if (res.ok) {
         setDialogOpen(false);
         setEditingSalaryId(null);
+        setForceEdit(false);
         resetForm();
         fetchSalaries();
       } else {
@@ -703,6 +706,12 @@ export default function WorkerSalariesPage() {
                   <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>预支款</Label><Input type="number" step="0.01" value={formData.advance_pay} onChange={(e) => setFormData({ ...formData, advance_pay: e.target.value })} className="mt-1.5" /></div>
                   <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>劳保费</Label><Input type="number" step="0.01" value={formData.labor_insurance} onChange={(e) => setFormData({ ...formData, labor_insurance: e.target.value })} className="mt-1.5" /></div>
                 </div>
+                {editingSalaryId ? (
+                  <label className="flex items-start gap-2 rounded-lg border border-[#FFE7BA] bg-[#FFFBE6] p-2 text-xs text-[#874D00]">
+                    <input type="checkbox" checked={forceEdit} onChange={(e) => setForceEdit(e.target.checked)} className="mt-0.5" />
+                    <span>强制修改（该工资已有发放记录时勾选）：修改后系统按「已发金额」重新计算发放状态，适用于工价/工时录错需要更正的情况</span>
+                  </label>
+                ) : null}
                 <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>备注</Label><Input value={formData.remark} onChange={(e) => setFormData({ ...formData, remark: e.target.value })} className="mt-1.5" /></div>
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t sm:flex sm:justify-end" style={{ borderColor: 'var(--border)' }}>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-300">取消</Button>

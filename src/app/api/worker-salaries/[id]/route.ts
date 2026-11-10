@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { requireApiWritePermission } from '@/lib/api-auth';
-import { isSalaryPaymentLocked } from '@/lib/business-logic';
+import { isSalaryPaymentLocked, syncSalaryPaymentStatus } from '@/lib/business-logic';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 export async function DELETE(
@@ -113,11 +113,14 @@ export async function PUT(
     if (accessibleProjectIds !== null && !accessibleProjectIds.includes(Number(current.project_id))) {
       return NextResponse.json({ error: '无权修改该项目的工资记录' }, { status: 403 });
     }
-    if (isSalaryPaymentLocked(current.payment_status)) {
-      return NextResponse.json({ error: '该工资记录已有发放，不能直接修改；请先在「工资发放」中删除对应发放记录后再改' }, { status: 400 });
-    }
-
     const body = await request.json();
+    const force = body?.force === true;
+    if (isSalaryPaymentLocked(current.payment_status) && !force) {
+      return NextResponse.json({
+        error: '该工资记录已有发放记录。若确认是工价/工时录错，可选择「强制修改」——修改后系统会按实发重新计算发放状态',
+        code: 'PAYMENT_LOCKED',
+      }, { status: 400 });
+    }
     const num = (value: unknown, fallback: number) => {
       const n = Number(String(value ?? '').replace(/,/g, ''));
       return Number.isFinite(n) ? n : fallback;
@@ -158,9 +161,21 @@ export async function PUT(
       operationType: 'update',
       resourceType: 'worker_salary',
       resourceId: salaryId,
-      details: { before: { gross_pay: current.gross_pay, net_pay: current.net_pay }, after: { gross_pay: updateData.gross_pay, net_pay: updateData.net_pay } },
+      details: {
+        before: { gross_pay: current.gross_pay, net_pay: current.net_pay },
+        after: { gross_pay: updateData.gross_pay, net_pay: updateData.net_pay },
+        forcedWithPayments: force && isSalaryPaymentLocked(current.payment_status),
+        reason: body?.reason ? String(body.reason).slice(0, 200) : undefined,
+      },
       request,
     });
+
+    // 已发放记录存在时，同步重算发放状态（部分发放/已发清/超额发放）
+    try {
+      await syncSalaryPaymentStatus(salaryId);
+    } catch {
+      // 状态同步失败不影响本次修改
+    }
 
     return NextResponse.json({ success: true, data: updateData });
   } catch (error: unknown) {
