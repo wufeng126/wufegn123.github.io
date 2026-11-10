@@ -52,8 +52,20 @@ for (const file of files) {
   }
 
   // 规则 3：统计型文件缺少分页（仅对 API/lib 的服务端统计文件告警）
+  // 只对"可能超过 1000 行"的业务大表告警；项目/用户/配置类小表不会触发（避免噪声淹没真问题）
+  const LARGE_TABLES = new Set([
+    'worker_salaries', 'salary_payments', 'supplier_payments', 'supplier_settlements', 'payments', 'settlements',
+    'client_reports', 'client_payments', 'construction_logs', 'construction_log_attendance', 'construction_daily_reports',
+    'miscellaneous_materials', 'team_settlement_payments', 'team_settlements', 'team_settlement_items', 'team_settlement_splits',
+    'work_items', 'work_item_subitems', 'work_item_progress', 'subitem_monthly_reports', 'subitem_monthly_progress',
+    'project_limit_prices', 'unit_prices', 'living_allowance_records', 'living_allowance_receipt_items',
+    'project_progress_task_quantities', 'monthly_report_snapshots', 'monthly_labor_items', 'monthly_voucher_files',
+    'notifications', 'audit_logs', 'worker_assignments',
+  ]);
+  const queriedTables = Array.from(content.matchAll(/\.from\(\s*['"]([a-z_]+)['"]/g)).map((m) => m[1]);
+  const touchesLargeTable = queriedTables.some((table) => LARGE_TABLES.has(table));
   const isServerStats = rel.includes('/api/') || rel.includes('/lib/');
-  if (isServerStats && content.includes('.from(') && content.includes('reduce(')) {
+  if (isServerStats && touchesLargeTable && content.includes('reduce(')) {
     const hasPaging = content.includes('fetchAllRows') || content.includes('fetchAllFromBuilder') || content.includes('.range(') || content.includes('head: true');
     if (!hasPaging) {
       warnings.push(`${rel}: 有 .from() + reduce() 但没有分页/fetchAllRows —— 超过 1000 行会静默少算`);

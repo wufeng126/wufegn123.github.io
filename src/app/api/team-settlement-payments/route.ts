@@ -1,3 +1,4 @@
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { NextRequest } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
@@ -199,16 +200,17 @@ export async function GET(request: NextRequest) {
       const hasAccess = await assertProjectAccess(supabase, auth.user, projectId);
       if (!hasAccess) return apiForbidden('无权查看该项目');
     }
-    let query = supabase
-      .from('team_settlement_payments')
-      .select('*, team_groups(name, work_type), team_settlements(settlement_no, settlement_month), projects(name)')
-      .order('payment_date', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(200);
-    if (teamId) query = query.eq('team_id', teamId);
-    if (projectId) query = query.eq('project_id', projectId);
-    const { data: payments, error } = await query;
-    if (error) throw new Error(error.message);
+    const payments = await fetchAllRows<Record<string, unknown>>((from, to) => {
+      let q = supabase
+        .from('team_settlement_payments')
+        .select('*, team_groups(name, work_type), team_settlements(settlement_no, settlement_month), projects(name)')
+        .order('payment_date', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to);
+      if (teamId) q = q.eq('team_id', teamId);
+      if (projectId) q = q.eq('project_id', projectId);
+      return q;
+    });
 
     const rows = (payments || []).map((p) => {
       const team = (p as Record<string, unknown>).team_groups as { name?: string; work_type?: string } | null;
