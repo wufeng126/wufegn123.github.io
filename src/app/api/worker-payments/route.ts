@@ -111,7 +111,8 @@ async function resolveSalaryForPayment(
       .select('id, net_pay, year_month')
       .eq('worker_id', params.worker_id)
       .eq('project_id', params.project_id)
-      .eq('year_month', yearMonth);
+      // 兼容历史数据把 year_month 存成 2026-05-01 / 2026-05-31 等格式
+      .ilike('year_month', `${yearMonth}%`);
 
     if (error) {
       throw new Error(`匹配工资核算单失败: ${error.message}`);
