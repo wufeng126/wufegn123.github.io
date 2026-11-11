@@ -297,6 +297,9 @@ export default function WorkerSalariesPage() {
   };
 
   const resetForm = () => {
+    // 关键：新增时必须清空编辑态，否则会误走 PUT 更新旧记录
+    setEditingSalaryId(null);
+    setForceEdit(false);
     setFormData({
       worker_id: '',
       project_id: '',
