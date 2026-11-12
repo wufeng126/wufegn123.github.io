@@ -784,12 +784,19 @@ export async function getProjectFinancialSummary(
     const key = `${Number(row.project_id) || 0}|${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
     newPaymentKeys.add(key);
   });
+  // 老表可能没有正确的 project_id（或为空），再用「日期 + 金额」做一次兜底去重
+  const newPaymentKeysLoose = new Set<string>();
+  supplierPaymentMapById.forEach((row: SupplierPaymentRow) => {
+    if (!isEffectiveSupplierPaymentStatus(row.status)) return;
+    newPaymentKeysLoose.add(`${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`);
+  });
   let legacyDuplicateSkipped = 0;
   legacyPayments.forEach((row) => {
     if (!isEffectiveSupplierPaymentStatus(String(row.status ?? ''))) return;
     const id = Number(row.id) || 0;
     const legacyKey = `${Number(row.project_id) || 0}|${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
-    if (newPaymentKeys.has(legacyKey)) {
+    const looseKey = `${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
+    if (newPaymentKeys.has(legacyKey) || newPaymentKeysLoose.has(looseKey)) {
       legacyDuplicateSkipped += 1;
       return;
     }
