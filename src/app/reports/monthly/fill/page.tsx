@@ -310,12 +310,13 @@ export default function MonthlyReportFillPage() {
     if (!month) return;
     const body: Record<string, unknown> = { month, action };
     if (action === 'submit_manager') {
-      if (!managerApproverId) {
-        toast.error('请选择项目经理作为下一级审批人');
+      // 已取消项目经理环节：预算员提交后直接进入老板审批
+      if (!bossApproverId) {
+        toast.error('请选择老板作为下一级审批人');
         return;
       }
-      body.managerApproverId = managerApproverId;
-      body.managerApproverName = managerOptions.find((item) => item.id === managerApproverId)?.name || '';
+      body.bossApproverId = bossApproverId;
+      body.bossApproverName = bossOptions.find((item) => item.id === bossApproverId)?.name || '';
     }
     if (action === 'supplement') {
       if (!bossApproverId) {
@@ -623,19 +624,19 @@ export default function MonthlyReportFillPage() {
           {canFill ? (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
               <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">
-                下一级审批人（项目经理）
+                下一级审批人（老板）
                 <select
-                  value={managerApproverId}
-                  onChange={(event) => setManagerApproverId(Number(event.target.value) || 0)}
+                  value={bossApproverId}
+                  onChange={(event) => setBossApproverId(Number(event.target.value) || 0)}
                   className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value={0}>请选择</option>
-                  {managerOptions.map((item) => (
+                  {bossOptions.map((item) => (
                     <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
-                {managerOptions.length === 0 ? (
-                  <span className="text-[var(--color-danger)]">没有可选的项目经理账号，请检查用户角色设置</span>
+                {bossOptions.length === 0 ? (
+                  <span className="text-[var(--color-danger)]">没有可选的老板账号，请检查用户角色设置</span>
                 ) : null}
               </label>
               <button
@@ -652,7 +653,7 @@ export default function MonthlyReportFillPage() {
                 disabled={saving}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交项目经理
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交老板审批
               </button>
             </div>
           ) : null}
