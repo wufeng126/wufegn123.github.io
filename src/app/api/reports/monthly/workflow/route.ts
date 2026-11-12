@@ -372,7 +372,9 @@ export async function POST(request: NextRequest) {
       patch.fill_user = operatorName;
       patch.created_by = auth.user.id;
     } else if (action === 'submit_manager') {
-      patch.status = 'pending_manager';
+      // 已取消「项目经理补充」环节：预算员提交后直接进入老板审批
+      patch.status = 'pending_boss';
+      patch.submitted_boss_at = now;
       patch.fill_user = operatorName;
       patch.created_by = auth.user.id;
       patch.submitted_manager_at = now;
@@ -400,16 +402,15 @@ export async function POST(request: NextRequest) {
 
     // 提交后通知下一级审批人（站内 + 钉钉个人工作通知）
     const notifyApproverId =
-      action === 'submit_manager' ? managerApproverId : action === 'supplement' ? bossApproverId : 0;
-    const notifyApproverName =
-      action === 'submit_manager' ? managerApproverName : action === 'supplement' ? bossApproverName : '';
+      action === 'submit_manager' || action === 'supplement' ? bossApproverId : 0;
+    const notifyApproverName = bossApproverName || '';
     const scopeLabel = scope === 'all' ? '全公司' : `项目 #${scope}`;
-    const stageLabel = action === 'submit_manager' ? '项目经理补充' : '老板审批';
+    const stageLabel = '老板审批';
     const href = `/reports/monthly/fill?month=${encodeURIComponent(month)}${scope !== 'all' ? `&projectId=${encodeURIComponent(scope)}` : ''}`;
     // 未指定审批人时兜底：项目经理补充 → 找该项目的项目经理；老板审批 → 找老板/超管
     let recipientIds: number[] = notifyApproverId > 0 ? [notifyApproverId] : [];
     if (recipientIds.length === 0 && (action === 'submit_manager' || action === 'supplement')) {
-      recipientIds = await resolveFallbackApprovers(client, action, scope);
+      recipientIds = await resolveFallbackApprovers(client, 'supplement', scope);
       console.warn('[MonthlyWorkflow] 未指定审批人，使用兜底审批人：', recipientIds);
     }
     if (recipientIds.length === 0) {

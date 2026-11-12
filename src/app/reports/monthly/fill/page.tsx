@@ -62,7 +62,7 @@ type ProjectRow = {
 
 const STATUS_LABEL: Record<string, string> = {
   draft: '预算员填写中',
-  pending_manager: '待项目经理补充',
+  pending_manager: '待老板审批',
   pending_boss: '待老板审批',
   approved: '已通过（已归档）',
   rejected: '已驳回',
@@ -340,7 +340,7 @@ export default function MonthlyReportFillPage() {
       if (!res.ok || json.success === false) throw new Error(json.error || '操作失败');
       toast.success(
         action === 'save' ? '草稿已保存'
-          : action === 'submit_manager' ? '已提交项目经理'
+          : action === 'submit_manager' ? '已提交老板审批'
             : action === 'supplement' ? '已提交老板审批'
               : action === 'approve' ? '已通过，分析已归档' : '已驳回',
       );
