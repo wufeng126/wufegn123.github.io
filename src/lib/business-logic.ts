@@ -557,7 +557,12 @@ export function buildSupplierSettlementCumulativeMap(
       totalPayable = roundMoney(totalPayable + getSupplierSettlementPayableBase(settlement));
       const settlementDateKey = getDateKey(settlement.settlement_date, settlement.created_at);
 
-      while (paymentIndex < contractPayments.length && contractPayments[paymentIndex].dateKey <= settlementDateKey) {
+      // 最终结算：该合同后到的付款也应计入「已付」；进度结算：只计入结算日之前的付款
+      const isFinalSettlement = isFinalSettlementType(settlement.settlement_type);
+      while (
+        paymentIndex < contractPayments.length
+        && (isFinalSettlement || contractPayments[paymentIndex].dateKey <= settlementDateKey)
+      ) {
         runningPaid = roundMoney(runningPaid + contractPayments[paymentIndex].amount);
         paymentIndex += 1;
       }
