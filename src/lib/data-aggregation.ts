@@ -796,10 +796,12 @@ export async function getProjectFinancialSummary(
     const id = Number(row.id) || 0;
     const legacyKey = `${Number(row.project_id) || 0}|${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
     const looseKey = `${String(row.payment_date || '').slice(0, 10)}|${round2(parseNumeric(row.payment_amount))}`;
-    if (newPaymentKeys.has(legacyKey) || newPaymentKeysLoose.has(looseKey)) {
-      legacyDuplicateSkipped += 1;
-      return;
-    }
+    // 统计口径：老表 payments 已停止计入「已支付」（新表 supplier_payments 为准）。
+    // 原因：老表存在大量与新表重复/合并口径不一致的记录，继续计入会导致付款率超过 100%。
+    // 老表数据保留不删，仅不计入成本统计；需要追溯时看「已支付明细对账」里的历史付款。
+    legacyDuplicateSkipped += 1;
+    if (newPaymentKeys.has(legacyKey) || newPaymentKeysLoose.has(looseKey)) return;
+    return;
     // 与 supplier_payments 的 id 空间错开，避免覆盖
     supplierPaymentMapById.set(1_000_000_000 + id, {
       id: 1_000_000_000 + id,
