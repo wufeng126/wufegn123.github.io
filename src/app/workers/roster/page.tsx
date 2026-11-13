@@ -429,7 +429,7 @@ export default function WorkerRosterPage() {
       if (res.ok) {
         setDialogOpen(false);
         setEditingWorker(null);
-        setFormData({ name: '', work_type: '', id_card: '', phone: '', bank_card: '', project_id: '', entry_date: '', team_name: '', is_blacklist: false, remark: '' });
+        setFormData({ name: '', work_type: '', id_card: '', phone: '', bank_card: '', project_id: '', entry_date: '', leave_date: '', team_name: '', is_blacklist: false, remark: '' });
         fetchWorkers();
       } else {
         const error = await res.json();
@@ -507,7 +507,7 @@ export default function WorkerRosterPage() {
 
   const openAddDialog = () => {
     setEditingWorker(null);
-    setFormData({ name: '', work_type: '', id_card: '', phone: '', bank_card: '', project_id: '', entry_date: '', team_name: '', is_blacklist: false, remark: '' });
+    setFormData({ name: '', work_type: '', id_card: '', phone: '', bank_card: '', project_id: '', entry_date: '', leave_date: '', team_name: '', is_blacklist: false, remark: '' });
     setDialogOpen(true);
   };
 
