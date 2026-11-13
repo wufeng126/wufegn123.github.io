@@ -950,13 +950,13 @@ async function confirmImport(
 export async function GET() {
   try {
     const XLSX = require('xlsx');
-    const headers = ['工人姓名', '身份证号', '项目名称', '工资所属月份', '实发金额', '付款方式', '付款日期', '备注'];
-    const sampleRow1 = ['张三', '110101199001010011', '测试项目', '2025-01', 5000, '银行转账', '2025-05-15', '发放1月份工资'];
-    const sampleRow2 = ['李四', '110101199002020022', '测试项目', '2025-01', 3000, '现金', '', '付款日期可空，默认取工资月份15日'];
+    const headers = ['工人姓名', '身份证号', '项目名称', '工资所属月份', '实发金额', '付款主体', '付款方式', '付款日期', '备注'];
+    const sampleRow1 = ['张三', '110101199001010011', '测试项目', '2025-01', 5000, '公司支付', '银行转账', '2025-05-15', '发放1月份工资'];
+    const sampleRow2 = ['李四', '110101199002020022', '测试项目', '2025-01', 3000, '甲方代付', '现金', '', '付款日期可空，默认取工资月份15日'];
     const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow1, sampleRow2]);
     ws['!cols'] = [
       { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 14 },
-      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 28 },
+      { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 28 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '工资发放导入');
