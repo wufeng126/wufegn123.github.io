@@ -37,6 +37,7 @@ interface Worker {
   created_at: string;
   // 新增字段
   entry_date?: string | null; // 入职日期
+  leave_date?: string | null; // 退场日期
   team_name?: string | null; // 所属班组
   is_blacklist?: boolean; // 黑名单标记
   remark?: string | null; // 备注记录
@@ -107,6 +108,7 @@ export default function WorkerRosterPage() {
     bank_card: '',
     project_id: '',
     entry_date: '',
+    leave_date: '',
     team_name: '',
     is_blacklist: false,
     remark: '',
@@ -413,6 +415,7 @@ export default function WorkerRosterPage() {
         ...formData,
         project_id: formData.project_id ? parseInt(formData.project_id) : null,
         entry_date: formData.entry_date || null,
+        leave_date: formData.leave_date || null,
         team_name: formData.team_name || null,
         is_blacklist: formData.is_blacklist,
         remark: formData.remark || null,
@@ -448,6 +451,7 @@ export default function WorkerRosterPage() {
       bank_card: worker.bank_card || '',
       project_id: worker.project_id ? worker.project_id.toString() : '',
       entry_date: worker.entry_date ? worker.entry_date.split('T')[0] : '',
+      leave_date: worker.leave_date || '',
       team_name: worker.team_name || '',
       is_blacklist: worker.is_blacklist || false,
       remark: worker.remark || '',
@@ -781,6 +785,7 @@ export default function WorkerRosterPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>银行卡号</Label><Input value={formData.bank_card} onChange={(e) => setFormData({ ...formData, bank_card: e.target.value })} className="mt-1.5" /></div>
               <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>入职日期</Label><Input type="date" value={formData.entry_date} onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })} className="mt-1.5" /></div>
+              <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>退场日期</Label><Input type="date" value={formData.leave_date || ''} onChange={(e) => setFormData({ ...formData, leave_date: e.target.value })} className="mt-1.5" /></div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>所属项目</Label>

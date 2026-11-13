@@ -165,6 +165,7 @@ export async function GET(request: NextRequest) {
       left_at: worker.left_at,
       created_at: worker.created_at,
       entry_date: worker.entry_date,
+      leave_date: worker.left_at ? String(worker.left_at).slice(0, 10) : null,
       team_name: worker.team_name,
       is_blacklist: worker.is_blacklist || false,
       remark: worker.remark,

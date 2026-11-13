@@ -40,7 +40,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, work_type, id_card, phone, bank_card, project_id, status, entry_date, team_name, is_blacklist, remark } = body;
+    const { name, work_type, id_card, phone, bank_card, project_id, status, entry_date, leave_date, team_name, is_blacklist, remark } = body;
 
     const client = getSupabaseClient();
     const { data: previousWorker, error: workerQueryError } = await client
@@ -83,6 +83,9 @@ export async function PUT(
     if (bank_card !== undefined) updateData.bank_card = bank_card;
     if (hasProjectField) updateData.project_id = targetProjectId;
     if (entry_date !== undefined) updateData.entry_date = entry_date || null;
+    if (leave_date !== undefined) {
+      updateData.left_at = leave_date ? new Date(`${String(leave_date).slice(0, 10)}T00:00:00+08:00`).toISOString() : null;
+    }
     if (team_name !== undefined) updateData.team_name = team_name || null;
     if (is_blacklist !== undefined) updateData.is_blacklist = is_blacklist;
     if (remark !== undefined) updateData.remark = remark || null;
@@ -90,7 +93,7 @@ export async function PUT(
     // 处理状态变更
     if (status !== undefined) {
       updateData.status = status;
-      if (status === 'left') {
+      if (status === 'left' && leave_date === undefined) {
         updateData.left_at = new Date().toISOString();
       } else if (status === 'in_service' || status === 'archived') {
         updateData.left_at = null;
