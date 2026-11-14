@@ -269,7 +269,7 @@ export default function WorkerCostDashboard() {
 
     return Array.from(projectMap.values()).map(item => ({
       ...item,
-      unpaid: Math.round((unpaidByProject.get(item.id) || 0) * 100) / 100,
+      unpaid: Math.round((unpaidByProject.get(Number(item.id)) || 0) * 100) / 100,
     }));
   }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
 
