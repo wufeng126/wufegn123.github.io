@@ -246,11 +246,30 @@ export default function WorkerCostDashboard() {
       }
     });
     
+    // 未付口径 A：按「项目内每个人」计算 max(0, 实发 - 已发) 再汇总
+    const balanceMap = new Map<string, { projectId: number; net: number; paid: number }>();
+    filteredSalaries.forEach(s => {
+      const key = `${toNumber(s.project_id)}:${toNumber(s.worker_id)}`;
+      const row = balanceMap.get(key) || { projectId: toNumber(s.project_id), net: 0, paid: 0 };
+      row.net += toNumber(s.net_pay);
+      balanceMap.set(key, row);
+    });
+    filteredPayments.forEach(p => {
+      const key = `${toNumber(p.project_id)}:${toNumber(p.worker_id)}`;
+      const row = balanceMap.get(key);
+      if (row) row.paid += toNumber(p.amount);
+    });
+    const unpaidByProject = new Map<number, number>();
+    balanceMap.forEach(row => {
+      const diff = Math.round((row.net - row.paid) * 100) / 100;
+      if (Math.abs(diff) <= SALARY_PAYMENT_TOLERANCE) return;
+      if (diff <= 0) return;
+      unpaidByProject.set(row.projectId, (unpaidByProject.get(row.projectId) || 0) + diff);
+    });
+
     return Array.from(projectMap.values()).map(item => ({
       ...item,
-      unpaid: Math.abs(item.netPay - item.paid) <= SALARY_PAYMENT_TOLERANCE
-        ? 0
-        : Math.max(0, item.netPay - item.paid),  // 未付 = 实发 - 已付（含容差）
+      unpaid: Math.round((unpaidByProject.get(item.id) || 0) * 100) / 100,
     }));
   }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
 
