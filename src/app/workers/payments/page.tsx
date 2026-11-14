@@ -160,7 +160,14 @@ export default function WorkerPaymentsPage() {
     const addOption = (id?: number | null, status?: string) => {
       if (!id || optionMap.has(id)) return;
       const proj = projects.find(p => p.id === id);
-      optionMap.set(id, { id, name: proj?.name || worker.project_name || `项目${id}`, status });
+      const name = (proj?.name || worker.project_name || `项目${id}`).trim();
+      // 同名的重复项目（历史遗留）只保留一个，且优先保留「在场」状态
+      const sameName = Array.from(optionMap.values()).find(option => option.name.trim() === name);
+      if (sameName) {
+        if (sameName.status === 'left' && status !== 'left') sameName.status = status;
+        return;
+      }
+      optionMap.set(id, { id, name, status });
     };
 
     // 1) 当前工人行所在项目
