@@ -170,6 +170,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
     { name: '通知与待办', href: '/system-management?tab=notifications', icon: BellRing, permissions: ['notifications:view'] },
     { name: 'WPS 同步', href: '/system-management?tab=wps-config', icon: RefreshCw, permissions: ['system:manage'] },
     { name: 'AI 助手配置', href: '/system-management?tab=ai-config', icon: Bot, permissions: ['system:ai_manage'] },
+    { name: '重复项目清理', href: '/system/project-dedupe', icon: FileText, permissions: ['system:manage'] },
     { name: '数据运维', href: '/system/ops', icon: Database, permissions: ['system:manage'] },
   ],
 };

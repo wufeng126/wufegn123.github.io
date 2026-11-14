@@ -185,6 +185,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermissionConfig> = {
   '/system/backups': { permission: 'system:manage' },
   '/system/security': { permission: 'system:manage' },
   '/system/ops': { permission: 'system:manage' },
+  '/system/project-dedupe': { permission: 'system:manage' },
   '/workers/vouchers': { permission: 'salaries:view' },
   '/workers/labor-analysis': { permission: 'salaries:view' },
   '/workers/trade-cost': { permission: 'salaries:view' },
