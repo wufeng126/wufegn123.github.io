@@ -473,12 +473,17 @@ export default function WorkerPaymentsPage() {
 
   const handleExport = () => {
     const headers = ['项目', '年月', '工人姓名', '付款日期', '付款类型', '付款主体', '金额', '付款方式', '班组', '备注'];
-    const rows = filteredPayments.map(p => [p.project_name || '-', p.year_month || '-', p.worker_name, p.payment_date, p.payment_type || '月度工资', p.payer_type || '公司支付', p.amount, p.payment_method, p.team_name || '-', p.remark || '']);
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+    // 有勾选时只导出勾选记录；未勾选才导出当前筛选结果
+    const sourceRows = selectedIds.size > 0
+      ? payments.filter(p => selectedIds.has(p.id))
+      : filteredPayments;
+    const rows = sourceRows.map(p => [p.project_name || '-', p.year_month || '-', p.worker_name, p.payment_date, p.payment_type || '月度工资', p.payer_type || '公司支付', p.amount, p.payment_method, p.team_name || '-', p.remark || '']);
+    const escapeCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csvContent = [headers, ...rows].map(row => row.map(escapeCell).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `工资发放记录_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `工资发放记录_${new Date().toISOString().split('T')[0]}${selectedIds.size > 0 ? `_已选${selectedIds.size}条` : ''}.csv`;
     link.click();
   };
 
