@@ -6,6 +6,7 @@ import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/busines
 import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
+import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
 import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 
 function parseAmount(value: any): number {
@@ -247,6 +248,13 @@ export async function GET(request: NextRequest) {
       return filtered;
     };
 
+    // 红线：公司公共项目/非项目日志 只能出现在施工日志，不得出现在工资发放
+    const { data: publicLogRows } = await client
+      .from('projects')
+      .select('id, name')
+      .ilike('name', `%${PUBLIC_LOG_PROJECT_NAME}%`);
+    const publicLogIds = new Set((publicLogRows || []).map((row: { id?: unknown }) => Number(row.id)));
+
     const allData: any[] = [];
     for (let offset = 0; ; offset += PAYMENT_PAGE_SIZE) {
       const { data: rows, error } = await applyFilters(buildQuery())
@@ -282,8 +290,10 @@ export async function GET(request: NextRequest) {
       created_at: record.created_at,
     })) || [];
 
-    // 根据 status 过滤（在获取数据后过滤）
-    let filteredPayments = payments;
+    // 红线：排除「公司公共项目/非项目日志」的发放记录
+    let filteredPayments = publicLogIds.size > 0
+      ? payments.filter(p => !publicLogIds.has(Number(p.project_id)))
+      : payments;
     if (status && status !== 'all') {
       filteredPayments = payments.filter(p => p.status === status);
     }
@@ -318,6 +328,18 @@ export async function POST(request: NextRequest) {
 
     if (!workerId || !projectId) {
       return NextResponse.json({ error: '工人ID或项目ID无效' }, { status: 400 });
+    }
+
+    // 红线：「公司公共项目/非项目日志」不得出现在工资发放
+    {
+      const { data: projectRow } = await client
+        .from('projects')
+        .select('id, name')
+        .eq('id', projectId)
+        .maybeSingle();
+      if (projectRow && String(projectRow.name || '').includes('公司公共项目')) {
+        return NextResponse.json({ error: '「公司公共项目/非项目日志」只允许在施工日志使用，不能用于工资发放' }, { status: 400 });
+      }
     }
     if (salary_id != null && salary_id !== '' && !salaryId) {
       return NextResponse.json({ error: '工资核算单ID无效' }, { status: 400 });
