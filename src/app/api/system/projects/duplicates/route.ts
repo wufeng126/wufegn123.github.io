@@ -63,9 +63,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const keepId = Number(body?.keepId);
-    const mergeIds = Array.isArray(body?.mergeIds)
-      ? Array.from(new Set(body.mergeIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0 && id !== keepId)))
-      : [];
+    const rawMergeIds: unknown[] = Array.isArray(body?.mergeIds) ? body.mergeIds : [];
+    const mergeIds: number[] = Array.from(new Set(
+      rawMergeIds
+        .map((id) => Number(id))
+        .filter((id): id is number => Number.isInteger(id) && id > 0 && id !== keepId),
+    ));
     if (!Number.isInteger(keepId) || keepId <= 0) return apiBadRequest('请提供保留的项目ID');
     if (mergeIds.length === 0) return apiBadRequest('请提供要合并掉的项目ID');
 
