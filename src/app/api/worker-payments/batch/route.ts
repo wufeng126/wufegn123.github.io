@@ -366,15 +366,10 @@ async function analyzeRows(
     if (blocked || !project) continue;
 
     const workerCandidates = workersByIdCard.get(idCard) || [];
+    // 同项目任职优先；工人已退场或当前不在该项目时，仍按身份证认人（工资可能是补发）
     const worker = workerCandidates.find((candidate) =>
       workerProjectRelations.get(Number(candidate.id))?.has(Number(project.id))
-    );
-    if (!worker && workerCandidates.length > 0) {
-      block(
-        'worker_project_mismatch',
-        `工人“${workerName}”不属于项目“${project.name}”，已拦截`,
-      );
-    }
+    ) || workerCandidates[0];
     if (blocked) continue;
 
     const parsed: ParsedPaymentRow = {
@@ -446,17 +441,19 @@ async function analyzeRows(
         .from('worker_salaries')
         .select('id, worker_id, project_id, year_month, net_pay')
         .in('project_id', salaryProjectIds)
-        .in('year_month', salaryYearMonths)
         .range(from, to));
 
+    const wantedMonths = new Set(salaryYearMonths.map((m: string) => String(m).slice(0, 7)));
     salaries.forEach((salary: any) => {
-      const idKey = `${salary.worker_id}:${salary.project_id}:${salary.year_month}`;
+      if (!wantedMonths.has(String(salary.year_month || '').slice(0, 7))) return;
+      const monthKey = String(salary.year_month || '').slice(0, 7);
+      const idKey = `${salary.worker_id}:${salary.project_id}:${monthKey}`;
       if (salaryMap.has(idKey)) duplicateSalaryKeys.add(idKey);
       salaryMap.set(idKey, salary);
 
       const workerName = workerNameById.get(Number(salary.worker_id)) || '';
       if (workerName) {
-        const nameKey = `${salary.project_id}:${salary.year_month}:${workerName}`;
+        const nameKey = `${salary.project_id}:${monthKey}:${workerName}`;
         if (salaryByNameMap.has(nameKey)) ambiguousNameKeys.add(nameKey);
         salaryByNameMap.set(nameKey, salary);
       }
