@@ -21,8 +21,13 @@ const TABLES = [
 ];
 
 async function countByProject(client: ReturnType<typeof getSupabaseClient>, table: string, projectId: number) {
-  const { count } = await client.from(table).select('id', { count: 'exact', head: true }).eq('project_id', projectId);
-  return Number(count || 0);
+  try {
+    const { count, error } = await client.from(table).select('id', { count: 'exact', head: true }).eq('project_id', projectId);
+    if (error) return -1; // -1 表示该表不可统计（列不存在/无权限），前端显示为“—”
+    return Number(count || 0);
+  } catch {
+    return -1;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -36,7 +41,7 @@ export async function GET(request: NextRequest) {
     const client = getSupabaseClient();
     const { data: projects, error } = await client
       .from('projects')
-      .select('id, name, status, year, created_at, is_archived')
+      .select('*')
       .ilike('name', `%${name}%`)
       .order('id');
     if (error) throw new Error(error.message);
@@ -52,7 +57,8 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess({ name, projects: result });
   } catch (error: unknown) {
-    return apiServerError(getErrorMessage(error, '查询重复项目失败'));
+    console.error('[ProjectDedupe] query failed:', error);
+    return apiServerError(error instanceof Error ? error.message : getErrorMessage(error, '查询重复项目失败'));
   }
 }
 
