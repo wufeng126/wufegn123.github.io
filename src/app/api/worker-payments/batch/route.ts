@@ -346,6 +346,10 @@ async function analyzeRows(
       block('invalid_year_month', `工资所属月份“${rawYearMonth}”格式错误，应为 YYYY-MM，已拦截`);
     }
     if (!rawAmount || amount <= 0) block('invalid_amount', `实发金额“${rawAmount || '空'}”无效，已拦截`);
+    // 红线：公司公共项目/非项目日志 不允许出现在工资发放
+    if (projectName && String(projectName).includes('公司公共项目')) {
+      block('forbidden_public_log_project', '「公司公共项目/非项目日志」只允许在施工日志使用，已拦截');
+    }
 
     const project = projectMap.get(normalizeText(projectName));
     if (projectName && !project) block('project_not_found', `项目“${projectName}”不存在，已拦截`);
