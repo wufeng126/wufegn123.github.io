@@ -186,15 +186,16 @@ export default function WorkerCostDashboard() {
     
     // 未付口径 A：按「人」计算 max(0, 实发 - 已发) 再汇总
     // 超额发放的人不冲减其他人的未付（避免与下月预支款回收重复扣减）
-    const workerBalance = new Map<number, { net: number; paid: number }>();
+    // 与项目表格口径完全一致：按「项目 + 人」计算，避免同一人在不同项目的超额互相冲减
+    const workerBalance = new Map<string, { net: number; paid: number }>();
     filteredSalaries.forEach(s => {
-      const key = Number(s.worker_id);
+      const key = `${toNumber(s.project_id)}:${toNumber(s.worker_id)}`;
       const row = workerBalance.get(key) || { net: 0, paid: 0 };
       row.net += toNumber(s.net_pay);
       workerBalance.set(key, row);
     });
     filteredPayments.forEach(p => {
-      const key = Number(p.worker_id);
+      const key = `${toNumber(p.project_id)}:${toNumber(p.worker_id)}`;
       const row = workerBalance.get(key);
       if (row) row.paid += toNumber(p.amount);
     });
