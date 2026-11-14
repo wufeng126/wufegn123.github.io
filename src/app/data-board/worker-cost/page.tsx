@@ -184,10 +184,26 @@ export default function WorkerCostDashboard() {
     
     totalPaid = filteredPayments.reduce((sum, p) => sum + toNumber(p.amount), 0);
     
-    // 未付容差与月度工资页一致（差额 ≤3 元视为已结清）
-    const totalUnpaid = Math.abs(totalNetPay - totalPaid) <= SALARY_PAYMENT_TOLERANCE
-      ? 0
-      : Math.max(0, totalNetPay - totalPaid);
+    // 未付口径 A：按「人」计算 max(0, 实发 - 已发) 再汇总
+    // 超额发放的人不冲减其他人的未付（避免与下月预支款回收重复扣减）
+    const workerBalance = new Map<number, { net: number; paid: number }>();
+    filteredSalaries.forEach(s => {
+      const key = Number(s.worker_id);
+      const row = workerBalance.get(key) || { net: 0, paid: 0 };
+      row.net += toNumber(s.net_pay);
+      workerBalance.set(key, row);
+    });
+    filteredPayments.forEach(p => {
+      const key = Number(p.worker_id);
+      const row = workerBalance.get(key);
+      if (row) row.paid += toNumber(p.amount);
+    });
+    let totalUnpaid = 0;
+    workerBalance.forEach(row => {
+      const diff = Math.round((row.net - row.paid) * 100) / 100;
+      if (Math.abs(diff) > SALARY_PAYMENT_TOLERANCE) totalUnpaid += Math.max(0, diff);
+    });
+    totalUnpaid = Math.round(totalUnpaid * 100) / 100;
     
     return { projectCount, activeWorkerCount, totalGrossPay, totalNetPay, totalPaid, totalUnpaid };
   }, [projects, selectedProject, filteredWorkers, filteredSalaries, filteredPayments]);
