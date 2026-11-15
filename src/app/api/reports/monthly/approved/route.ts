@@ -54,13 +54,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** DELETE /api/reports/monthly/approved?id=123 —— 删除已归档（已审批）月报，仅管理员；用于清理测试数据 */
+/** DELETE /api/reports/monthly/approved?id=123 —— 删除已归档（已审批）月报，仅超级管理员 */
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (!auth.ok) return auth.response;
-    const isAdmin = Boolean(auth.user.is_super_admin) || ['admin', 'boss'].includes(String(auth.user.role || ''));
-    if (!isAdmin) return apiForbidden('只有管理员可以删除已归档月报');
+    const isAdmin = Boolean(auth.user.is_super_admin) || String(auth.user.role || '') === 'super_admin';
+    if (!isAdmin) return apiForbidden('只有超级管理员可以删除已归档月报');
 
     const id = Number(new URL(request.url).searchParams.get('id'));
     if (!Number.isInteger(id) || id <= 0) return apiBadRequest('参数不正确');
