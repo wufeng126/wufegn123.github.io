@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
               value: [
                 "default-src 'self'",
                 // 钉钉 JSAPI 从 g.alicdn.com 加载，必须放行；否则 H5 免登报「JSAPI 加载失败」
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://g.alicdn.com https://*.alicdn.com https://*.dingtalk.com",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://g.alicdn.com https://*.alicdn.com https://*.dingtalk.com https://apm.volc.com https://*.volc.com",
                 "style-src 'self' 'unsafe-inline' https://g.alicdn.com https://*.alicdn.com",
                 "img-src 'self' data: blob: https:",
                 "font-src 'self' data: https://*.alicdn.com",

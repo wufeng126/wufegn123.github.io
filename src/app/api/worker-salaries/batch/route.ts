@@ -200,6 +200,14 @@ export async function POST(request: NextRequest) {
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       const file = formData.get('file') as File;
+    // 防御：限制导入文件大小与类型，避免超大文件/非 Excel 拖垮服务
+    const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024;
+    if (file && file.size > MAX_IMPORT_FILE_BYTES) {
+      return NextResponse.json({ error: '导入文件不能超过 20MB' }, { status: 400 });
+    }
+    if (file && !/\.(xlsx|xls|csv)$/i.test(file.name)) {
+      return NextResponse.json({ error: '只支持 Excel（.xlsx/.xls）或 CSV 文件' }, { status: 400 });
+    }
       if (!file) {
         return NextResponse.json({ error: '请上传文件' }, { status: 400 });
       }

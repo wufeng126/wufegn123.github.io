@@ -102,3 +102,18 @@ export async function getConstructionLogAccessibleProjectIds(client: SupabaseCli
   return Array.from(new Set([...accessibleProjectIds, publicProject.id]));
 }
 
+/** 按项目 ID 判断是否为「公司公共项目/非项目日志」（兼容缺少 project_type 的旧库） */
+export async function isPublicLogProjectId(client: SupabaseClient, projectId: number) {
+  if (!Number.isInteger(projectId) || projectId <= 0) return false;
+  const { data, error } = await client
+    .from('projects')
+    .select('id,name,project_type')
+    .eq('id', projectId)
+    .limit(1);
+  if (error) {
+    const byName = await findPublicLogProjectByName(client);
+    return Boolean(byName && byName.id === projectId);
+  }
+  const row = Array.isArray(data) ? (data[0] as ProjectRow | undefined) : undefined;
+  return isPublicLogProject(row);
+}

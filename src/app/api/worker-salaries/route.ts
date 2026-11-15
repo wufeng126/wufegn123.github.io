@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
+import { isPublicLogProjectId } from '@/lib/public-log-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { pushBusinessNotification } from '@/lib/business-notification';
@@ -179,6 +180,10 @@ export async function GET(request: NextRequest) {
     // 红线：库房只允许在零星材料中使用
     if (await isMaterialWarehouseProjectId(client, Number(parsedProjectId))) {
       return NextResponse.json({ error: '「库房」项目只允许在零星材料模块使用' }, { status: 400 });
+    }
+    // 红线：公司公共项目/非项目日志 只允许出现在施工日志
+    if (parsedProjectId && await isPublicLogProjectId(client, Number(parsedProjectId))) {
+      return NextResponse.json({ error: '「公司公共项目/非项目日志」只允许在施工日志使用，不能录入工资' }, { status: 400 });
     }
     
     // 获取当前用户

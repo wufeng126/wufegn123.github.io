@@ -48,8 +48,10 @@ export async function GET(request: NextRequest) {
       const content = (row.content || {}) as Record<string, unknown>;
       // 指定了审批人就只算该审批人；没有指定才回退到老板/超管
       if (row.status === 'pending_manager') {
+        // 已取消项目经理环节：历史 pending_manager 月报老板也可直接处理
+        if (isBoss) return true;
         const designated = Number(content.managerApproverId) || 0;
-        return designated > 0 ? designated === userId : isBoss;
+        return designated > 0 ? designated === userId : false;
       }
       const designated = Number(content.bossApproverId) || 0;
       return designated > 0 ? designated === userId : isBoss;

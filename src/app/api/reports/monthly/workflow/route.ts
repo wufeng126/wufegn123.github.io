@@ -17,7 +17,8 @@ import { addKnowledgeDoc } from '@/lib/ai-service';
 
 /**
  * 月度报表协作审批
- * 流程：draft（预算员填写）→ pending_manager（项目经理补充）→ pending_boss（老板完善+审批）
+ * 流程（2026-11 起）：draft（预算员填写）→ pending_boss（老板审批）
+ * 历史 pending_manager 数据仍可由老板直接审批或退回
  *      → approved（通过，锁定归档）/ rejected（驳回，退回预算员修改）
  *
  * GET  /api/reports/monthly/workflow?month=YYYY-MM&projectId=all|123
@@ -298,7 +299,7 @@ export async function POST(request: NextRequest) {
     if (action === 'supplement' && currentStatus !== 'pending_manager') {
       return apiBadRequest('只有待项目经理补充状态可以补充提交');
     }
-    if (action === 'approve' && currentStatus !== 'pending_boss') {
+    if (action === 'approve' && !['pending_boss', 'pending_manager'].includes(currentStatus)) {
       return apiBadRequest('只有待老板审批状态可以审批');
     }
     if (action === 'reject' && !['pending_manager', 'pending_boss'].includes(currentStatus)) {

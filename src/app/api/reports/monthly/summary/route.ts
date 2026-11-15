@@ -139,7 +139,11 @@ export async function GET(request: NextRequest) {
     } else {
       const { data: allProjects } = await supabase.from('projects').select('id, name');
       targetProjectIds = (allProjects || [])
-        .filter((p: Record<string, unknown>) => String(p.name || '').trim() !== '库房')
+        .filter((p: Record<string, unknown>) => {
+          const name = String(p.name || '').trim();
+          // 红线：库房不进成本；公司公共项目/非项目日志只用于施工日志，也不进月报成本
+          return name !== '库房' && !name.includes('公司公共项目');
+        })
         .map((p: Record<string, unknown>) => p.id as number);
     }
 
@@ -400,11 +404,32 @@ export async function GET(request: NextRequest) {
     }
     let allPayments: UnifiedPayment[] = [];
 
+    // 老表 payments 与新表 supplier_payments 可能重复：按「项目+日期+金额」去重，避免月报成本翻倍
+    const newPaymentKeys = new Set<string>();
+    const newPaymentLooseKeys = new Set<string>();
+    for (const p of newSupplierPayments as Record<string, unknown>[]) {
+      if (!isEffectiveSupplierPaymentStatus(p.status as string | null)) continue;
+      const dateKey = String(p.payment_date || '').slice(0, 10);
+      const amountKey = Number(p.payment_amount || p.amount || 0).toFixed(2);
+      const contractInfo = getContractInfo(toNumber(p.contract_id) || null);
+      const pid = toNumber(p.project_id) || contractInfo.projectId;
+      if (pid) newPaymentKeys.add(`${pid}|${dateKey}|${amountKey}`);
+      newPaymentLooseKeys.add(`${dateKey}|${amountKey}`);
+    }
+
     // Old payments (direct supplier_id + project_id)
     for (const p of oldPayments as Record<string, unknown>[]) {
       const sid = toNumber(p.supplier_id);
       const pid = toNumber(p.project_id);
       if (!sid || !pid || !targetProjectIds.includes(pid)) continue;
+      const oldDateKey = String(p.payment_date || '').slice(0, 10);
+      const oldAmountKey = Number(p.payment_amount || 0).toFixed(2);
+      if (
+        newPaymentKeys.has(`${pid}|${oldDateKey}|${oldAmountKey}`)
+        || newPaymentLooseKeys.has(`${oldDateKey}|${oldAmountKey}`)
+      ) {
+        continue;
+      }
       allPayments.push({
         supplierId: sid,
         projectId: pid,

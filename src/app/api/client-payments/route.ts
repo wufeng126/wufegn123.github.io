@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
+import { isPublicLogProjectId } from '@/lib/public-log-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
@@ -152,6 +153,10 @@ export async function POST(request: NextRequest) {
     // 红线：库房只允许在零星材料中使用
     if (await isMaterialWarehouseProjectId(client, parseInt(project_id))) {
       return NextResponse.json({ error: '「库房」项目只允许在零星材料模块使用' }, { status: 400 });
+    }
+    // 红线：公司公共项目/非项目日志 只允许出现在施工日志
+    if (await isPublicLogProjectId(client, parseInt(project_id))) {
+      return NextResponse.json({ error: '「公司公共项目/非项目日志」只允许在施工日志使用，不能录入回款' }, { status: 400 });
     }
     const projectId = parseInt(project_id);
     const paymentAmount = Number(amount);
