@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog } from '@/lib/audit-log';
 import { isEffectiveSupplierPaymentStatus, isReviewedStatus, isVoidedStatus } from '@/lib/business-logic';
@@ -45,11 +46,13 @@ export async function GET(
     if (!access.ok) return access.response;
 
     // 获取结算统计
-    const { data: settlements } = await supabase
-      .from('supplier_settlements')
-      .select('*')
-      .eq('contract_id', id)
-      .order('created_at', { ascending: false });
+    const settlements = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from('supplier_settlements')
+        .select('*')
+        .eq('contract_id', id)
+        .order('created_at', { ascending: false })
+        .range(from, to));
 
     const activeSettlements = (settlements || []).filter((s: any) => isReviewedStatus(s.status));
 
@@ -62,11 +65,13 @@ export async function GET(
     const completeSettlement = activeSettlements.find((s) => isFinalSettlementType(s.settlement_type));
 
     // 获取付款统计
-    const { data: payments } = await supabase
-      .from('supplier_payments')
-      .select('*')
-      .eq('contract_id', id)
-      .order('payment_date', { ascending: false });
+    const payments = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from('supplier_payments')
+        .select('*')
+        .eq('contract_id', id)
+        .order('payment_date', { ascending: false })
+        .range(from, to));
 
     const totalPaid = (payments || [])
       .filter((p) => isEffectiveSupplierPaymentStatus(p.status))

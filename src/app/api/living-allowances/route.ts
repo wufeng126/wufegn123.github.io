@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
 
     if (projectId && projectId !== 'all') query = query.eq('project_id', Number(projectId));
     if (workerId && workerId !== 'all') query = query.eq('worker_id', Number(workerId));
-    if (yearMonth) query = query.eq('year_month', yearMonth);
+    if (yearMonth) query = query.ilike('year_month', `${yearMonth}%`);
     if (status && status !== 'all') query = query.eq('status', status);
 
     const accessibleProjectIds = await getAccessibleProjectIds(client, auth.user);

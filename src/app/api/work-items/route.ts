@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -84,20 +85,23 @@ export async function GET(request: NextRequest) {
 
     // 查询所有工程进度
     const workItemIds = workItemsData.map((item: any) => item.id);
-    const { data: progressData, error: progressError } = await client
-      .from('work_item_progress')
-      .select('work_item_id, completed_quantity')
-      .in('work_item_id', workItemIds);
-
-    if (progressError) {
-      throw new Error(`查询工程进度失败: ${progressError.message}`);
-    }
+    // 进度/子项可能超过 1000 行，分页取全量
+    const progressData = await fetchAllRows<any>((from, to) =>
+      client
+        .from('work_item_progress')
+        .select('work_item_id, completed_quantity')
+        .in('work_item_id', workItemIds)
+        .order('id', { ascending: true })
+        .range(from, to));
 
     // 查询所有子项
-    const { data: subitemsData } = await client
-      .from('work_item_subitems')
-      .select('*')
-      .in('work_item_id', workItemIds);
+    const subitemsData = await fetchAllRows<any>((from, to) =>
+      client
+        .from('work_item_subitems')
+        .select('*')
+        .in('work_item_id', workItemIds)
+        .order('id', { ascending: true })
+        .range(from, to));
 
     // 计算每个分项工程的完成量
     const progressMap = new Map<number, string>();

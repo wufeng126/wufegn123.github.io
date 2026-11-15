@@ -19,6 +19,7 @@ import {
   isEffectiveClientPaymentStatus,
   validateStatusTransition,
   REVIEW_STATUS,
+  buildSupplierSettlementCumulativeMap,
 } from '@/lib/business-logic';
 
 describe('parseNumeric', () => {
@@ -338,5 +339,52 @@ describe('状态判定与流转', () => {
     expect(validateStatusTransition('voided', 'draft').valid).toBe(false);
     expect(validateStatusTransition('draft', 'draft').valid).toBe(false);
     expect(validateStatusTransition('draft', 'invalid_target').valid).toBe(false);
+  });
+});
+
+describe('buildSupplierSettlementCumulativeMap（结算累计已付）', () => {
+  const settlement = (over: Record<string, unknown>) => ({
+    id: 1,
+    contract_id: 9,
+    status: 'reviewed',
+    settlement_type: 'progress',
+    settlement_amount: 1000,
+    payable_amount: 1000,
+    settlement_date: '2026-10-28',
+    created_at: '2026-10-28T00:00:00.000Z',
+    ...over,
+  });
+  const payment = (over: Record<string, unknown>) => ({
+    id: 1,
+    contract_id: 9,
+    status: 'completed',
+    payment_amount: 400,
+    payment_date: '2026-11-05',
+    created_at: '2026-11-05T00:00:00.000Z',
+    ...over,
+  });
+
+  it('最终结算计入结算日之后到账的付款', () => {
+    const map = buildSupplierSettlementCumulativeMap(
+      [settlement({ settlement_type: 'final' })] as never,
+      [payment({})] as never,
+    );
+    expect(map.get(1)?.paidAmount).toBe(400);
+  });
+
+  it('进度结算仍只计结算日之前的付款', () => {
+    const map = buildSupplierSettlementCumulativeMap(
+      [settlement({ settlement_type: 'progress' })] as never,
+      [payment({})] as never,
+    );
+    expect(map.get(1)?.paidAmount).toBe(0);
+  });
+
+  it('无效状态的付款不计入', () => {
+    const map = buildSupplierSettlementCumulativeMap(
+      [settlement({ settlement_type: 'final' })] as never,
+      [payment({ status: 'voided' })] as never,
+    );
+    expect(map.get(1)?.paidAmount).toBe(0);
   });
 });

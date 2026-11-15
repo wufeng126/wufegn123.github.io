@@ -207,9 +207,9 @@ export async function GET(request: NextRequest) {
       fetchAllRows<any>((from, to) => supabase.from('supplier_payments').select('*').range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('payments').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
       // P0-1 修复：排除班组分账生成的工资（其金额已计入班组结算成本），兼容 source 为 NULL 的历史手工数据
-      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', reportMonth).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
-      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', prevMonth).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
-      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).eq('year_month', lastYearMonth).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).ilike('year_month', `${reportMonth}%`).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).ilike('year_month', `${prevMonth}%`).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
+      fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).ilike('year_month', `${lastYearMonth}%`).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('worker_salaries').select('*').in('project_id', targetProjectIds).gte('year_month', sixMonthsAgoStr).or('source.is.null,source.neq.team_settlement').range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('salary_payments').select('*').in('project_id', targetProjectIds).range(from, to)).then(data => ({ data })),
       fetchAllRows<any>((from, to) => supabase.from('comprehensive_expenses').select('*').in('project_id', targetProjectIds).or('status.is.null,status.eq.reviewed').range(from, to)).then(data => ({ data })),
@@ -1481,7 +1481,7 @@ export async function GET(request: NextRequest) {
       const { data: analysisRows } = await supabase
         .from('monthly_labor_analyses')
         .select('id, project_id, total_hours, total_amount, status')
-        .eq('year_month', reportMonth)
+        .ilike('year_month', `${reportMonth}%`)
         .in('project_id', targetProjectIds);
 
       if (analysisRows && analysisRows.length > 0) {
@@ -1508,7 +1508,7 @@ export async function GET(request: NextRequest) {
         const { data: managementRows } = await supabase
           .from('worker_salaries')
           .select('gross_pay')
-          .eq('year_month', reportMonth)
+          .ilike('year_month', `${reportMonth}%`)
           .in('project_id', targetProjectIds)
           .eq('person_category', 'management');
 

@@ -187,7 +187,7 @@ export async function GET(request: Request) {
     const { data: monthlyReports } = await client
       .from('subitem_monthly_reports')
       .select('subitem_id, report_quantity, work_item_subitems(project_id, contract_price)')
-      .eq('year_month', currentMonth);
+      .ilike('year_month', `${currentMonth}%`);
 
     const currentMonthReport: Record<number, { quantity: number; amount: number }> = {};
     monthlyReports?.forEach(r => {
@@ -208,7 +208,7 @@ export async function GET(request: Request) {
     const { data: monthlySettlements } = await client
       .from('subitem_monthly_progress')
       .select('subitem_id, completed_quantity, work_item_subitems(project_id, contract_price)')
-      .eq('year_month', currentMonth);
+      .ilike('year_month', `${currentMonth}%`);
 
     const currentMonthSettlement: Record<number, { quantity: number; amount: number }> = {};
     monthlySettlements?.forEach(r => {

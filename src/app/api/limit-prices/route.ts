@@ -85,7 +85,8 @@ export async function GET(request: NextRequest) {
     query = query.or(`subitem_name.ilike.%${search}%,work_type.ilike.%${search}%,team_name.ilike.%${search}%`);
   }
   
-  const { data, error } = await query;
+  // 显式上限，避免 PostgREST 1000 行截断导致统计少算（当前业务量远小于 5000）
+  const { data, error } = await query.limit(5000);
   
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

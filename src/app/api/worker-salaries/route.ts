@@ -555,7 +555,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('worker_id', parsedWorkerId)
       .eq('project_id', parsedProjectId)
-      .eq('year_month', year_month)
+      .ilike('year_month', `${year_month}%`)
       .maybeSingle();
 
     if (existingError) {

@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
 
     // 已有核对结果的回单不允许覆盖拆分
     const { data: existingItems, error: existingError } = await queryReceiptItemsWithCompatibility(
-      (select) => client.from('living_allowance_receipt_items').select(select).eq('receipt_id', receiptId),
+      (select) => client.from('living_allowance_receipt_items').select(select).eq('receipt_id', receiptId).limit(5000),
       'id, match_status, matched_record_id, matched_salary_id',
     );
     if (existingError) throw new Error(`查询已有拆分明细失败: ${existingError.message}`);

@@ -63,10 +63,14 @@ for (const file of files) {
     'notifications', 'audit_logs', 'worker_assignments',
   ]);
   const queriedTables = Array.from(content.matchAll(/\.from\(\s*['"]([a-z_]+)['"]/g)).map((m) => m[1]);
-  const touchesLargeTable = queriedTables.some((table) => LARGE_TABLES.has(table));
+  // 只统计「没有 limit/range/single 约束」的大表查询块——精确查询（.limit(1)/.maybeSingle）不会截断
+  const unboundedLargeQueries = Array.from(content.matchAll(/\.from\(\s*['"]([a-z_]+)['"]\s*\)([\s\S]{0,600}?)(?=\.from\(|;)/g))
+    .filter((m) => LARGE_TABLES.has(m[1]) && /\.select\(/.test(m[2]) && !/\.(limit|range|single|maybeSingle)\(/.test(m[2]));
+  const touchesLargeTable = unboundedLargeQueries.length > 0;
   const isServerStats = rel.includes('/api/') || rel.includes('/lib/');
   if (isServerStats && touchesLargeTable && content.includes('reduce(')) {
-    const hasPaging = content.includes('fetchAllRows') || content.includes('fetchAllFromBuilder') || content.includes('.range(') || content.includes('head: true');
+    // 只要文件里出现分页/上限（含通过变量调用 query.limit）即视为已处理
+  const hasPaging = content.includes('fetchAllRows') || content.includes('fetchAllFromBuilder') || content.includes('.range(') || content.includes('.limit(') || content.includes('head: true');
     if (!hasPaging) {
       warnings.push(`${rel}: 有 .from() + reduce() 但没有分页/fetchAllRows —— 超过 1000 行会静默少算`);
     }

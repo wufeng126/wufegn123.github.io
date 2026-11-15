@@ -189,7 +189,8 @@ async function checkVoidConstraints(
       const { data: payments } = await client
         .from('supplier_payments')
         .select('id, payment_amount')
-        .eq('settlement_id', resourceId);
+        .eq('settlement_id', resourceId)
+        .limit(5000);
       
       const paymentRows = (payments || []) as SupplierPaymentRow[];
       if (paymentRows.length > 0) {

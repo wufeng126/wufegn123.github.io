@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getReadableDate } from '@/lib/construction-log-deadline';
 import { createConfiguredLLMClient, getAIConfig } from '@/lib/ai-service';
 import { getUserDisplayName } from '@/lib/user-display-name';
@@ -491,33 +492,36 @@ async function getReportSourceData(supabase: SupabaseClient, reportDate: string)
   const trendStart = addDays(reportDate, -6); // 近 7 日窗口（含当日）
   const recent3dStart = addDays(reportDate, -2); // 前 3 日窗口起点
   const prev3dStart = addDays(reportDate, -5); // 再前 3 日窗口起点
-  const [projectsRes, usersRes, logsRes, trendLogsRes] = await Promise.all([
+  const [projectsRes, usersRes, logs, trendLogs] = await Promise.all([
     supabase.from('projects').select('id,name').order('id', { ascending: true }),
     supabase.from('users').select('id,username,name,dingtalk_name,managed_projects,is_disabled,role'),
-    supabase
-      .from('construction_logs')
-      .select('*')
-      .eq('log_date', reportDate)
-      .or('status.is.null,status.neq.pending')
-      .or('status.is.null,status.neq.cancelled'),
-    supabase
-      .from('construction_logs')
-      .select('id,project_id,log_date,content,issues')
-      .gte('log_date', trendStart)
-      .lte('log_date', reportDate)
-      .or('status.is.null,status.neq.pending')
-      .or('status.is.null,status.neq.cancelled'),
+    // 施工日志可能超过 1000 行，按 id 稳定分页取全量
+    fetchAllRows<any>((from, to) =>
+      supabase
+        .from('construction_logs')
+        .select('*')
+        .eq('log_date', reportDate)
+        .or('status.is.null,status.neq.pending')
+        .or('status.is.null,status.neq.cancelled')
+        .order('id', { ascending: true })
+        .range(from, to)),
+    fetchAllRows<any>((from, to) =>
+      supabase
+        .from('construction_logs')
+        .select('id,project_id,log_date,content,issues')
+        .gte('log_date', trendStart)
+        .lte('log_date', reportDate)
+        .or('status.is.null,status.neq.pending')
+        .or('status.is.null,status.neq.cancelled')
+        .order('id', { ascending: true })
+        .range(from, to)),
   ]);
 
   if (projectsRes.error) throw new Error(projectsRes.error.message);
   if (usersRes.error) throw new Error(usersRes.error.message);
-  if (logsRes.error) throw new Error(logsRes.error.message);
-  if (trendLogsRes.error) throw new Error(trendLogsRes.error.message);
 
   const projects = (projectsRes.data || []) as ProjectRow[];
   const users = ((usersRes.data || []) as UserRow[]).filter(user => user.is_disabled !== true && user.role !== 'pending');
-  const logs = (logsRes.data || []) as LogRow[];
-  const trendLogs = (trendLogsRes.data || []) as LogRow[];
 
   // 今日进度任务（计划 vs 完成），用于 AI 判断进度状态；表不存在时静默跳过
   let progressTasks: ProgressTaskLite[] = [];

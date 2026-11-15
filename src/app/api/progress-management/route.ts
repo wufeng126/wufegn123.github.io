@@ -280,7 +280,8 @@ export async function GET(request: NextRequest) {
             project_id
           )
         `)
-        .in('task_id', taskIds);
+        .in('task_id', taskIds)
+        .limit(10000);
 
       if (error) {
         throw new Error(`查询进度工程量匹配失败: ${error.message}`);

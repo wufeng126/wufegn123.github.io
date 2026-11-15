@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         if (scope.length === 0) return apiSuccess({ list: [] });
         listQuery = listQuery.in('project_id', scope);
       }
-      if (filterMonth) listQuery = listQuery.eq('year_month', filterMonth);
+      if (filterMonth) listQuery = listQuery.ilike('year_month', `${filterMonth}%`);
 
       const { data: rows, error } = await listQuery.limit(500);
       if (error) throw new Error(error.message);
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       .from('monthly_labor_analyses')
       .select('*')
       .eq('project_id', projectId)
-      .eq('year_month', month)
+      .ilike('year_month', `${month}%`)
       .maybeSingle();
 
     let items: Record<string, unknown>[] = [];
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       .from('monthly_labor_analyses')
       .select('id, status')
       .eq('project_id', projectId)
-      .eq('year_month', month)
+      .ilike('year_month', `${month}%`)
       .maybeSingle();
 
     if (existing && String(existing.status) === 'confirmed') {
