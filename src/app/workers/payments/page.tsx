@@ -3,13 +3,13 @@ import { useToast } from '@/hooks/use-toast';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, RefreshCw, Trash2, Download, Upload, Filter, X, DollarSign, CreditCard, FileText, CheckCircle, ChevronRight, ChevronDown, FolderOpen, Users } from 'lucide-react';
+import { Plus, Search, RefreshCw, Trash2, Download, Upload, Filter, X, DollarSign, CreditCard, FileText, CheckCircle, ChevronRight, ChevronDown, FolderOpen, Users, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -130,6 +130,9 @@ export default function WorkerPaymentsPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [editPayment, setEditPayment] = useState<Payment | null>(null);
+  const [editForm, setEditForm] = useState({ amount: '', payment_date: '', payment_type: '银行转账', payer_type: '公司支付', remark: '', year_month: '' });
+  const [editSaving, setEditSaving] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
 
@@ -475,6 +478,52 @@ export default function WorkerPaymentsPage() {
         message: '确认导入失败，请稍后重试',
         confirming: false,
       }));
+    }
+  };
+
+  const openEditPayment = (payment: Payment) => {
+    setEditPayment(payment);
+    setEditForm({
+      amount: String(payment.amount ?? ''),
+      payment_date: String(payment.payment_date || '').slice(0, 10),
+      payment_type: payment.payment_method || payment.payment_type || '银行转账',
+      payer_type: payment.payer_type || '公司支付',
+      remark: payment.remark || '',
+      year_month: payment.year_month || '',
+    });
+  };
+
+  const handleSaveEditPayment = async () => {
+    if (!editPayment) return;
+    const amount = Number(String(editForm.amount).replace(/,/g, ''));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast({ title: '发放金额必须大于 0', variant: 'error' });
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/worker-payments/${editPayment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          payment_amount: amount,
+          payment_date: editForm.payment_date,
+          payment_type: editForm.payment_type,
+          payer_type: editForm.payer_type,
+          remark: editForm.remark,
+          year_month: editForm.year_month,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '保存失败');
+      setEditPayment(null);
+      toast({ title: '已保存修改' });
+      await fetchPayments();
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : '保存失败', variant: 'error' });
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -965,6 +1014,7 @@ export default function WorkerPaymentsPage() {
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>付款方式</TableHead>
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>班组</TableHead>
                                         <TableHead className="text-xs" style={{ color: 'var(--color-text-3)' }}>备注</TableHead>
+                                        <TableHead className="text-xs text-center" style={{ color: 'var(--color-text-3)' }}>操作</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -985,6 +1035,11 @@ export default function WorkerPaymentsPage() {
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.payment_method}</TableCell>
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.team_name || '-'}</TableCell>
                                             <TableCell className="text-sm" style={{ color: 'var(--color-text-2)' }}>{payment.remark || '-'}</TableCell>
+                                            <TableCell className="text-center">
+                                              <button type="button" onClick={() => openEditPayment(payment)} className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline">
+                                                <Pencil className="h-3.5 w-3.5" /> 编辑
+                                              </button>
+                                            </TableCell>
                                           </TableRow>
                                         );
                                       })}
@@ -1306,6 +1361,40 @@ export default function WorkerPaymentsPage() {
               确定
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editPayment)} onOpenChange={(open) => { if (!open) setEditPayment(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>编辑发放记录</DialogTitle>
+            <DialogDescription>{editPayment?.worker_name} · {editPayment?.project_name || ''}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label className="text-sm">金额 *</Label><Input value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} className="mt-1.5" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-sm">付款日期</Label><Input type="date" value={editForm.payment_date} onChange={(e) => setEditForm({ ...editForm, payment_date: e.target.value })} className="mt-1.5" /></div>
+              <div><Label className="text-sm">工资所属月份</Label><Input value={editForm.year_month} onChange={(e) => setEditForm({ ...editForm, year_month: e.target.value })} placeholder="2026-04" className="mt-1.5" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-sm">付款方式</Label><Input value={editForm.payment_type} onChange={(e) => setEditForm({ ...editForm, payment_type: e.target.value })} className="mt-1.5" /></div>
+              <div>
+                <Label className="text-sm">付款主体</Label>
+                <Select value={editForm.payer_type} onValueChange={(v) => setEditForm({ ...editForm, payer_type: v })}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="公司支付">公司支付</SelectItem>
+                    <SelectItem value="甲方代付">甲方代付</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div><Label className="text-sm">备注</Label><Input value={editForm.remark} onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })} className="mt-1.5" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPayment(null)}>取消</Button>
+            <Button onClick={() => void handleSaveEditPayment()} disabled={editSaving}>{editSaving ? '保存中…' : '保存'}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
