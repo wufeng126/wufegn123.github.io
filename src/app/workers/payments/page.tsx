@@ -449,13 +449,20 @@ export default function WorkerPaymentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'confirm', rows }),
       });
-      const result = await res.json();
+      const rawText = await res.text();
+      let result: { error?: string; count?: number; autoCreatedWorkers?: number; unmatchedSalary?: number } = {};
+      try {
+        result = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        result = { error: rawText ? rawText.slice(0, 300) : '' };
+      }
 
       if (!res.ok) {
         setImportResult(prev => ({
           ...prev,
           mode: 'error',
-          message: result.error || '确认导入失败',
+          // 直接展示服务端真实错误（含数据库约束/超时信息），便于定位
+          message: result.error || `确认导入失败（HTTP ${res.status}）${rawText ? `：${rawText.slice(0, 200)}` : ''}`,
           confirming: false,
         }));
         return;
