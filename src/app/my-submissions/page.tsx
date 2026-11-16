@@ -107,6 +107,28 @@ export default function MySubmissionsPage() {
     }
   }, []);
 
+  const pendingManagerCount = reports.filter((row) => row.status === 'pending_manager').length;
+
+  const cleanupPendingManager = async () => {
+    if (pendingManagerCount === 0) return;
+    const shouldDelete = window.confirm(
+      `有 ${pendingManagerCount} 份月报卡在「待项目经理补充」（流程已取消）。\n\n点「确定」= 删除这些月报（不可恢复）\n点「取消」= 改为「待老板审批」，保留内容`,
+    );
+    try {
+      const res = await fetch('/api/reports/monthly/workflow/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mode: shouldDelete ? 'delete' : 'to_boss' }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '清理失败');
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '清理失败');
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -330,6 +352,15 @@ export default function MySubmissionsPage() {
               <FileText className="h-4 w-4 text-[var(--color-primary)]" />
               <h2 className="font-semibold text-[var(--foreground)]">月度经营月报</h2>
               <span className="text-xs text-[var(--color-text-3)]">{reports.length} 条</span>
+              {pendingManagerCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void cleanupPendingManager()}
+                  className="ml-2 rounded border border-[#FFE7BA] bg-[#FFFBE6] px-2 py-0.5 text-xs text-[#874D00] hover:bg-[#FFF1CC]"
+                >
+                  清理待项目经理（{pendingManagerCount}）
+                </button>
+              ) : null}
             </div>
           </div>
           {loading ? (
