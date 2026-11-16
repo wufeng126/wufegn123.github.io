@@ -459,6 +459,22 @@ async function analyzeRows(
       }
     });
 
+    // 跨项目兜底索引：工人 + 月份 → 工资行（工人调离后补发原项目工资）
+    const workerIdsForSalary = Array.from(new Set(parsedRows.map((row) => row.worker_id).filter(Boolean))) as number[];
+    for (let i = 0; i < workerIdsForSalary.length; i += 200) {
+      const chunk = workerIdsForSalary.slice(i, i + 200);
+      const workerSalaries = await fetchAllRows<any>((from, to) =>
+        client
+          .from('worker_salaries')
+          .select('id, worker_id, project_id, year_month, net_pay')
+          .in('worker_id', chunk)
+          .range(from, to));
+      workerSalaries.forEach((salary: any) => {
+        const monthKey = String(salary.year_month || '').slice(0, 7);
+        salaryByWorkerMonth.set(`${salary.worker_id}:${monthKey}`, salary);
+      });
+    }
+
     const salaryIds = salaries.map((salary: any) => salary.id);
     if (salaryIds.length > 0) {
       // 分段 IN + 分页，避免已发金额少算
@@ -478,6 +494,7 @@ async function analyzeRows(
     }
   }
 
+  const salaryByWorkerMonth = new Map<string, any>();
   const importPaidMap = new Map<number, number>();
   const nameMatchedRows = new Set<number>();
   const readyRows = parsedRows.filter(row => {
@@ -527,12 +544,8 @@ async function analyzeRows(
           row.worker_id = fallback.worker_id;
           row.create_worker = false;
         }
-        issues.push({
-          row: row.row,
-          type: 'confirm',
-          code: 'salary_matched_by_name',
-          message: `已按“${row.worker_name} + 当前项目 + 工资月份”匹配到工资核算单（该人员可能已调离当前项目）`,
-        });
+        // 工人调离/退场后补发工资是正常业务：按姓名+项目+月份匹配到即视为正常，不再标记“需确认”。
+        // 仅当同一项目同月存在多个同名工人时才拦截（见上方 ambiguousNameKeys）。
       }
     } else if (duplicateSalaryKeys.has(`${row.worker_id}:${row.project_id}:${row.year_month}`)) {
       issues.push({
@@ -542,6 +555,16 @@ async function analyzeRows(
         message: '该工人在当前项目、当前月份存在多张工资核算单，请先处理重复工资记录',
       });
       return false;
+    }
+
+    // 3) 兜底：按「工人 + 月份」跨项目匹配（工人在 A 项目有工资、但已调离到 B 项目）
+    if (!salary && row.worker_id) {
+      const cross = salaryByWorkerMonth.get(`${row.worker_id}:${row.year_month}`);
+      if (cross) {
+        salary = cross;
+        // 发放跟随工资所属项目，保证账目一致
+        row.project_id = Number(cross.project_id);
+      }
     }
 
     if (!salary) {
