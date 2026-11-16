@@ -731,7 +731,8 @@ async function validateConfirmRows(
       throw new ImportValidationError(`第${row.row}行工人不存在，批量导入已取消`, 404);
     }
     row.worker_name = String(worker.name || row.worker_name || '').trim();
-    if (!relations.get(row.worker_id)?.has(row.project_id)) {
+    // 工人调离/退场后补发原项目工资属正常业务：只要该月在该项目有工资核算单即放行
+    if (!relations.get(row.worker_id)?.has(row.project_id) && !row.salary_id) {
       throw new ImportValidationError(`第${row.row}行工人与工资所属项目不匹配，批量导入已取消`);
     }
   }
