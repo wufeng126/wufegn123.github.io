@@ -434,6 +434,9 @@ async function analyzeRows(
   const duplicateSalaryKeys = new Set<string>();
   const paidMap = new Map<number, number>();
 
+  // 跨项目兜底索引：工人 + 月份 → 工资行（工人调离后补发原项目工资）
+  const salaryByWorkerMonth = new Map<string, any>();
+
   if (salaryProjectIds.length > 0 && salaryYearMonths.length > 0) {
     // 分页取全量：工资单已超 1000 行
     const salaries = await fetchAllRows<any>((from, to) =>
@@ -494,7 +497,6 @@ async function analyzeRows(
     }
   }
 
-  const salaryByWorkerMonth = new Map<string, any>();
   const importPaidMap = new Map<number, number>();
   const nameMatchedRows = new Set<number>();
   const readyRows = parsedRows.filter(row => {
