@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 import { NextRequest, NextResponse } from 'next/server';
+// 批量导入可能涉及多次校验/建档，给足执行时间（平台支持时生效）
+export const maxDuration = 60;
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix, auditLog } from '@/lib/audit-log';
@@ -1034,7 +1036,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     if (body?.mode === 'confirm') {
-      return confirmImport(body.rows || [], request, client, accessibleProjectIds);
+      try {
+        return await confirmImport(body.rows || [], request, client, accessibleProjectIds);
+      } catch (confirmError: any) {
+        console.error('[Worker Payments Batch] Confirm failed:', confirmError);
+        return NextResponse.json(
+          { error: `确认导入失败：${confirmError?.message || '未知错误'}` },
+          { status: confirmError instanceof ImportValidationError ? confirmError.status : 500 },
+        );
+      }
     }
 
     return NextResponse.json({ error: '无效的导入请求' }, { status: 400 });
