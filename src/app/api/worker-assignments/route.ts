@@ -92,9 +92,25 @@ export async function POST(request: NextRequest) {
       if (!access.ok) return access.response;
     }
 
-    if (action === 'transfer') {
+    // 未显式声明 action 时，如果工人当前项目与目标项目不同，自动按「调动」处理（退原项目 + 进新项目）
+    let effectiveAction = action;
+    let effectiveSourceProject = body.source_project_id;
+    if (effectiveAction !== 'transfer') {
+      const { data: currentWorker } = await client
+        .from('workers')
+        .select('project_id')
+        .eq('id', worker_id)
+        .maybeSingle();
+      const currentProjectId = Number(currentWorker?.project_id) || 0;
+      if (currentProjectId && currentProjectId !== Number(project_id)) {
+        effectiveAction = 'transfer';
+        effectiveSourceProject = currentProjectId;
+      }
+    }
+
+    if (effectiveAction === 'transfer') {
       // 调动：结束旧项目分配，创建新项目分配
-      const { source_project_id } = body;
+      const source_project_id = effectiveSourceProject;
       
       if (source_project_id) {
         // 结束原项目分配

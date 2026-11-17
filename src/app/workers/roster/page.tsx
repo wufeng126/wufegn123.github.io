@@ -599,6 +599,8 @@ export default function WorkerRosterPage() {
         body: JSON.stringify({
           worker_id: transferWorker.id,
           project_id: parseInt(transferProjectId),
+          action: 'transfer',
+          source_project_id: transferWorker.project_id || null,
         }),
       });
       const data = await res.json();
