@@ -229,9 +229,7 @@ export async function POST(request: NextRequest) {
     const designatedBossApproverId = Number(existingContent.bossApproverId) || 0;
 
     // 提交时必须选择下一级审批人（每级提交时选）
-    if (action === 'submit_manager' && !managerApproverId) {
-      return apiBadRequest('请选择项目经理作为下一级审批人');
-    }
+    // 审批流程已取消：提交时不再要求选择项目经理/老板审批人
     if (action === 'supplement' && !bossApproverId) {
       return apiBadRequest('请选择老板作为下一级审批人');
     }
