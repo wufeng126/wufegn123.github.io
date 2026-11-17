@@ -10,6 +10,7 @@ import {
   Loader2,
   Lock,
   LockOpen,
+  Printer,
   Save,
   Send,
   UserRoundCheck,
@@ -310,12 +311,8 @@ export default function MonthlyReportFillPage() {
     if (!month) return;
     const body: Record<string, unknown> = { month, action };
     if (action === 'submit_manager') {
-      // 已取消项目经理环节：预算员提交后直接进入老板审批
-      if (!bossApproverId) {
-        toast.error('请选择老板作为下一级审批人');
-        return;
-      }
-      body.bossApproverId = bossApproverId;
+      // 审批流程已暂时取消：提交即归档，无需选择审批人
+      body.bossApproverId = bossApproverId || 0;
       body.bossApproverName = bossOptions.find((item) => item.id === bossApproverId)?.name || '';
     }
     if (action === 'supplement') {
@@ -653,7 +650,18 @@ export default function MonthlyReportFillPage() {
                 disabled={saving}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交老板审批
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} 提交并归档
+              </button>
+            </div>
+          ) : null}
+          {status === 'approved' ? (
+            <div className="flex justify-end border-t border-[var(--border)] px-5 py-3">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-4 text-sm font-medium text-[var(--foreground)]"
+              >
+                <Printer className="h-4 w-4" /> 打印 / 另存为 PDF
               </button>
             </div>
           ) : null}
