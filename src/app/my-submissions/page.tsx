@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, Clock3, FileText, RefreshCw, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock3, FileText, RefreshCw, Send, Trash2, XCircle } from 'lucide-react';
 
 type ReportRow = {
   id: number;
@@ -126,6 +126,23 @@ export default function MySubmissionsPage() {
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '清理失败');
+    }
+  };
+
+  const deleteReport = async (id: number, label: string) => {
+    if (!window.confirm(`确定删除「${label}」月报？删除后不可恢复。`)) return;
+    try {
+      const res = await fetch('/api/reports/monthly/workflow/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mode: 'delete', ids: [id] }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '删除失败');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败');
     }
   };
 
@@ -416,6 +433,15 @@ export default function MySubmissionsPage() {
                       >
                         查看月报
                       </Link>
+                      {['draft', 'pending_manager', 'rejected'].includes(row.status) ? (
+                        <button
+                          type="button"
+                          onClick={() => void deleteReport(row.id, row.year_month)}
+                          className="inline-flex items-center gap-1 text-xs text-[#CB2634] hover:underline"
+                        >
+                          <Trash2 className="h-3 w-3" /> 删除
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 );

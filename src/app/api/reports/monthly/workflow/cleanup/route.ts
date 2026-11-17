@@ -22,10 +22,18 @@ export async function POST(request: NextRequest) {
     if (!['delete', 'to_boss'].includes(mode)) return apiBadRequest('mode 只能是 delete 或 to_boss');
 
     const client = getSupabaseClient();
-    const { data: rows, error } = await client
+    const rawIds: unknown[] = Array.isArray(body?.ids) ? body.ids : [];
+    const requestedIds = rawIds
+      .map((id) => Number(id))
+      .filter((id): id is number => Number.isInteger(id) && id > 0);
+
+    let query = client
       .from('monthly_report_workflows')
-      .select('id, year_month, project_scope, status, updated_at')
-      .eq('status', 'pending_manager');
+      .select('id, year_month, project_scope, status, updated_at');
+    query = requestedIds.length > 0
+      ? query.in('id', requestedIds)
+      : query.eq('status', 'pending_manager');
+    const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
 
     const targets = rows || [];
