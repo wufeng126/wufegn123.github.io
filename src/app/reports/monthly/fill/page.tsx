@@ -91,6 +91,11 @@ export default function MonthlyReportFillPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rejectMode, setRejectMode] = useState(false);
+  const [materialSummary, setMaterialSummary] = useState<null | {
+    total: number;
+    count: number;
+    byCategory: Array<{ category: string; amount: number; count: number }>;
+  }>(null);
   const [laborSummary, setLaborSummary] = useState<null | {
     hasData: boolean;
     totals: { hours: number; amount: number; projects: number };
@@ -169,6 +174,7 @@ export default function MonthlyReportFillPage() {
         throw new Error(summaryJson.error || '月报数据加载失败');
       }
       setOverview(summaryJson.data?.overview || {});
+      setMaterialSummary(summaryJson.data?.material || null);
       setProjects(Array.isArray(summaryJson.data?.projects) ? (summaryJson.data.projects as ProjectRow[]) : []);
 
       // 上月对比（取上月汇总用于环比展示，失败不影响主流程）
@@ -550,6 +556,65 @@ export default function MonthlyReportFillPage() {
 
                 <p className="mt-3 text-xs text-[var(--color-text-3)]">
                   数据来自「月度用工分析」，仅用于成本分析与查账，不计入项目成本；详细填报请到「经营分析 → 月度用工分析」。
+                </p>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* 本月材料情况（自动带出，只读） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[var(--color-primary)]" />
+              <h2 className="font-semibold text-[var(--foreground)]">本月材料情况</h2>
+              <span className="text-xs text-[var(--color-text-3)]">自动带出，只读</span>
+            </div>
+            {materialSummary ? (
+              <span className="text-xs text-[var(--color-text-3)]">合计 {materialSummary.count} 笔</span>
+            ) : null}
+          </div>
+          <div className="px-5 py-4">
+            {!materialSummary || materialSummary.count === 0 ? (
+              <p className="text-sm text-[var(--color-text-3)]">本月还没有零星材料采购记录（或未审核）。</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                    <p className="text-xs text-[var(--color-text-3)]">本月材料金额</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">¥{materialSummary.total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</p>
+                  </div>
+                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                    <p className="text-xs text-[var(--color-text-3)]">采购笔数</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{materialSummary.count} 笔</p>
+                  </div>
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-[var(--color-text-3)]">
+                        <th className="py-1.5 pr-3 font-medium">材料分类</th>
+                        <th className="py-1.5 pr-3 text-right font-medium">笔数</th>
+                        <th className="py-1.5 text-right font-medium">金额</th>
+                        <th className="py-1.5 pl-3 text-right font-medium">占比</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {materialSummary.byCategory.slice(0, 10).map((row) => (
+                        <tr key={row.category} className="border-t border-[var(--border)]">
+                          <td className="py-1.5 pr-3">{row.category}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{row.count}</td>
+                          <td className="py-1.5 text-right tabular-nums">¥{row.amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</td>
+                          <td className="py-1.5 pl-3 text-right tabular-nums">
+                            {materialSummary.total > 0 ? `${((row.amount / materialSummary.total) * 100).toFixed(1)}%` : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-[var(--color-text-3)]">
+                  数据来自「零星材料」（仅统计已审核记录），按采购日期归月；用于月报分析，不重复计入其他成本项。
                 </p>
               </>
             )}

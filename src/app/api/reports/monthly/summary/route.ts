@@ -786,6 +786,31 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // 本月材料情况（按分类汇总），用于月报「材料情况」区块
+    const monthMaterialRows = (materials || []).filter((m: Record<string, unknown>) => {
+      const date = String(m.purchase_date || '');
+      const status = String(m.status || '');
+      const pid = Number(m.project_id);
+      const statusOk = !status || isReviewedStatus(status);
+      return date.startsWith(reportMonth) && statusOk && targetProjectIds.includes(pid);
+    });
+    const materialCategoryMap = new Map<string, { category: string; amount: number; count: number }>();
+    monthMaterialRows.forEach((m: Record<string, unknown>) => {
+      const category = String(m.category || '其他材料');
+      const amount = calculateMiscellaneousMaterialAmount(m.quantity, m.unit_price);
+      const row = materialCategoryMap.get(category) || { category, amount: 0, count: 0 };
+      row.amount += amount;
+      row.count += 1;
+      materialCategoryMap.set(category, row);
+    });
+    const materialBreakdown = Array.from(materialCategoryMap.values())
+      .sort((a, b) => b.amount - a.amount);
+    const materialOverview = {
+      total: safeSum(materialBreakdown.map((row) => row.amount)),
+      count: monthMaterialRows.length,
+      byCategory: materialBreakdown,
+    };
+
     // Overview totals
     const overview = {
       projectCount: projects.length,
@@ -1553,6 +1578,7 @@ export async function GET(request: NextRequest) {
         statisticsScope: projectId === 'all' || !projectId ? '全部项目' : `${projects.length}个项目`,
         dataCompleteness: completenessLabel,
         overview,
+      material: materialOverview,
         projects: projectDataList,
         risks,
         riskList,
