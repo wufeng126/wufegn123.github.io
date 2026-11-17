@@ -1959,6 +1959,27 @@ html { font-variant-numeric: tabular-nums; }
     line-height: 1.45 !important;
   }
 
+  /* 根容器取消 100vh 限制与滚动，避免内容被裁切 */
+  body > div,
+  #__next,
+  #root {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  body > div > div {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* 悬浮 AI 助手/固定元素不打印 */
+  .fixed {
+    display: none !important;
+  }
+
   /* 长文本输入框在打印时按纯文本显示 */
   textarea,
   input,
