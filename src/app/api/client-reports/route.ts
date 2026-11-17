@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertProjectAccess } from '@/lib/api-project-scope';
 import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
@@ -317,10 +318,15 @@ export async function PUT(request: NextRequest) {
     // 查询当前记录
     const { data: currentData, error: fetchError } = await client
       .from('client_reports')
-      .select('status')
+      .select('status, project_id')
       .eq('id', parseInt(id))
       .single();
-    
+
+    if (currentData?.project_id) {
+      const access = await assertProjectAccess(client, auth.user, Number(currentData.project_id));
+      if (!access.ok) return access.response;
+    }
+
     if (fetchError || !currentData) {
       return NextResponse.json({ error: '记录不存在' }, { status: 404 });
     }
@@ -356,10 +362,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // 已审核记录不允许修改金额（需先反审核）
-    if (isReviewedStatus(currentData.status) && (settlement_amount !== undefined || invoice_amount !== undefined) && status !== REVIEW_STATUS.DRAFT) {
-      return NextResponse.json({ error: '已审核记录不可修改金额，请先反审核' }, { status: 400 });
-    }
+    // 2026-11 起：允许直接修改产值结算（含已审核），修改记录审计
 
     const { data, error } = await client
       .from('client_reports')
@@ -398,13 +401,15 @@ export async function DELETE(request: NextRequest) {
     // 检查状态：已审核记录不可删除
     const { data: record } = await client
       .from('client_reports')
-      .select('status')
+      .select('status, project_id')
       .eq('id', parseInt(id))
       .single();
-    
-    if (isReviewedStatus(record?.status)) {
-      return NextResponse.json({ error: '已审核记录不可删除，请先反审核' }, { status: 400 });
+
+    if (record?.project_id) {
+      const access = await assertProjectAccess(client, auth.user, Number(record.project_id));
+      if (!access.ok) return access.response;
     }
+    // 2026-11 起：允许删除已审核产值结算（删除操作写审计日志见下）
 
     const { error } = await client
       .from('client_reports')
