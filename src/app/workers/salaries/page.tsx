@@ -93,6 +93,7 @@ export default function WorkerSalariesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalaryId, setEditingSalaryId] = useState<number | null>(null);
   const [forceEdit, setForceEdit] = useState(false);
+  const [workerProjectOptions, setWorkerProjectOptions] = useState<Array<{ id: number; name: string; status?: string }>>([]);
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
   
   const [filterYear, setFilterYear] = useState(urlYearMonth.year || new Date().getFullYear().toString());
@@ -234,6 +235,31 @@ export default function WorkerSalariesPage() {
     }
   };
 
+  // 选中工人后，项目下拉只显示其任职过的项目（含已调出/已退场）
+  const loadWorkerProjectOptions = async (worker: { id: number; project_id?: number | null }) => {
+    const map = new Map<number, { id: number; name: string; status?: string }>();
+    const add = (id?: number | null, status?: string) => {
+      if (!id || map.has(id)) return;
+      const project = projects.find((item) => item.id === id);
+      map.set(id, { id, name: project?.name || `项目${id}`, status });
+    };
+    add(worker.project_id, 'in_service');
+    try {
+      const res = await fetch(`/api/worker-assignments?worker_id=${worker.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        (data.assignments || []).forEach((assignment: { project_id?: number; status?: string }) => {
+          add(assignment.project_id, assignment.status === 'active' ? 'in_service' : assignment.status);
+        });
+      }
+    } catch {
+      // 加载失败时退回全部项目
+    }
+    const options = Array.from(map.values());
+    setWorkerProjectOptions(options);
+    return options;
+  };
+
   const openEditSalary = (salary: {
     id: number; worker_id: number; project_id?: number; year_month: string;
     work_hours: string; hourly_rate: string; contract_work_pay: string;
@@ -256,6 +282,7 @@ export default function WorkerSalariesPage() {
       remark: salary.remark || '',
     });
     setDialogOpen(true);
+    void loadWorkerProjectOptions({ id: salary.worker_id, project_id: salary.project_id });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -300,6 +327,7 @@ export default function WorkerSalariesPage() {
     // 关键：新增时必须清空编辑态，否则会误走 PUT 更新旧记录
     setEditingSalaryId(null);
     setForceEdit(false);
+    setWorkerProjectOptions([]);
     setFormData({
       worker_id: '',
       project_id: '',
@@ -654,9 +682,16 @@ export default function WorkerSalariesPage() {
                                     setFormData({ 
                                       ...formData, 
                                       worker_id: w.id.toString(),
-                                      project_id: w.project_id?.toString() || formData.project_id
+                                      project_id: w.project_id?.toString() || ''
                                     });
                                     setWorkerSearchOpen(false);
+                                    void loadWorkerProjectOptions(w).then((options) => {
+                                      const fallback = options.find((item) => item.status === 'in_service') || options[0];
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        project_id: prev.project_id || fallback?.id?.toString() || '',
+                                      }));
+                                    });
                                   }}
                                 >
                                   <CheckCircle
@@ -677,7 +712,13 @@ export default function WorkerSalariesPage() {
                   <div><Label className="text-sm" style={{ color: 'var(--foreground)' }}>项目 *</Label>
                     <Select value={formData.project_id} onValueChange={(value) => setFormData({ ...formData, project_id: value })}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择项目" /></SelectTrigger>
-                      <SelectContent>{projects.map(p => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}</SelectContent>
+                      <SelectContent>
+                        {(workerProjectOptions.length > 0 ? workerProjectOptions : projects.map((p) => ({ id: p.id, name: p.name, status: undefined as string | undefined }))).map((p) => (
+                          <SelectItem key={p.id} value={p.id.toString()}>
+                            {p.name}{p.status === 'transferred' ? '（已调出）' : p.status === 'left' ? '（已退场）' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                 </div>
