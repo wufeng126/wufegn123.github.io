@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const mode = String(body?.mode || 'delete');
-    if (!['delete', 'to_boss'].includes(mode)) return apiBadRequest('mode 只能是 delete 或 to_boss');
+    if (!['delete', 'to_boss', 'archive'].includes(mode)) return apiBadRequest('mode 只能是 delete / to_boss / archive');
 
     const client = getSupabaseClient();
     const rawIds: unknown[] = Array.isArray(body?.ids) ? body.ids : [];
@@ -48,9 +48,16 @@ export async function POST(request: NextRequest) {
         if (deleteError) throw new Error(deleteError.message);
       }
     } else {
+      const targetStatus = mode === 'archive' ? 'approved' : 'pending_boss';
+      const patch: Record<string, unknown> = { status: targetStatus, updated_at: new Date().toISOString() };
+      if (mode === 'archive') {
+        patch.approved_at = new Date().toISOString();
+        patch.approved_by = '系统归档（审批流程已取消）';
+        patch.submitted_boss_at = new Date().toISOString();
+      }
       const { error: updateError } = await client
         .from('monthly_report_workflows')
-        .update({ status: 'pending_boss', updated_at: new Date().toISOString() })
+        .update(patch)
         .in('id', ids);
       if (updateError) throw new Error(updateError.message);
     }
@@ -63,7 +70,7 @@ export async function POST(request: NextRequest) {
       request,
     });
 
-    return apiSuccess({ affected: ids.length, mode, message: mode === 'delete' ? '已删除待项目经理补充的月报' : '已转为待老板审批' });
+    return apiSuccess({ affected: ids.length, mode, message: mode === 'delete' ? '已删除待项目经理补充的月报' : mode === 'archive' ? '已归档' : '已转为待老板审批' });
   } catch (error: unknown) {
     return apiServerError(getErrorMessage(error, '清理待项目经理月报失败'));
   }

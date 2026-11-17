@@ -129,6 +129,23 @@ export default function MySubmissionsPage() {
     }
   };
 
+  const archiveReport = async (id: number, label: string) => {
+    if (!window.confirm(`审批流程已取消，确定将「${label}」月报直接归档？归档后可在「已审批归档月报」中查看/打印。`)) return;
+    try {
+      const res = await fetch('/api/reports/monthly/workflow/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mode: 'archive', ids: [id] }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '归档失败');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '归档失败');
+    }
+  };
+
   const deleteReport = async (id: number, label: string) => {
     if (!window.confirm(`确定删除「${label}」月报？删除后不可恢复。`)) return;
     try {
@@ -375,7 +392,7 @@ export default function MySubmissionsPage() {
                   onClick={() => void cleanupPendingManager()}
                   className="ml-2 rounded border border-[#FFE7BA] bg-[#FFFBE6] px-2 py-0.5 text-xs text-[#874D00] hover:bg-[#FFF1CC]"
                 >
-                  清理待项目经理（{pendingManagerCount}）
+                  归档待项目经理（{pendingManagerCount}）
                 </button>
               ) : null}
             </div>
@@ -400,6 +417,9 @@ export default function MySubmissionsPage() {
                       </div>
                       <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${meta.className}`}>{meta.label}</span>
                     </div>
+                    {row.status === 'pending_manager' ? (
+                      <p className="mt-2 text-xs text-[#874D00]">审批流程已取消：这份月报可直接点「直接归档」入档并打印。</p>
+                    ) : null}
                     {/* 进度：预算员填报 → 项目经理补充 → 老板审批 → 已通过 */}
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                       {['预算员填报', '项目经理补充', '老板审批', '已通过'].map((label, index) => {
@@ -433,6 +453,15 @@ export default function MySubmissionsPage() {
                       >
                         查看月报
                       </Link>
+                      {row.status === 'pending_manager' ? (
+                        <button
+                          type="button"
+                          onClick={() => void archiveReport(row.id, row.year_month)}
+                          className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline"
+                        >
+                          直接归档
+                        </button>
+                      ) : null}
                       {['draft', 'pending_manager', 'rejected'].includes(row.status) ? (
                         <button
                           type="button"
