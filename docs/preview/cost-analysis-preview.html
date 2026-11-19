@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>成本分析 · 预览稿</title>
+<style>
+  :root{
+    --bg:#F5F6F8; --card:#fff; --border:#E5E6EB; --text:#1D2129; --text2:#4E5969; --text3:#86909C;
+    --primary:#165DFF; --success:#00A870; --warn:#FF7D00; --danger:#CB2634; --gold:#B35B00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+  .wrap{max-width:1120px;margin:0 auto;padding:24px 16px 48px}
+  .crumb{color:var(--text3);font-size:12px;margin-bottom:8px}
+  h1{font-size:22px;margin:0 0 6px}
+  .sub{color:var(--text3);font-size:12px;margin:0 0 16px}
+  .toolbar{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-bottom:12px}
+  .input{height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;background:#fff;color:var(--text2)}
+  .btn{height:34px;border:0;border-radius:8px;background:var(--primary);color:#fff;padding:0 16px;font-size:13px}
+  .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .l{font-size:12px;color:var(--text3)}
+  .kpi .v{font-size:20px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:16px}
+  .card h2{font-size:14px;margin:0 0 4px}
+  .card .hint{font-size:12px;color:var(--text3);margin:0 0 12px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .barline{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:12px}
+  .barline .name{width:56px;color:var(--text3)}
+  .track{flex:1;height:6px;background:#F2F3F5;border-radius:4px;overflow:hidden}
+  .fill{height:100%;border-radius:4px}
+  .num{width:84px;text-align:right;font-variant-numeric:tabular-nums}
+  .pct{width:50px;text-align:right;color:var(--text3);font-variant-numeric:tabular-nums}
+  .monthrow{display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-top:1px dashed var(--border)}
+  .monthrow:first-of-type{border-top:0}
+  .monthrow .m{width:60px;color:var(--text3);font-size:12px;padding-top:2px}
+  .stack{flex:1}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{color:var(--text3);font-weight:500;text-align:right;padding:8px 6px;border-bottom:1px solid var(--border)}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:8px 6px;border-bottom:1px solid #F2F3F5;text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:var(--success)} .bad{color:var(--danger)} .warn{color:var(--warn)}
+  .alert{border-radius:10px;padding:10px 12px;font-size:12px;margin-top:8px}
+  .alert.bad{background:#FFF2F0;border:1px solid #FFCCC7;color:var(--danger)}
+  .alert.warn{background:#FFFBE6;border:1px solid #FFE7BA;color:#874D00}
+  .todo{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:16px;margin-top:16px;color:var(--text3);font-size:12px}
+  .todo b{color:var(--text)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#E8F3FF;color:var(--primary);font-size:11px;margin-left:8px}
+  @media (max-width:900px){.grid6{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb">预览稿 · 仅示意版式与指标，数据为示例</div>
+  <h1>成本分析 <span class="badge">预览</span></h1>
+  <p class="sub">不含税产值 − 本月成本 = 本月利润；含全成本估算、三线对比、项目利润排行与风险预警。</p>
+  <div class="toolbar">
+    <input class="input" value="2026-10" />
+    <button class="btn">刷新</button>
+  </div>
+
+  <div class="grid6">
+    <div class="kpi"><div class="l">不含税产值</div><div class="v">184.20 万</div></div>
+    <div class="kpi"><div class="l">本月成本</div><div class="v warn">163.54 万</div></div>
+    <div class="kpi"><div class="l">本月利润</div><div class="v ok">20.66 万</div></div>
+    <div class="kpi"><div class="l">利润率</div><div class="v ok">11.2%</div></div>
+    <div class="kpi"><div class="l">全成本（估算）</div><div class="v warn">181.90 万</div></div>
+    <div class="kpi"><div class="l">潜在利润</div><div class="v ok">2.30 万</div></div>
+  </div>
+
+  <div class="card">
+    <h2>三线对比（近 6 月：产值 / 成本 / 回款）</h2>
+    <p class="hint">回款低于成本 = 资金缺口；能直观看到利润与现金流的背离。</p>
+    <div id="trend"></div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>成本构成</h2>
+      <p class="hint">六项成本占比，一眼看出钱花在哪。</p>
+      <div id="cost"></div>
+    </div>
+    <div class="card">
+      <h2>风险预警</h2>
+      <p class="hint">亏损项目、未付压力、成本率异常。</p>
+      <div class="alert bad">扶风五小项目：产值 31.04 万，成本 34.62 万，亏损 3.58 万（-11.5%）</div>
+      <div class="alert warn">供应商未付 42.30 万，占本月成本 25.9%</div>
+      <div class="alert warn">工人未发工资 18.60 万（涉及 23 人）</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>项目利润排行</h2>
+    <p class="hint">按本月利润降序；成本率 = 成本 ÷ 不含税产值，超过 100% 即亏损。</p>
+    <table>
+      <thead><tr><th>项目</th><th>不含税产值</th><th>成本</th><th>利润</th><th>利润率</th><th>成本率</th></tr></thead>
+      <tbody>
+        <tr><td>南京中交智慧港</td><td>68.40 万</td><td>55.20 万</td><td class="ok">13.20 万</td><td>19.3%</td><td>80.7%</td></tr>
+        <tr><td>延安能源产业服务基地-主体劳务</td><td>45.80 万</td><td>38.90 万</td><td class="ok">6.90 万</td><td>15.1%</td><td>84.9%</td></tr>
+        <tr><td>咸阳两寺渡项目</td><td>26.30 万</td><td>25.10 万</td><td class="ok">1.20 万</td><td>4.6%</td><td>95.4%</td></tr>
+        <tr><td>山海境TOD</td><td>12.66 万</td><td>9.72 万</td><td class="ok">2.94 万</td><td>23.2%</td><td>76.8%</td></tr>
+        <tr><td>扶风五小项目</td><td>31.04 万</td><td>34.62 万</td><td class="bad">-3.58 万</td><td class="bad">-11.5%</td><td class="bad">111.5%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="todo">
+    <b>待接入（预览占位）</b>
+    <ul style="margin:8px 0 0;padding-left:18px;line-height:1.9">
+      <li>目标成本 / 预算对比：项目开工录入目标成本，按月显示偏差率</li>
+      <li>单方成本（元/㎡）：需项目建筑面积字段</li>
+      <li>班组已完工未结算成本：需结算进度与完工量对应关系</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const trends = [
+    {m:'2026-05', income:198, received:150, cost:186},
+    {m:'2026-06', income:210, received:168, cost:192},
+    {m:'2026-07', income:176, received:140, cost:171},
+    {m:'2026-08', income:165, received:132, cost:158},
+    {m:'2026-09', income:171, received:149, cost:160},
+    {m:'2026-10', income:184.2, received:151, cost:163.54},
+  ];
+  const max = Math.max(...trends.flatMap(t=>[t.income,t.received,t.cost]));
+  document.getElementById('trend').innerHTML = trends.map(t=>`
+    <div class="monthrow">
+      <div class="m">${t.m}</div>
+      <div class="stack">
+        ${[['产值',t.income,'#165DFF'],['成本',t.cost,'#FF7D00'],['回款',t.received,'#00A870']].map(([n,v,c])=>`
+          <div class="barline"><span class="name">${n}</span>
+            <div class="track"><div class="fill" style="width:${Math.max(2,v/max*100)}%;background:${c}"></div></div>
+            <span class="num">${v.toFixed(2)} 万</span>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+
+  const parts = [
+    ['工人工资',52.30],['班组结算',38.10],['零星材料',28.73],
+    ['供应商结算',30.20],['其他费用',8.60],['税金',5.61],
+  ];
+  const total = parts.reduce((s,[,v])=>s+v,0);
+  document.getElementById('cost').innerHTML = parts.map(([n,v])=>`
+    <div class="barline"><span class="name">${n}</span>
+      <div class="track"><div class="fill" style="width:${v/total*100}%;background:#165DFF"></div></div>
+      <span class="num">${v.toFixed(2)} 万</span><span class="pct">${(v/total*100).toFixed(1)}%</span>
+    </div>`).join('');
+</script>
+</body>
+</html>
