@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>月度分析 · 预算员填写界面（预览）</title>
+<style>
+  :root{
+    --bg:#F5F6F8; --card:#fff; --border:#E5E6EB; --text:#1D2129; --text2:#4E5969; --text3:#86909C;
+    --primary:#165DFF; --success:#00A870; --warn:#FF7D00; --danger:#CB2634;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 48px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+  .crumb{color:var(--text3);font-size:12px;margin-bottom:6px}
+  h1{font-size:20px;margin:0}
+  .meta{color:var(--text3);font-size:12px;margin-top:4px}
+  .status{background:#E8FFEA;color:#00A870;border-radius:999px;padding:3px 10px;font-size:11px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+  .card-h{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600}
+  .tag{font-size:11px;color:var(--text3);font-weight:400}
+  .new{background:#E8F3FF;color:var(--primary);border-radius:6px;padding:1px 6px;font-size:11px;font-weight:500}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);background:var(--border);gap:1px}
+  .kpis4{grid-template-columns:repeat(4,1fr)}
+  .kpi{background:#fff;padding:10px 14px}
+  .kpi .l{font-size:11px;color:var(--text3)}
+  .kpi .v{font-size:17px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .d{font-size:11px;margin-top:2px}
+  .up{color:var(--success)} .down{color:var(--danger)} .orange{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{color:var(--text3);font-weight:500;text-align:right;padding:7px 10px;border-bottom:1px solid var(--border)}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:7px 10px;border-bottom:1px solid #F2F3F5;text-align:right;font-variant-numeric:tabular-nums}
+  .pad{padding:12px 16px}
+  .barrow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:12px}
+  .barrow .n{width:72px;color:var(--text2)}
+  .track{flex:1;height:6px;background:#F2F3F5;border-radius:4px;overflow:hidden}
+  .fill{height:100%;border-radius:4px;background:var(--primary)}
+  .num{width:84px;text-align:right;font-variant-numeric:tabular-nums}
+  .pct{width:46px;text-align:right;color:var(--text3);font-variant-numeric:tabular-nums}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+  .chip{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px;color:var(--text2);background:#fff}
+  .textarea{border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px 10px;min-height:64px;color:var(--text2);white-space:pre-wrap}
+  .footer{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--border);background:#fff}
+  .btn{height:32px;border-radius:8px;border:1px solid var(--border);background:#fff;padding:0 14px;font-size:12px;color:var(--text2)}
+  .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .notice{border:1px dashed #B7EB8F;background:#F6FFED;color:#237804;border-radius:10px;padding:8px 12px;font-size:12px;margin:0 16px 12px}
+  .mut{color:var(--text3);font-size:11px;padding:0 16px 12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb">← 返回月报</div>
+  <div class="head">
+    <div>
+      <h1>2026-10 月度分析</h1>
+      <div class="meta">项目 #17 · 系统数据自动带出（不可修改）</div>
+    </div>
+    <div class="status">当前状态：已通过（已归档）</div>
+  </div>
+
+  <!-- 原有：本月经营数据 -->
+  <div class="card">
+    <div class="card-h">🔒 本月经营数据 <span class="tag">系统自动带出，不可修改</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">本月产值（开票额）</div><div class="v">121.45 万元</div><div class="d up">环比 +132.2%</div></div>
+      <div class="kpi"><div class="l">工人工资应发</div><div class="v">21.23 万元</div><div class="d up">环比 +2.3%</div></div>
+      <div class="kpi"><div class="l">工人实发（月度工资）</div><div class="v">18.10 万元</div><div class="d down">环比 -9.3%</div></div>
+      <div class="kpi"><div class="l">班组结算</div><div class="v">0.00 万元</div><div class="d down">环比 -100.0%</div></div>
+      <div class="kpi"><div class="l">确认成本</div><div class="v">34.13 万元</div><div class="d down">环比 -10.5%</div></div>
+    </div>
+    <div class="pad">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">分项目明细</div>
+      <table>
+        <thead><tr><th>项目</th><th>报量</th><th>工人工资</th><th>实发</th><th>班组结算</th></tr></thead>
+        <tbody><tr><td>扶风五小项目</td><td>121.45 万元</td><td>21.23 万元</td><td>18.10 万元</td><td>0.00 万元</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pad" style="border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">各工种工资</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:12px">
+        <span>木工: 13.11 万元</span><span>普工: 3.76 万元</span><span>外架工: 1.46 万元</span>
+        <span>普工: 1.05 万元</span><span>信号工: 0.95 万元</span><span>钢筋工: 0.88 万元</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增：本月利润与成本构成 -->
+  <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
+    <div class="card-h">📊 本月利润与成本构成 <span class="new">新增预览</span> <span class="tag">不含税产值 − 本月成本 = 本月利润</span></div>
+    <div class="kpis kpis4">
+      <div class="kpi"><div class="l">本月不含税产值</div><div class="v">111.42 万元</div><div class="d tag">按 9% 税率还原</div></div>
+      <div class="kpi"><div class="l">本月成本合计</div><div class="v orange">34.13 万元</div><div class="d tag">见下方构成</div></div>
+      <div class="kpi"><div class="l">本月利润</div><div class="v up">77.29 万元</div><div class="d tag">产值 − 成本</div></div>
+      <div class="kpi"><div class="l">本月利润率</div><div class="v up">69.4%</div><div class="d tag">利润 ÷ 不含税产值</div></div>
+    </div>
+    <div class="pad" style="border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">成本构成（占比）</div>
+      <div class="barrow"><span class="n">工人工资</span><div class="track"><div class="fill" style="width:62.2%"></div></div><span class="num">21.23 万</span><span class="pct">62.2%</span></div>
+      <div class="barrow"><span class="n">班组结算</span><div class="track"><div class="fill" style="width:0.5%"></div></div><span class="num">0.00 万</span><span class="pct">0.0%</span></div>
+      <div class="barrow"><span class="n">零星材料</span><div class="track"><div class="fill" style="width:8.4%"></div></div><span class="num">2.87 万</span><span class="pct">8.4%</span></div>
+      <div class="barrow"><span class="n">供应商结算</span><div class="track"><div class="fill" style="width:24.9%"></div></div><span class="num">8.50 万</span><span class="pct">24.9%</span></div>
+      <div class="barrow"><span class="n">其他费用</span><div class="track"><div class="fill" style="width:2.9%"></div></div><span class="num">1.00 万</span><span class="pct">2.9%</span></div>
+      <div class="barrow"><span class="n">税金</span><div class="track"><div class="fill" style="width:1.6%"></div></div><span class="num">0.53 万</span><span class="pct">1.6%</span></div>
+    </div>
+    <div class="notice">口径说明：工人工资为应发（不含班组分账生成的工资）；供应商取已审核结算额；税金取发票税额。避免与班组结算重复计算。</div>
+  </div>
+
+  <!-- 原有：用工分析 -->
+  <div class="card">
+    <div class="card-h">📈 月度用工分析 <span class="tag">自动带出，仅分析用</span><span style="margin-left:auto;font-size:11px;color:var(--text3)">合计 701 小时 / ¥17,014.4</span></div>
+    <div class="kpis kpis4">
+      <div class="kpi"><div class="l">点工总工时</div><div class="v">701</div></div>
+      <div class="kpi"><div class="l">点工总金额</div><div class="v">¥17,014.4</div></div>
+      <div class="kpi"><div class="l">已填报项目</div><div class="v">1</div></div>
+      <div class="kpi"><div class="l">工作内容类别</div><div class="v">7</div></div>
+    </div>
+    <div class="chips">
+      <span class="chip">文明施工 164h ¥3,608 23.4%</span><span class="chip">甲方用工 155h ¥4,039 22.1%</span>
+      <span class="chip">装卸车 124h ¥3,262.2 17.7%</span><span class="chip">砼工帮工 90h ¥1,987.4 12.8%</span>
+      <span class="chip">临时设施 78h ¥2,100.8 11.1%</span><span class="chip">材料倒运 77h ¥1,674 11%</span>
+    </div>
+  </div>
+
+  <!-- 原有：材料情况 -->
+  <div class="card">
+    <div class="card-h">📦 本月材料情况 <span class="tag">自动带出，只读</span><span style="margin-left:auto;font-size:11px;color:var(--text3)">合计 57 笔</span></div>
+    <div class="kpis" style="grid-template-columns:1fr 1fr">
+      <div class="kpi"><div class="l">本月材料金额</div><div class="v">¥28,725.61</div></div>
+      <div class="kpi"><div class="l">采购笔数</div><div class="v">57 笔</div></div>
+    </div>
+    <table>
+      <thead><tr><th>材料分类</th><th>笔数</th><th>金额</th><th>占比</th></tr></thead>
+      <tbody>
+        <tr><td>五金电料</td><td>13</td><td>¥14,389.98</td><td>50.1%</td></tr>
+        <tr><td>周转辅材</td><td>7</td><td>¥4,022</td><td>14.0%</td></tr>
+        <tr><td>油料化工</td><td>6</td><td>¥3,106</td><td>10.8%</td></tr>
+        <tr><td>小型工具</td><td>13</td><td>¥2,919</td><td>10.2%</td></tr>
+        <tr><td>施工杂费</td><td>2</td><td>¥2,259</td><td>7.9%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 原有：预算员分析 -->
+  <div class="card">
+    <div class="card-h">📝 预算员分析 <span class="tag">填报人：伍锋</span></div>
+    <div class="pad">
+      <div class="textarea">1.本月实际完成产值66万，121万中存在走账
+2.本月钢筋工上报结算存在成本超支，已通知班组重新核算人工成本，目前未上交。
+3.混凝土班组本月完成产值45514元。
+4.甲方用工目前只办理了两份签证7760元，未办理的签证表示后期以工程里来结算，已通知项目对后期甲方用工不再考虑配合。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div><div class="tag" style="margin-bottom:4px">风险说明</div><div class="textarea">目前产值能够覆盖工人工资；签证办理存在问题</div></div>
+        <div><div class="tag" style="margin-bottom:4px">下月计划</div><div class="textarea">（未填写）</div></div>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="btn">保存草稿</button>
+      <button class="btn primary">提交并归档</button>
+    </div>
+  </div>
+
+  <div style="text-align:center;color:var(--text3);font-size:11px;margin-top:10px">预览稿 · 示例数据（除经营数据/材料/用工取自你的截图外，利润为按 9% 税率测算）</div>
+</div>
+</body>
+</html>
