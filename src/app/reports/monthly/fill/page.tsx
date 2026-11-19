@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 
 type WorkflowContent = {
   actualOutput?: number | string;
+  quantities?: Array<{ item: string; unit: string; quantity: string | number; unitPrice: string | number; amount: string | number }>;
   analysis?: string;
   risk?: string;
   nextPlan?: string;
@@ -123,6 +124,7 @@ export default function MonthlyReportFillPage() {
 
   const [analysis, setAnalysis] = useState('');
   const [actualOutput, setActualOutput] = useState('');
+  const [quantities, setQuantities] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
   const [remark, setRemark] = useState('');
@@ -219,6 +221,14 @@ export default function MonthlyReportFillPage() {
       setContent(c);
       setAnalysis(String(c.analysis || ''));
     setActualOutput(c.actualOutput == null ? '' : String(c.actualOutput));
+    setQuantities(Array.isArray(c.quantities)
+      ? c.quantities.map((row) => ({
+          item: String(row.item || ''),
+          unit: String(row.unit || ''),
+          quantity: String(row.quantity ?? ''),
+          unitPrice: String(row.unitPrice ?? ''),
+        }))
+      : []);
       setRisk(String(c.risk || ''));
       setNextPlan(String(c.nextPlan || ''));
       setRemark(String(c.remark || ''));
@@ -396,6 +406,15 @@ export default function MonthlyReportFillPage() {
     nextPlan,
     remark,
     actualOutput: actualOutput.trim() === '' ? '' : Number(actualOutput.replace(/,/g, '')),
+    quantities: quantities
+      .filter((row) => row.item.trim() || Number(row.quantity) > 0)
+      .map((row) => ({
+        item: row.item.trim(),
+        unit: row.unit.trim(),
+        quantity: Number(String(row.quantity).replace(/,/g, '')) || 0,
+        unitPrice: Number(String(row.unitPrice).replace(/,/g, '')) || 0,
+        amount: (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0),
+      })),
   };
 
   return (
@@ -740,6 +759,92 @@ export default function MonthlyReportFillPage() {
                 </p>
               </>
             )}
+          </div>
+        </section>
+
+        {/* 实际工程量（手工填写） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-[var(--foreground)]">实际工程量</h2>
+              <span className="text-xs text-[var(--color-text-3)]">手工填写，用于核对实际产值是否有工程量支撑</span>
+            </div>
+            {canFill ? (
+              <button
+                type="button"
+                onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-3 text-xs text-[var(--color-primary)] hover:bg-[var(--color-muted)]"
+              >
+                + 添加一行
+              </button>
+            ) : null}
+          </div>
+          <div className="overflow-x-auto px-5 py-3">
+            {quantities.length === 0 ? (
+              <p className="text-sm text-[var(--color-text-3)]">本月还没有填写工程量{canFill ? '，点右上角「+ 添加一行」开始填写。' : '。'}</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[var(--color-text-3)]">
+                    <th className="py-1.5 pr-2 text-left font-medium">工作内容</th>
+                    <th className="w-16 py-1.5 pr-2 text-left font-medium">单位</th>
+                    <th className="w-24 py-1.5 pr-2 text-right font-medium">数量</th>
+                    <th className="w-24 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
+                    <th className="w-28 py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
+                    <th className="w-12 py-1.5 text-center font-medium">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quantities.map((row, index) => {
+                    const amount = (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0);
+                    return (
+                      <tr key={index} className="border-t border-[var(--border)]">
+                        <td className="py-1.5 pr-2">
+                          <input value={row.item} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, item: e.target.value } : r))} placeholder="如 砌体工程" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:bg-transparent disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.unit} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unit: e.target.value } : r))} placeholder="m³" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:bg-transparent disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.quantity} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, quantity: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:bg-transparent disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.unitPrice} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unitPrice: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:bg-transparent disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{amount.toFixed(2)}</td>
+                        <td className="py-1.5 text-center">
+                          {canFill ? (
+                            <button type="button" onClick={() => setQuantities((prev) => prev.filter((_, i) => i !== index))} className="text-xs text-[#CB2634] hover:underline">删除</button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--border)] font-semibold">
+                    <td className="py-2" colSpan={4}>合计（不含税）</td>
+                    <td className="py-2 pr-2 text-right tabular-nums">
+                      {quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0).toFixed(2)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+            {quantities.length > 0 ? (() => {
+              const total = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
+              const actual = Number(String(actualOutput).replace(/,/g, '')) || 0;
+              const booked = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              const compareBase = actual > 0 ? actual : booked;
+              const diff = total - compareBase;
+              return (
+                <p className={`mt-2 text-xs ${Math.abs(diff) > compareBase * 0.05 ? 'text-[#CB3740]' : 'text-[var(--color-text-3)]'}`}>
+                  工程量合计 {total.toFixed(2)} 万，实际产值 {compareBase.toFixed(2)} 万，差异 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
+                  {Math.abs(diff) > compareBase * 0.05 ? '（差异超过 5%，请核对工程量或实际产值）' : ''}
+                </p>
+              );
+            })() : null}
           </div>
         </section>
 
