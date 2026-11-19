@@ -147,15 +147,54 @@
 
   <!-- 新增：自动分析 -->
   <div class="card" style="border-color:#B7EB8F;box-shadow:0 0 0 3px #F6FFED">
-    <div class="card-h">🤖 自动分析 <span class="new">新增</span> <span class="tag">根据本月数据自动生成，可编辑后保存</span></div>
-    <div class="pad" style="line-height:1.9;font-size:12px">
-      <div>✅ 本月不含税产值 <b>111.42 万</b>，环比 <b class="up">+132.2%</b>；成本 <b>34.13 万</b>，成本率 <b>30.6%</b>；利润 <b class="up">77.29 万</b>，利润率 <b class="up">69.4%</b>。</div>
-      <div>👷 人工成本 <b>21.23 万</b>，占总成本 <b>62.2%</b>（偏高，建议关注工时效率与班组结算）。</div>
-      <div>📦 材料 <b>2.87 万</b>（占 8.4%），其中「五金电料」占材料 <b>50.1%</b>，建议核对单价与领用记录。</div>
-      <div>🧾 供应商结算 <b>8.50 万</b>（24.9%），未付 <b class="orange">42.30 万</b>，占本月成本 123.9%，需关注付款计划。</div>
-      <div>📈 用工：点工 <b>701 小时 / ¥17,014</b>，「文明施工」占 23.4%，与产值匹配度需结合现场确认。</div>
-      <div class="alert warn" style="margin-top:8px">风险：工人未发工资 <b>3.13 万</b>；材料分类集中度高（五金电料 50.1%），存在单价异常可能。</div>
-      <div class="alert bad" style="margin-top:8px">提示：本月产值含 121.45 万中的走账部分，实际完成产值按预算员口径为 66 万，建议在下方「预算员分析」中说明差异。</div>
+    <div class="card-h">🤖 自动分析 <span class="new">新增</span> <span class="tag">对比上月、拆解成本、校验数据完整性</span></div>
+    <div style="padding:6px 16px 14px">
+
+      <div style="border:1px solid #FFCCC7;background:#FFF2F0;border-radius:10px;padding:10px 12px;margin-top:8px">
+        <div style="font-weight:600;color:#CB2634;font-size:12px">🔴 成本率异常下降，需确认产值与成本口径</div>
+        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
+          本月成本率 <b>30.6%</b>，上月约 <b>94%</b>，下降 63 个百分点。但本月产值 111.42 万、成本仅 34.13 万，成本没有随产值增长——两种可能：①产值包含走账（预算员已说明 121 万中 66 万为实际）；②成本未完全归集（班组 0 元、供应商结算偏低）。
+        </div>
+        <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：核实产值确认依据，同时确认班组/供应商本月是否有未结算成本未入账。</div>
+      </div>
+
+      <div style="border:1px solid #B7EB8F;background:#F6FFED;border-radius:10px;padding:10px 12px;margin-top:8px">
+        <div style="font-weight:600;color:#237804;font-size:12px">✅ 利润环比增加约 73.8 万，主要由产值驱动</div>
+        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
+          产值变动影响 <b>+74.9 万</b>，成本变动影响 <b>-1.1 万</b>。成本端基本稳定，本月利润改善几乎全部来自产值增加，需确认产值是否为真实完成量。
+        </div>
+      </div>
+
+      <div style="border:1px solid #FFE7BA;background:#FFFBE6;border-radius:10px;padding:10px 12px;margin-top:8px">
+        <div style="font-weight:600;color:#874D00;font-size:12px">⚠️ 班组结算为 0，与 21.23 万人工成本不匹配</div>
+        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
+          本月有 23 名工人在册、人工成本 21.23 万，但班组结算为 0。若这些工人属于班组，说明班组结算尚未入账，成本被低估；若为自有工人则正常。
+        </div>
+        <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：确认本月是否有已完工未结算的班组，避免成本跨月累积后集中爆发。</div>
+      </div>
+
+      <div style="border:1px solid #FFE7BA;background:#FFFBE6;border-radius:10px;padding:10px 12px;margin-top:8px">
+        <div style="font-weight:600;color:#874D00;font-size:12px">⚠️ 供应商未付 42.3 万，占应付比例高</div>
+        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
+          本月供应商结算 8.50 万，但累计未付 42.30 万，相当于本月成本的 123.9%。持续累积会影响供货与结算价。
+        </div>
+        <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：按供应商列出未付清单，优先处理影响供货的关键供应商。</div>
+      </div>
+
+      <div style="border:1px solid #E5E6EB;background:#fff;border-radius:10px;padding:10px 12px;margin-top:8px">
+        <div style="font-weight:600;font-size:12px">ℹ️ 每工时可支撑产值约 1,589 元，工效正常</div>
+        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
+          点工 701 小时，产值 111.42 万。该效率处于正常区间，人工投入产出未见异常；但人工成本占产值 19.1%，需结合工种结构判断。
+        </div>
+      </div>
+
+      <div style="border:1px solid #FFE7BA;background:#FFFBE6;border-radius:10px;padding:10px 12px;margin-top:8px">
+        <div style="font-weight:600;color:#874D00;font-size:12px">⚠️ 工人未发工资 3.13 万，涉及 23 人</div>
+        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
+          本月应发 21.23 万、实发 18.10 万，未发比例约 14.7%。虽未到高风险区间，但需关注是否有已退场工人未结清。
+        </div>
+      </div>
+
     </div>
   </div>
 
