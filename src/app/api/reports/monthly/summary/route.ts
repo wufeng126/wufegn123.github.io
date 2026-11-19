@@ -767,6 +767,30 @@ export async function GET(request: NextRequest) {
         monthMaterialCost, monthTaxCost, monthCost, monthSupplierPayments,
         profit: monthIncome - monthCost,
         profitRate: monthIncome > 0 ? ((monthIncome - monthCost) / monthIncome) * 100 : 0,
+        monthProfitExTax: (safeSum(monthReports.map((r: Record<string, unknown>) => {
+          const invoice = Number(r.invoice_amount || 0);
+          const settlementAmt = Number(r.settlement_amount || 0);
+          const rate = Number(r.tax_rate ?? 9) / 100;
+          const base = invoice > 0 ? invoice : settlementAmt;
+          return rate > 0 ? base / (1 + rate) : base;
+        })) - monthCost),
+        monthProfitExTaxRate: (() => {
+          const exTax = safeSum(monthReports.map((r: Record<string, unknown>) => {
+            const invoice = Number(r.invoice_amount || 0);
+            const settlementAmt = Number(r.settlement_amount || 0);
+            const rate = Number(r.tax_rate ?? 9) / 100;
+            const base = invoice > 0 ? invoice : settlementAmt;
+            return rate > 0 ? base / (1 + rate) : base;
+          }));
+          return exTax > 0 ? ((exTax - monthCost) / exTax) * 100 : 0;
+        })(),
+        monthIncomeExTax: safeSum(monthReports.map((r: Record<string, unknown>) => {
+          const invoice = Number(r.invoice_amount || 0);
+          const settlementAmt = Number(r.settlement_amount || 0);
+          const rate = Number(r.tax_rate ?? 9) / 100;
+          const base = invoice > 0 ? invoice : settlementAmt;
+          return rate > 0 ? base / (1 + rate) : base;
+        })),
         monthConfirmedOutput: monthIncome, monthApprovedVisa: monthVisaIncome, monthConfirmedCost: monthCost,
         operatingProfit, operatingProfitRate, cashNetFlow, cashNetFlowRate,
         monthActualPayment,
@@ -828,6 +852,9 @@ export async function GET(request: NextRequest) {
       monthExpenseCost: safeSum(projectDataList.map(p => p.monthExpenseCost)),
       totalMaterialCost: safeSum(projectDataList.map(p => p.materialCost)),
       monthMaterialCost: safeSum(projectDataList.map(p => p.monthMaterialCost)),
+      monthIncomeExTax: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthIncomeExTax) || 0)),
+      monthProfitExTax: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthProfitExTax) || 0)),
+      monthProfitExTaxRate: 0,
       totalTaxCost: safeSum(projectDataList.map(p => p.taxCost)),
       monthTaxCost: safeSum(projectDataList.map(p => p.monthTaxCost)),
       profit: safeSum(projectDataList.map(p => p.profit)),

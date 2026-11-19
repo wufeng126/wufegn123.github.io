@@ -506,6 +506,95 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
+        {/* 本月利润与成本构成（自动带出） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+            <h2 className="font-semibold text-[var(--foreground)]">本月利润与成本构成</h2>
+            <span className="text-xs text-[var(--color-text-3)]">不含税产值 − 本月成本 = 本月利润</span>
+          </div>
+          <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
+            {(() => {
+              const exTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              const cost = Number(overview.monthCost) || 0;
+              const profit = exTax - cost;
+              const rate = exTax > 0 ? (profit / exTax) * 100 : 0;
+              return [
+                { label: '本月不含税产值', value: fmtWan(exTax), tone: 'text-[var(--foreground)]' },
+                { label: '本月成本合计', value: fmtWan(cost), tone: 'text-[#FF7D00]' },
+                { label: '本月利润', value: fmtWan(profit), tone: profit >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]' },
+                { label: '本月利润率', value: `${rate.toFixed(1)}%`, tone: rate >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]' },
+              ].map((item) => (
+                <div key={item.label} className="bg-white px-4 py-3">
+                  <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
+                  <div className={`mt-1 text-lg font-semibold tabular-nums ${item.tone}`}>{item.value}</div>
+                </div>
+              ));
+            })()}
+          </div>
+          <div className="border-t border-[var(--border)] px-5 py-3">
+            <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">成本构成</div>
+            <div className="space-y-2">
+              {(() => {
+                const items = [
+                  { label: '工人工资', value: totals.laborSalary },
+                  { label: '班组结算', value: totals.teamSettlement },
+                  { label: '零星材料', value: projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).monthMaterialCost || 0), 0) },
+                  { label: '供应商结算', value: projects.reduce((sum, p) => sum + Number((p as Record<string, unknown>).monthSupplierSettlement || 0), 0) },
+                  { label: '其他费用', value: projects.reduce((sum, p) => sum + Number((p as Record<string, unknown>).monthExpenseCost || 0), 0) },
+                  { label: '税金', value: projects.reduce((sum, p) => sum + Number((p as Record<string, unknown>).monthTaxCost || 0), 0) },
+                ];
+                const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+                return items.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3 text-xs">
+                    <span className="w-20 shrink-0 text-[var(--color-text-2)]">{item.label}</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded bg-[var(--color-muted)]">
+                      <div className="h-full rounded bg-[var(--color-primary)]" style={{ width: `${Math.min(100, (item.value / total) * 100)}%` }} />
+                    </div>
+                    <span className="w-20 shrink-0 text-right tabular-nums">{fmtWan(item.value)}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums text-[var(--color-text-3)]">{((item.value / total) * 100).toFixed(1)}%</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+          {projects.length > 0 ? (
+            <div className="border-t border-[var(--border)] px-5 py-3">
+              <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">分项目利润</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[var(--color-text-3)]">
+                      <th className="py-1.5 pr-3 text-left font-medium">项目</th>
+                      <th className="py-1.5 pr-3 text-right font-medium">不含税产值</th>
+                      <th className="py-1.5 pr-3 text-right font-medium">成本</th>
+                      <th className="py-1.5 pr-3 text-right font-medium">利润</th>
+                      <th className="py-1.5 text-right font-medium">利润率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projects.map((project) => {
+                      const row = project as unknown as Record<string, unknown>;
+                      const exTax = Number(row.monthIncomeExTax) || 0;
+                      const cost = Number((project as unknown as Record<string, unknown>).monthCost) || 0;
+                      const profit = Number(row.monthProfitExTax) || (exTax - cost);
+                      const rate = Number(row.monthProfitExTaxRate) || (exTax > 0 ? (profit / exTax) * 100 : 0);
+                      return (
+                        <tr key={project.id} className="border-t border-[var(--border)]">
+                          <td className="py-1.5 pr-3">{project.name}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{fmtWan(exTax)}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{fmtWan(cost)}</td>
+                          <td className={`py-1.5 pr-3 text-right tabular-nums ${profit >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>{fmtWan(profit)}</td>
+                          <td className={`py-1.5 text-right tabular-nums ${rate >= 0 ? 'text-[var(--color-text-2)]' : 'text-[var(--color-danger)]'}`}>{rate.toFixed(1)}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </section>
+
         {/* 月度用工分析（自动带出，只读） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
