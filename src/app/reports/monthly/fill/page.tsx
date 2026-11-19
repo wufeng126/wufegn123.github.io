@@ -126,7 +126,6 @@ export default function MonthlyReportFillPage() {
   const [analysis, setAnalysis] = useState('');
   const [actualOutput, setActualOutput] = useState('');
   const [quantities, setQuantities] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
-  const [quantitiesUp, setQuantitiesUp] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
   const [reportItems, setReportItems] = useState<Array<{ projectId?: number; content: string; unit: string; quantity: number; unitPrice: number; amountExTax: number }>>([]);
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
@@ -227,14 +226,6 @@ export default function MonthlyReportFillPage() {
     setActualOutput(c.actualOutput == null ? '' : String(c.actualOutput));
     setQuantities(Array.isArray(c.quantities)
       ? c.quantities.map((row) => ({
-          item: String(row.item || ''),
-          unit: String(row.unit || ''),
-          quantity: String(row.quantity ?? ''),
-          unitPrice: String(row.unitPrice ?? ''),
-        }))
-      : []);
-    setQuantitiesUp(Array.isArray(c.quantitiesUp)
-      ? c.quantitiesUp.map((row) => ({
           item: String(row.item || ''),
           unit: String(row.unit || ''),
           quantity: String(row.quantity ?? ''),
@@ -422,15 +413,6 @@ export default function MonthlyReportFillPage() {
     nextPlan,
     remark,
     actualOutput: actualOutput.trim() === '' ? '' : Number(actualOutput.replace(/,/g, '')),
-    quantitiesUp: quantitiesUp
-      .filter((row) => row.item.trim() || Number(row.quantity) > 0)
-      .map((row) => ({
-        item: row.item.trim(),
-        unit: row.unit.trim(),
-        quantity: Number(String(row.quantity).replace(/,/g, '')) || 0,
-        unitPrice: Number(String(row.unitPrice).replace(/,/g, '')) || 0,
-        amount: (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0),
-      })),
     quantities: quantities
       .filter((row) => row.item.trim() || Number(row.quantity) > 0)
       .map((row) => ({
@@ -622,44 +604,33 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
-        {/* 对上 / 对下工程量（均手工填写） */}
+        {/* 实际工程量（手工填写） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-[var(--foreground)]">对上 / 对下工程量</h2>
-              <span className="text-xs text-[var(--color-text-3)]">均手工填写；对下为班组/分包口径，上为甲方报量口径</span>
+              <h2 className="font-semibold text-[var(--foreground)]">实际工程量</h2>
+              <span className="text-xs text-[var(--color-text-3)]">手工填写，用于核对实际产值是否有工程量支撑</span>
             </div>
+            {canFill ? (
+              <button type="button" onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])} className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-3 text-xs text-[var(--color-primary)] hover:bg-[var(--color-muted)]">
+                + 添加一行
+              </button>
+            ) : null}
           </div>
           <div className="px-5 py-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[var(--color-text-2)]">对上工程量（手工填写）</span>
-              {canFill ? (
-                <button type="button" onClick={() => setQuantitiesUp((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])} className="text-xs text-[var(--color-primary)] hover:underline">+ 添加一行</button>
-              ) : null}
-            </div>
-            <QuantityTable rows={quantitiesUp} setRows={setQuantitiesUp} editable={canFill} />
-          </div>
-          <div className="border-t border-[var(--border)] px-5 py-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[var(--color-text-2)]">对下工程量（手工填写，班组/分包口径）</span>
-              {canFill ? (
-                <button type="button" onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])} className="text-xs text-[var(--color-primary)] hover:underline">+ 添加一行</button>
-              ) : null}
-            </div>
             <QuantityTable rows={quantities} setRows={setQuantities} editable={canFill} />
+            {quantities.length > 0 ? (() => {
+              const total = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
+              const actual = Number(String(actualOutput).replace(/,/g, '')) || 0;
+              const diff = total - actual;
+              return (
+                <p className={`mt-2 text-xs ${actual > 0 && Math.abs(diff) > actual * 0.05 ? 'text-[#CB2634]' : 'text-[var(--color-text-3)]'}`}>
+                  工程量合计 {total.toFixed(2)} 万，实际产值 {actual.toFixed(2)} 万，差异 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
+                  {actual > 0 && Math.abs(diff) > actual * 0.05 ? '（差异超过 5%，请核对）' : ''}
+                </p>
+              );
+            })() : null}
           </div>
-          {(() => {
-            const upTotal = quantitiesUp.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
-            const downTotal = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
-            const diff = downTotal - upTotal;
-            const over = upTotal > 0 && Math.abs(diff) > upTotal * 0.05;
-            return (
-              <div className="border-t border-[var(--border)] bg-[#F7F8FA] px-5 py-3 text-xs">
-                对上合计 {upTotal.toFixed(2)} 万，对下合计 {downTotal.toFixed(2)} 万，差额 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
-                {over ? <span className="text-[#CB2634]">（差额超过 5%，请核对分项口径）</span> : null}
-              </div>
-            );
-          })()}
         </section>
 
         {/* 月度用工分析（自动带出，只读） */}
