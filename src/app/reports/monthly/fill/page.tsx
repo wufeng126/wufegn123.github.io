@@ -333,10 +333,14 @@ export default function MonthlyReportFillPage() {
 
   async function post(action: string, extra?: { content?: WorkflowContent; reason?: string }) {
     if (!month) return;
-    // 实际产值为不含税口径：不能大于开票额还原的不含税产值
+    // 实际产值为不含税口径，需手动填写（暂不自动取开票额）
     const bookedExTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
     const actualValue = Number(String(actualOutput).replace(/,/g, '')) || 0;
-    if (actualValue > 0 && bookedExTax > 0 && actualValue > bookedExTax + 1) {
+    if (!(actualValue > 0)) {
+      toast.error('请先填写「实际产值（不含税）」再保存/提交');
+      return;
+    }
+    if (bookedExTax > 0 && actualValue > bookedExTax + 1) {
       toast.error(`实际产值（${actualValue.toFixed(2)} 万）不能大于不含税开票额（${bookedExTax.toFixed(2)} 万）`);
       return;
     }
@@ -559,16 +563,15 @@ export default function MonthlyReportFillPage() {
               value={actualOutput}
               onChange={(event) => setActualOutput(event.target.value)}
               disabled={!canFill}
-              placeholder={`默认取开票额 ${fmtWan(Number((overview as Record<string, unknown>).monthIncomeExTax) || 0)}`}
+              placeholder="如 66.00（不含税）"
               className="h-8 w-44 rounded-lg border border-[var(--border)] bg-white px-2 text-sm tabular-nums outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)]"
             />
-            <span className="text-[var(--color-text-3)]">留空则按开票额还原不含税产值；填写后利润、利润率、自动分析均按此不含税实际产值计算。</span>
+            <span className="text-[var(--color-text-3)]">必填：填写不含税实际产值（剔除走账）；利润、利润率、自动分析均按此计算。开票额仅作对比参考。</span>
           </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
             {(() => {
               const booked = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
-              const manualActual = Number(String(actualOutput).replace(/,/g, '')) || 0;
-              const exTax = manualActual > 0 ? manualActual : booked;
+              const exTax = Number(String(actualOutput).replace(/,/g, '')) || 0;
               const cost = Number(overview.monthCost) || 0;
               const profit = exTax - cost;
               const rate = exTax > 0 ? (profit / exTax) * 100 : 0;
