@@ -595,6 +595,53 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
+        {/* 自动分析（规则生成） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[#B7EB8F] bg-[#F6FFED]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#B7EB8F] px-5 py-3">
+            <h2 className="font-semibold text-[var(--foreground)]">自动分析</h2>
+            <span className="text-xs text-[var(--color-text-3)]">根据本月数据自动生成，可在下方「预算员分析」中补充说明</span>
+          </div>
+          <div className="space-y-1.5 px-5 py-4 text-sm leading-6">
+            {(() => {
+              const exTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              const cost = Number(overview.monthCost) || 0;
+              const profit = exTax - cost;
+              const rate = exTax > 0 ? (profit / exTax) * 100 : 0;
+              const labor = Number(totals.laborSalary) || 0;
+              const team = Number(totals.teamSettlement) || 0;
+              const material = projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).monthMaterialCost || 0), 0);
+              const supplier = projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).monthSupplierSettlement || 0), 0);
+              const other = projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).monthExpenseCost || 0), 0);
+              const tax = projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).monthTaxCost || 0), 0);
+              const total = cost || 1;
+              const share = (v: number) => ((v / total) * 100).toFixed(1);
+              const laborShare = Number(share(labor));
+              const materialShare = Number(share(material));
+              const supplierShare = Number(share(supplier));
+              const prevIncome = Number(prevTotals?.income) || 0;
+              const incomeDelta = prevIncome > 0 ? ((Number(overview.monthIncome) || 0) - prevIncome) / prevIncome * 100 : null;
+              const topMaterial = materialSummary?.byCategory?.[0];
+              const materialTopShare = topMaterial && material > 0 ? (topMaterial.amount / material) * 100 : 0;
+              const lines: Array<{ text: string; tone?: string }> = [];
+              lines.push({
+                text: `本月不含税产值 ${exTax.toFixed(2)} 万，成本 ${cost.toFixed(2)} 万（成本率 ${exTax > 0 ? ((cost / exTax) * 100).toFixed(1) : '0.0'}%），利润 ${profit.toFixed(2)} 万，利润率 ${rate.toFixed(1)}%。`,
+                tone: profit >= 0 ? 'text-[#237804]' : 'text-[#CB2634]',
+              });
+              if (incomeDelta !== null) {
+                lines.push({ text: `产值环比 ${incomeDelta >= 0 ? '+' : ''}${incomeDelta.toFixed(1)}%；成本环比 ${prevTotals?.cost ? (((cost - prevTotals.cost) / prevTotals.cost) * 100).toFixed(1) : '0.0'}%。` });
+              }
+              lines.push({ text: `成本构成：人工 ${labor.toFixed(2)} 万（${share(labor)}%）、班组 ${team.toFixed(2)} 万（${share(team)}%）、材料 ${material.toFixed(2)} 万（${share(material)}%）、供应商 ${supplier.toFixed(2)} 万（${share(supplier)}%）、其他 ${other.toFixed(2)} 万（${share(other)}%）、税金 ${tax.toFixed(2)} 万（${share(tax)}%）。` });
+              if (laborShare >= 55) lines.push({ text: `人工占比 ${laborShare}% 偏高，建议核对工时效率、班组结算与用工分析中的点工分类。`, tone: 'text-[#B35B00]' });
+              if (topMaterial && materialTopShare >= 40) lines.push({ text: `材料集中于「${topMaterial.category}」（占材料 ${materialTopShare.toFixed(1)}%，${topMaterial.count} 笔），建议核对单价与领用记录。`, tone: 'text-[#B35B00]' });
+              if (supplierShare >= 30) lines.push({ text: `供应商结算占成本 ${supplierShare}%，需关注结算进度与未付金额。`, tone: 'text-[#B35B00]' });
+              if (profit < 0) lines.push({ text: `本月利润为负（${profit.toFixed(2)} 万），需重点核实产值确认与成本归集是否完整。`, tone: 'text-[#CB2634]' });
+              return lines.map((line, index) => (
+                <p key={index} className={line.tone || 'text-[var(--color-text-2)]'}>{line.text}</p>
+              ));
+            })()}
+          </div>
+        </section>
+
         {/* 月度用工分析（自动带出，只读） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
