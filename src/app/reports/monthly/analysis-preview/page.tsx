@@ -114,7 +114,7 @@ export default function CostAnalysisPreviewPage() {
             <Link href="/reports/monthly" className="text-sm text-[var(--color-primary)] hover:underline">← 返回月度经营月报</Link>
             <h1 className="mt-2 text-xl font-bold text-[var(--foreground)]">成本分析（预览版）</h1>
             <p className="mt-1 text-sm text-[var(--color-text-3)]">
-              不含税产值 − 本月成本 = 本月利润；含"全成本估算"、三线对比与项目利润排行。正式版可再接入目标成本与单方成本。
+              不含税产值 − 本月成本 = 本月利润；含「全成本估算」、三线对比与项目利润排行。正式版可再接入目标成本与单方成本。
             </p>
           </div>
           <div className="flex items-center gap-2">
