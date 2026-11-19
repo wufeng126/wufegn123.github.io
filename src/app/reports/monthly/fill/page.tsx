@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 
 type WorkflowContent = {
+  actualOutput?: number | string;
   analysis?: string;
   risk?: string;
   nextPlan?: string;
@@ -121,6 +122,7 @@ export default function MonthlyReportFillPage() {
   const [rejectNote, setRejectNote] = useState('');
 
   const [analysis, setAnalysis] = useState('');
+  const [actualOutput, setActualOutput] = useState('');
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
   const [remark, setRemark] = useState('');
@@ -216,6 +218,7 @@ export default function MonthlyReportFillPage() {
       const c = (row?.content || {}) as WorkflowContent;
       setContent(c);
       setAnalysis(String(c.analysis || ''));
+    setActualOutput(c.actualOutput == null ? '' : String(c.actualOutput));
       setRisk(String(c.risk || ''));
       setNextPlan(String(c.nextPlan || ''));
       setRemark(String(c.remark || ''));
@@ -380,7 +383,13 @@ export default function MonthlyReportFillPage() {
     return () => { cancelled = true; };
   }, [month, projectId]);
 
-  const budgetContent: WorkflowContent = { analysis, risk, nextPlan, remark };
+  const budgetContent: WorkflowContent = {
+    analysis,
+    risk,
+    nextPlan,
+    remark,
+    actualOutput: actualOutput.trim() === '' ? '' : Number(actualOutput.replace(/,/g, '')),
+  };
 
   return (
     <div className="min-h-screen bg-[var(--color-muted)] px-3 py-4 sm:p-4 md:p-6">
@@ -515,9 +524,23 @@ export default function MonthlyReportFillPage() {
             <h2 className="font-semibold text-[var(--foreground)]">本月利润与成本构成</h2>
             <span className="text-xs text-[var(--color-text-3)]">不含税产值 − 本月成本 = 本月利润</span>
           </div>
+          <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[#F7F8FA] px-5 py-3 text-xs">
+            <span className="text-[var(--color-text-3)]">实际产值（剔除走账，可修改）</span>
+            <input
+              type="number"
+              value={actualOutput}
+              onChange={(event) => setActualOutput(event.target.value)}
+              disabled={!canFill}
+              placeholder={`默认取开票额 ${fmtWan(Number((overview as Record<string, unknown>).monthIncomeExTax) || 0)}`}
+              className="h-8 w-44 rounded-lg border border-[var(--border)] bg-white px-2 text-sm tabular-nums outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)]"
+            />
+            <span className="text-[var(--color-text-3)]">留空则按开票额还原不含税产值；填写后利润与利润率按实际产值计算。</span>
+          </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
             {(() => {
-              const exTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              const booked = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              const manualActual = Number(String(actualOutput).replace(/,/g, '')) || 0;
+              const exTax = manualActual > 0 ? manualActual : booked;
               const cost = Number(overview.monthCost) || 0;
               const profit = exTax - cost;
               const rate = exTax > 0 ? (profit / exTax) * 100 : 0;
@@ -721,7 +744,15 @@ export default function MonthlyReportFillPage() {
           </div>
           <div className="divide-y divide-[var(--border)]">
             {buildMonthlyInsights({
-              overview: overview as unknown as Record<string, unknown>,
+              overview: {
+                ...(overview as unknown as Record<string, unknown>),
+                monthIncomeExTax: (Number(String(actualOutput).replace(/,/g, '')) || 0) > 0
+                  ? Number(String(actualOutput).replace(/,/g, ''))
+                  : Number((overview as Record<string, unknown>).monthIncomeExTax) || 0,
+              },
+              actualOutputOverride: (Number(String(actualOutput).replace(/,/g, '')) || 0) > 0
+                ? Number(String(actualOutput).replace(/,/g, ''))
+                : undefined,
               projects: projects as unknown as Parameters<typeof buildMonthlyInsights>[0]['projects'],
               trends,
               materialTop: materialSummary?.byCategory?.[0] || null,

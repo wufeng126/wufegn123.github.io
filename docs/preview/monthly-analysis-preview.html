@@ -62,12 +62,17 @@
 
   <!-- 新增：本月利润与成本构成 -->
   <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
-    <div class="card-h">📊 本月利润与成本构成 <span class="new">新增预览</span> <span class="tag">不含税产值 − 本月成本 = 本月利润</span></div>
+    <div class="card-h">📊 本月利润与成本构成 <span class="new">新增预览</span> <span class="tag">实际产值 − 本月成本 = 本月利润</span></div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 16px;background:#F7F8FA;border-bottom:1px solid var(--border);font-size:12px">
+      <span style="color:var(--text3)">实际产值（剔除走账，可修改）</span>
+      <input value="66.00" style="height:30px;width:140px;border:1px solid var(--border);border-radius:8px;padding:0 8px;font-size:13px" />
+      <span style="color:var(--text3)">开票额 121.45 万，剔除走账后按 66.00 万计算利润</span>
+    </div>
     <div class="kpis kpis4">
-      <div class="kpi"><div class="l">本月不含税产值</div><div class="v">111.42 万元</div><div class="d tag">按 9% 税率还原</div></div>
+      <div class="kpi"><div class="l">实际产值（不含税）</div><div class="v">66.00 万元</div><div class="d tag">开票额 111.42 万 → 剔除走账</div></div>
       <div class="kpi"><div class="l">本月成本合计</div><div class="v orange">34.13 万元</div><div class="d tag">见下方构成</div></div>
-      <div class="kpi"><div class="l">本月利润</div><div class="v up">77.29 万元</div><div class="d tag">产值 − 成本</div></div>
-      <div class="kpi"><div class="l">本月利润率</div><div class="v up">69.4%</div><div class="d tag">利润 ÷ 不含税产值</div></div>
+      <div class="kpi"><div class="l">本月利润</div><div class="v up">31.87 万元</div><div class="d tag">产值 − 成本</div></div>
+      <div class="kpi"><div class="l">本月利润率</div><div class="v up">48.3%</div><div class="d tag">利润 ÷ 不含税产值</div></div>
     </div>
     <div class="pad" style="border-top:1px solid var(--border)">
       <div style="font-size:11px;color:var(--text3);margin-bottom:6px">成本构成（占比）</div>
@@ -153,7 +158,7 @@
       <div style="border:1px solid #FFCCC7;background:#FFF2F0;border-radius:10px;padding:10px 12px;margin-top:8px">
         <div style="font-weight:600;color:#CB2634;font-size:12px">🔴 成本率异常下降，需确认产值与成本口径</div>
         <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          本月成本率 <b>30.6%</b>，上月约 <b>94%</b>，下降 63 个百分点。但本月产值 111.42 万、成本仅 34.13 万，成本没有随产值增长——两种可能：①产值包含走账（预算员已说明 121 万中 66 万为实际）；②成本未完全归集（班组 0 元、供应商结算偏低）。
+          实际产值 <b>66.00 万</b>（开票 111.42 万，剔除走账 45.42 万），成本 34.13 万，成本率 <b>51.7%</b>；按开票额算会虚高利润，本页已按实际产值计算。
         </div>
         <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：核实产值确认依据，同时确认班组/供应商本月是否有未结算成本未入账。</div>
       </div>
@@ -161,7 +166,7 @@
       <div style="border:1px solid #B7EB8F;background:#F6FFED;border-radius:10px;padding:10px 12px;margin-top:8px">
         <div style="font-weight:600;color:#237804;font-size:12px">✅ 利润环比增加约 73.8 万，主要由产值驱动</div>
         <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          产值变动影响 <b>+74.9 万</b>，成本变动影响 <b>-1.1 万</b>。成本端基本稳定，本月利润改善几乎全部来自产值增加，需确认产值是否为真实完成量。
+          按实际产值口径，本月利润 31.87 万、利润率 48.3%。若按开票额计算会显示 77.29 万，差异 45.42 万全部来自走账，不能作为经营成果。
         </div>
       </div>
 
@@ -182,9 +187,9 @@
       </div>
 
       <div style="border:1px solid #E5E6EB;background:#fff;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;font-size:12px">ℹ️ 每工时可支撑产值约 1,589 元，工效正常</div>
+        <div style="font-weight:600;font-size:12px">ℹ️ 每工时可支撑产值约 941 元（按实际产值），工效正常</div>
         <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          点工 701 小时，产值 111.42 万。该效率处于正常区间，人工投入产出未见异常；但人工成本占产值 19.1%，需结合工种结构判断。
+          点工 701 小时，实际产值 66 万。该效率偏低，人工投入产出未见异常；但人工成本占产值 19.1%，需结合工种结构判断。
         </div>
       </div>
 

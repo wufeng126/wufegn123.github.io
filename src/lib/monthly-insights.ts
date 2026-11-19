@@ -32,6 +32,8 @@ export type MonthlyInsightInput = {
   materialTop?: { category: string; amount: number; count: number } | null;
   laborHours?: number;
   laborAmount?: number;
+  /** 预算员填写的实际产值（剔除走账），填写后以它为准 */
+  actualOutputOverride?: number;
 };
 
 function num(value: unknown) {
@@ -58,7 +60,9 @@ export function buildMonthlyInsights(input: MonthlyInsightInput): MonthlyInsight
   const trends = (input.trends || []).slice().sort((a, b) => a.month.localeCompare(b.month));
   const insights: MonthlyInsight[] = [];
 
-  const exTax = num(overview.monthIncomeExTax);
+  const bookedExTax = num(overview.monthIncomeExTax);
+  const override = num(input.actualOutputOverride);
+  const exTax = override > 0 ? override : bookedExTax;
   const income = num(overview.monthIncome);
   const cost = num(overview.monthCost);
   const profit = exTax - cost;
@@ -68,6 +72,18 @@ export function buildMonthlyInsights(input: MonthlyInsightInput): MonthlyInsight
 
   const current = trends[trends.length - 1];
   const previous = trends.length >= 2 ? trends[trends.length - 2] : null;
+
+  // 0) 开票额与实际产值差异（走账）
+  if (override > 0 && bookedExTax > 0 && Math.abs(bookedExTax - override) >= 1) {
+    const gap = bookedExTax - override;
+    const gapRate = bookedExTax > 0 ? (gap / bookedExTax) * 100 : 0;
+    insights.push({
+      level: gapRate >= 30 ? 'warn' : 'info',
+      title: `开票额与实际产值相差 ${fmtWan(gap)}（占开票 ${gapRate.toFixed(1)}%）`,
+      detail: `开票额 ${fmtWan(bookedExTax)}，实际产值 ${fmtWan(override)}。差额部分多为止走账/代付，不计入真实经营成果，本页利润已按实际产值计算。`,
+      action: gapRate >= 30 ? '走账比例较高，建议在预算员分析中说明原因与对应项目，避免被误读为真实产值。' : undefined,
+    });
+  }
 
   // 1) 成本率与历史对比（核心判断：成本是否异常）
   if (previous && exTax > 0) {
