@@ -37,15 +37,14 @@ type Summary = {
 };
 
 export default function CostAnalysisPreviewPage() {
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  // 初始为空，挂载后再取当前月份，避免服务端/客户端渲染不一致导致页面空白
+  const [month, setMonth] = useState('');
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    if (!month) return;
     setLoading(true);
     setError('');
     try {
@@ -61,8 +60,14 @@ export default function CostAnalysisPreviewPage() {
   }, [month]);
 
   useEffect(() => {
+    const now = new Date();
+    setMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+  }, []);
+
+  useEffect(() => {
+    if (!month) return;
     void load();
-  }, [load]);
+  }, [load, month]);
 
   const projects = data?.projects || [];
   const overview = (data?.overview || {}) as Record<string, number>;
@@ -103,6 +108,7 @@ export default function CostAnalysisPreviewPage() {
   return (
     <div className="min-h-screen bg-[var(--background)] px-4 py-6">
       <div className="mx-auto max-w-6xl space-y-4">
+        {!month ? <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-6 text-sm text-[var(--color-text-3)]">正在初始化…</div> : null}
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <Link href="/reports/monthly" className="text-sm text-[var(--color-primary)] hover:underline">← 返回月度经营月报</Link>
