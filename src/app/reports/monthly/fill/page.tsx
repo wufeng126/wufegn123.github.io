@@ -452,104 +452,6 @@ export default function MonthlyReportFillPage() {
           </div>
         ) : null}
 
-        {/* 系统数据（只读） */}
-        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-          <div className="flex items-center gap-2 border-b border-[var(--border)] px-5 py-3">
-            <Lock className="h-4 w-4 text-[var(--color-text-3)]" />
-            <h2 className="font-semibold text-[var(--foreground)]">本月经营数据</h2>
-            <span className="text-xs text-[var(--color-text-3)]">系统自动带出，不可修改</span>
-          </div>
-          <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-5">
-            {[
-              { label: '本月产值（开票额）', value: fmtWan(overview.monthIncome), current: Number(overview.monthIncome) || 0, prev: prevTotals?.income },
-              { label: '工人工资应发', value: fmtWan(totals.laborSalary), current: totals.laborSalary, prev: prevTotals?.labor },
-              { label: '工人实发（月度工资）', value: fmtWan(totals.salaryPaid), current: totals.salaryPaid, prev: prevTotals?.paid },
-              { label: '班组结算', value: fmtWan(totals.teamSettlement), current: totals.teamSettlement, prev: prevTotals?.team },
-              { label: '确认成本', value: fmtWan(overview.monthCost), current: Number(overview.monthCost) || 0, prev: prevTotals?.cost },
-            ].map((item) => {
-              const prevValue = Number(item.prev) || 0;
-              const delta = prevValue > 0 ? ((item.current - prevValue) / prevValue) * 100 : null;
-              return (
-                <div key={item.label} className="bg-white px-4 py-3">
-                  <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
-                  <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--foreground)]">{item.value}</div>
-                  {delta !== null ? (
-                    <div className={`mt-0.5 text-[11px] tabular-nums ${
-                  item.label === '确认成本'
-                    ? (delta >= 0 ? 'text-[#FF7D00]' : 'text-[var(--color-success)]')
-                    : (delta >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]')
-                }`}>
-                      环比 {delta >= 0 ? '+' : ''}{delta.toFixed(1)}%
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-          {projects.length > 0 ? (
-            <div className="border-t border-[var(--border)] px-5 py-3">
-              <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">分项目明细</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[var(--color-text-3)]">
-                      <th className="py-1.5 pr-3 text-left font-medium">项目</th>
-                      <th className="py-1.5 pr-3 text-right font-medium">报量</th>
-                      <th className="py-1.5 pr-3 text-right font-medium">工人工资</th>
-                      <th className="py-1.5 pr-3 text-right font-medium">实发</th>
-                      <th className="py-1.5 text-right font-medium">班组结算</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projects.map((project) => (
-                      <tr key={project.id} className="border-t border-[var(--border)]">
-                        <td className="py-1.5 pr-3">{project.name}</td>
-                        <td className="py-1.5 pr-3 text-right tabular-nums">{fmtWan(project.monthIncome)}</td>
-                        <td className="py-1.5 pr-3 text-right tabular-nums">{fmtWan(project.monthLaborSalaryCost)}</td>
-                        <td className="py-1.5 pr-3 text-right tabular-nums">{fmtWan(project.monthSalaryPaid)}</td>
-                        <td className="py-1.5 text-right tabular-nums">{fmtWan(project.monthTeamSettlementCost)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
-          {teamSettlementsMerged.length > 0 ? (
-            <div className="border-t border-[var(--border)] px-5 py-3">
-              <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">本月已审批班组结算</div>
-              <div className="flex flex-wrap gap-2">
-                {teamSettlementsMerged.map(([name, amount]) => (
-                  <span key={name} className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs text-[var(--foreground)]">
-                    {name}：{fmtWan(amount)}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {tradeWagesMerged.length > 0 ? (
-            <div className="border-t border-[var(--border)] px-5 py-3">
-              <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">各工种工资</div>
-              {knownTradeWages.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {knownTradeWages.map(([type, amount]) => (
-                    <span key={type} className="rounded-full bg-[var(--color-muted)] px-2.5 py-1 text-xs text-[var(--foreground)]">
-                      {type}：{fmtWan(amount)}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-[var(--color-text-3)]">本项目的工人花名册未填写工种，暂时无法按工种统计。</p>
-              )}
-              {unclassifiedWage > 0 && knownTradeWages.length > 0 ? (
-                <p className="mt-1.5 text-[11px] text-[var(--color-text-3)]">
-                  另有无工种记录的工资 {fmtWan(unclassifiedWage)}（建议在花名册补填工种）
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-
         {/* 本月利润与成本构成（自动带出） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
@@ -652,119 +554,53 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
-        {/* 月度用工分析（自动带出，只读） */}
+        {/* 工人工资（含管理人员） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
-            <h2 className="flex items-center gap-2 font-semibold text-[var(--foreground)]">
-              月度用工分析
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">自动带出 · 仅分析用</span>
-            </h2>
-            <span className="text-xs text-[var(--color-text-3)]">
-              {laborSummary?.hasData
-                ? `合计 ${laborSummary.totals.hours.toLocaleString('zh-CN')} 小时 / ¥${laborSummary.totals.amount.toLocaleString('zh-CN')}`
-                : '本月暂无用工分析'}
-            </span>
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+            <h2 className="font-semibold text-[var(--foreground)]">工人工资</h2>
+            <span className="text-xs text-[var(--color-text-3)]">应发口径（含管理人员），不含班组分账工资</span>
           </div>
-          <div className="px-5 py-4">
-            {!laborSummary?.hasData ? (
-              <p className="text-sm text-[var(--color-text-3)]">本月还没有填报用工分析，可在「经营分析 → 月度用工分析」中填报后自动带出。</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div>
-                    <p className="text-xs text-[var(--color-text-3)]">点工总工时</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.totals.hours.toLocaleString('zh-CN')}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[var(--color-text-3)]">点工总金额</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">¥{laborSummary.totals.amount.toLocaleString('zh-CN')}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[var(--color-text-3)]">已填报项目</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.totals.projects}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[var(--color-text-3)]">工作内容类别</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.byCategory.length}</p>
-                  </div>
+          <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-5">
+            {(() => {
+              const ov = overview as unknown as Record<string, unknown>;
+              const production = Number(ov.monthProductionSalary) || 0;
+              const management = Number(ov.monthManagementSalary) || 0;
+              const support = Number(ov.monthSupportSalary) || 0;
+              const totalSalary = production + management + support || Number(totals.laborSalary) || 0;
+              const paid = Number(totals.salaryPaid) || 0;
+              const unpaid = projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).salaryUnpaid || 0), 0);
+              const pctOf = (v: number) => (totalSalary > 0 ? `${((v / totalSalary) * 100).toFixed(1)}%` : '-');
+              return [
+                { label: '工资应发合计', value: fmtWan(totalSalary), sub: '含管理/后勤' },
+                { label: '生产工人', value: fmtWan(production), sub: `占 ${pctOf(production)}` },
+                { label: '管理人员', value: fmtWan(management), sub: `占 ${pctOf(management)}` },
+                { label: '已发 / 未发', value: `${fmtWan(paid)} / ${fmtWan(unpaid)}`, sub: unpaid > 0 ? `未发 ${(unpaid / (paid + unpaid) * 100).toFixed(1)}%` : '已结清' },
+                { label: '涉及工人', value: `${projects.reduce((sum, p) => sum + Number((p as unknown as Record<string, unknown>).inServiceCount || 0), 0)} 人`, sub: '在岗人数' },
+              ].map((item) => (
+                <div key={item.label} className="bg-white px-4 py-3">
+                  <div className="text-xs text-[var(--color-text-3)]">{item.label}</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--foreground)]">{item.value}</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--color-text-3)]">{item.sub}</div>
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {laborSummary.byCategory.slice(0, 10).map((row) => (
-                    <span key={row.category} className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--color-text-2)]">
-                      {row.category}
-                      <span className="ml-1 font-medium tabular-nums">{row.hours.toLocaleString('zh-CN')}h</span>
-                      <span className="ml-1 text-[var(--color-text-3)]">¥{row.amount.toLocaleString('zh-CN')}</span>
-                      <span className="ml-1 text-[var(--color-primary)]">{row.ratio}%</span>
-                    </span>
-                  ))}
-                </div>
-
-                <p className="mt-3 text-xs text-[var(--color-text-3)]">
-                  数据来自「月度用工分析」，仅用于成本分析与查账，不计入项目成本；详细填报请到「经营分析 → 月度用工分析」。
-                </p>
-              </>
-            )}
+              ));
+            })()}
           </div>
-        </section>
-
-        {/* 本月材料情况（自动带出，只读） */}
-        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-[var(--color-primary)]" />
-              <h2 className="font-semibold text-[var(--foreground)]">本月材料情况</h2>
-              <span className="text-xs text-[var(--color-text-3)]">自动带出，只读</span>
+          {knownTradeWages.length > 0 ? (
+            <div className="border-t border-[var(--border)] px-5 py-3">
+              <div className="mb-2 text-xs font-medium text-[var(--color-text-3)]">各工种工资</div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {knownTradeWages.map(([type, amount]) => (
+                  <div key={type} className="rounded-lg border border-[var(--border)] px-3 py-2">
+                    <div className="text-xs text-[var(--color-text-3)]">{type}</div>
+                    <div className="mt-1 text-sm font-semibold tabular-nums">{fmtWan(amount)}</div>
+                  </div>
+                ))}
+              </div>
+              {unclassifiedWage > 0 ? (
+                <p className="mt-2 text-[11px] text-[var(--color-text-3)]">另有无工种记录的工资 {fmtWan(unclassifiedWage)}（建议在花名册补填工种）</p>
+              ) : null}
             </div>
-            {materialSummary ? (
-              <span className="text-xs text-[var(--color-text-3)]">合计 {materialSummary.count} 笔</span>
-            ) : null}
-          </div>
-          <div className="px-5 py-4">
-            {!materialSummary || materialSummary.count === 0 ? (
-              <p className="text-sm text-[var(--color-text-3)]">本月还没有零星材料采购记录（或未审核）。</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
-                    <p className="text-xs text-[var(--color-text-3)]">本月材料金额</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">¥{materialSummary.total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</p>
-                  </div>
-                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
-                    <p className="text-xs text-[var(--color-text-3)]">采购笔数</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">{materialSummary.count} 笔</p>
-                  </div>
-                </div>
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-[var(--color-text-3)]">
-                        <th className="py-1.5 pr-3 font-medium">材料分类</th>
-                        <th className="py-1.5 pr-3 text-right font-medium">笔数</th>
-                        <th className="py-1.5 text-right font-medium">金额</th>
-                        <th className="py-1.5 pl-3 text-right font-medium">占比</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {materialSummary.byCategory.slice(0, 10).map((row) => (
-                        <tr key={row.category} className="border-t border-[var(--border)]">
-                          <td className="py-1.5 pr-3">{row.category}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{row.count}</td>
-                          <td className="py-1.5 text-right tabular-nums">¥{row.amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</td>
-                          <td className="py-1.5 pl-3 text-right tabular-nums">
-                            {materialSummary.total > 0 ? `${((row.amount / materialSummary.total) * 100).toFixed(1)}%` : '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="mt-3 text-xs text-[var(--color-text-3)]">
-                  数据来自「零星材料」（仅统计已审核记录），按采购日期归月；用于月报分析，不重复计入其他成本项。
-                </p>
-              </>
-            )}
-          </div>
+          ) : null}
         </section>
 
         {/* 实际工程量（手工填写） */}
@@ -882,6 +718,121 @@ export default function MonthlyReportFillPage() {
                 </p>
               );
             })() : null}
+          </div>
+        </section>
+
+        {/* 月度用工分析（自动带出，只读） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
+            <h2 className="flex items-center gap-2 font-semibold text-[var(--foreground)]">
+              月度用工分析
+              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">自动带出 · 仅分析用</span>
+            </h2>
+            <span className="text-xs text-[var(--color-text-3)]">
+              {laborSummary?.hasData
+                ? `合计 ${laborSummary.totals.hours.toLocaleString('zh-CN')} 小时 / ¥${laborSummary.totals.amount.toLocaleString('zh-CN')}`
+                : '本月暂无用工分析'}
+            </span>
+          </div>
+          <div className="px-5 py-4">
+            {!laborSummary?.hasData ? (
+              <p className="text-sm text-[var(--color-text-3)]">本月还没有填报用工分析，可在「经营分析 → 月度用工分析」中填报后自动带出。</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">点工总工时</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.totals.hours.toLocaleString('zh-CN')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">点工总金额</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">¥{laborSummary.totals.amount.toLocaleString('zh-CN')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">已填报项目</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.totals.projects}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--color-text-3)]">工作内容类别</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{laborSummary.byCategory.length}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {laborSummary.byCategory.slice(0, 10).map((row) => (
+                    <span key={row.category} className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--color-text-2)]">
+                      {row.category}
+                      <span className="ml-1 font-medium tabular-nums">{row.hours.toLocaleString('zh-CN')}h</span>
+                      <span className="ml-1 text-[var(--color-text-3)]">¥{row.amount.toLocaleString('zh-CN')}</span>
+                      <span className="ml-1 text-[var(--color-primary)]">{row.ratio}%</span>
+                    </span>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-[var(--color-text-3)]">
+                  数据来自「月度用工分析」，仅用于成本分析与查账，不计入项目成本；详细填报请到「经营分析 → 月度用工分析」。
+                </p>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* 本月材料情况（自动带出，只读） */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[var(--color-primary)]" />
+              <h2 className="font-semibold text-[var(--foreground)]">本月材料情况</h2>
+              <span className="text-xs text-[var(--color-text-3)]">自动带出，只读</span>
+            </div>
+            {materialSummary ? (
+              <span className="text-xs text-[var(--color-text-3)]">合计 {materialSummary.count} 笔</span>
+            ) : null}
+          </div>
+          <div className="px-5 py-4">
+            {!materialSummary || materialSummary.count === 0 ? (
+              <p className="text-sm text-[var(--color-text-3)]">本月还没有零星材料采购记录（或未审核）。</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                    <p className="text-xs text-[var(--color-text-3)]">本月材料金额</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">¥{materialSummary.total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</p>
+                  </div>
+                  <div className="rounded-lg bg-[var(--color-muted)] px-3 py-2">
+                    <p className="text-xs text-[var(--color-text-3)]">采购笔数</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">{materialSummary.count} 笔</p>
+                  </div>
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-[var(--color-text-3)]">
+                        <th className="py-1.5 pr-3 font-medium">材料分类</th>
+                        <th className="py-1.5 pr-3 text-right font-medium">笔数</th>
+                        <th className="py-1.5 text-right font-medium">金额</th>
+                        <th className="py-1.5 pl-3 text-right font-medium">占比</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {materialSummary.byCategory.slice(0, 10).map((row) => (
+                        <tr key={row.category} className="border-t border-[var(--border)]">
+                          <td className="py-1.5 pr-3">{row.category}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{row.count}</td>
+                          <td className="py-1.5 text-right tabular-nums">¥{row.amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</td>
+                          <td className="py-1.5 pl-3 text-right tabular-nums">
+                            {materialSummary.total > 0 ? `${((row.amount / materialSummary.total) * 100).toFixed(1)}%` : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-[var(--color-text-3)]">
+                  数据来自「零星材料」（仅统计已审核记录），按采购日期归月；用于月报分析，不重复计入其他成本项。
+                </p>
+              </>
+            )}
           </div>
         </section>
 
