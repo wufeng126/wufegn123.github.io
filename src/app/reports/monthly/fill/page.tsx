@@ -683,6 +683,27 @@ export default function MonthlyReportFillPage() {
               />
             </label>
           </div>
+
+          {/* 打印/PDF：textarea 在打印时隐藏，这里输出完整文本 */}
+          <div className="print-only px-5 pb-4 text-sm">
+            <div className="mb-2">
+              <p className="font-semibold">经营分析</p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{analysis || '（未填写）'}</p>
+            </div>
+            <div className="mb-2">
+              <p className="font-semibold">风险说明</p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{risk || '（未填写）'}</p>
+            </div>
+            <div className="mb-2">
+              <p className="font-semibold">下月计划</p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{nextPlan || '（未填写）'}</p>
+            </div>
+            <div>
+              <p className="font-semibold">备注</p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{remark || '（未填写）'}</p>
+            </div>
+          </div>
+
           {canFill ? (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
               <label className="mr-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-3)]">

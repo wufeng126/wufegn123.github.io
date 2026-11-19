@@ -1993,3 +1993,25 @@ html { font-variant-numeric: tabular-nums; }
     color: #000 !important;
   }
 }
+
+/* 仅打印时显示的纯文本块（用于 textarea 内容完整输出） */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block !important;
+  }
+
+  /* 输入框本身不打印，改由 .print-only 输出完整文本 */
+  textarea {
+    display: none !important;
+  }
+
+  /* 长区块允许跨页，避免内容被裁掉 */
+  section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+}
