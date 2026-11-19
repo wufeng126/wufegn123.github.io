@@ -125,6 +125,7 @@ export default function MonthlyReportFillPage() {
   const [analysis, setAnalysis] = useState('');
   const [actualOutput, setActualOutput] = useState('');
   const [quantities, setQuantities] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
+  const [reportItems, setReportItems] = useState<Array<{ projectId?: number; content: string; unit: string; quantity: number; unitPrice: number; amountExTax: number }>>([]);
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
   const [remark, setRemark] = useState('');
@@ -182,6 +183,7 @@ export default function MonthlyReportFillPage() {
       setOverview(summaryJson.data?.overview || {});
       setMaterialSummary(summaryJson.data?.material || null);
       setTrends(Array.isArray(summaryJson.data?.trends) ? summaryJson.data.trends : []);
+      setReportItems(Array.isArray(summaryJson.data?.monthReportItems) ? summaryJson.data.monthReportItems : []);
       setProjects(Array.isArray(summaryJson.data?.projects) ? (summaryJson.data.projects as ProjectRow[]) : []);
 
       // 上月对比（取上月汇总用于环比展示，失败不影响主流程）
@@ -766,8 +768,8 @@ export default function MonthlyReportFillPage() {
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-[var(--foreground)]">实际工程量</h2>
-              <span className="text-xs text-[var(--color-text-3)]">手工填写，用于核对实际产值是否有工程量支撑</span>
+              <h2 className="font-semibold text-[var(--foreground)]">对下工程量（手工填写）</h2>
+              <span className="text-xs text-[var(--color-text-3)]">手工填写对下（班组/分包）工程量；对上工程量自动取「甲方报量」对照</span>
             </div>
             {canFill ? (
               <button
@@ -778,6 +780,40 @@ export default function MonthlyReportFillPage() {
                 + 添加一行
               </button>
             ) : null}
+          </div>
+          <div className="border-b border-[var(--border)] bg-[#F7F8FA] px-5 py-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[var(--color-text-2)]">对上工程量（来自甲方报量，只读）</span>
+              <span className="text-xs text-[var(--color-text-3)]">
+                合计 {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)} 万 · {reportItems.length} 项
+              </span>
+            </div>
+            {reportItems.length === 0 ? (
+              <p className="text-xs text-[var(--color-text-3)]">本月还没有已审核的甲方报量明细。</p>
+            ) : (
+              <div className="max-h-40 overflow-y-auto rounded-lg bg-white">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[var(--color-text-3)]">
+                      <th className="py-1.5 pl-2 text-left font-medium">工作内容</th>
+                      <th className="py-1.5 text-left font-medium">单位</th>
+                      <th className="py-1.5 text-right font-medium">数量</th>
+                      <th className="py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportItems.map((item, index) => (
+                      <tr key={index} className="border-t border-[var(--border)]">
+                        <td className="py-1.5 pl-2">{item.content}</td>
+                        <td className="py-1.5">{item.unit || '-'}</td>
+                        <td className="py-1.5 text-right tabular-nums">{item.quantity}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{item.amountExTax.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto px-5 py-3">
             {quantities.length === 0 ? (
@@ -834,14 +870,12 @@ export default function MonthlyReportFillPage() {
             )}
             {quantities.length > 0 ? (() => {
               const total = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
-              const actual = Number(String(actualOutput).replace(/,/g, '')) || 0;
-              const booked = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
-              const compareBase = actual > 0 ? actual : booked;
+              const compareBase = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
               const diff = total - compareBase;
               return (
-                <p className={`mt-2 text-xs ${Math.abs(diff) > compareBase * 0.05 ? 'text-[#CB3740]' : 'text-[var(--color-text-3)]'}`}>
-                  工程量合计 {total.toFixed(2)} 万，实际产值 {compareBase.toFixed(2)} 万，差异 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
-                  {Math.abs(diff) > compareBase * 0.05 ? '（差异超过 5%，请核对工程量或实际产值）' : ''}
+                <p className={`mt-2 text-xs ${compareBase > 0 && Math.abs(diff) > compareBase * 0.05 ? 'text-[#CB3740]' : 'text-[var(--color-text-3)]'}`}>
+                  对下工程量合计 {total.toFixed(2)} 万，对上（报量）合计 {compareBase.toFixed(2)} 万，差异 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
+                  {compareBase > 0 && Math.abs(diff) > compareBase * 0.05 ? '（对上/对下差异超过 5%，请核对分项口径或工程量）' : ''}
                 </p>
               );
             })() : null}

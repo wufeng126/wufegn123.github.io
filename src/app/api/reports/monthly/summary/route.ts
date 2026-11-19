@@ -844,6 +844,26 @@ export async function GET(request: NextRequest) {
       byCategory: materialBreakdown,
     };
 
+    // 本月对上工程量明细（来自甲方报量，只读），用于与对下工程量对比
+    const monthReportItems = (clientReports || [])
+      .filter((row: Record<string, unknown>) => String(row.report_date || '').startsWith(reportMonth)
+        && (!row.status || isReviewedStatus(String(row.status))))
+      .map((row: Record<string, unknown>) => {
+        const invoice = Number(row.invoice_amount || 0);
+        const settlementAmt = Number(row.settlement_amount || 0);
+        const rate = Number(row.tax_rate ?? 9) / 100;
+        const base = invoice > 0 ? invoice : settlementAmt;
+        const amountExTax = rate > 0 ? base / (1 + rate) : base;
+        return {
+          projectId: Number(row.project_id),
+          content: String(row.work_content || row.item_name || '未命名'),
+          unit: String(row.unit || ''),
+          quantity: Number(row.quantity || 0),
+          unitPrice: Number(row.unit_price || 0),
+          amountExTax,
+        };
+      });
+
     // Overview totals
     const overview = {
       projectCount: projects.length,
@@ -1618,6 +1638,7 @@ export async function GET(request: NextRequest) {
         dataCompleteness: completenessLabel,
         overview,
       material: materialOverview,
+      monthReportItems,
         projects: projectDataList,
         risks,
         riskList,
