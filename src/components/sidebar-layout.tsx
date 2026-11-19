@@ -59,6 +59,7 @@ import {
   BellRing,
   Grid3x3,
   RefreshCw,
+  ChartNoAxesColumn,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -152,6 +153,7 @@ const SECONDARY_MENUS: Record<string, Array<{ name: string; href: string; icon: 
   ],
   '/reports/monthly': [
     { name: '月度经营月报', href: '/reports/monthly', icon: FileBarChart, permissions: ['reports:monthly_view'] },
+    { name: '成本分析（预览）', href: '/reports/monthly/analysis-preview', icon: ChartNoAxesColumn, permissions: ['reports:monthly_view'] },
     { name: '已审批归档月报', href: '/reports/monthly/archives', icon: Archive, permissions: ['reports:monthly_view'] },
     { name: '月度用工分析', href: '/workers/labor-analysis', icon: TrendingUp, permissions: ['salaries:view'] },
     { name: '月度凭证（查账）', href: '/workers/vouchers', icon: FileText, permissions: ['salaries:view'] },
