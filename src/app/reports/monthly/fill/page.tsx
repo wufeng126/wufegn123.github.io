@@ -321,6 +321,13 @@ export default function MonthlyReportFillPage() {
 
   async function post(action: string, extra?: { content?: WorkflowContent; reason?: string }) {
     if (!month) return;
+    // 实际产值为不含税口径：不能大于开票额还原的不含税产值
+    const bookedExTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+    const actualValue = Number(String(actualOutput).replace(/,/g, '')) || 0;
+    if (actualValue > 0 && bookedExTax > 0 && actualValue > bookedExTax + 1) {
+      toast.error(`实际产值（${actualValue.toFixed(2)} 万）不能大于不含税开票额（${bookedExTax.toFixed(2)} 万）`);
+      return;
+    }
     const body: Record<string, unknown> = { month, action };
     if (action === 'submit_manager') {
       // 审批流程已暂时取消：提交即归档，无需选择审批人
@@ -525,7 +532,7 @@ export default function MonthlyReportFillPage() {
             <span className="text-xs text-[var(--color-text-3)]">不含税产值 − 本月成本 = 本月利润</span>
           </div>
           <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[#F7F8FA] px-5 py-3 text-xs">
-            <span className="text-[var(--color-text-3)]">实际产值（剔除走账，可修改）</span>
+            <span className="text-[var(--color-text-3)]">实际产值（不含税，剔除走账；可修改）</span>
             <input
               type="number"
               value={actualOutput}
@@ -534,7 +541,7 @@ export default function MonthlyReportFillPage() {
               placeholder={`默认取开票额 ${fmtWan(Number((overview as Record<string, unknown>).monthIncomeExTax) || 0)}`}
               className="h-8 w-44 rounded-lg border border-[var(--border)] bg-white px-2 text-sm tabular-nums outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)]"
             />
-            <span className="text-[var(--color-text-3)]">留空则按开票额还原不含税产值；填写后利润与利润率按实际产值计算。</span>
+            <span className="text-[var(--color-text-3)]">留空则按开票额还原不含税产值；填写后利润、利润率、自动分析均按此不含税实际产值计算。</span>
           </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
             {(() => {
@@ -845,6 +852,7 @@ export default function MonthlyReportFillPage() {
 
           {/* 打印/PDF：textarea 在打印时隐藏，这里输出完整文本 */}
           <div className="print-only px-5 pb-4 text-sm">
+            <p className="mb-1"><span className="font-semibold">实际产值（不含税）：</span>{actualOutput ? `${actualOutput} 万元` : '未单独填写（按开票额还原）'}</p>
             <div className="mb-2">
               <p className="font-semibold">经营分析</p>
               <p style={{ whiteSpace: 'pre-wrap' }}>{analysis || '（未填写）'}</p>
