@@ -784,6 +784,15 @@ export async function GET(request: NextRequest) {
           }));
           return exTax > 0 ? ((exTax - monthCost) / exTax) * 100 : 0;
         })(),
+        monthProductionSalary: safeSum(projSalaries
+          .filter((row: Record<string, unknown>) => String(row.person_category || 'production') === 'production')
+          .map((row: Record<string, unknown>) => Number(row.gross_pay || 0))),
+        monthManagementSalary: safeSum(projSalaries
+          .filter((row: Record<string, unknown>) => String(row.person_category || '') === 'management')
+          .map((row: Record<string, unknown>) => Number(row.gross_pay || 0))),
+        monthSupportSalary: safeSum(projSalaries
+          .filter((row: Record<string, unknown>) => String(row.person_category || '') === 'support')
+          .map((row: Record<string, unknown>) => Number(row.gross_pay || 0))),
         monthIncomeExTax: safeSum(monthReports.map((r: Record<string, unknown>) => {
           const invoice = Number(r.invoice_amount || 0);
           const settlementAmt = Number(r.settlement_amount || 0);
@@ -853,6 +862,9 @@ export async function GET(request: NextRequest) {
       totalMaterialCost: safeSum(projectDataList.map(p => p.materialCost)),
       monthMaterialCost: safeSum(projectDataList.map(p => p.monthMaterialCost)),
       monthIncomeExTax: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthIncomeExTax) || 0)),
+      monthProductionSalary: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthProductionSalary) || 0)),
+      monthManagementSalary: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthManagementSalary) || 0)),
+      monthSupportSalary: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthSupportSalary) || 0)),
       monthProfitExTax: safeSum(projectDataList.map(p => Number((p as unknown as Record<string, unknown>).monthProfitExTax) || 0)),
       monthProfitExTaxRate: 0,
       totalTaxCost: safeSum(projectDataList.map(p => p.taxCost)),

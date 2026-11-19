@@ -88,12 +88,13 @@
 
   <!-- 新增：工人工资 -->
   <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
-    <div class="card-h">👷 工人工资 <span class="new">新增预览</span> <span class="tag">应发口径，不含班组分账工资</span></div>
-    <div class="kpis kpis4">
-      <div class="kpi"><div class="l">工人工资应发</div><div class="v">21.23 万元</div><div class="d up">环比 +2.3%</div></div>
-      <div class="kpi"><div class="l">工人实发（月度工资）</div><div class="v">18.10 万元</div><div class="d down">环比 -9.3%</div></div>
-      <div class="kpi"><div class="l">未发工资</div><div class="v orange">3.13 万元</div><div class="d tag">应发 − 已发</div></div>
-      <div class="kpi"><div class="l">涉及工人</div><div class="v">23 人</div><div class="d tag">本月有工资记录</div></div>
+    <div class="card-h">👷 工人工资 <span class="new">新增预览</span> <span class="tag">应发口径（含管理人员），不含班组分账工资</span></div>
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi"><div class="l">工资应发合计</div><div class="v">23.96 万元</div><div class="d up">环比 +2.3%</div></div>
+      <div class="kpi"><div class="l">生产工人</div><div class="v">21.23 万元</div><div class="d tag">占 88.6%</div></div>
+      <div class="kpi"><div class="l">管理人员</div><div class="v">2.73 万元</div><div class="d tag">占 11.4%</div></div>
+      <div class="kpi"><div class="l">实发 / 未发</div><div class="v">18.10 / 3.13 万</div><div class="d tag">未发占 14.7%</div></div>
+      <div class="kpi"><div class="l">涉及人数</div><div class="v">23 人</div><div class="d tag">生产 21 · 管理 2</div></div>
     </div>
     <div class="pad" style="border-top:1px solid var(--border)">
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">各工种工资</div>
@@ -105,8 +106,32 @@
         <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">信号工</div><div style="font-size:16px;font-weight:600;margin-top:4px">0.95 万</div><div class="tag">4.5%</div></div>
         <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">钢筋工</div><div style="font-size:16px;font-weight:600;margin-top:4px">0.88 万</div><div class="tag">4.1%</div></div>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text3)">分项目：扶风五小项目 21.23 万（应发）/ 18.10 万（实发）</div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text3)">分项目：扶风五小项目 23.96 万（应发，含管理 2.73 万）/ 18.10 万（实发）</div>
     </div>
+  </div>
+
+  <!-- 新增：实际产值对应的工程量 -->
+  <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
+    <div class="card-h">📐 实际产值对应的工程量 <span class="new">新增预览</span> <span class="tag">与「实际产值 66 万」对应，可核对产值是否有工程量支撑</span></div>
+    <div class="kpis kpis4">
+      <div class="kpi"><div class="l">工程量条目</div><div class="v">6 项</div></div>
+      <div class="kpi"><div class="l">工程量金额（不含税）</div><div class="v">66.00 万元</div></div>
+      <div class="kpi"><div class="l">与实填实际产值差异</div><div class="v up">0.00 万元</div></div>
+      <div class="kpi"><div class="l">核对结果</div><div class="v up">一致</div></div>
+    </div>
+    <table>
+      <thead><tr><th>工作内容</th><th>单位</th><th>数量</th><th>单价（不含税）</th><th>金额（不含税）</th></tr></thead>
+      <tbody>
+        <tr><td>砌体工程</td><td>m³</td><td>320</td><td>285.00</td><td>91,200.00</td></tr>
+        <tr><td>钢筋制安</td><td>t</td><td>45.6</td><td>1,280.00</td><td>58,368.00</td></tr>
+        <tr><td>模板工程</td><td>㎡</td><td>2,150</td><td>86.00</td><td>184,900.00</td></tr>
+        <tr><td>混凝土浇筑</td><td>m³</td><td>410</td><td>120.00</td><td>49,200.00</td></tr>
+        <tr><td>抹灰工程</td><td>㎡</td><td>3,400</td><td>42.00</td><td>142,800.00</td></tr>
+        <tr><td>外架搭拆</td><td>㎡</td><td>1,860</td><td>72.00</td><td>133,920.00</td></tr>
+        <tr style="background:#FAFAFA;font-weight:600"><td>合计</td><td></td><td></td><td></td><td>660,388.00</td></tr>
+      </tbody>
+    </table>
+    <div class="mut" style="padding-top:10px">口径：取本月「甲方报量」中已审核的明细，按不含税还原；与预算员填写的实际产值对比，差异过大时自动分析会提示。</div>
   </div>
 
   <!-- 原有：用工分析 -->
