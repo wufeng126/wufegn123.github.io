@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 type WorkflowContent = {
   actualOutput?: number | string;
   quantities?: Array<{ item: string; unit: string; quantity: string | number; unitPrice: string | number; amount: string | number }>;
+  quantitiesUp?: Array<{ item: string; unit: string; quantity: string | number; unitPrice: string | number; amount: string | number }>;
   analysis?: string;
   risk?: string;
   nextPlan?: string;
@@ -125,6 +126,7 @@ export default function MonthlyReportFillPage() {
   const [analysis, setAnalysis] = useState('');
   const [actualOutput, setActualOutput] = useState('');
   const [quantities, setQuantities] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
+  const [quantitiesUp, setQuantitiesUp] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
   const [reportItems, setReportItems] = useState<Array<{ projectId?: number; content: string; unit: string; quantity: number; unitPrice: number; amountExTax: number }>>([]);
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
@@ -225,6 +227,14 @@ export default function MonthlyReportFillPage() {
     setActualOutput(c.actualOutput == null ? '' : String(c.actualOutput));
     setQuantities(Array.isArray(c.quantities)
       ? c.quantities.map((row) => ({
+          item: String(row.item || ''),
+          unit: String(row.unit || ''),
+          quantity: String(row.quantity ?? ''),
+          unitPrice: String(row.unitPrice ?? ''),
+        }))
+      : []);
+    setQuantitiesUp(Array.isArray(c.quantitiesUp)
+      ? c.quantitiesUp.map((row) => ({
           item: String(row.item || ''),
           unit: String(row.unit || ''),
           quantity: String(row.quantity ?? ''),
@@ -412,6 +422,15 @@ export default function MonthlyReportFillPage() {
     nextPlan,
     remark,
     actualOutput: actualOutput.trim() === '' ? '' : Number(actualOutput.replace(/,/g, '')),
+    quantitiesUp: quantitiesUp
+      .filter((row) => row.item.trim() || Number(row.quantity) > 0)
+      .map((row) => ({
+        item: row.item.trim(),
+        unit: row.unit.trim(),
+        quantity: Number(String(row.quantity).replace(/,/g, '')) || 0,
+        unitPrice: Number(String(row.unitPrice).replace(/,/g, '')) || 0,
+        amount: (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0),
+      })),
     quantities: quantities
       .filter((row) => row.item.trim() || Number(row.quantity) > 0)
       .map((row) => ({
@@ -603,122 +622,44 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
-        {/* 实际工程量（手工填写） */}
+        {/* 对上 / 对下工程量（均手工填写） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-[var(--foreground)]">对下工程量（手工填写）</h2>
-              <span className="text-xs text-[var(--color-text-3)]">手工填写对下（班组/分包）工程量；对上工程量自动取「甲方报量」对照</span>
+              <h2 className="font-semibold text-[var(--foreground)]">对上 / 对下工程量</h2>
+              <span className="text-xs text-[var(--color-text-3)]">均手工填写；对下为班组/分包口径，上为甲方报量口径</span>
             </div>
-            {canFill ? (
-              <button
-                type="button"
-                onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-3 text-xs text-[var(--color-primary)] hover:bg-[var(--color-muted)]"
-              >
-                + 添加一行
-              </button>
-            ) : null}
           </div>
-          <div className="border-b border-[var(--border)] bg-[#F7F8FA] px-5 py-3">
+          <div className="px-5 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-medium text-[var(--color-text-2)]">对上工程量（来自甲方报量，只读）</span>
-              <span className="text-xs text-[var(--color-text-3)]">
-                合计 {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)} 万 · {reportItems.length} 项
-              </span>
+              <span className="text-xs font-medium text-[var(--color-text-2)]">对上工程量（手工填写）</span>
+              {canFill ? (
+                <button type="button" onClick={() => setQuantitiesUp((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])} className="text-xs text-[var(--color-primary)] hover:underline">+ 添加一行</button>
+              ) : null}
             </div>
-            {reportItems.length === 0 ? (
-              <p className="text-xs text-[var(--color-text-3)]">本月还没有已审核的甲方报量明细。</p>
-            ) : (
-              <div className="max-h-40 overflow-y-auto rounded-lg bg-white">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[var(--color-text-3)]">
-                      <th className="py-1.5 pl-2 text-left font-medium">工作内容</th>
-                      <th className="py-1.5 text-left font-medium">单位</th>
-                      <th className="py-1.5 text-right font-medium">数量</th>
-                      <th className="py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportItems.map((item, index) => (
-                      <tr key={index} className="border-t border-[var(--border)]">
-                        <td className="py-1.5 pl-2">{item.content}</td>
-                        <td className="py-1.5">{item.unit || '-'}</td>
-                        <td className="py-1.5 text-right tabular-nums">{item.quantity}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{item.amountExTax.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <QuantityTable rows={quantitiesUp} setRows={setQuantitiesUp} editable={canFill} />
+          </div>
+          <div className="border-t border-[var(--border)] px-5 py-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[var(--color-text-2)]">对下工程量（手工填写，班组/分包口径）</span>
+              {canFill ? (
+                <button type="button" onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])} className="text-xs text-[var(--color-primary)] hover:underline">+ 添加一行</button>
+              ) : null}
+            </div>
+            <QuantityTable rows={quantities} setRows={setQuantities} editable={canFill} />
+          </div>
+          {(() => {
+            const upTotal = quantitiesUp.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
+            const downTotal = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
+            const diff = downTotal - upTotal;
+            const over = upTotal > 0 && Math.abs(diff) > upTotal * 0.05;
+            return (
+              <div className="border-t border-[var(--border)] bg-[#F7F8FA] px-5 py-3 text-xs">
+                对上合计 {upTotal.toFixed(2)} 万，对下合计 {downTotal.toFixed(2)} 万，差额 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
+                {over ? <span className="text-[#CB2634]">（差额超过 5%，请核对分项口径）</span> : null}
               </div>
-            )}
-          </div>
-          <div className="overflow-x-auto px-5 py-3">
-            {quantities.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-3)]">本月还没有填写工程量{canFill ? '，点右上角「+ 添加一行」开始填写。' : '。'}</p>
-            ) : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-[var(--color-text-3)]">
-                    <th className="py-1.5 pr-2 text-left font-medium">工作内容</th>
-                    <th className="w-16 py-1.5 pr-2 text-left font-medium">单位</th>
-                    <th className="w-24 py-1.5 pr-2 text-right font-medium">数量</th>
-                    <th className="w-24 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
-                    <th className="w-28 py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
-                    <th className="w-12 py-1.5 text-center font-medium">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quantities.map((row, index) => {
-                    const amount = (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0);
-                    return (
-                      <tr key={index} className="border-t border-[var(--border)]">
-                        <td className="py-1.5 pr-2">
-                          <input value={row.item} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, item: e.target.value } : r))} placeholder="如 砌体工程" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:bg-transparent disabled:border-transparent" />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input value={row.unit} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unit: e.target.value } : r))} placeholder="m³" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:bg-transparent disabled:border-transparent" />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input value={row.quantity} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, quantity: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:bg-transparent disabled:border-transparent" />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input value={row.unitPrice} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unitPrice: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:bg-transparent disabled:border-transparent" />
-                        </td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{amount.toFixed(2)}</td>
-                        <td className="py-1.5 text-center">
-                          {canFill ? (
-                            <button type="button" onClick={() => setQuantities((prev) => prev.filter((_, i) => i !== index))} className="text-xs text-[#CB2634] hover:underline">删除</button>
-                          ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-[var(--border)] font-semibold">
-                    <td className="py-2" colSpan={4}>合计（不含税）</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">
-                      {quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0).toFixed(2)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-            {quantities.length > 0 ? (() => {
-              const total = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
-              const compareBase = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
-              const diff = total - compareBase;
-              return (
-                <p className={`mt-2 text-xs ${compareBase > 0 && Math.abs(diff) > compareBase * 0.05 ? 'text-[#CB3740]' : 'text-[var(--color-text-3)]'}`}>
-                  对下工程量合计 {total.toFixed(2)} 万，对上（报量）合计 {compareBase.toFixed(2)} 万，差异 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
-                  {compareBase > 0 && Math.abs(diff) > compareBase * 0.05 ? '（对上/对下差异超过 5%，请核对分项口径或工程量）' : ''}
-                </p>
-              );
-            })() : null}
-          </div>
+            );
+          })()}
         </section>
 
         {/* 月度用工分析（自动带出，只读） */}
@@ -1187,6 +1128,68 @@ export default function MonthlyReportFillPage() {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+type QuantityRow = { item: string; unit: string; quantity: string; unitPrice: string };
+
+function QuantityTable({ rows, setRows, editable }: {
+  rows: QuantityRow[];
+  setRows: React.Dispatch<React.SetStateAction<QuantityRow[]>>;
+  editable: boolean;
+}) {
+  if (rows.length === 0) {
+    return <p className="text-xs text-[var(--color-text-3)]">还没有填写工程量。</p>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-[var(--color-text-3)]">
+            <th className="py-1.5 pr-2 text-left font-medium">工作内容</th>
+            <th className="w-16 py-1.5 pr-2 text-left font-medium">单位</th>
+            <th className="w-24 py-1.5 pr-2 text-right font-medium">数量</th>
+            <th className="w-24 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
+            <th className="w-28 py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
+            <th className="w-12 py-1.5 text-center font-medium">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => {
+            const amount = (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0);
+            return (
+              <tr key={index} className="border-t border-[var(--border)]">
+                <td className="py-1.5 pr-2">
+                  <input value={row.item} disabled={!editable} onChange={(e) => setRows((prev) => prev.map((r, i) => i === index ? { ...r, item: e.target.value } : r))} placeholder="工作内容" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:border-transparent" />
+                </td>
+                <td className="py-1.5 pr-2">
+                  <input value={row.unit} disabled={!editable} onChange={(e) => setRows((prev) => prev.map((r, i) => i === index ? { ...r, unit: e.target.value } : r))} placeholder="m³" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:border-transparent" />
+                </td>
+                <td className="py-1.5 pr-2">
+                  <input value={row.quantity} disabled={!editable} onChange={(e) => setRows((prev) => prev.map((r, i) => i === index ? { ...r, quantity: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:border-transparent" />
+                </td>
+                <td className="py-1.5 pr-2">
+                  <input value={row.unitPrice} disabled={!editable} onChange={(e) => setRows((prev) => prev.map((r, i) => i === index ? { ...r, unitPrice: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:border-transparent" />
+                </td>
+                <td className="py-1.5 pr-2 text-right tabular-nums">{amount.toFixed(2)}</td>
+                <td className="py-1.5 text-center">
+                  {editable ? <button type="button" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} className="text-xs text-[#CB2634] hover:underline">删除</button> : null}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-[var(--border)] font-semibold">
+            <td className="py-2" colSpan={4}>合计（不含税）</td>
+            <td className="py-2 pr-2 text-right tabular-nums">
+              {rows.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0).toFixed(2)}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

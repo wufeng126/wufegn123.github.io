@@ -118,18 +118,26 @@
 
   <!-- ③ 对上 / 对下工程量 -->
   <div class="card">
-    <div class="card-h">📐 对上 / 对下工程量 <span class="tag">对上自动取甲方报量；对下手工填写</span>
+    <div class="card-h">📐 对上 / 对下工程量 <span class="tag">对上 / 对下均手工填写</span>
       <span class="btn-mini" style="margin-left:auto">+ 添加一行</span>
     </div>
-    <div style="background:#F7F8FA;border-bottom:1px solid var(--border);padding:10px 16px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:6px">
-        <span>对上工程量（来自甲方报量，只读）</span><span>合计 66.04 万 · 6 项</span>
-      </div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.9">
-        砌体工程 m³ 320 → 91,200 ｜ 钢筋制安 t 45.6 → 58,368 ｜ 模板工程 ㎡ 2,150 → 184,900<br/>
-        混凝土浇筑 m³ 410 → 49,200 ｜ 抹灰工程 ㎡ 3,400 → 142,800 ｜ 外架搭拆 ㎡ 1,860 → 133,920
-      </div>
+    <div style="padding:8px 16px 2px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:var(--text3)">对上工程量（手工填写）</span>
+      <span class="btn-mini">+ 添加一行</span>
     </div>
+    <table>
+      <thead><tr><th>工作内容</th><th>单位</th><th>数量</th><th>单价（不含税）</th><th>金额（不含税）</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td>砌体工程</td><td>m³</td><td>320</td><td>285.00</td><td>91,200.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>钢筋制安</td><td>t</td><td>45.6</td><td>1,280.00</td><td>58,368.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>模板工程</td><td>㎡</td><td>2,150</td><td>86.00</td><td>184,900.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>混凝土浇筑</td><td>m³</td><td>410</td><td>120.00</td><td>49,200.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>抹灰工程</td><td>㎡</td><td>3,400</td><td>42.00</td><td>142,800.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>外架搭拆</td><td>㎡</td><td>1,860</td><td>72.00</td><td>133,920.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr style="background:#FAFAFA;font-weight:600"><td colspan="4">合计（不含税）</td><td>660,388.00</td><td></td></tr>
+      </tbody>
+    </table>
+    <div style="border-top:1px solid var(--border);margin-top:6px"></div>
     <div style="padding:8px 16px 0;font-size:12px;color:var(--text3)">对下工程量（手工填写，班组/分包口径）</div>
     <table>
       <thead><tr><th>工作内容</th><th>单位</th><th>数量</th><th>单价（不含税）</th><th>金额（不含税）</th><th>操作</th></tr></thead>
@@ -143,7 +151,7 @@
         <tr style="background:#FAFAFA;font-weight:600"><td colspan="4">合计（不含税）</td><td>651,830.00</td><td></td></tr>
       </tbody>
     </table>
-    <div class="mut">对上（报量）66.04 万，对下（手工）65.18 万，差异 <b class="down">-0.86 万（-1.3%）</b>，在 5% 容差内；差异过大时提示核对分项口径。</div>
+    <div class="mut">对上合计 66.04 万，对下合计 65.18 万，差额 <b class="down">-0.86 万（-1.3%）</b>，在 5% 容差内；差异过大时提示核对分项口径。</div>
   </div>
 
   <!-- ④ 月度用工分析 -->
