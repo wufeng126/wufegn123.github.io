@@ -3,30 +3,28 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>月度分析 · 预算员填写界面（预览）</title>
+<title>月度分析 · 最终版预览</title>
 <style>
-  :root{
-    --bg:#F5F6F8; --card:#fff; --border:#E5E6EB; --text:#1D2129; --text2:#4E5969; --text3:#86909C;
-    --primary:#165DFF; --success:#00A870; --warn:#FF7D00; --danger:#CB2634;
-  }
+  :root{--bg:#F5F6F8;--card:#fff;--border:#E5E6EB;--text:#1D2129;--text2:#4E5969;--text3:#86909C;
+        --primary:#165DFF;--success:#00A870;--warn:#FF7D00;--danger:#CB2634}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px}
-  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 48px}
-  .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
-  .crumb{color:var(--text3);font-size:12px;margin-bottom:6px}
+  .wrap{max-width:920px;margin:0 auto;padding:20px 16px 48px}
+  .crumb{color:var(--text3);font-size:12px;margin-bottom:8px}
   h1{font-size:20px;margin:0}
   .meta{color:var(--text3);font-size:12px;margin-top:4px}
   .status{background:#E8FFEA;color:#00A870;border-radius:999px;padding:3px 10px;font-size:11px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
-  .card-h{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600}
+  .card-h{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px}
   .tag{font-size:11px;color:var(--text3);font-weight:400}
   .new{background:#E8F3FF;color:var(--primary);border-radius:6px;padding:1px 6px;font-size:11px;font-weight:500}
-  .kpis{display:grid;grid-template-columns:repeat(5,1fr);background:var(--border);gap:1px}
-  .kpis4{grid-template-columns:repeat(4,1fr)}
+  .kpis{display:grid;background:var(--border);gap:1px}
+  .k5{grid-template-columns:repeat(5,1fr)} .k4{grid-template-columns:repeat(4,1fr)}
   .kpi{background:#fff;padding:10px 14px}
   .kpi .l{font-size:11px;color:var(--text3)}
   .kpi .v{font-size:17px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
-  .kpi .d{font-size:11px;margin-top:2px}
+  .kpi .d{font-size:11px;margin-top:2px;color:var(--text3)}
   .up{color:var(--success)} .down{color:var(--danger)} .orange{color:var(--warn)}
   table{width:100%;border-collapse:collapse;font-size:12px}
   th{color:var(--text3);font-weight:500;text-align:right;padding:7px 10px;border-bottom:1px solid var(--border)}
@@ -34,19 +32,28 @@
   td{padding:7px 10px;border-bottom:1px solid #F2F3F5;text-align:right;font-variant-numeric:tabular-nums}
   .pad{padding:12px 16px}
   .barrow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:12px}
-  .barrow .n{width:72px;color:var(--text2)}
+  .barrow .n{width:78px;color:var(--text2)}
   .track{flex:1;height:6px;background:#F2F3F5;border-radius:4px;overflow:hidden}
   .fill{height:100%;border-radius:4px;background:var(--primary)}
-  .num{width:84px;text-align:right;font-variant-numeric:tabular-nums}
+  .num{width:86px;text-align:right;font-variant-numeric:tabular-nums}
   .pct{width:46px;text-align:right;color:var(--text3);font-variant-numeric:tabular-nums}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
-  .chip{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px;color:var(--text2);background:#fff}
-  .textarea{border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px 10px;min-height:64px;color:var(--text2);white-space:pre-wrap}
-  .footer{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--border);background:#fff}
+  .grid-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 16px 14px}
+  .mini{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .mini .t{font-size:11px;color:var(--text3)}
+  .mini .v{font-size:15px;font-weight:600;margin-top:4px}
+  .mini .s{font-size:11px;color:var(--text3);margin-top:2px}
+  .textarea{border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px 10px;min-height:56px;color:var(--text2);white-space:pre-wrap;font-size:12px;line-height:1.7}
+  .footer{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
   .btn{height:32px;border-radius:8px;border:1px solid var(--border);background:#fff;padding:0 14px;font-size:12px;color:var(--text2)}
   .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .notice{border:1px dashed #B7EB8F;background:#F6FFED;color:#237804;border-radius:10px;padding:8px 12px;font-size:12px;margin:0 16px 12px}
-  .mut{color:var(--text3);font-size:11px;padding:0 16px 12px}
+  .alert{border-radius:10px;padding:9px 12px;font-size:12px;margin:8px 16px 0;line-height:1.7}
+  .alert.bad{background:#FFF2F0;border:1px solid #FFCCC7;color:#8B1A25}
+  .alert.warn{background:#FFFBE6;border:1px solid #FFE7BA;color:#874D00}
+  .alert.info{background:#F7F8FA;border:1px solid var(--border);color:var(--text2)}
+  .mut{color:var(--text3);font-size:11px;padding:10px 16px 14px}
+  .inputbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 16px;background:#F7F8FA;border-bottom:1px solid var(--border);font-size:12px}
+  .inp{height:30px;width:150px;border:1px solid var(--border);border-radius:8px;padding:0 8px;font-size:13px;background:#fff}
+  .btn-mini{font-size:11px;color:var(--primary);border:1px solid var(--border);border-radius:8px;padding:3px 10px;background:#fff}
 </style>
 </head>
 <body>
@@ -55,73 +62,72 @@
   <div class="head">
     <div>
       <h1>2026-10 月度分析</h1>
-      <div class="meta">项目 #17 · 系统数据自动带出（不可修改）</div>
+      <div class="meta">项目 #17 · 扶风五小项目 · 系统数据自动带出（不可修改）</div>
     </div>
-    <div class="status">当前状态：已通过（已归档）</div>
+    <div class="status">当前状态：草稿（预算员填写中）</div>
   </div>
 
-  <!-- 新增：本月利润与成本构成 -->
+  <!-- ① 本月利润与成本构成 -->
   <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
-    <div class="card-h">📊 本月利润与成本构成 <span class="new">新增预览</span> <span class="tag">实际产值 − 本月成本 = 本月利润</span></div>
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 16px;background:#F7F8FA;border-bottom:1px solid var(--border);font-size:12px">
+    <div class="card-h">📊 本月利润与成本构成 <span class="tag">实际产值 − 本月成本 = 本月利润</span></div>
+    <div class="inputbar">
       <span style="color:var(--text3)">实际产值（不含税，必填）</span>
-      <input value="66.00" style="height:30px;width:140px;border:1px solid var(--border);border-radius:8px;padding:0 8px;font-size:13px" />
-      <span style="color:var(--text3)">必填；开票额 121.45 万仅作参考</span>
+      <input class="inp" value="66.00" />
+      <span style="color:var(--text3)">开票额 111.42 万（不含税）仅作参考；利润按实际产值计算</span>
     </div>
-    <div class="kpis kpis4">
-      <div class="kpi"><div class="l">实际产值（不含税）</div><div class="v">66.00 万元</div><div class="d tag">开票额 111.42 万 → 剔除走账</div></div>
-      <div class="kpi"><div class="l">本月成本合计</div><div class="v orange">34.13 万元</div><div class="d tag">见下方构成</div></div>
-      <div class="kpi"><div class="l">本月利润</div><div class="v up">31.87 万元</div><div class="d tag">产值 − 成本</div></div>
-      <div class="kpi"><div class="l">本月利润率</div><div class="v up">48.3%</div><div class="d tag">利润 ÷ 不含税产值</div></div>
+    <div class="kpis k4">
+      <div class="kpi"><div class="l">实际产值（不含税）</div><div class="v">66.00 万元</div><div class="d">开票 111.42 万，走账 45.42 万</div></div>
+      <div class="kpi"><div class="l">本月成本合计</div><div class="v orange">34.13 万元</div><div class="d">六项构成见下</div></div>
+      <div class="kpi"><div class="l">本月利润</div><div class="v up">31.87 万元</div><div class="d">产值 − 成本</div></div>
+      <div class="kpi"><div class="l">本月利润率</div><div class="v up">48.3%</div><div class="d">利润 ÷ 实际产值</div></div>
     </div>
     <div class="pad" style="border-top:1px solid var(--border)">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">成本构成（占比）</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">成本构成（占成本比）</div>
       <div class="barrow"><span class="n">工人工资</span><div class="track"><div class="fill" style="width:62.2%"></div></div><span class="num">21.23 万</span><span class="pct">62.2%</span></div>
-      <div class="barrow"><span class="n">班组结算</span><div class="track"><div class="fill" style="width:0.5%"></div></div><span class="num">0.00 万</span><span class="pct">0.0%</span></div>
+      <div class="barrow"><span class="n">班组结算</span><div class="track"><div class="fill" style="width:0.4%"></div></div><span class="num">0.00 万</span><span class="pct">0.0%</span></div>
       <div class="barrow"><span class="n">零星材料</span><div class="track"><div class="fill" style="width:8.4%"></div></div><span class="num">2.87 万</span><span class="pct">8.4%</span></div>
       <div class="barrow"><span class="n">供应商结算</span><div class="track"><div class="fill" style="width:24.9%"></div></div><span class="num">8.50 万</span><span class="pct">24.9%</span></div>
       <div class="barrow"><span class="n">其他费用</span><div class="track"><div class="fill" style="width:2.9%"></div></div><span class="num">1.00 万</span><span class="pct">2.9%</span></div>
       <div class="barrow"><span class="n">税金</span><div class="track"><div class="fill" style="width:1.6%"></div></div><span class="num">0.53 万</span><span class="pct">1.6%</span></div>
     </div>
-    <div class="notice">口径说明：工人工资为应发（不含班组分账生成的工资）；供应商取已审核结算额；税金取发票税额。避免与班组结算重复计算。</div>
+    <div class="mut">口径：工人工资取应发（含管理人员，不含班组分账工资）；供应商取已审核结算额；税金取发票税额。</div>
   </div>
 
-  <!-- 新增：工人工资 -->
-  <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
-    <div class="card-h">👷 工人工资 <span class="new">新增预览</span> <span class="tag">应发口径（含管理人员），不含班组分账工资</span></div>
-    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
-      <div class="kpi"><div class="l">工资应发合计</div><div class="v">23.96 万元</div><div class="d up">环比 +2.3%</div></div>
-      <div class="kpi"><div class="l">生产工人</div><div class="v">21.23 万元</div><div class="d tag">占 88.6%</div></div>
-      <div class="kpi"><div class="l">管理人员</div><div class="v">2.73 万元</div><div class="d tag">占 11.4%</div></div>
-      <div class="kpi"><div class="l">实发 / 未发</div><div class="v">18.10 / 3.13 万</div><div class="d tag">未发占 14.7%</div></div>
-      <div class="kpi"><div class="l">涉及人数</div><div class="v">23 人</div><div class="d tag">生产 21 · 管理 2</div></div>
+  <!-- ② 工人工资 -->
+  <div class="card">
+    <div class="card-h">👷 工人工资 <span class="tag">应发口径（含管理人员），不含班组分账工资</span></div>
+    <div class="kpis k5">
+      <div class="kpi"><div class="l">工资应发合计</div><div class="v">21.23 万元</div><div class="d">含管理/后勤</div></div>
+      <div class="kpi"><div class="l">生产工人</div><div class="v">18.50 万元</div><div class="d">占 87.1%</div></div>
+      <div class="kpi"><div class="l">管理人员</div><div class="v">2.73 万元</div><div class="d">占 12.9%</div></div>
+      <div class="kpi"><div class="l">已发 / 未发</div><div class="v">18.10 / 3.13 万</div><div class="d">未发 14.7%</div></div>
+      <div class="kpi"><div class="l">涉及工人</div><div class="v">23 人</div><div class="d">在岗人数</div></div>
     </div>
     <div class="pad" style="border-top:1px solid var(--border)">
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">各工种工资</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">木工</div><div style="font-size:16px;font-weight:600;margin-top:4px">13.11 万</div><div class="tag">61.7%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">普工</div><div style="font-size:16px;font-weight:600;margin-top:4px">3.76 万</div><div class="tag">17.7%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">外架工</div><div style="font-size:16px;font-weight:600;margin-top:4px">1.46 万</div><div class="tag">6.9%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">普工</div><div style="font-size:16px;font-weight:600;margin-top:4px">1.05 万</div><div class="tag">4.9%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">信号工</div><div style="font-size:16px;font-weight:600;margin-top:4px">0.95 万</div><div class="tag">4.5%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">钢筋工</div><div style="font-size:16px;font-weight:600;margin-top:4px">0.88 万</div><div class="tag">4.1%</div></div>
+      <div class="grid-cards" style="padding:0">
+        <div class="mini"><div class="t">木工</div><div class="v">13.11 万</div><div class="s">61.7%</div></div>
+        <div class="mini"><div class="t">普工</div><div class="v">3.76 万</div><div class="s">17.7%</div></div>
+        <div class="mini"><div class="t">外架工</div><div class="v">1.46 万</div><div class="s">6.9%</div></div>
+        <div class="mini"><div class="t">普工（零工）</div><div class="v">1.05 万</div><div class="s">4.9%</div></div>
+        <div class="mini"><div class="t">信号工</div><div class="v">0.95 万</div><div class="s">4.5%</div></div>
+        <div class="mini"><div class="t">钢筋工</div><div class="v">0.88 万</div><div class="s">4.1%</div></div>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text3)">分项目：扶风五小项目 23.96 万（应发，含管理 2.73 万）/ 18.10 万（实发）</div>
     </div>
   </div>
 
-  <!-- 新增：实际工程量（手工填写） -->
-  <div class="card" style="border-color:#BEDAFF;box-shadow:0 0 0 3px #E8F3FF">
-    <div class="card-h">📐 对上 / 对下工程量 <span class="new">新增预览</span> <span class="tag">对下手工填写；对上自动取「甲方报量」</span>
-      <span style="margin-left:auto;font-size:11px;color:#165DFF;border:1px solid var(--border);border-radius:8px;padding:3px 10px">+ 添加一行</span>
+  <!-- ③ 对上 / 对下工程量 -->
+  <div class="card">
+    <div class="card-h">📐 对上 / 对下工程量 <span class="tag">对上自动取甲方报量；对下手工填写</span>
+      <span class="btn-mini" style="margin-left:auto">+ 添加一行</span>
     </div>
     <div style="background:#F7F8FA;border-bottom:1px solid var(--border);padding:10px 16px">
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:6px">
         <span>对上工程量（来自甲方报量，只读）</span><span>合计 66.04 万 · 6 项</span>
       </div>
       <div style="font-size:12px;color:var(--text2);line-height:1.9">
-        砌体工程 m³ 320 → 91,200.00 ｜ 钢筋制安 t 45.6 → 58,368.00 ｜ 模板工程 ㎡ 2,150 → 184,900.00<br/>
-        混凝土浇筑 m³ 410 → 49,200.00 ｜ 抹灰工程 ㎡ 3,400 → 142,800.00 ｜ 外架搭拆 ㎡ 1,860 → 133,920.00
+        砌体工程 m³ 320 → 91,200 ｜ 钢筋制安 t 45.6 → 58,368 ｜ 模板工程 ㎡ 2,150 → 184,900<br/>
+        混凝土浇筑 m³ 410 → 49,200 ｜ 抹灰工程 ㎡ 3,400 → 142,800 ｜ 外架搭拆 ㎡ 1,860 → 133,920
       </div>
     </div>
     <div style="padding:8px 16px 0;font-size:12px;color:var(--text3)">对下工程量（手工填写，班组/分包口径）</div>
@@ -129,21 +135,21 @@
       <thead><tr><th>工作内容</th><th>单位</th><th>数量</th><th>单价（不含税）</th><th>金额（不含税）</th><th>操作</th></tr></thead>
       <tbody>
         <tr><td>砌体（班组）</td><td>m³</td><td>318</td><td>285.00</td><td>90,630.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
-        <tr><td>钢筋制安</td><td>t</td><td>45.6</td><td>1,280.00</td><td>58,368.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
-        <tr><td>模板工程</td><td>㎡</td><td>2,150</td><td>86.00</td><td>184,900.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
-        <tr><td>混凝土浇筑</td><td>m³</td><td>410</td><td>120.00</td><td>49,200.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
-        <tr><td>抹灰工程</td><td>㎡</td><td>3,400</td><td>42.00</td><td>142,800.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
-        <tr><td>外架搭拆</td><td>㎡</td><td>1,860</td><td>72.00</td><td>133,920.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
-        <tr style="background:#FAFAFA;font-weight:600"><td colspan="4">合计（不含税）</td><td>641,988.00</td><td></td></tr>
+        <tr><td>钢筋（班组）</td><td>t</td><td>45.2</td><td>1,280.00</td><td>57,856.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>模板（班组）</td><td>㎡</td><td>2,120</td><td>86.00</td><td>182,320.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>混凝土（班组）</td><td>m³</td><td>408</td><td>118.00</td><td>48,144.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>抹灰（班组）</td><td>㎡</td><td>3,360</td><td>42.00</td><td>141,120.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr><td>外架（班组）</td><td>㎡</td><td>1,830</td><td>72.00</td><td>131,760.00</td><td style="text-align:center;color:#CB2634">删除</td></tr>
+        <tr style="background:#FAFAFA;font-weight:600"><td colspan="4">合计（不含税）</td><td>651,830.00</td><td></td></tr>
       </tbody>
     </table>
-    <div class="mut" style="padding-top:10px">对上（报量）合计 66.04 万，对下（手工）合计 64.20 万，差异 -1.84 万（-2.8%，在 5% 容差内）；差异过大时提示核对分项口径</div>
+    <div class="mut">对上（报量）66.04 万，对下（手工）65.18 万，差异 <b class="down">-0.86 万（-1.3%）</b>，在 5% 容差内；差异过大时提示核对分项口径。</div>
   </div>
 
-  <!-- 原有：用工分析 -->
+  <!-- ④ 月度用工分析 -->
   <div class="card">
     <div class="card-h">📈 月度用工分析 <span class="tag">自动带出，仅分析用</span><span style="margin-left:auto;font-size:11px;color:var(--text3)">合计 701 小时 / ¥17,014.4</span></div>
-    <div class="kpis kpis4">
+    <div class="kpis k4">
       <div class="kpi"><div class="l">点工总工时</div><div class="v">701</div></div>
       <div class="kpi"><div class="l">点工总金额</div><div class="v">¥17,014.4</div></div>
       <div class="kpi"><div class="l">已填报项目</div><div class="v">1</div></div>
@@ -151,18 +157,18 @@
     </div>
     <div class="pad" style="border-top:1px solid var(--border)">
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">工作内容类别</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">文明施工</div><div style="font-size:15px;font-weight:600;margin-top:4px">164 h</div><div class="tag">¥3,608 · 23.4%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">甲方用工</div><div style="font-size:15px;font-weight:600;margin-top:4px">155 h</div><div class="tag">¥4,039 · 22.1%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">装卸车</div><div style="font-size:15px;font-weight:600;margin-top:4px">124 h</div><div class="tag">¥3,262.2 · 17.7%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">砼工帮工</div><div style="font-size:15px;font-weight:600;margin-top:4px">90 h</div><div class="tag">¥1,987.4 · 12.8%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">临时设施</div><div style="font-size:15px;font-weight:600;margin-top:4px">78 h</div><div class="tag">¥2,100.8 · 11.1%</div></div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div class="tag">材料倒运</div><div style="font-size:15px;font-weight:600;margin-top:4px">77 h</div><div class="tag">¥1,674 · 11%</div></div>
+      <div class="grid-cards" style="padding:0">
+        <div class="mini"><div class="t">文明施工</div><div class="v">164 h</div><div class="s">¥3,608 · 23.4%</div></div>
+        <div class="mini"><div class="t">甲方用工</div><div class="v">155 h</div><div class="s">¥4,039 · 22.1%</div></div>
+        <div class="mini"><div class="t">装卸车</div><div class="v">124 h</div><div class="s">¥3,262.2 · 17.7%</div></div>
+        <div class="mini"><div class="t">砼工帮工</div><div class="v">90 h</div><div class="s">¥1,987.4 · 12.8%</div></div>
+        <div class="mini"><div class="t">临时设施</div><div class="v">78 h</div><div class="s">¥2,100.8 · 11.1%</div></div>
+        <div class="mini"><div class="t">材料倒运</div><div class="v">77 h</div><div class="s">¥1,674 · 11%</div></div>
       </div>
     </div>
   </div>
 
-  <!-- 原有：材料情况 -->
+  <!-- ⑤ 本月材料情况 -->
   <div class="card">
     <div class="card-h">📦 本月材料情况 <span class="tag">自动带出，只读</span><span style="margin-left:auto;font-size:11px;color:var(--text3)">合计 57 笔</span></div>
     <div class="kpis" style="grid-template-columns:1fr 1fr">
@@ -181,64 +187,44 @@
     </table>
   </div>
 
-  <!-- 新增：自动分析 -->
-  <div class="card" style="border-color:#B7EB8F;box-shadow:0 0 0 3px #F6FFED">
-    <div class="card-h">🤖 自动分析 <span class="new">新增</span> <span class="tag">对比上月、拆解成本、校验数据完整性</span></div>
-    <div style="padding:6px 16px 14px">
-
-      <div style="border:1px solid #FFCCC7;background:#FFF2F0;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;color:#CB2634;font-size:12px">🔴 成本率异常下降，需确认产值与成本口径</div>
-        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          实际产值 <b>66.00 万</b>（开票 111.42 万，剔除走账 45.42 万），成本 34.13 万，成本率 <b>51.7%</b>；按开票额算会虚高利润，本页已按实际产值计算。
-        </div>
-        <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：核实产值确认依据，同时确认班组/供应商本月是否有未结算成本未入账。</div>
-      </div>
-
-      <div style="border:1px solid #B7EB8F;background:#F6FFED;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;color:#237804;font-size:12px">✅ 利润环比增加约 73.8 万，主要由产值驱动</div>
-        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          按实际产值口径，本月利润 31.87 万、利润率 48.3%。若按开票额计算会显示 77.29 万，差异 45.42 万全部来自走账，不能作为经营成果。
-        </div>
-      </div>
-
-      <div style="border:1px solid #FFE7BA;background:#FFFBE6;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;color:#874D00;font-size:12px">⚠️ 班组结算为 0，与 21.23 万人工成本不匹配</div>
-        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          本月有 23 名工人在册、人工成本 21.23 万，但班组结算为 0。若这些工人属于班组，说明班组结算尚未入账，成本被低估；若为自有工人则正常。
-        </div>
-        <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：确认本月是否有已完工未结算的班组，避免成本跨月累积后集中爆发。</div>
-      </div>
-
-      <div style="border:1px solid #FFE7BA;background:#FFFBE6;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;color:#874D00;font-size:12px">⚠️ 供应商未付 42.3 万，占应付比例高</div>
-        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          本月供应商结算 8.50 万，但累计未付 42.30 万，相当于本月成本的 123.9%。持续累积会影响供货与结算价。
-        </div>
-        <div style="margin-top:4px;font-size:12px;color:#165DFF">建议：按供应商列出未付清单，优先处理影响供货的关键供应商。</div>
-      </div>
-
-      <div style="border:1px solid #E5E6EB;background:#fff;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;font-size:12px">ℹ️ 每工时可支撑产值约 941 元（按实际产值），工效正常</div>
-        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          点工 701 小时，实际产值 66 万。该效率偏低，人工投入产出未见异常；但人工成本占产值 19.1%，需结合工种结构判断。
-        </div>
-      </div>
-
-      <div style="border:1px solid #FFE7BA;background:#FFFBE6;border-radius:10px;padding:10px 12px;margin-top:8px">
-        <div style="font-weight:600;color:#874D00;font-size:12px">⚠️ 工人未发工资 3.13 万，涉及 23 人</div>
-        <div style="margin-top:4px;font-size:12px;line-height:1.8;color:#4E5969">
-          本月应发 21.23 万、实发 18.10 万，未发比例约 14.7%。虽未到高风险区间，但需关注是否有已退场工人未结清。
-        </div>
-      </div>
-
+  <!-- ⑥ 自动分析 -->
+  <div class="card">
+    <div class="card-h">🤖 自动分析 <span class="tag">对比上月、拆解成本、校验数据完整性</span></div>
+    <div class="alert warn">
+      <b>⚠️ 开票额与实际产值相差 45.42 万（占开票 40.8%）</b><br/>
+      开票 111.42 万、实际产值 66.00 万，差额为止走账/代付，不计入经营成果；本页利润已按实际产值计算。<br/>
+      <span style="color:var(--primary)">建议：在预算员分析中说明走账原因与对应项目，避免被误读为真实产值。</span>
+    </div>
+    <div class="alert warn">
+      <b>⚠️ 成本率 51.7%，较上月（约 94%）下降 42 个百分点</b><br/>
+      成本没有随产值同步增长，两种可能：①上月成本包含集中结算，本月未结算；②本月成本未完全归集（班组结算为 0）。<br/>
+      <span style="color:var(--primary)">建议：确认本月是否有已完工未结算的班组/供应商，避免成本跨月累积。</span>
+    </div>
+    <div class="alert bad">
+      <b>🔴 班组结算为 0，但与 21.23 万人工成本并存</b><br/>
+      本月 23 名工人、工资应发 21.23 万，班组结算 0。若这些工人属于班组，则班组成本尚未入账，项目利润被高估。<br/>
+      <span style="color:var(--primary)">建议：核对班组结算单状态，确认是否存在"已完工未结算"。</span>
+    </div>
+    <div class="alert warn">
+      <b>⚠️ 供应商未付 42.30 万，占本月成本 123.9%</b><br/>
+      本月供应商结算 8.50 万，累计未付 42.30 万，付款滞后会影响供货与后续价格。<br/>
+      <span style="color:var(--primary)">建议：按供应商列未付清单，优先处理影响供货的关键供应商。</span>
+    </div>
+    <div class="alert info">
+      <b>ℹ️ 每工时可支撑产值约 941 元</b><br/>
+      点工 701 小时、实际产值 66 万。较常规水平偏低，需结合工种结构与施工内容判断是否存在窝工。
+    </div>
+    <div class="alert warn">
+      <b>⚠️ 工人未发工资 3.13 万（占应发 14.7%）</b><br/>
+      需关注是否有已退场工人未结清，避免纠纷。
     </div>
   </div>
 
-  <!-- 原有：预算员分析 -->
+  <!-- ⑦ 预算员分析 -->
   <div class="card">
     <div class="card-h">📝 预算员分析 <span class="tag">填报人：伍锋</span></div>
     <div class="pad">
-      <div class="textarea">1.本月实际完成产值66万，121万中存在走账
+      <div class="textarea">1.本月实际完成产值66万，开票121万中存在走账45万。
 2.本月钢筋工上报结算存在成本超支，已通知班组重新核算人工成本，目前未上交。
 3.混凝土班组本月完成产值45514元。
 4.甲方用工目前只办理了两份签证7760元，未办理的签证表示后期以工程里来结算，已通知项目对后期甲方用工不再考虑配合。</div>
@@ -246,6 +232,7 @@
         <div><div class="tag" style="margin-bottom:4px">风险说明</div><div class="textarea">目前产值能够覆盖工人工资；签证办理存在问题</div></div>
         <div><div class="tag" style="margin-bottom:4px">下月计划</div><div class="textarea">（未填写）</div></div>
       </div>
+      <div style="margin-top:12px"><div class="tag" style="margin-bottom:4px">备注</div><div class="textarea">（未填写）</div></div>
     </div>
     <div class="footer">
       <button class="btn">保存草稿</button>
@@ -253,7 +240,7 @@
     </div>
   </div>
 
-  <div style="text-align:center;color:var(--text3);font-size:11px;margin-top:10px">预览稿 · 示例数据（除经营数据/材料/用工取自你的截图外，利润为按 9% 税率测算）</div>
+  <div style="text-align:center;color:var(--text3);font-size:11px;margin-top:10px">预览稿 · 数据为示例，用于确认版式与口径</div>
 </div>
 </body>
 </html>
