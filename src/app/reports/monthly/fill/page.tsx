@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 
 type WorkflowContent = {
   actualOutput?: number | string;
-  quantities?: Array<{ item: string; unit: string; quantity: string | number; unitPrice: string | number; amount: string | number }>;
+  quantities?: Array<{ subitemId?: string; item: string; unit: string; quantity: string | number; unitPrice: string | number; progress?: string | number; amount: string | number }>;
   quantitiesUp?: Array<{ item: string; unit: string; quantity: string | number; unitPrice: string | number; amount: string | number }>;
   analysis?: string;
   risk?: string;
@@ -125,7 +125,8 @@ export default function MonthlyReportFillPage() {
 
   const [analysis, setAnalysis] = useState('');
   const [actualOutput, setActualOutput] = useState('');
-  const [quantities, setQuantities] = useState<Array<{ item: string; unit: string; quantity: string; unitPrice: string }>>([]);
+  const [quantities, setQuantities] = useState<Array<{ subitemId?: string; item: string; unit: string; quantity: string; unitPrice: string; progress: string }>>([]);
+  const [subitemOptions, setSubitemOptions] = useState<Array<{ id: number; name: string; unit?: string | null; price?: number | null }>>([]);
   const [reportItems, setReportItems] = useState<Array<{ projectId?: number; content: string; unit: string; quantity: number; unitPrice: number; amountExTax: number }>>([]);
   const [risk, setRisk] = useState('');
   const [nextPlan, setNextPlan] = useState('');
@@ -226,10 +227,12 @@ export default function MonthlyReportFillPage() {
     setActualOutput(c.actualOutput == null ? '' : String(c.actualOutput));
     setQuantities(Array.isArray(c.quantities)
       ? c.quantities.map((row) => ({
+          subitemId: row.subitemId ? String(row.subitemId) : undefined,
           item: String(row.item || ''),
           unit: String(row.unit || ''),
           quantity: String(row.quantity ?? ''),
           unitPrice: String(row.unitPrice ?? ''),
+          progress: String(row.progress ?? ''),
         }))
       : []);
       setRisk(String(c.risk || ''));
@@ -336,7 +339,7 @@ export default function MonthlyReportFillPage() {
     if (!month) return;
     // 实际产值为不含税口径，需手动填写（暂不自动取开票额）
     const bookedExTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
-    const actualValue = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
+    const actualValue = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0) || reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
     if (bookedExTax > 0 && actualValue > bookedExTax + 1) {
       toast.error(`实际产值（${actualValue.toFixed(2)} 万）不能大于不含税开票额（${bookedExTax.toFixed(2)} 万）`);
       return;
@@ -408,14 +411,16 @@ export default function MonthlyReportFillPage() {
     risk,
     nextPlan,
     remark,
-    actualOutput: reportItems.reduce((sum, item) => sum + item.amountExTax, 0) || '',
+    actualOutput: (quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0) || reportItems.reduce((sum, item) => sum + item.amountExTax, 0)) || '',
     quantities: quantities
       .filter((row) => row.item.trim() || Number(row.quantity) > 0)
       .map((row) => ({
+        subitemId: row.subitemId || '',
         item: row.item.trim(),
         unit: row.unit.trim(),
         quantity: Number(String(row.quantity).replace(/,/g, '')) || 0,
         unitPrice: Number(String(row.unitPrice).replace(/,/g, '')) || 0,
+        progress: Number(String(row.progress).replace(/%/g, '')) || 0,
         amount: (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0),
       })),
   };
@@ -458,16 +463,17 @@ export default function MonthlyReportFillPage() {
           <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[#F7F8FA] px-5 py-3 text-xs">
             <span className="text-[var(--color-text-3)]">实际产值（不含税）</span>
             <span className="text-base font-semibold tabular-nums text-[var(--foreground)]">
-              {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)} 万元
+              {quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0).toFixed(2)} 万元
             </span>
-            <span className="text-[var(--color-text-3)]">自动取「月度对上报量」明细合计（数量 × 不含税单价）；开票额仅作参考。</span>
+            <span className="text-[var(--color-text-3)]">取下方「实际工程量」合计（数量 × 不含税单价）；开票额仅作参考。</span>
           </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
             {(() => {
               const booked = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              const quantityTotal = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
               const reportedValue = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
-              // 实际产值取「月度对上报量」合计；历史无报量时回退开票额，避免显示 0
-              const exTax = reportedValue > 0 ? reportedValue : (canFill ? 0 : booked);
+              // 实际产值 = 本月实际工程量合计；未填写时回退报量/开票额
+              const exTax = quantityTotal > 0 ? quantityTotal : (reportedValue > 0 ? reportedValue : (canFill ? 0 : booked));
               const cost = Number(overview.monthCost) || 0;
               const profit = exTax - cost;
               const rate = exTax > 0 ? (profit / exTax) * 100 : 0;
@@ -597,58 +603,102 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
-        {/* 实际工程量（来自月度对上报量，只读） */}
+        {/* 实际工程量（手填，工作内容取自报量清单项） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold text-[var(--foreground)]">实际工程量</h2>
-              <span className="text-xs text-[var(--color-text-3)]">自动取「月度对上报量」，只读；实际产值 = 数量 × 不含税单价</span>
+              <span className="text-xs text-[var(--color-text-3)]">工作内容从「报量管理」清单项选择，填写数量、单价与当前施工进度</span>
             </div>
-            <span className="text-xs text-[var(--color-text-3)]">
-              合计 {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)} 万 · {reportItems.length} 项
-            </span>
+            {canFill ? (
+              <button
+                type="button"
+                onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '', progress: '' }])}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-3 text-xs text-[var(--color-primary)] hover:bg-[var(--color-muted)]"
+              >
+                + 添加一行
+              </button>
+            ) : null}
           </div>
-          {reportItems.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-[var(--color-text-3)]">
-              本月还没有已审核的对上报量记录，请先在「甲方报量 / 报量管理」中录入并审核。
-            </div>
-          ) : (
-            <div className="overflow-x-auto px-5 py-3">
+          <div className="overflow-x-auto px-5 py-3">
+            {quantities.length === 0 ? (
+              <p className="text-sm text-[var(--color-text-3)]">本月还没有填写实际工程量{canFill ? '，点右上角「+ 添加一行」开始填写。' : '。'}</p>
+            ) : (
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-[var(--color-text-3)]">
-                    <th className="py-1.5 pr-2 text-left font-medium">工作内容</th>
+                    <th className="py-1.5 pr-2 text-left font-medium">清单项（工作内容）</th>
                     <th className="w-16 py-1.5 pr-2 text-left font-medium">单位</th>
                     <th className="w-24 py-1.5 pr-2 text-right font-medium">数量</th>
-                    <th className="w-28 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
-                    <th className="w-32 py-1.5 text-right font-medium">金额（不含税）</th>
+                    <th className="w-24 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
+                    <th className="w-24 py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
+                    <th className="w-24 py-1.5 pr-2 text-right font-medium">当前进度(%)</th>
+                    <th className="w-12 py-1.5 text-center font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reportItems.map((item, index) => (
-                    <tr key={index} className="border-t border-[var(--border)]">
-                      <td className="py-1.5 pr-2">{item.content}</td>
-                      <td className="py-1.5 pr-2">{item.unit || '-'}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{item.quantity}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{item.unitPrice.toFixed(2)}</td>
-                      <td className="py-1.5 text-right tabular-nums">{item.amountExTax.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {quantities.map((row, index) => {
+                    const amount = (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0);
+                    return (
+                      <tr key={index} className="border-t border-[var(--border)]">
+                        <td className="py-1.5 pr-2">
+                          <select
+                            value={row.subitemId || ''}
+                            disabled={!canFill}
+                            onChange={(event) => {
+                              const id = event.target.value;
+                              const option = subitemOptions.find((item) => String(item.id) === id);
+                              setQuantities((prev) => prev.map((r, i) => i === index ? {
+                                ...r,
+                                subitemId: id,
+                                item: option?.name || r.item,
+                                unit: option?.unit || r.unit,
+                                unitPrice: option?.price ? String(option.price) : r.unitPrice,
+                              } : r));
+                            }}
+                            className="h-8 w-full rounded border border-[var(--border)] bg-white px-1 disabled:border-transparent"
+                          >
+                            <option value="">请选择清单项</option>
+                            {subitemOptions.map((option) => (
+                              <option key={option.id} value={option.id}>{option.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.unit} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unit: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.quantity} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, quantity: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.unitPrice} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unitPrice: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{amount.toFixed(2)}</td>
+                        <td className="py-1.5 pr-2">
+                          <input value={row.progress} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, progress: e.target.value } : r))} placeholder="如 80" className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:border-transparent" />
+                        </td>
+                        <td className="py-1.5 text-center">
+                          {canFill ? <button type="button" onClick={() => setQuantities((prev) => prev.filter((_, i) => i !== index))} className="text-xs text-[#CB2634] hover:underline">删除</button> : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-[var(--border)] font-semibold">
                     <td className="py-2" colSpan={4}>合计（不含税）</td>
-                    <td className="py-2 text-right tabular-nums">
-                      {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)}
+                    <td className="py-2 pr-2 text-right tabular-nums">
+                      {quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0).toFixed(2)}
                     </td>
+                    <td colSpan={2} />
                   </tr>
                 </tfoot>
               </table>
-              <p className="mt-2 text-[11px] text-[var(--color-text-3)]">
-                数据来源：本月已审核的甲方报量记录，按税率还原为不含税金额；修改请到「甲方报量」模块。
-              </p>
-            </div>
-          )}
+            )}
+            <p className="mt-2 text-[11px] text-[var(--color-text-3)]">
+              清单项来自「报量管理」中该项目的分项清单；实际产值按下表合计（数量 × 不含税单价）计算。
+            </p>
+          </div>
         </section>
 
         {/* 月度用工分析（自动带出，只读） */}
@@ -776,11 +826,12 @@ export default function MonthlyReportFillPage() {
             {buildMonthlyInsights({
               overview: {
                 ...(overview as unknown as Record<string, unknown>),
-                monthIncomeExTax: reportItems.reduce((sum, item) => sum + item.amountExTax, 0) > 0
-                  ? reportItems.reduce((sum, item) => sum + item.amountExTax, 0)
-                  : Number((overview as Record<string, unknown>).monthIncomeExTax) || 0,
+                monthIncomeExTax: (quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0)
+                  || reportItems.reduce((sum, item) => sum + item.amountExTax, 0)
+                  || Number((overview as Record<string, unknown>).monthIncomeExTax) || 0),
               },
-              actualOutputOverride: reportItems.reduce((sum, item) => sum + item.amountExTax, 0) || undefined,
+              actualOutputOverride: quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0)
+                || reportItems.reduce((sum, item) => sum + item.amountExTax, 0) || undefined,
               projects: projects as unknown as Parameters<typeof buildMonthlyInsights>[0]['projects'],
               trends,
               materialTop: materialSummary?.byCategory?.[0] || null,
