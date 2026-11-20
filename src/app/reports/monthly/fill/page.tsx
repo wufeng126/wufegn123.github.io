@@ -336,11 +336,7 @@ export default function MonthlyReportFillPage() {
     if (!month) return;
     // 实际产值为不含税口径，需手动填写（暂不自动取开票额）
     const bookedExTax = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
-    const actualValue = Number(String(actualOutput).replace(/,/g, '')) || 0;
-    if (!(actualValue > 0)) {
-      toast.error('请先填写「实际产值（不含税）」再保存/提交');
-      return;
-    }
+    const actualValue = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
     if (bookedExTax > 0 && actualValue > bookedExTax + 1) {
       toast.error(`实际产值（${actualValue.toFixed(2)} 万）不能大于不含税开票额（${bookedExTax.toFixed(2)} 万）`);
       return;
@@ -412,7 +408,7 @@ export default function MonthlyReportFillPage() {
     risk,
     nextPlan,
     remark,
-    actualOutput: actualOutput.trim() === '' ? '' : Number(actualOutput.replace(/,/g, '')),
+    actualOutput: reportItems.reduce((sum, item) => sum + item.amountExTax, 0) || '',
     quantities: quantities
       .filter((row) => row.item.trim() || Number(row.quantity) > 0)
       .map((row) => ({
@@ -460,21 +456,18 @@ export default function MonthlyReportFillPage() {
             <span className="text-xs text-[var(--color-text-3)]">不含税产值 − 本月成本 = 本月利润</span>
           </div>
           <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[#F7F8FA] px-5 py-3 text-xs">
-            <span className="text-[var(--color-text-3)]">实际产值（不含税，剔除走账；可修改）</span>
-            <input
-              type="number"
-              value={actualOutput}
-              onChange={(event) => setActualOutput(event.target.value)}
-              disabled={!canFill}
-              placeholder="如 66.00（不含税）"
-              className="h-8 w-44 rounded-lg border border-[var(--border)] bg-white px-2 text-sm tabular-nums outline-none focus:border-[var(--color-primary)] disabled:bg-[var(--color-muted)]"
-            />
-            <span className="text-[var(--color-text-3)]">必填：填写不含税实际产值（剔除走账）；利润、利润率、自动分析均按此计算。开票额仅作对比参考。</span>
+            <span className="text-[var(--color-text-3)]">实际产值（不含税）</span>
+            <span className="text-base font-semibold tabular-nums text-[var(--foreground)]">
+              {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)} 万元
+            </span>
+            <span className="text-[var(--color-text-3)]">自动取「月度对上报量」明细合计（数量 × 不含税单价）；开票额仅作参考。</span>
           </div>
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] sm:grid-cols-4">
             {(() => {
               const booked = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
-              const exTax = Number(String(actualOutput).replace(/,/g, '')) || 0;
+              const reportedValue = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
+              // 实际产值取「月度对上报量」合计；历史无报量时回退开票额，避免显示 0
+              const exTax = reportedValue > 0 ? reportedValue : (canFill ? 0 : booked);
               const cost = Number(overview.monthCost) || 0;
               const profit = exTax - cost;
               const rate = exTax > 0 ? (profit / exTax) * 100 : 0;
@@ -604,33 +597,58 @@ export default function MonthlyReportFillPage() {
           ) : null}
         </section>
 
-        {/* 实际工程量（手工填写） */}
+        {/* 实际工程量（来自月度对上报量，只读） */}
         <section className="mb-5 overflow-hidden rounded-xl border border-[var(--border)] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold text-[var(--foreground)]">实际工程量</h2>
-              <span className="text-xs text-[var(--color-text-3)]">手工填写，用于核对实际产值是否有工程量支撑</span>
+              <span className="text-xs text-[var(--color-text-3)]">自动取「月度对上报量」，只读；实际产值 = 数量 × 不含税单价</span>
             </div>
-            {canFill ? (
-              <button type="button" onClick={() => setQuantities((prev) => [...prev, { item: '', unit: '', quantity: '', unitPrice: '' }])} className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-3 text-xs text-[var(--color-primary)] hover:bg-[var(--color-muted)]">
-                + 添加一行
-              </button>
-            ) : null}
+            <span className="text-xs text-[var(--color-text-3)]">
+              合计 {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)} 万 · {reportItems.length} 项
+            </span>
           </div>
-          <div className="px-5 py-3">
-            <QuantityTable rows={quantities} setRows={setQuantities} editable={canFill} />
-            {quantities.length > 0 ? (() => {
-              const total = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
-              const actual = Number(String(actualOutput).replace(/,/g, '')) || 0;
-              const diff = total - actual;
-              return (
-                <p className={`mt-2 text-xs ${actual > 0 && Math.abs(diff) > actual * 0.05 ? 'text-[#CB2634]' : 'text-[var(--color-text-3)]'}`}>
-                  工程量合计 {total.toFixed(2)} 万，实际产值 {actual.toFixed(2)} 万，差异 {diff >= 0 ? '+' : ''}{diff.toFixed(2)} 万
-                  {actual > 0 && Math.abs(diff) > actual * 0.05 ? '（差异超过 5%，请核对）' : ''}
-                </p>
-              );
-            })() : null}
-          </div>
+          {reportItems.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-[var(--color-text-3)]">
+              本月还没有已审核的对上报量记录，请先在「甲方报量 / 报量管理」中录入并审核。
+            </div>
+          ) : (
+            <div className="overflow-x-auto px-5 py-3">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[var(--color-text-3)]">
+                    <th className="py-1.5 pr-2 text-left font-medium">工作内容</th>
+                    <th className="w-16 py-1.5 pr-2 text-left font-medium">单位</th>
+                    <th className="w-24 py-1.5 pr-2 text-right font-medium">数量</th>
+                    <th className="w-28 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
+                    <th className="w-32 py-1.5 text-right font-medium">金额（不含税）</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportItems.map((item, index) => (
+                    <tr key={index} className="border-t border-[var(--border)]">
+                      <td className="py-1.5 pr-2">{item.content}</td>
+                      <td className="py-1.5 pr-2">{item.unit || '-'}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">{item.quantity}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">{item.unitPrice.toFixed(2)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{item.amountExTax.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--border)] font-semibold">
+                    <td className="py-2" colSpan={4}>合计（不含税）</td>
+                    <td className="py-2 text-right tabular-nums">
+                      {reportItems.reduce((sum, item) => sum + item.amountExTax, 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+              <p className="mt-2 text-[11px] text-[var(--color-text-3)]">
+                数据来源：本月已审核的甲方报量记录，按税率还原为不含税金额；修改请到「甲方报量」模块。
+              </p>
+            </div>
+          )}
         </section>
 
         {/* 月度用工分析（自动带出，只读） */}
@@ -758,13 +776,11 @@ export default function MonthlyReportFillPage() {
             {buildMonthlyInsights({
               overview: {
                 ...(overview as unknown as Record<string, unknown>),
-                monthIncomeExTax: (Number(String(actualOutput).replace(/,/g, '')) || 0) > 0
-                  ? Number(String(actualOutput).replace(/,/g, ''))
+                monthIncomeExTax: reportItems.reduce((sum, item) => sum + item.amountExTax, 0) > 0
+                  ? reportItems.reduce((sum, item) => sum + item.amountExTax, 0)
                   : Number((overview as Record<string, unknown>).monthIncomeExTax) || 0,
               },
-              actualOutputOverride: (Number(String(actualOutput).replace(/,/g, '')) || 0) > 0
-                ? Number(String(actualOutput).replace(/,/g, ''))
-                : undefined,
+              actualOutputOverride: reportItems.reduce((sum, item) => sum + item.amountExTax, 0) || undefined,
               projects: projects as unknown as Parameters<typeof buildMonthlyInsights>[0]['projects'],
               trends,
               materialTop: materialSummary?.byCategory?.[0] || null,
