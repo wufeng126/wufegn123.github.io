@@ -19,8 +19,7 @@ import {
   BarChart3, ListTree, Target, CheckCircle2, TrendingUp,
   Building2, RefreshCw, Plus, Pencil, Trash2, Upload, Download,
   Search, X, FileSpreadsheet, FileText, AlertTriangle, Calendar, Save, Copy, Layers,
-  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft, ArrowRight, Scale
-} from 'lucide-react';
+  ArrowUpRight, ArrowDownRight, ShieldAlert, ChevronRight, ArrowLeft, ArrowRight, Scale, History } from 'lucide-react';
 import { AnimatedNumber, formatCurrency } from '@/components/ui/animated-number';
 import { useConfirm } from '@/hooks/use-confirm';
 import { effectiveSettlementPrice } from '@/lib/settlement-price';
@@ -262,6 +261,9 @@ function WorkItemsContent() {
 
   // 对上报量历史记录（独立于月度对话框）
   const [reportHistoryOpen, setReportHistoryOpen] = useState(false);
+  const [newSubitemOpen, setNewSubitemOpen] = useState(false);
+  const [newSubitemSaving, setNewSubitemSaving] = useState(false);
+  const [newSubitemForm, setNewSubitemForm] = useState({ name: '', unit: '', budgetQty: '', unitPrice: '', remark: '' });
   const [reportHistoryItem, setReportHistoryItem] = useState<WorkItemSubitem | null>(null);
   const [reportHistoryData, setReportHistoryData] = useState<any[]>([]);
   const [reportHistoryLoading, setReportHistoryLoading] = useState(false);
@@ -366,6 +368,45 @@ function WorkItemsContent() {
   }, [selectedProjectId, reconYearMonth, allSubitems]);
 
   const confirm = useConfirm();
+
+  const handleCreateSubitem = async () => {
+    if (!selectedProjectId) {
+      toast({ title: '请先在顶部选择项目', variant: 'error' });
+      return;
+    }
+    if (!newSubitemForm.name.trim()) {
+      toast({ title: '请填写清单项名称', variant: 'error' });
+      return;
+    }
+    setNewSubitemSaving(true);
+    try {
+      const res = await fetch('/api/work-item-subitems', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          project_id: Number(selectedProjectId),
+          subitem_name: newSubitemForm.name.trim(),
+          unit: newSubitemForm.unit.trim() || null,
+          budget_quantity: Number(newSubitemForm.budgetQty) || 0,
+          unit_price: Number(newSubitemForm.unitPrice) || 0,
+          contract_price: Number(newSubitemForm.unitPrice) || 0,
+          limit_price: Number(newSubitemForm.unitPrice) || 0,
+          remark: newSubitemForm.remark.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || '新增失败');
+      toast({ title: '清单项已新增' });
+      setNewSubitemOpen(false);
+      setNewSubitemForm({ name: '', unit: '', budgetQty: '', unitPrice: '', remark: '' });
+      await fetchData();
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : '新增失败', variant: 'error' });
+    } finally {
+      setNewSubitemSaving(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -3088,6 +3129,13 @@ function WorkItemsContent() {
                           className="h-9 w-44 pl-8 text-sm"
                         />
                       </div>
+                      <Button
+                        size="sm"
+                        className="h-9 gap-1 bg-[var(--color-primary)] text-xs text-white"
+                        onClick={() => setNewSubitemOpen(true)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> 新增清单项
+                      </Button>
                       <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
                         <button
                           type="button"
@@ -3204,6 +3252,22 @@ function WorkItemsContent() {
                                         >
                                           <Pencil className="h-3 w-3" />
                                           改预算
+                                        </Button>
+                                      )}
+                                      {!row.isAddon && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 gap-1 px-2 text-xs text-slate-600 hover:bg-slate-100"
+                                          onClick={() => void openReportHistory({
+                                            id: Number((row as unknown as Record<string, unknown>).subitem_id) || 0,
+                                            subitem_name: row.subitem_name,
+                                            unit: row.unit,
+                                            project_id: Number(selectedProjectId),
+                                          } as unknown as WorkItemSubitem)}
+                                        >
+                                          <History className="h-3 w-3" />
+                                          历史
                                         </Button>
                                       )}
                                       <button
@@ -4606,6 +4670,29 @@ function WorkItemsContent() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={newSubitemOpen} onOpenChange={setNewSubitemOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>新增清单项</DialogTitle>
+            <DialogDescription>新增后可在对比台账中录入对上报量与对下结算。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label className="text-sm">清单项名称 *</Label><Input value={newSubitemForm.name} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, name: e.target.value })} placeholder="如 砌体工程" className="mt-1.5" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-sm">单位</Label><Input value={newSubitemForm.unit} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, unit: e.target.value })} placeholder="m³" className="mt-1.5" /></div>
+              <div><Label className="text-sm">预算量</Label><Input value={newSubitemForm.budgetQty} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, budgetQty: e.target.value })} className="mt-1.5" /></div>
+            </div>
+            <div><Label className="text-sm">合同单价（不含税）</Label><Input value={newSubitemForm.unitPrice} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, unitPrice: e.target.value })} className="mt-1.5" /></div>
+            <div><Label className="text-sm">备注</Label><Input value={newSubitemForm.remark} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, remark: e.target.value })} className="mt-1.5" /></div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setNewSubitemOpen(false)}>取消</Button>
+            <Button onClick={() => void handleCreateSubitem()} disabled={newSubitemSaving}>{newSubitemSaving ? '保存中…' : '保存'}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
