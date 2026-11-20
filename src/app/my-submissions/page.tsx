@@ -448,7 +448,7 @@ export default function MySubmissionsPage() {
                         <span className="text-red-600">驳回原因：{row.reject_reason}</span>
                       ) : null}
                       <Link
-                        href={`/reports/monthly?month=${encodeURIComponent(row.year_month)}${row.project_scope !== 'all' ? `&projectId=${row.project_scope}` : ''}`}
+                        href={`/reports/monthly/fill?month=${encodeURIComponent(row.year_month)}${row.project_scope !== 'all' ? `&projectId=${row.project_scope}` : ''}`}
                         className="text-[var(--color-primary)] hover:underline"
                       >
                         查看月报
