@@ -651,18 +651,25 @@ export default function MonthlyReportFillPage() {
                               setQuantities((prev) => prev.map((r, i) => i === index ? {
                                 ...r,
                                 subitemId: id,
-                                item: option?.name || r.item,
+                                item: id ? (option?.name || r.item) : r.item,
                                 unit: option?.unit || r.unit,
                                 unitPrice: option?.price ? String(option.price) : r.unitPrice,
                               } : r));
                             }}
                             className="h-8 w-full rounded border border-[var(--border)] bg-white px-1 disabled:border-transparent"
                           >
-                            <option value="">请选择清单项</option>
+                            <option value="">选择清单项（或下方手工填写）</option>
                             {subitemOptions.map((option) => (
                               <option key={option.id} value={option.id}>{option.name}</option>
                             ))}
                           </select>
+                          <input
+                            value={row.item}
+                            disabled={!canFill}
+                            onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, item: e.target.value } : r))}
+                            placeholder="手工输入工作内容"
+                            className="mt-1 h-7 w-full rounded border border-dashed border-[var(--border)] px-2 text-[11px] disabled:border-transparent"
+                          />
                         </td>
                         <td className="py-1.5 pr-2">
                           <input value={row.unit} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, unit: e.target.value } : r))} className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:border-transparent" />
