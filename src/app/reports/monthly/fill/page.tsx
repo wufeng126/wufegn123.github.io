@@ -420,7 +420,7 @@ export default function MonthlyReportFillPage() {
         unit: row.unit.trim(),
         quantity: Number(String(row.quantity).replace(/,/g, '')) || 0,
         unitPrice: Number(String(row.unitPrice).replace(/,/g, '')) || 0,
-        progress: Number(String(row.progress).replace(/%/g, '')) || 0,
+        progress: String(row.progress || '').trim(),
         amount: (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0),
       })),
   };
@@ -608,7 +608,7 @@ export default function MonthlyReportFillPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold text-[var(--foreground)]">实际工程量</h2>
-              <span className="text-xs text-[var(--color-text-3)]">工作内容从「报量管理」清单项选择，填写数量、单价与当前施工进度</span>
+              <span className="text-xs text-[var(--color-text-3)]">工作内容从「报量管理」清单项选择，填写数量、单价与施工进度（文字描述）</span>
             </div>
             {canFill ? (
               <button
@@ -632,7 +632,7 @@ export default function MonthlyReportFillPage() {
                     <th className="w-24 py-1.5 pr-2 text-right font-medium">数量</th>
                     <th className="w-24 py-1.5 pr-2 text-right font-medium">单价（不含税）</th>
                     <th className="w-24 py-1.5 pr-2 text-right font-medium">金额（不含税）</th>
-                    <th className="w-24 py-1.5 pr-2 text-right font-medium">当前进度(%)</th>
+                    <th className="w-40 py-1.5 pr-2 text-left font-medium">施工进度</th>
                     <th className="w-12 py-1.5 text-center font-medium">操作</th>
                   </tr>
                 </thead>
@@ -682,7 +682,7 @@ export default function MonthlyReportFillPage() {
                         </td>
                         <td className="py-1.5 pr-2 text-right tabular-nums">{amount.toFixed(2)}</td>
                         <td className="py-1.5 pr-2">
-                          <input value={row.progress} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, progress: e.target.value } : r))} placeholder="如 80" className="h-8 w-full rounded border border-[var(--border)] px-2 text-right tabular-nums disabled:border-transparent" />
+                          <input value={row.progress} disabled={!canFill} onChange={(e) => setQuantities((prev) => prev.map((r, i) => i === index ? { ...r, progress: e.target.value } : r))} placeholder="如 一段一层已浇筑" className="h-8 w-full rounded border border-[var(--border)] px-2 disabled:border-transparent" />
                         </td>
                         <td className="py-1.5 text-center">
                           {canFill ? <button type="button" onClick={() => setQuantities((prev) => prev.filter((_, i) => i !== index))} className="text-xs text-[#CB2634] hover:underline">删除</button> : null}
