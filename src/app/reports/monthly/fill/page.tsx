@@ -929,7 +929,12 @@ export default function MonthlyReportFillPage() {
 
           {/* 打印/PDF：textarea 在打印时隐藏，这里输出完整文本 */}
           <div className="print-only px-5 pb-4 text-sm">
-            <p className="mb-1"><span className="font-semibold">实际产值（不含税）：</span>{quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0).toFixed(2)} 万元（本月实际工程量合计）</p>
+            <p className="mb-1"><span className="font-semibold">实际产值（不含税）：</span>{(() => {
+              const qtyTotal = quantities.reduce((sum, row) => sum + (Number(String(row.quantity).replace(/,/g, '')) || 0) * (Number(String(row.unitPrice).replace(/,/g, '')) || 0), 0);
+              const reportTotal = reportItems.reduce((sum, item) => sum + item.amountExTax, 0);
+              const fallback = Number((overview as Record<string, unknown>).monthIncomeExTax) || 0;
+              return (qtyTotal || reportTotal || fallback).toFixed(2);
+            })()} 万元（实际工程量合计；历史无工程量时按报量/开票额）</p>
             <div className="mb-2">
               <p className="font-semibold">经营分析</p>
               <p style={{ whiteSpace: 'pre-wrap' }}>{analysis || '（未填写）'}</p>
