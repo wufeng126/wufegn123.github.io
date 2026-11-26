@@ -6,7 +6,8 @@ import { SALARY_PAYMENT_TOLERANCE, syncSalaryPaymentStatus } from '@/lib/busines
 import { requireAuth, requireApiWritePermission } from '@/lib/api-auth';
 import { invalidateAggregationCache } from '@/lib/data-aggregation';
 import { getAccessibleProjectIds } from '@/lib/api-project-access';
-import { PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
+import { isPublicLogProjectId, PUBLIC_LOG_PROJECT_NAME } from '@/lib/public-log-project';
+import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
 import { getWorkerProjectRelations } from '@/lib/worker-project-access';
 
 function parseAmount(value: any): number {
@@ -330,16 +331,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '工人ID或项目ID无效' }, { status: 400 });
     }
 
-    // 红线：「公司公共项目/非项目日志」不得出现在工资发放
-    {
-      const { data: projectRow } = await client
-        .from('projects')
-        .select('id, name')
-        .eq('id', projectId)
-        .maybeSingle();
-      if (projectRow && String(projectRow.name || '').includes('公司公共项目')) {
-        return NextResponse.json({ error: '「公司公共项目/非项目日志」只允许在施工日志使用，不能用于工资发放' }, { status: 400 });
-      }
+    // 红线：库房只允许在零星材料；公共项目只允许在施工日志
+    if (await isMaterialWarehouseProjectId(client, projectId)) {
+      return NextResponse.json({ error: '「库房」项目只允许在零星材料模块使用，不能用于工资发放' }, { status: 400 });
+    }
+    if (await isPublicLogProjectId(client, projectId)) {
+      return NextResponse.json({ error: '「公司公共项目/非项目日志」只允许在施工日志使用，不能用于工资发放' }, { status: 400 });
     }
     if (salary_id != null && salary_id !== '' && !salaryId) {
       return NextResponse.json({ error: '工资核算单ID无效' }, { status: 400 });

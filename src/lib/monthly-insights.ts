@@ -72,6 +72,8 @@ export function buildMonthlyInsights(input: MonthlyInsightInput): MonthlyInsight
 
   const current = trends[trends.length - 1];
   const previous = trends.length >= 2 ? trends[trends.length - 2] : null;
+  // trends.income 为开票额（含税），按 9% 近似还原为不含税，便于与成本比较
+  const prevExTax = previous ? num(previous.income) / 1.09 : 0;
 
   // 0) 开票额与实际产值差异（走账）
   if (override > 0 && bookedExTax > 0 && Math.abs(bookedExTax - override) >= 1) {
@@ -87,7 +89,7 @@ export function buildMonthlyInsights(input: MonthlyInsightInput): MonthlyInsight
 
   // 1) 成本率与历史对比（核心判断：成本是否异常）
   if (previous && exTax > 0) {
-    const prevCostRate = pct(previous.cost, previous.income);
+    const prevCostRate = pct(previous.cost, prevExTax);
     const diff = costRate - prevCostRate;
     if (Math.abs(diff) >= 8) {
       insights.push({
@@ -109,7 +111,7 @@ export function buildMonthlyInsights(input: MonthlyInsightInput): MonthlyInsight
   if (previous && exTax > 0) {
     const prevProfit = num(previous.profit);
     const deltaProfit = profit - prevProfit;
-    const deltaIncome = exTax - num(previous.income);
+    const deltaIncome = exTax - prevExTax;
     const prevCostRate = pct(previous.cost, previous.income) / 100;
     const incomeEffect = deltaIncome * (1 - prevCostRate);
     const costEffect = -(cost - num(previous.cost));

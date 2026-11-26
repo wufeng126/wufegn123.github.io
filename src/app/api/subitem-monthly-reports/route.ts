@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isMaterialWarehouseProjectId } from '@/lib/material-warehouse-project';
+import { isPublicLogProjectId } from '@/lib/public-log-project';
 import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { insertWithSequenceFix } from '@/lib/audit-log';
@@ -87,6 +89,13 @@ export async function POST(request: NextRequest) {
       if (projectIdForScope > 0) {
         const access = await assertProjectAccess(client, auth.user, projectIdForScope);
         if (!access.ok) return access.response;
+        // 红线：库房只允许零星材料；公共项目只允许施工日志
+        if (await isMaterialWarehouseProjectId(client, projectIdForScope)) {
+          return NextResponse.json({ error: '「库房」项目只允许在零星材料模块使用' }, { status: 400 });
+        }
+        if (await isPublicLogProjectId(client, projectIdForScope)) {
+          return NextResponse.json({ error: '「公司公共项目/非项目日志」只允许在施工日志使用' }, { status: 400 });
+        }
       }
     }
 

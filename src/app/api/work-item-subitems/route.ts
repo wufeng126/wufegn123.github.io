@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
@@ -40,27 +41,20 @@ export async function GET(request: NextRequest) {
     }
 
     // 查询列表（关联项目名称）
-    let query = client
-      .from('work_item_subitems')
-      .select(`
-        *,
-        project:projects(id, name)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (workItemId) {
-      query = query.eq('work_item_id', parseInt(workItemId));
-    }
-    
-    if (projectId) {
-      query = query.eq('project_id', parseInt(projectId));
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`查询分项工程失败: ${error.message}`);
-    }
+    // 分项可能超过 1000 行（下拉/台账依赖全量），按 id 稳定分页
+    const data = await fetchAllRows<any>((from, to) => {
+      let query = client
+        .from('work_item_subitems')
+        .select(`
+          *,
+          project:projects(id, name)
+        `)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (workItemId) query = query.eq('work_item_id', parseInt(workItemId));
+      if (projectId) query = query.eq('project_id', parseInt(projectId));
+      return query;
+    });
 
     // 格式化返回数据
     const subitems = (data || []).map((item: any) => ({

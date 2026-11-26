@@ -378,6 +378,10 @@ function WorkItemsContent() {
       toast({ title: '请填写清单项名称', variant: 'error' });
       return;
     }
+    if (!newSubitemForm.unit.trim()) {
+      toast({ title: '请填写单位（如 m³、㎡、t）', variant: 'error' });
+      return;
+    }
     setNewSubitemSaving(true);
     try {
       const res = await fetch('/api/work-item-subitems', {
@@ -4680,7 +4684,7 @@ function WorkItemsContent() {
           <div className="space-y-3 py-2">
             <div><Label className="text-sm">清单项名称 *</Label><Input value={newSubitemForm.name} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, name: e.target.value })} placeholder="如 砌体工程" className="mt-1.5" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-sm">单位</Label><Input value={newSubitemForm.unit} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, unit: e.target.value })} placeholder="m³" className="mt-1.5" /></div>
+              <div><Label className="text-sm">单位 *</Label><Input value={newSubitemForm.unit} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, unit: e.target.value })} placeholder="m³" className="mt-1.5" /></div>
               <div><Label className="text-sm">预算量</Label><Input value={newSubitemForm.budgetQty} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, budgetQty: e.target.value })} className="mt-1.5" /></div>
             </div>
             <div><Label className="text-sm">合同单价（不含税）</Label><Input value={newSubitemForm.unitPrice} onChange={(e) => setNewSubitemForm({ ...newSubitemForm, unitPrice: e.target.value })} className="mt-1.5" /></div>
