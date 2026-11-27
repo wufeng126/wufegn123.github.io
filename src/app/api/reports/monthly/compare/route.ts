@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requirePermission } from '@/lib/api-auth';
 import { apiBadRequest } from '@/lib/api-utils';
 import { isValidReportMonth, parsePositiveIntParam } from '@/lib/monthly-report-route-validation';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 const supabase = getSupabaseClient();
 
@@ -22,11 +23,17 @@ export async function GET(request: NextRequest) {
       return apiBadRequest('请提供有效的对比月份参数(YYYY-MM)');
     }
 
+    const scope = await getAccessibleProjectIds(supabase, auth.user);
+
     let query = supabase
       .from('monthly_report_archives')
       .select('id, month, project_id, project_name, report_mode, snapshot_data, kpi_summary, risk_summary, created_at')
       .in('month', [month1, month2])
       .order('month', { ascending: false });
+    if (scope !== null) {
+      if (scope.length === 0) return NextResponse.json({ success: true, data: { archives: [] } });
+      query = query.in('project_id', scope);
+    }
 
     if (projectId && projectId !== 'all') {
       const parsedProjectId = parsePositiveIntParam(projectId);

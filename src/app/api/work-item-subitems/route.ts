@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { assertProjectAccess } from '@/lib/api-project-scope';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
@@ -41,6 +42,15 @@ export async function GET(request: NextRequest) {
     }
 
     // 查询列表（关联项目名称）
+    // 项目范围隔离
+    const scope = await getAccessibleProjectIds(client, auth.user);
+    if (projectId) {
+      const parsed = parseInt(projectId);
+      if (scope !== null && !scope.includes(parsed)) {
+        return NextResponse.json({ error: '无权查看该项目的清单项' }, { status: 403 });
+      }
+    }
+
     // 分项可能超过 1000 行（下拉/台账依赖全量），按 id 稳定分页
     const data = await fetchAllRows<any>((from, to) => {
       let query = client
@@ -53,6 +63,7 @@ export async function GET(request: NextRequest) {
         .range(from, to);
       if (workItemId) query = query.eq('work_item_id', parseInt(workItemId));
       if (projectId) query = query.eq('project_id', parseInt(projectId));
+      else if (scope !== null) query = query.in('project_id', scope.length > 0 ? scope : [-1]);
       return query;
     });
 

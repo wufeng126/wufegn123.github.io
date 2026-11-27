@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { requirePermission } from '@/lib/api-auth';
 import { apiBadRequest } from '@/lib/api-utils';
 import { isValidReportMonth, parsePositiveIntParam } from '@/lib/monthly-report-route-validation';
+import { getAccessibleProjectIds } from '@/lib/api-project-access';
 
 const supabase = getSupabaseClient();
 
@@ -15,15 +16,25 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');
 
+    // 项目范围隔离：非超管只能看自己有权限项目的归档
+    const scope = await getAccessibleProjectIds(supabase, auth.user);
+
     let query = supabase
       .from('monthly_report_archives')
       .select('id, month, project_id, project_name, report_mode, kpi_summary, risk_summary, snapshot_data, created_by_name, created_at')
       .order('month', { ascending: false })
       .order('created_at', { ascending: false });
+    if (scope !== null) {
+      if (scope.length === 0) return NextResponse.json({ success: true, data: { archives: [] } });
+      query = query.in('project_id', scope);
+    }
 
     if (projectId && projectId !== 'all') {
       const parsedProjectId = parsePositiveIntParam(projectId);
       if (!parsedProjectId) return apiBadRequest('项目参数格式不正确');
+      if (scope !== null && !scope.includes(parsedProjectId)) {
+        return NextResponse.json({ success: false, error: '无权查看该项目的归档月报' }, { status: 403 });
+      }
       query = query.eq('project_id', parsedProjectId);
     }
 
