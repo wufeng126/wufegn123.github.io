@@ -20,6 +20,7 @@ import {
   validateStatusTransition,
   REVIEW_STATUS,
   buildSupplierSettlementCumulativeMap,
+  applyFinalSettlementResidualPayable,
 } from '@/lib/business-logic';
 
 describe('parseNumeric', () => {
@@ -386,5 +387,32 @@ describe('buildSupplierSettlementCumulativeMap（结算累计已付）', () => {
       [payment({ status: 'voided' })] as never,
     );
     expect(map.get(1)?.paidAmount).toBe(0);
+  });
+});
+
+describe('applyFinalSettlementResidualPayable（决算尾款口径）', () => {
+  const rows = [
+    { id: 1, contract_id: 9, settlement_type: 'progress', settlement_amount: 100, payable_amount: 60, settlement_date: '2026-01-01' },
+    { id: 2, contract_id: 9, settlement_type: 'progress', settlement_amount: 100, payable_amount: 60, settlement_date: '2026-02-01' },
+    { id: 3, contract_id: 9, settlement_type: 'final', settlement_amount: 300, payable_amount: 300, settlement_date: '2026-03-01' },
+  ];
+
+  it('决算应付 = 合同累计结算 − 之前已计应付', () => {
+    const adjusted = applyFinalSettlementResidualPayable(rows);
+    const final = adjusted.find((row) => row.id === 3);
+    // 累计结算 500，之前应付 120 → 尾款 380
+    expect(final?.payable_amount).toBe(380);
+  });
+
+  it('进度结算应付保持不变', () => {
+    const adjusted = applyFinalSettlementResidualPayable(rows);
+    expect(adjusted.find((row) => row.id === 1)?.payable_amount).toBe(60);
+    expect(adjusted.find((row) => row.id === 2)?.payable_amount).toBe(60);
+  });
+
+  it('一个合同内应付合计等于最终结算总额', () => {
+    const adjusted = applyFinalSettlementResidualPayable(rows);
+    const total = adjusted.reduce((sum, row) => sum + Number(row.payable_amount || 0), 0);
+    expect(total).toBe(500);
   });
 });

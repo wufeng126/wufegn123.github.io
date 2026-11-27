@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyFinalSettlementResidualPayable } from '@/lib/business-logic';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { auditLog, insertWithSequenceFix } from '@/lib/audit-log';
@@ -284,8 +285,22 @@ export async function POST(request: NextRequest) {
         .in('id', settlementIds);
       if (settlementError) throw settlementError;
 
+      // 计算合同全量结算的决算尾款，保证与结算台账/前端展示一致
+      const { data: contractSettlements } = await supabase
+        .from('supplier_settlements')
+        .select('id, contract_id, settlement_no, settlement_type, settlement_amount, payable_amount, status, settlement_date, created_at')
+        .eq('contract_id', contractId);
+      const adjustedContractSettlements = applyFinalSettlementResidualPayable(
+        ((contractSettlements || []) as unknown as SupplierSettlementPaymentTarget[]),
+      );
+      const adjustedById = new Map<number, SupplierSettlementPaymentTarget>(
+        adjustedContractSettlements.map((settlement) => [Number(settlement.id), settlement]),
+      );
       const settlementMap = new Map<number, SupplierSettlementPaymentTarget>(
-        ((settlementRows || []) as SupplierSettlementPaymentTarget[]).map((settlement) => [Number(settlement.id), settlement])
+        ((settlementRows || []) as SupplierSettlementPaymentTarget[]).map((settlement) => [
+          Number(settlement.id),
+          adjustedById.get(Number(settlement.id)) || settlement,
+        ])
       );
       const missingSettlementIds = settlementIds.filter((id) => !settlementMap.has(id));
       if (missingSettlementIds.length > 0) {

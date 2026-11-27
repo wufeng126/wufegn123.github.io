@@ -1122,3 +1122,61 @@ export async function calculateProjectCost(projectId: number): Promise<ProjectCo
     workerPaidAmount,
   };
 }
+
+type ResidualSettlementRow = {
+  id: number;
+  contract_id?: number | string | null;
+  settlement_type?: string | null;
+  settlement_amount?: number | string | null;
+  payable_amount?: number | string | null;
+  settlement_date?: string | null;
+  created_at?: string | null;
+};
+
+/**
+ * 决算（最终结算）的「应付」应为尾款：合同累计结算金额 − 之前结算的应付累计，
+ * 而不是决算金额 × 100%（那会把按比例付过的进度款重复计入）。
+ * 返回新的数组（payable_amount 已调整），不修改入参。
+ */
+export function applyFinalSettlementResidualPayable<T extends ResidualSettlementRow>(rows: T[]): T[] {
+  const byContract = new Map<number, T[]>();
+  (rows || []).forEach((row) => {
+    const contractId = Number(row.contract_id) || 0;
+    if (!contractId) return;
+    const list = byContract.get(contractId) || [];
+    list.push(row);
+    byContract.set(contractId, list);
+  });
+
+  const payableById = new Map<number, number>();
+  byContract.forEach((list) => {
+    const sorted = [...list].sort((a, b) => {
+      const dateA = String(a.settlement_date || a.created_at || '');
+      const dateB = String(b.settlement_date || b.created_at || '');
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return Number(a.id) - Number(b.id);
+    });
+    let cumulativeAmount = 0;
+    let cumulativePayable = 0;
+    sorted.forEach((row) => {
+      const amount = parseNumeric(row.settlement_amount);
+      const storedPayable = isBlankAmount(row.payable_amount) ? amount : parseNumeric(row.payable_amount);
+      let payable = storedPayable;
+      if (isFinalSettlementType(row.settlement_type)) {
+        cumulativeAmount = roundMoney(cumulativeAmount + amount);
+        payable = Math.max(0, roundMoney(cumulativeAmount - cumulativePayable));
+      } else {
+        cumulativeAmount = roundMoney(cumulativeAmount + amount);
+      }
+      cumulativePayable = roundMoney(cumulativePayable + payable);
+      payableById.set(Number(row.id), payable);
+    });
+  });
+
+  return (rows || []).map((row) => {
+    const adjusted = payableById.get(Number(row.id));
+    return adjusted == null
+      ? row
+      : ({ ...row, payable_amount: adjusted } as T);
+  });
+}

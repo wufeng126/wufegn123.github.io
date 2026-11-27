@@ -5,6 +5,7 @@ import { pushBusinessNotification } from '@/lib/business-notification';
 import { requireApiWritePermission, requireAuth } from '@/lib/api-auth';
 import {
   buildSupplierSettlementCumulativeMap,
+  applyFinalSettlementResidualPayable,
   calculatePayableAmount,
   isReviewedStatus,
   isVoidedStatus,
@@ -183,6 +184,8 @@ export async function GET(request: NextRequest) {
       result = settlementsWithDetails.filter((s: any) => s.contract?.supplier_id === parseInt(supplierId));
     }
 
+    // 决算应付 = 合同累计结算 − 之前已计应付（尾款口径），避免把按比例付过的进度款重复计入
+    result = applyFinalSettlementResidualPayable(result as any[]);
     const reviewedSettlements = result.filter((s: any) => isReviewedStatus(s.status));
     const settlementContractIds = [...new Set(reviewedSettlements.map((s: any) => s.contract_id).filter(Boolean))];
     let paymentRows: any[] = [];
