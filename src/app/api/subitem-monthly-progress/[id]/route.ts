@@ -56,7 +56,8 @@ export async function GET(
           project_id
         )
       `)
-      .order('year_month', { ascending: false });
+      .order('year_month', { ascending: false })
+      .limit(5000);
 
     if (projectId) {
       query = query.eq('work_item_subitems.project_id', parseInt(projectId));

@@ -37,14 +37,15 @@ export async function GET(
     let query = supabase
       .from('subitem_monthly_reports')
       .select('*')
-      .order('year_month', { ascending: false });
+      .order('year_month', { ascending: false })
+      .limit(5000);
 
     if (projectId) {
       query = query.eq('project_id', parseInt(projectId));
     }
 
     if (yearMonth) {
-      query = query.eq('year_month', yearMonth);
+      query = query.ilike('year_month', `${yearMonth}%`);
     }
 
     const { data, error } = await query;

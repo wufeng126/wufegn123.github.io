@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
     let query = client
       .from('subitem_monthly_progress')
       .select(fullSelect)
-      .order('year_month', { ascending: false });
+      .order('year_month', { ascending: false })
+      .limit(5000);
 
     if (subitemId) {
       query = query.eq('subitem_id', parseInt(subitemId));
@@ -77,7 +78,8 @@ export async function GET(request: NextRequest) {
       let legacyQuery = client
         .from('subitem_monthly_progress')
         .select(legacySelect)
-        .order('year_month', { ascending: false });
+        .order('year_month', { ascending: false })
+      .limit(5000);
 
       if (subitemId) {
         legacyQuery = legacyQuery.eq('subitem_id', parseInt(subitemId));
@@ -212,7 +214,7 @@ export async function POST(request: NextRequest) {
         .from('subitem_monthly_progress')
         .select('id')
         .eq('subitem_id', parseInt(subitem_id))
-        .eq('year_month', year_month)
+        .ilike('year_month', `${year_month}%`)
         .single();
 
       const saveFields: Record<string, unknown> = {

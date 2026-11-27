@@ -25,14 +25,15 @@ export async function GET(request: NextRequest) {
         *,
         subitem:work_item_subitems(id, subitem_name, unit, budget_quantity, contract_price, project_id)
       `)
-      .order('year_month', { ascending: false });
+      .order('year_month', { ascending: false })
+      .limit(5000);
 
     if (subitemId) {
       query = query.eq('subitem_id', parseInt(subitemId));
     }
 
     if (yearMonth) {
-      query = query.eq('year_month', yearMonth);
+      query = query.ilike('year_month', `${yearMonth}%`);
     }
 
     const { data, error } = await query;
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
       .from('subitem_monthly_reports')
       .select('*')
       .eq('subitem_id', subitem_id)
-      .eq('year_month', year_month)
+      .ilike('year_month', `${year_month}%`)
       .single();
 
     let result;
@@ -186,7 +187,7 @@ export async function PUT(request: NextRequest) {
         .from('subitem_monthly_reports')
         .select('*')
         .eq('subitem_id', subitem_id)
-        .eq('year_month', year_month)
+        .ilike('year_month', `${year_month}%`)
         .single();
 
       if (existing) {
